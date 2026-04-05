@@ -56,6 +56,8 @@ def _run_script(cmd, log_queue):
         stdout=subprocess.PIPE,
         stderr=subprocess.STDOUT,
         text=True,
+        encoding='utf-8',
+        errors='replace',
         bufsize=1,
     )
     for line in process.stdout:
