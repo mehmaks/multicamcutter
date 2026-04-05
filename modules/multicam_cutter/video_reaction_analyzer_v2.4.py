@@ -415,11 +415,13 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                 eta_min = int(eta_seconds // 60)
                 eta_sec = int(eta_seconds % 60)
                 eta_str = f" | ETA: {eta_min}:{eta_sec:02d}"
+                eta_prog = f"{eta_min}:{eta_sec:02d}"
             else:
                 eta_str = " | ETA: --:--"
-            
+                eta_prog = "--:--"
+
             print(f'\r  Analysiere: [{bar}] {percent:.1f}% ({frame_number}/{total_frames}){eta_str}', end='', flush=True)
-            print(f'__PROGRESS__ {percent:.1f} {eta_min}:{eta_sec:02d}', flush=True)
+            print(f'__PROGRESS__ {percent:.1f} {eta_prog}', flush=True)
 
     print()  # Neue Zeile nach Progress Bar
     cap.release()
