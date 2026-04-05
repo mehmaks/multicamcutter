@@ -17,7 +17,9 @@ class TrackClip:
     file_path: str
     clip_name: str
     timeline_start: int       # frame where clip starts in the timeline
+    timeline_end: int         # frame where clip ends in the timeline
     source_start_frame: int   # frame where clip starts in the source file
+    source_end_frame: int     # frame where clip ends in the source file
     sync_offset_frames: int   # timeline_start - source_start_frame (relative to reference)
     start_tc: str             # embedded start timecode from source
 
@@ -61,16 +63,20 @@ def _read_clips(timeline, track_type: str, track_index: int) -> list[TrackClip]:
             file_path=file_path,
             clip_name=item.GetName(),
             timeline_start=tl_start,
+            timeline_end=item.GetEnd(),
             source_start_frame=src_start,
+            source_end_frame=item.GetSourceEndFrame(),
             sync_offset_frames=tl_start - src_start,  # adjusted per reference below
             start_tc=start_tc,
         ))
     return clips
 
 
-def read_timeline() -> TimelineData:
+def read_timeline(timeline_name: str = None) -> TimelineData:
     """
-    Reads the current Resolve timeline and returns a TimelineData object.
+    Reads a Resolve timeline and returns a TimelineData object.
+    If timeline_name is given, that timeline is used (and set as current).
+    Otherwise, the currently active timeline is used.
     Sync offsets are relative to the earliest clip across all tracks.
     """
     resolve = get_resolve()
@@ -79,7 +85,19 @@ def read_timeline() -> TimelineData:
     if project is None:
         raise RuntimeError("Kein Projekt in DaVinci Resolve geöffnet.")
 
-    timeline = project.GetCurrentTimeline()
+    if timeline_name:
+        timeline = None
+        for i in range(1, project.GetTimelineCount() + 1):
+            t = project.GetTimelineByIndex(i)
+            if t.GetName() == timeline_name:
+                timeline = t
+                project.SetCurrentTimeline(t)
+                break
+        if timeline is None:
+            raise RuntimeError(f"Timeline '{timeline_name}' nicht gefunden.")
+    else:
+        timeline = project.GetCurrentTimeline()
+
     if timeline is None:
         raise RuntimeError("Keine aktive Timeline in DaVinci Resolve.")
 
