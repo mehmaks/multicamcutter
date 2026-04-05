@@ -51,6 +51,7 @@ NODDING_RANGES = {
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 def _run_script(cmd, log_queue):
+    env = {**os.environ, 'PYTHONUNBUFFERED': '1'}
     process = subprocess.Popen(
         cmd,
         stdout=subprocess.PIPE,
@@ -59,6 +60,7 @@ def _run_script(cmd, log_queue):
         encoding='utf-8',
         errors='replace',
         bufsize=1,
+        env=env,
     )
     for line in process.stdout:
         log_queue.put(line.rstrip())
@@ -102,31 +104,29 @@ def _render_simple_log(session_key_running, session_key_lines, session_key_queue
         st.code("\n".join(st.session_state[session_key_lines]), language=None)
 
 
-def _parse_subprogress(line: str, current_progress: float) -> tuple:
+def _parse_subprogress(line: str, current_progress: float):
     """
     Parses a __PROGRESS__ line emitted by video_reaction_analyzer.
     Format: '__PROGRESS__ 75.3 1:42'
-    Returns (new_master_progress, new_label) or (None, None) if not applicable.
+    Returns (new_master_progress, step_label, eta_str) or (None, None, None).
     """
     if not line.startswith("__PROGRESS__"):
-        return None, None
+        return None, None, None
     parts = line.split()
     if len(parts) < 3:
-        return None, None
+        return None, None, None
     try:
         pct = float(parts[1])
         eta = parts[2]
     except ValueError:
-        return None, None
+        return None, None, None
 
-    # Determine which nodding step we're in based on current master progress
     for cam, (start, end) in NODDING_RANGES.items():
         if start <= current_progress < end:
             new_prog  = start + (pct / 100.0) * (end - start)
-            new_label = f"Nodding-Analyse {cam}: {pct:.0f}%  |  ETA {eta}"
-            return new_prog, new_label
+            return new_prog, f"Nodding-Analyse {cam}:  {pct:.0f}%", eta
 
-    return None, None
+    return None, None, None
 
 
 def _render_progress_log(session_key_running, session_key_lines, session_key_queue,
@@ -144,6 +144,8 @@ def _render_progress_log(session_key_running, session_key_lines, session_key_que
                     st.session_state[session_key_running] = False
                     if exit_code == 0:
                         st.session_state[session_key_progress] = 1.0
+                        st.session_state[session_key_label]    = "Fertig!"
+                        st.session_state['bin_eta'] = ""
                         st.success("Workflow erfolgreich abgeschlossen!")
                     else:
                         st.error(f"Workflow fehlgeschlagen (Exit {exit_code})")
@@ -151,18 +153,18 @@ def _render_progress_log(session_key_running, session_key_lines, session_key_que
 
                 cur = st.session_state[session_key_progress]
 
-                # Sub-progress from analyzer (not shown in log)
-                sub_prog, sub_label = _parse_subprogress(line, cur)
+                # Sub-progress from analyzer
+                sub_prog, sub_label, eta = _parse_subprogress(line, cur)
                 if sub_prog is not None:
                     st.session_state[session_key_progress] = sub_prog
                     st.session_state[session_key_label]    = sub_label
-                    # Don't add __PROGRESS__ lines to the visible log
+                    st.session_state['bin_eta']            = f"ETA {eta}"
                 else:
-                    # Step-level progress from keyword matching
                     new_prog, new_label = _advance_progress(line, cur, steps)
                     st.session_state[session_key_progress] = new_prog
                     if new_label:
                         st.session_state[session_key_label] = new_label
+                        st.session_state['bin_eta'] = ""
                     st.session_state[session_key_lines].append(line)
 
             except queue.Empty:
@@ -170,13 +172,17 @@ def _render_progress_log(session_key_running, session_key_lines, session_key_que
 
             prog  = st.session_state[session_key_progress]
             label = st.session_state.get(session_key_label, "")
+            eta   = st.session_state.get('bin_eta', "")
             with status_ph.container():
-                st.progress(prog)
+                pcol, ecol = st.columns([5, 1])
+                pcol.progress(prog)
+                if eta:
+                    ecol.markdown(f"**{eta}**")
                 st.caption(f"**{label}**" if label else "")
             log_ph.code("\n".join(st.session_state[session_key_lines][-60:]), language=None)
             time.sleep(0.05)
 
-    # After run: show final progress + full log
+    # After run: static display
     prog  = st.session_state.get(session_key_progress, 0.0)
     label = st.session_state.get(session_key_label, "")
     if prog > 0:
@@ -245,12 +251,25 @@ with tab_bin:
     with col_a:
         fps_bin         = st.number_input("FPS", value=25.0, step=1.0, format="%.1f")
         skip_analysis_b = st.checkbox("Nodding-Analyse überspringen (JSONs existieren)")
+        skip_base_edl_b = st.checkbox("Base-EDL überspringen (base.edl existiert)")
     with col_b:
-        sync_tl_name    = st.text_input(
+        sync_tl_name = st.text_input(
             "Sync-Timeline Name (optional)",
             placeholder="Standard: '<Cut-Name> Sync'",
         )
-        skip_base_edl_b = st.checkbox("Base-EDL überspringen (base.edl existiert)")
+        mic_names = ["MIC1 (Index 0)", "MIC2 (Index 1)"]
+        mic_cam1_idx = st.selectbox(
+            "MIC für CAM1",
+            options=[0, 1], format_func=lambda x: mic_names[x],
+            index=1,
+            help="Welches Mikrofon gehört zu Kamera 1?",
+        )
+        mic_cam2_idx = st.selectbox(
+            "MIC für CAM2",
+            options=[0, 1], format_func=lambda x: mic_names[x],
+            index=0,
+            help="Welches Mikrofon gehört zu Kamera 2?",
+        )
 
     st.divider()
     st.subheader("Workflow")
@@ -294,6 +313,7 @@ with tab_bin:
             cmd.append("--skip-base-edl")
         if sync_tl_name.strip():
             cmd += ["--sync-timeline", sync_tl_name.strip()]
+        cmd += ["--mic-cam1", str(mic_cam1_idx), "--mic-cam2", str(mic_cam2_idx)]
 
         q = queue.Queue()
         threading.Thread(target=_run_script, args=(cmd, q), daemon=True).start()

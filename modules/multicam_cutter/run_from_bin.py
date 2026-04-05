@@ -21,6 +21,8 @@ import subprocess
 import argparse
 from pathlib import Path
 
+os.environ.setdefault('PYTHONUNBUFFERED', '1')
+
 ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
@@ -91,10 +93,29 @@ def build_sync_timeline(mp, name: str, cams: list, mics: list,
         tl.AddTrack('audio', 'mono')  # A4 — MIC2
 
     def clip_frames(clip):
+        """Frame count via Resolve API, with ffprobe fallback for audio-only files."""
         try:
-            return int(clip.GetClipProperty('Frames'))
+            n = int(clip.GetClipProperty('Frames'))
+            if n > 0:
+                return n
         except (TypeError, ValueError):
-            return 0
+            pass
+        path = clip.GetClipProperty('File Path') or ''
+        if path:
+            try:
+                probe = subprocess.run(
+                    ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                     '-of', 'default=noprint_wrappers=1:nokey=1', path],
+                    capture_output=True, text=True,
+                )
+                return round(float(probe.stdout.strip()) * fps)
+            except Exception:
+                pass
+        return 0
+
+    # ── Shift all record frames so nothing lands below 0 ─────────────────────
+    all_offsets = [0, offsets.get('CAM2', 0)] + [offsets.get(f'MIC{i+1}', offsets.get('MIC1', 0)) for i in range(len(mics))]
+    shift = max(0, -min(all_offsets))  # >= 0; pushes everything right if any offset is negative
 
     append_list = []
 
@@ -103,7 +124,7 @@ def build_sync_timeline(mp, name: str, cams: list, mics: list,
     append_list.append({
         'mediaPoolItem': cams[0],
         'startFrame': 0, 'endFrame': cam1_frames,
-        'mediaType': 1, 'trackIndex': 1, 'recordFrame': 0,
+        'mediaType': 1, 'trackIndex': 1, 'recordFrame': shift,
     })
     # V2: CAM2
     cam2_offset = offsets.get('CAM2', 0)
@@ -111,28 +132,29 @@ def build_sync_timeline(mp, name: str, cams: list, mics: list,
     append_list.append({
         'mediaPoolItem': cams[1],
         'startFrame': 0, 'endFrame': cam2_frames,
-        'mediaType': 1, 'trackIndex': 2, 'recordFrame': cam2_offset,
+        'mediaType': 1, 'trackIndex': 2, 'recordFrame': cam2_offset + shift,
     })
-    # A1: CAM1 embedded audio (mediaType=2 = audio from video clip)
+    # A1: CAM1 embedded audio
     append_list.append({
         'mediaPoolItem': cams[0],
         'startFrame': 0, 'endFrame': cam1_frames,
-        'mediaType': 2, 'trackIndex': 1, 'recordFrame': 0,
+        'mediaType': 2, 'trackIndex': 1, 'recordFrame': shift,
     })
     # A2: CAM2 embedded audio
     append_list.append({
         'mediaPoolItem': cams[1],
         'startFrame': 0, 'endFrame': cam2_frames,
-        'mediaType': 2, 'trackIndex': 2, 'recordFrame': cam2_offset,
+        'mediaType': 2, 'trackIndex': 2, 'recordFrame': cam2_offset + shift,
     })
     # A3+: MIC files
-    mic_offset = offsets.get('MIC1', 0)
     for i, mic in enumerate(mics):
+        mic_label  = f'MIC{i+1}'
+        mic_offset = offsets.get(mic_label, offsets.get('MIC1', 0))
         mic_frames = clip_frames(mic)
         append_list.append({
             'mediaPoolItem': mic,
             'startFrame': 0, 'endFrame': mic_frames,
-            'mediaType': 2, 'trackIndex': 3 + i, 'recordFrame': mic_offset,
+            'mediaType': 2, 'trackIndex': 3 + i, 'recordFrame': mic_offset + shift,
         })
 
     mp.AppendToTimeline(append_list)
@@ -194,7 +216,18 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
         mic_source_start = 0
 
     for i, mic in enumerate(mics):
-        mic_frames = int(mic.GetClipProperty('Frames') or 0)
+        try:
+            mic_frames = int(mic.GetClipProperty('Frames') or 0)
+            if mic_frames == 0:
+                raise ValueError
+        except (TypeError, ValueError):
+            path = mic.GetClipProperty('File Path') or ''
+            probe = subprocess.run(
+                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                 '-of', 'default=noprint_wrappers=1:nokey=1', path],
+                capture_output=True, text=True,
+            )
+            mic_frames = round(float(probe.stdout.strip()) * fps)
         mic_source_end = min(mic_frames, mic_source_start + record_cursor)
         append_list.append({
             'mediaPoolItem': mic,
@@ -325,13 +358,19 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
 
 def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                  fps: float, work_dir: Path, config: Path,
-                 skip_analysis: bool = False, skip_base_edl: bool = False):
-    """Runs nodding + RMS analysis, returns path to final base EDL."""
+                 skip_analysis: bool = False, skip_base_edl: bool = False,
+                 mic_index_cam1: int = 1, mic_index_cam2: int = 0):
+    """
+    Runs nodding + RMS analysis, returns path to final EDL.
+
+    mic_index_cam1 / mic_index_cam2: 0-based index into mic_paths for each camera.
+    Default: MIC2 (index 1) → CAM1, MIC1 (index 0) → CAM2.
+    """
 
     cam1_path = cam_paths[0]
     cam2_path = cam_paths[1]
-    mic_cam1  = mic_paths[1]   # MIC2 → CAM1 (inverted mapping)
-    mic_cam2  = mic_paths[0]   # MIC1 → CAM2
+    mic_cam1  = mic_paths[mic_index_cam1]
+    mic_cam2  = mic_paths[mic_index_cam2]
 
     cam1_json = work_dir / (Path(cam1_path).stem + '_reactions.json')
     cam2_json = work_dir / (Path(cam2_path).stem + '_reactions.json')
@@ -399,6 +438,10 @@ def main():
     parser.add_argument('--skip-base-edl', action='store_true')
     parser.add_argument('--sync-timeline', default=None,
                         help='Name der Sync-Timeline (default: <output> Sync)')
+    parser.add_argument('--mic-cam1', type=int, default=1,
+                        help='0-basierter MIC-Index für CAM1 (default: 1 = MIC2)')
+    parser.add_argument('--mic-cam2', type=int, default=0,
+                        help='0-basierter MIC-Index für CAM2 (default: 0 = MIC1)')
     args = parser.parse_args()
 
     resolve = get_resolve()
@@ -454,6 +497,8 @@ def main():
             [cam1_path, cam2_path], mic_paths, offsets,
             args.fps, work_dir, Path(args.config),
             args.skip_analysis, args.skip_base_edl,
+            mic_index_cam1=args.mic_cam1,
+            mic_index_cam2=args.mic_cam2,
         )
     except RuntimeError as e:
         print(f"\nFEHLER in Analyse: {e}")
