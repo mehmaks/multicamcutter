@@ -27,10 +27,19 @@ See [requirements.txt](requirements.txt) for dependencies.
 ## Setup
 
 ```bash
-python -m venv venv
-source venv/bin/activate
-pip install -r requirements.txt
+pip3 install -r requirements.txt
 ```
+
+> **Hinweis:** Kein venv verwenden — die DaVinci Resolve Bridge benötigt das System-Python (3.9), da `fusionscript.so` dagegen kompiliert ist.
+
+## UI starten
+
+```bash
+cd ~/Developer/resolve-toolkit
+python3 -m streamlit run ui/app.py
+```
+
+Dann http://localhost:8501 im Browser öffnen. DaVinci Resolve muss laufen.
 
 ## Production Setup
 
