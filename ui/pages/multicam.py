@@ -12,6 +12,7 @@ import threading
 import queue
 import time
 from pathlib import Path
+from typing import Optional
 
 st.title("✂️ Multicam Cutter")
 
@@ -63,7 +64,7 @@ def _run_script(cmd, log_queue):
     log_queue.put(f"__EXIT__{process.returncode}")
 
 
-def _advance_progress(line: str, current: float, steps: list) -> tuple[float, str | None]:
+def _advance_progress(line: str, current: float, steps: list) -> tuple:
     """
     Returns (new_progress, new_label) if line matches a step trigger,
     only advancing forward (never backwards).
@@ -99,7 +100,7 @@ def _render_simple_log(session_key_running, session_key_lines, session_key_queue
         st.code("\n".join(st.session_state[session_key_lines]), language=None)
 
 
-def _parse_subprogress(line: str, current_progress: float) -> tuple[float | None, str | None]:
+def _parse_subprogress(line: str, current_progress: float) -> tuple:
     """
     Parses a __PROGRESS__ line emitted by video_reaction_analyzer.
     Format: '__PROGRESS__ 75.3 1:42'
