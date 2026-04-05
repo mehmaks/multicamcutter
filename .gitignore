@@ -1,0 +1,36 @@
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.Python
+venv/
+.venv/
+*.egg-info/
+
+# Media files (too large for git)
+*.mp4
+*.mov
+*.mxf
+*.avi
+*.mkv
+*.wav
+*.mp3
+*.aac
+
+# Output files (generated, not source)
+*.edl
+*.json
+*.html
+*.csv
+
+# macOS
+.DS_Store
+.AppleDouble
+
+# IDE
+.vscode/
+.idea/
+*.swp
+
+# Logs
+*.log
