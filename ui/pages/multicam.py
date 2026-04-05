@@ -29,15 +29,22 @@ BIN_STEPS = [
     ("CAM1 ↔ MIC",              0.22, "Audio-Sync: CAM1 ↔ MIC"),
     ("Sync abgeschlossen",       0.30, "Sync abgeschlossen"),
     ("Erstelle Sync-Timeline",   0.33, "Sync-Timeline aufbauen..."),
-    ("Nodding-Analyse CAM1",     0.40, "Nodding-Analyse CAM1  (kann 1–3 min dauern)"),
-    ("ANALYSE ABGESCHLOSSEN",    0.57, "Nodding-Analyse CAM1 fertig"),
-    ("Nodding-Analyse CAM2",     0.58, "Nodding-Analyse CAM2  (kann 1–3 min dauern)"),
+    ("Nodding-Analyse CAM1",     0.40, "Nodding-Analyse CAM1..."),
+    ("ANALYSE ABGESCHLOSSEN",    0.57, "Nodding-Analyse fertig"),
+    ("Nodding-Analyse CAM2",     0.58, "Nodding-Analyse CAM2..."),
     ("Base-EDL aus Audio",       0.76, "RMS-Diarisierung..."),
     ("Nodding-Cutaways",         0.88, "Cutaways einfügen..."),
     ("Parse finale EDL",         0.95, "Cut-Timeline aufbauen..."),
     ("Erstelle Cut-Timeline",    0.97, "Cut-Timeline aufbauen..."),
     ("Workflow abgeschlossen",   1.00, "Fertig!"),
 ]
+
+# Sub-progress ranges for the two nodding analysis steps
+# (step_start, step_end) in the master 0–1 space
+NODDING_RANGES = {
+    "CAM1": (0.40, 0.57),
+    "CAM2": (0.58, 0.76),
+}
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────
@@ -92,12 +99,39 @@ def _render_simple_log(session_key_running, session_key_lines, session_key_queue
         st.code("\n".join(st.session_state[session_key_lines]), language=None)
 
 
+def _parse_subprogress(line: str, current_progress: float) -> tuple[float | None, str | None]:
+    """
+    Parses a __PROGRESS__ line emitted by video_reaction_analyzer.
+    Format: '__PROGRESS__ 75.3 1:42'
+    Returns (new_master_progress, new_label) or (None, None) if not applicable.
+    """
+    if not line.startswith("__PROGRESS__"):
+        return None, None
+    parts = line.split()
+    if len(parts) < 3:
+        return None, None
+    try:
+        pct = float(parts[1])
+        eta = parts[2]
+    except ValueError:
+        return None, None
+
+    # Determine which nodding step we're in based on current master progress
+    for cam, (start, end) in NODDING_RANGES.items():
+        if start <= current_progress < end:
+            new_prog  = start + (pct / 100.0) * (end - start)
+            new_label = f"Nodding-Analyse {cam}: {pct:.0f}%  |  ETA {eta}"
+            return new_prog, new_label
+
+    return None, None
+
+
 def _render_progress_log(session_key_running, session_key_lines, session_key_queue,
                          session_key_progress, session_key_label, steps):
     """Progress bar + log renderer for the bin workflow."""
     if st.session_state.get(session_key_running) and session_key_queue in st.session_state:
-        status_ph  = st.empty()
-        log_ph     = st.empty()
+        status_ph = st.empty()
+        log_ph    = st.empty()
 
         while st.session_state[session_key_running]:
             try:
@@ -105,24 +139,28 @@ def _render_progress_log(session_key_running, session_key_lines, session_key_que
                 if line.startswith("__EXIT__"):
                     exit_code = int(line.replace("__EXIT__", ""))
                     st.session_state[session_key_running] = False
-                    st.session_state[session_key_progress] = 1.0 if exit_code == 0 else st.session_state[session_key_progress]
                     if exit_code == 0:
+                        st.session_state[session_key_progress] = 1.0
                         st.success("Workflow erfolgreich abgeschlossen!")
                     else:
                         st.error(f"Workflow fehlgeschlagen (Exit {exit_code})")
                     break
 
-                # Progress detection
-                new_prog, new_label = _advance_progress(
-                    line,
-                    st.session_state[session_key_progress],
-                    steps,
-                )
-                st.session_state[session_key_progress] = new_prog
-                if new_label:
-                    st.session_state[session_key_label] = new_label
+                cur = st.session_state[session_key_progress]
 
-                st.session_state[session_key_lines].append(line)
+                # Sub-progress from analyzer (not shown in log)
+                sub_prog, sub_label = _parse_subprogress(line, cur)
+                if sub_prog is not None:
+                    st.session_state[session_key_progress] = sub_prog
+                    st.session_state[session_key_label]    = sub_label
+                    # Don't add __PROGRESS__ lines to the visible log
+                else:
+                    # Step-level progress from keyword matching
+                    new_prog, new_label = _advance_progress(line, cur, steps)
+                    st.session_state[session_key_progress] = new_prog
+                    if new_label:
+                        st.session_state[session_key_label] = new_label
+                    st.session_state[session_key_lines].append(line)
 
             except queue.Empty:
                 pass
@@ -131,7 +169,7 @@ def _render_progress_log(session_key_running, session_key_lines, session_key_que
             label = st.session_state.get(session_key_label, "")
             with status_ph.container():
                 st.progress(prog)
-                st.caption(f"Schritt: **{label}**" if label else "")
+                st.caption(f"**{label}**" if label else "")
             log_ph.code("\n".join(st.session_state[session_key_lines][-60:]), language=None)
             time.sleep(0.05)
 
@@ -141,7 +179,7 @@ def _render_progress_log(session_key_running, session_key_lines, session_key_que
     if prog > 0:
         st.progress(prog)
         if label:
-            st.caption(f"Schritt: **{label}**")
+            st.caption(f"**{label}**")
     if st.session_state.get(session_key_lines):
         st.code("\n".join(st.session_state[session_key_lines]), language=None)
 
