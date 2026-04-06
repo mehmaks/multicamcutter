@@ -179,7 +179,8 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
     print(f"\nErstelle Cut-Timeline: '{name}'")
 
     tl = mp.CreateEmptyTimeline(name)
-    for _ in range(len(mics) - 1):
+    tl.DeleteTrack('audio', 1)  # Remove default stereo A1
+    for _ in range(len(mics)):
         tl.AddTrack('audio', 'mono')
 
     append_list = []
