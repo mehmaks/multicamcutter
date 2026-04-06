@@ -265,11 +265,13 @@ def calculate_reference_frames(events: List[EDLEvent], cam1_clip: str, cam2_clip
     reference_frames = {}
     timeline_zero_video_frames = {}
     
-    # Finde ersten Event für jeden Clip  
+    # Finde ersten Event mit tatsächlicher Dauer für jeden Clip
+    # (Zero-duration events haben falsche record TCs → tzvf-Berechnung überspringen)
     first_events = {}
     for event in events:
         if event.clip_name not in first_events:
-            first_events[event.clip_name] = event
+            if event.record_in_frame < event.record_out_frame:
+                first_events[event.clip_name] = event
     
     # Berechne Reference Frames
     for clip_name, event in first_events.items():

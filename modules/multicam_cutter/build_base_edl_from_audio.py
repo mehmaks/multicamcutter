@@ -289,6 +289,14 @@ def main():
                 edl_start = args.cam1_edl_frame
                 speaker = 'CAM1'
 
+        # Skip segments entirely before the record timeline start
+        if edl_end <= 0:
+            skipped += 1
+            continue
+        # Trim segments that overlap the record timeline start
+        if edl_start < 0:
+            edl_start = 0
+
         # Berechne Source TCs für das (ggf. angepasste) Segment
         if speaker == 'CAM1':
             ref  = cam1_ref
