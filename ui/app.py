@@ -51,6 +51,7 @@ with st.sidebar:
 page = st.navigation([
     st.Page("pages/multicam.py",  title="Multicam Cutter", icon="✂️"),
     st.Page("pages/resolve.py",   title="Resolve Bridge",  icon="🔗"),
+    st.Page("pages/config.py",    title="Config",          icon="⚙️"),
 ])
 
 page.run()
