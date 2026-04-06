@@ -401,20 +401,28 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             f"Nodding-Analyse CAM2")
 
     if not skip_base_edl:
+        import configparser
+        cfg = configparser.ConfigParser()
+        cfg.read(str(config), encoding='utf-8')
+        rms = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
+
         builder = str(SCRIPT_DIR / 'build_base_edl_from_audio.py')
         run([
             builder,
-            '--mic-cam1',      mic_cam1,
-            '--mic-cam2',      mic_cam2,
-            '--cam1-video',    cam1_path,
-            '--cam2-video',    cam2_path,
-            '--cam1-clip',     Path(cam1_path).name,
-            '--cam2-clip',     Path(cam2_path).name,
-            '--wav-edl-frame', str(offsets['MIC1']),
-            '--cam1-edl-frame', str(offsets['CAM1']),
-            '--cam2-edl-frame', str(offsets['CAM2']),
-            '--fps',           str(fps),
-            '--output',        str(base_edl),
+            '--mic-cam1',          mic_cam1,
+            '--mic-cam2',          mic_cam2,
+            '--cam1-video',        cam1_path,
+            '--cam2-video',        cam2_path,
+            '--cam1-clip',         Path(cam1_path).name,
+            '--cam2-clip',         Path(cam2_path).name,
+            '--wav-edl-frame',     str(offsets['MIC1']),
+            '--cam1-edl-frame',    str(offsets['CAM1']),
+            '--cam2-edl-frame',    str(offsets['CAM2']),
+            '--fps',               str(fps),
+            '--output',            str(base_edl),
+            '--min-edit-duration', rms.get('min_edit_duration', '1.0'),
+            '--change-delay',      rms.get('change_delay', '0.3'),
+            '--threshold-db',      rms.get('threshold_db', '6.0'),
         ], "Base-EDL aus Audio")
 
     adder = str(SCRIPT_DIR / 'add_reactions_to_edl.py')
