@@ -639,14 +639,15 @@ def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float
             # Event zu kurz! Entferne ihn und verlängere vorherigen
             prev_event = cleaned[-1]
             
-            # Verlängere vorherigen bis zum Ende dieses Events
+            # Verlängere vorherigen bis zum Ende dieses Events.
+            # Source-Out via konstantem Offset berechnen (source = record + offset,
+            # gilt unabhängig davon ob Clips gleich sind oder verschieden).
+            source_offset = prev_event.source_in_frame - prev_event.record_in_frame
+            new_record_out_frame = event.record_out_frame
             prev_event.record_out = event.record_out
-            prev_event.record_out_frame = event.record_out_frame
-            
-            # Source-Out anpassen (nur wenn gleicher Clip!)
-            if prev_event.clip_name == event.clip_name:
-                prev_event.source_out = event.source_out
-                prev_event.source_out_frame = event.source_out_frame
+            prev_event.record_out_frame = new_record_out_frame
+            prev_event.source_out_frame = source_offset + new_record_out_frame
+            prev_event.source_out = frames_to_timecode(prev_event.source_out_frame, fps)
             
             removed_count += 1
             print(f"  ✗ Entfernt: Event @ {event.record_in} ({duration} Frames = {duration/fps:.2f}s)")

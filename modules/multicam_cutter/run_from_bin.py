@@ -202,6 +202,7 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
     # Convert first cut event's source position to absolute time (CAM1-relative),
     # then subtract MIC1 offset to get the MIC source frame.
     first_event = cut_events[0] if cut_events else None
+    mic1_offset = offsets.get('MIC1', 0)
     if first_event:
         # Determine which camera the first event belongs to
         cam1_item = cam_items['CAM1'][0]
@@ -211,9 +212,17 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
             cam_offset = offsets.get('CAM2', 0)
         # Absolute frame (CAM1-relative) of first cut event
         abs_start = first_event['source_in'] + cam_offset
-        mic_source_start = max(0, abs_start - offsets.get('MIC1', 0))
+        if abs_start >= mic1_offset:
+            # MIC started before or at the first cut — trim source start
+            mic_source_start = abs_start - mic1_offset
+            mic_record_start = 0
+        else:
+            # MIC starts after the first cut — delay MIC in the cut timeline
+            mic_source_start = 0
+            mic_record_start = mic1_offset - abs_start
     else:
         mic_source_start = 0
+        mic_record_start = 0
 
     for i, mic in enumerate(mics):
         try:
@@ -228,14 +237,15 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
                 capture_output=True, text=True,
             )
             mic_frames = round(float(probe.stdout.strip()) * fps)
-        mic_source_end = min(mic_frames, mic_source_start + record_cursor)
+        mic_available = record_cursor - mic_record_start
+        mic_source_end = min(mic_frames, mic_source_start + mic_available)
         append_list.append({
             'mediaPoolItem': mic,
             'startFrame': mic_source_start,
             'endFrame':   mic_source_end,
             'mediaType':  2,
             'trackIndex': 1 + i,
-            'recordFrame': 0,
+            'recordFrame': mic_record_start,
         })
 
     mp.AppendToTimeline(append_list)
