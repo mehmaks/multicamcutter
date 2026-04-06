@@ -20,7 +20,7 @@ if not CONFIG_PATH.exists():
 # ── Load ──────────────────────────────────────────────────────────────────────
 
 if "config_text" not in st.session_state:
-    st.session_state.config_text = CONFIG_PATH.read_text()
+    st.session_state.config_text = CONFIG_PATH.read_text(encoding='utf-8')
 
 col_save, col_reload = st.columns([1, 5])
 
