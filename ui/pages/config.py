@@ -28,7 +28,7 @@ with col_save:
     save = st.button("💾 Speichern", type="primary", use_container_width=True)
 with col_reload:
     if st.button("↺ Neu laden", use_container_width=True):
-        st.session_state.config_text = CONFIG_PATH.read_text()
+        st.session_state.config_text = CONFIG_PATH.read_text(encoding='utf-8')
         st.rerun()
 
 edited = st.text_area(
@@ -39,6 +39,6 @@ edited = st.text_area(
 )
 
 if save:
-    CONFIG_PATH.write_text(edited)
+    CONFIG_PATH.write_text(edited, encoding='utf-8')
     st.session_state.config_text = edited
     st.success("Gespeichert.")
