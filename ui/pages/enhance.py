@@ -289,7 +289,7 @@ def _process_files(files: list, use_dn: bool, dn_params: dict,
 
             if is_path:
                 src = Path(source)
-                out = src.parent / (src.stem + "_enhanced" + src.suffix)
+                out = src.parent / (src.stem + "_enhanced.wav")
                 _run_pipeline(str(src), str(out), use_dn, dn_params, use_dr, dr_params, q)
                 q.put(f"  ✓ gespeichert: {out.name}\n")
             else:
