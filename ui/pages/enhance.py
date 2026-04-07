@@ -249,17 +249,18 @@ def _run_pipeline(in_path: str, out_path: str,
     if use_dr:
         q.put("  De-Reverb …")
         device = "mps" if torch.backends.mps.is_available() else "cpu"
-        import torchaudio
-        wav, sr = torchaudio.load(current)
-        wav = wav.mean(0)  # mono
+        import numpy as np
+        _data, _sr = sf.read(current, dtype="float32", always_2d=True)  # (T, C)
+        wav = torch.from_numpy(_data.mean(axis=1))  # mix to mono -> (T,)
         enhanced_wav, new_sr = re_enhance(
-            wav, sr, device,
+            wav, _sr, device,
             nfe=dr_params["nfe"],
             solver="midpoint",
             lambd=dr_params["lambd"],
             tau=0.5,
         )
-        torchaudio.save(out_path, enhanced_wav.unsqueeze(0).cpu(), new_sr)
+        _out_np = enhanced_wav.unsqueeze(0).cpu().numpy().T  # (1, T) -> (T, 1)
+        sf.write(out_path, _out_np, new_sr, subtype="PCM_24")
     else:
         import shutil
         shutil.copy2(current, out_path)
