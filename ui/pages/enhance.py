@@ -244,8 +244,14 @@ def _run_pipeline(in_path: str, out_path: str,
         audio, _ = load_audio(current, sr=df_state.sr())
         enhanced = df_enhance(model, df_state, audio,
                               atten_lim_db=dn_params["atten_lim"])
+        # Save as float32 WAV — bypasses df_save's int16 conversion
+        # which can corrupt audio when DeepFilterNet outputs values outside [-1, 1]
+        import numpy as np
+        _enh_np = enhanced.cpu().numpy()          # (C, T)
+        if _enh_np.ndim == 2:
+            _enh_np = _enh_np.T                   # (T, C) for soundfile
         tmp = tempfile.mktemp(suffix=".wav")
-        df_save(tmp, enhanced, df_state.sr())
+        sf.write(tmp, _enh_np, df_state.sr(), subtype="FLOAT")
         current = tmp
 
     if use_dr:
