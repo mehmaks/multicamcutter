@@ -315,20 +315,12 @@ has_uploads    = len(uploaded_files) > 0
 pipeline_ok    = use_denoise or use_dereverb
 can_start      = (has_path_files or has_uploads) and pipeline_ok and not st.session_state.enhance_running
 
-col_run, col_clear = st.columns([3, 1])
-with col_run:
-    start = st.button(
-        "▶ Enhance starten",
-        type="primary",
-        disabled=not can_start,
-        use_container_width=True,
-    )
-with col_clear:
-    if st.button("Log leeren", use_container_width=True, key="enhance_clear"):
-        st.session_state.enhance_log = []
-        st.session_state.enhance_download_results = {}
-        st.session_state.enhance_scanned_files = []
-        st.rerun()
+start = st.button(
+    "▶ Enhance starten",
+    type="primary",
+    disabled=not can_start,
+    use_container_width=True,
+)
 
 if start:
     dn_params = {"atten_lim": atten_lim if use_denoise else 0,

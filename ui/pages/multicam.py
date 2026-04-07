@@ -151,20 +151,12 @@ with tab_bin:
     st.divider()
     st.subheader("Workflow")
 
-    col_start, col_clear = st.columns([3, 1])
-    with col_start:
-        start_bin = st.button(
-            "▶ Bin-Workflow starten",
-            type="primary",
-            disabled=st.session_state.bin_running or not bin_name,
-            use_container_width=True,
-        )
-    with col_clear:
-        if st.button("Log leeren", key="clear_bin", use_container_width=True):
-            st.session_state.bin_log      = []
-            st.session_state.bin_progress = 0.0
-            st.session_state.bin_label    = ""
-            st.rerun()
+    start_bin = st.button(
+        "▶ Bin-Workflow starten",
+        type="primary",
+        disabled=st.session_state.bin_running or not bin_name,
+        use_container_width=True,
+    )
 
     if start_bin:
         st.session_state.bin_running  = True
@@ -248,19 +240,13 @@ with tab_timeline:
     st.divider()
     st.subheader("Workflow")
 
-    col_start2, col_clear2 = st.columns([3, 1])
-    with col_start2:
-        start_tl = st.button(
-            "▶ Workflow starten",
-            type="primary",
-            disabled=st.session_state.tl_running,
-            use_container_width=True,
-            key="start_tl",
-        )
-    with col_clear2:
-        if st.button("Log leeren", key="clear_tl", use_container_width=True):
-            st.session_state.tl_log = []
-            st.rerun()
+    start_tl = st.button(
+        "▶ Workflow starten",
+        type="primary",
+        disabled=st.session_state.tl_running,
+        use_container_width=True,
+        key="start_tl",
+    )
 
     if start_tl:
         st.session_state.tl_running = True
