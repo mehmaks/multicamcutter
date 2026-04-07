@@ -276,7 +276,7 @@ def _run_pipeline(in_path: str, out_path: str,
         _out_np = enhanced_wav.unsqueeze(0).cpu().numpy().T  # (1, T) -> (T, 1)
         _final_sr = new_sr
     else:
-        _out_np, _final_sr = sf.read(current, dtype="float32", always_2d=True), sf.info(current).samplerate
+        _out_np, _final_sr = sf.read(current, dtype="float32", always_2d=True)
 
     # Resample back to original sample rate if needed
     if _final_sr != orig_sr:
