@@ -48,11 +48,11 @@ with col_p1:
     )
 with col_p2:
     use_dereverb = st.checkbox(
-        "De-Reverb (Resemble Enhance)",
+        "De-Reverb (Resemble Enhance) ⚠️ experimentell",
         value=False,
         disabled=not RE_AVAILABLE,
         help="Nicht installiert — pip install git+https://github.com/resemble-ai/resemble-enhance.git" if not RE_AVAILABLE else
-             "Modell wird beim ersten Start heruntergeladen (~1 GB)",
+             "⚠️ Experimentell: Resemble Enhance produziert auf macOS/CPU/MPS mit PyTorch 2.11 keine zuverlässigen Ergebnisse. Modell benötigt CUDA für korrekte Ausgabe.",
     )
 
 if not use_denoise and not use_dereverb:
@@ -275,13 +275,6 @@ def _run_pipeline(in_path: str, out_path: str,
         )
         _out_np = enhanced_wav.unsqueeze(0).cpu().numpy().T  # (1, T) -> (T, 1)
         _final_sr = new_sr
-
-        # re_enhance can output very low amplitude — match input peak level
-        _in_peak  = np.abs(_data).max()
-        _out_peak = np.abs(_out_np).max()
-        if _out_peak > 0 and _in_peak > 0:
-            _out_np = _out_np * (_in_peak / _out_peak)
-            q.put(f"  Pegel angepasst ({_out_peak:.5f} → {_in_peak:.3f})")
     else:
         _out_np, _final_sr = sf.read(current, dtype="float32", always_2d=True)
 
