@@ -27,6 +27,7 @@ _DEFAULTS = {
     "bin_label": "", "bin_eta": "",
     "tl_running":   False, "tl_log":  [],
     "enhance_running": False, "enhance_log": [], "enhance_download_results": {},
+    "silence_running": False, "silence_log": [], "silence_results": [],
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
@@ -141,12 +142,14 @@ with st.sidebar:
         _active = "tl"
     elif st.session_state.enhance_running:
         _active = "enhance"
+    elif st.session_state.silence_running:
+        _active = "silence"
     else:
         _active = None
 
     # Find last non-empty log for display after completion
     _last_log = next(
-        (st.session_state[k] for k in ("bin_log", "tl_log", "enhance_log")
+        (st.session_state[k] for k in ("bin_log", "tl_log", "enhance_log", "silence_log")
          if st.session_state.get(k)),
         []
     )
@@ -204,6 +207,23 @@ with st.sidebar:
             _log_ph.code("\n".join(st.session_state.tl_log[-50:]), language=None)
             time.sleep(0.05)
 
+    elif _active == "silence" and "silence_queue" in st.session_state:
+        _log_ph = st.empty()
+        while st.session_state.silence_running:
+            try:
+                _line = st.session_state.silence_queue.get(timeout=0.1)
+                if isinstance(_line, tuple) and _line[0] == "__RESULT__":
+                    st.session_state.silence_results = _line[1]
+                elif _line.startswith("__DONE__"):
+                    st.session_state.silence_running = False
+                    break
+                else:
+                    st.session_state.silence_log.append(_line)
+            except _queue.Empty:
+                pass
+            _log_ph.code("\n".join(st.session_state.silence_log[-50:]), language=None)
+            time.sleep(0.05)
+
     elif _active == "enhance" and "enhance_queue" in st.session_state:
         _log_ph = st.empty()
         while st.session_state.enhance_running:
@@ -236,6 +256,7 @@ with st.sidebar:
 page = st.navigation([
     st.Page("pages/multicam.py",  title="Multicam Cutter", icon="✂️"),
     st.Page("pages/enhance.py",   title="Audio Enhance",   icon="🎙️"),
+    st.Page("pages/silence.py",   title="Silence Cutter",  icon="🔇"),
     st.Page("pages/resolve.py",   title="Resolve Bridge",  icon="🔗"),
     st.Page("pages/config.py",    title="Config",          icon="⚙️"),
 ])
