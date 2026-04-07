@@ -9,7 +9,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 import streamlit as st
 import threading
 import queue
-import time
 import tempfile
 from pathlib import Path
 
@@ -311,11 +310,6 @@ def _process_files(files: list, use_dn: bool, dn_params: dict,
 
 st.divider()
 
-for k, v in [("enhance_running", False), ("enhance_log", []),
-             ("enhance_download_results", {})]:
-    if k not in st.session_state:
-        st.session_state[k] = v
-
 has_path_files = len(selected_path_files) > 0
 has_uploads    = len(uploaded_files) > 0
 pipeline_ok    = use_denoise or use_dereverb
@@ -359,30 +353,6 @@ if start:
               q, st.session_state.enhance_download_results),
         daemon=True,
     ).start()
-
-# ── Log ───────────────────────────────────────────────────────────────────────
-
-if st.session_state.enhance_running and "enhance_queue" in st.session_state:
-    log_ph = st.empty()
-    while st.session_state.enhance_running:
-        try:
-            line = st.session_state.enhance_queue.get(timeout=0.1)
-            if line.startswith("__DONE__"):
-                exit_code = int(line.replace("__DONE__", ""))
-                st.session_state.enhance_running = False
-                if exit_code == 0:
-                    st.success("Fertig!")
-                else:
-                    st.error("Verarbeitung fehlgeschlagen — siehe Log.")
-                break
-            st.session_state.enhance_log.append(line)
-        except queue.Empty:
-            pass
-        log_ph.code("\n".join(st.session_state.enhance_log[-40:]), language=None)
-        time.sleep(0.05)
-
-if st.session_state.enhance_log:
-    st.code("\n".join(st.session_state.enhance_log), language=None)
 
 # ── Download (upload-Modus) ───────────────────────────────────────────────────
 

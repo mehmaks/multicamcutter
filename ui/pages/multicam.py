@@ -68,129 +68,6 @@ def _run_script(cmd, log_queue):
     log_queue.put(f"__EXIT__{process.returncode}")
 
 
-def _advance_progress(line: str, current: float, steps: list) -> tuple:
-    """
-    Returns (new_progress, new_label) if line matches a step trigger,
-    only advancing forward (never backwards).
-    """
-    for keyword, pval, plabel in steps:
-        if keyword in line and pval > current:
-            return pval, plabel
-    return current, None
-
-
-def _render_simple_log(session_key_running, session_key_lines, session_key_queue):
-    """Plain log renderer for the timeline workflow (no progress bar)."""
-    if st.session_state.get(session_key_running) and session_key_queue in st.session_state:
-        log_box = st.empty()
-        while st.session_state[session_key_running]:
-            try:
-                line = st.session_state[session_key_queue].get(timeout=0.1)
-                if line.startswith("__EXIT__"):
-                    exit_code = int(line.replace("__EXIT__", ""))
-                    st.session_state[session_key_running] = False
-                    if exit_code == 0:
-                        st.success("Workflow erfolgreich abgeschlossen!")
-                    else:
-                        st.error(f"Workflow fehlgeschlagen (Exit {exit_code})")
-                    break
-                st.session_state[session_key_lines].append(line)
-            except queue.Empty:
-                pass
-            log_box.code("\n".join(st.session_state[session_key_lines][-50:]), language=None)
-            time.sleep(0.05)
-
-    if st.session_state.get(session_key_lines):
-        st.code("\n".join(st.session_state[session_key_lines]), language=None)
-
-
-def _parse_subprogress(line: str, current_progress: float):
-    """
-    Parses a __PROGRESS__ line emitted by video_reaction_analyzer.
-    Format: '__PROGRESS__ 75.3 1:42'
-    Returns (new_master_progress, step_label, eta_str) or (None, None, None).
-    """
-    if not line.startswith("__PROGRESS__"):
-        return None, None, None
-    parts = line.split()
-    if len(parts) < 3:
-        return None, None, None
-    try:
-        pct = float(parts[1])
-        eta = parts[2]
-    except ValueError:
-        return None, None, None
-
-    for cam, (start, end) in NODDING_RANGES.items():
-        if start <= current_progress < end:
-            new_prog  = start + (pct / 100.0) * (end - start)
-            return new_prog, f"Nodding-Analyse {cam}:  {pct:.0f}%", eta
-
-    return None, None, None
-
-
-def _render_progress_log(session_key_running, session_key_lines, session_key_queue,
-                         session_key_progress, session_key_label, steps):
-    """Progress bar + log renderer for the bin workflow."""
-    if st.session_state.get(session_key_running) and session_key_queue in st.session_state:
-        status_ph = st.empty()
-        log_ph    = st.empty()
-
-        while st.session_state[session_key_running]:
-            try:
-                line = st.session_state[session_key_queue].get(timeout=0.1)
-                if line.startswith("__EXIT__"):
-                    exit_code = int(line.replace("__EXIT__", ""))
-                    st.session_state[session_key_running] = False
-                    if exit_code == 0:
-                        st.session_state[session_key_progress] = 1.0
-                        st.session_state[session_key_label]    = "Fertig!"
-                        st.session_state['bin_eta'] = ""
-                        st.success("Workflow erfolgreich abgeschlossen!")
-                    else:
-                        st.error(f"Workflow fehlgeschlagen (Exit {exit_code})")
-                    break
-
-                cur = st.session_state[session_key_progress]
-
-                # Sub-progress from analyzer
-                sub_prog, sub_label, eta = _parse_subprogress(line, cur)
-                if sub_prog is not None:
-                    st.session_state[session_key_progress] = sub_prog
-                    st.session_state[session_key_label]    = sub_label
-                    st.session_state['bin_eta']            = f"ETA {eta}"
-                else:
-                    new_prog, new_label = _advance_progress(line, cur, steps)
-                    st.session_state[session_key_progress] = new_prog
-                    if new_label:
-                        st.session_state[session_key_label] = new_label
-                        st.session_state['bin_eta'] = ""
-                    st.session_state[session_key_lines].append(line)
-
-            except queue.Empty:
-                pass
-
-            prog  = st.session_state[session_key_progress]
-            label = st.session_state.get(session_key_label, "")
-            eta   = st.session_state.get('bin_eta', "")
-            with status_ph.container():
-                pcol, ecol = st.columns([5, 1])
-                pcol.progress(prog)
-                if eta:
-                    ecol.markdown(f"**{eta}**")
-                st.caption(f"**{label}**" if label else "")
-            log_ph.code("\n".join(st.session_state[session_key_lines][-60:]), language=None)
-            time.sleep(0.05)
-
-    # After run: static display
-    prog  = st.session_state.get(session_key_progress, 0.0)
-    label = st.session_state.get(session_key_label, "")
-    if prog > 0:
-        st.progress(prog)
-        if label:
-            st.caption(f"**{label}**")
-    if st.session_state.get(session_key_lines):
-        st.code("\n".join(st.session_state[session_key_lines]), language=None)
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -274,11 +151,6 @@ with tab_bin:
     st.divider()
     st.subheader("Workflow")
 
-    for k, v in [("bin_running", False), ("bin_log", []),
-                 ("bin_progress", 0.0), ("bin_label", "")]:
-        if k not in st.session_state:
-            st.session_state[k] = v
-
     col_start, col_clear = st.columns([3, 1])
     with col_start:
         start_bin = st.button(
@@ -318,12 +190,6 @@ with tab_bin:
         q = queue.Queue()
         threading.Thread(target=_run_script, args=(cmd, q), daemon=True).start()
         st.session_state.bin_queue = q
-
-    _render_progress_log(
-        "bin_running", "bin_log", "bin_queue",
-        "bin_progress", "bin_label",
-        BIN_STEPS,
-    )
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -382,10 +248,6 @@ with tab_timeline:
     st.divider()
     st.subheader("Workflow")
 
-    for k, v in [("tl_running", False), ("tl_log", [])]:
-        if k not in st.session_state:
-            st.session_state[k] = v
-
     col_start2, col_clear2 = st.columns([3, 1])
     with col_start2:
         start_tl = st.button(
@@ -415,5 +277,3 @@ with tab_timeline:
         q = queue.Queue()
         threading.Thread(target=_run_script, args=(cmd, q), daemon=True).start()
         st.session_state.tl_queue = q
-
-    _render_simple_log("tl_running", "tl_log", "tl_queue")
