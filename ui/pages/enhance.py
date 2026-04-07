@@ -221,7 +221,20 @@ def _run_pipeline(in_path: str, out_path: str,
                   q: queue.Queue):
     """Run De-Noise and/or De-Reverb on a single file. Writes result to out_path."""
     import torch
+    import soundfile as sf
+
+    # soundfile (used by DeepFilterNet) doesn't support MP3 — convert to WAV first
     current = in_path
+    _converted_tmp = None
+    if Path(in_path).suffix.lower() in {".mp3", ".aif", ".aiff", ".flac", ".m4a"}:
+        import librosa
+        import numpy as np
+        _audio_data, _sr = librosa.load(in_path, sr=None, mono=False)
+        if _audio_data.ndim == 1:
+            _audio_data = _audio_data[np.newaxis, :]
+        _converted_tmp = tempfile.mktemp(suffix=".wav")
+        sf.write(_converted_tmp, _audio_data.T, _sr)
+        current = _converted_tmp
 
     if use_dn:
         q.put("  De-Noise …")
@@ -251,6 +264,9 @@ def _run_pipeline(in_path: str, out_path: str,
         import shutil
         shutil.copy2(current, out_path)
 
+    # Cleanup temp files
+    if _converted_tmp and Path(_converted_tmp).exists():
+        Path(_converted_tmp).unlink()
     # Cleanup temp file from De-Noise stage
     if use_dn and current != in_path and Path(current).exists():
         Path(current).unlink()
