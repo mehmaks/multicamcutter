@@ -275,6 +275,13 @@ def _run_pipeline(in_path: str, out_path: str,
         )
         _out_np = enhanced_wav.unsqueeze(0).cpu().numpy().T  # (1, T) -> (T, 1)
         _final_sr = new_sr
+
+        # re_enhance can output very low amplitude — match input peak level
+        _in_peak  = np.abs(_data).max()
+        _out_peak = np.abs(_out_np).max()
+        if _out_peak > 0 and _in_peak > 0:
+            _out_np = _out_np * (_in_peak / _out_peak)
+            q.put(f"  Pegel angepasst ({_out_peak:.5f} → {_in_peak:.3f})")
     else:
         _out_np, _final_sr = sf.read(current, dtype="float32", always_2d=True)
 
