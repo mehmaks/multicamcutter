@@ -203,6 +203,7 @@ if analyse_btn:
         }, q),
         daemon=True,
     ).start()
+    st.rerun()
 
 # ── Cut section ────────────────────────────────────────────────────────────────
 
@@ -277,3 +278,4 @@ if results:
             }, q),
             daemon=True,
         ).start()
+        st.rerun()

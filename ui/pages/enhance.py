@@ -352,6 +352,7 @@ if start:
               q, st.session_state.enhance_download_results),
         daemon=True,
     ).start()
+    st.rerun()
 
 # ── Download (upload-Modus) ───────────────────────────────────────────────────
 

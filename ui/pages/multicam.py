@@ -182,6 +182,7 @@ with tab_bin:
         q = queue.Queue()
         threading.Thread(target=_run_script, args=(cmd, q), daemon=True).start()
         st.session_state.bin_queue = q
+        st.rerun()
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -263,3 +264,4 @@ with tab_timeline:
         q = queue.Queue()
         threading.Thread(target=_run_script, args=(cmd, q), daemon=True).start()
         st.session_state.tl_queue = q
+        st.rerun()
