@@ -62,19 +62,11 @@ if not use_denoise and not use_dereverb:
 
 if use_denoise and DF_AVAILABLE:
     with st.expander("De-Noise Einstellungen", expanded=True):
-        col_s1, col_s2 = st.columns(2)
-        with col_s1:
-            atten_lim = st.slider(
-                "Dämpfungs-Limit (dB)",
-                min_value=0, max_value=40, value=0,
-                help="0 = maximale Rauschreduktion · höhere Werte = sanfterer Eingriff",
-            )
-        with col_s2:
-            pf = st.checkbox(
-                "Post-Filter",
-                value=False,
-                help="Reduziert 'musical noise' Artefakte nach der Verarbeitung.",
-            )
+        atten_lim = st.slider(
+            "Dämpfungs-Limit (dB)",
+            min_value=0, max_value=40, value=0,
+            help="0 = maximale Rauschreduktion · höhere Werte = sanfterer Eingriff",
+        )
 
 if use_dereverb and RE_AVAILABLE:
     with st.expander("De-Reverb Einstellungen", expanded=True):
@@ -236,8 +228,7 @@ def _run_pipeline(in_path: str, out_path: str,
         model, df_state, _ = init_df()
         audio, _ = load_audio(current, sr=df_state.sr())
         enhanced = df_enhance(model, df_state, audio,
-                              atten_lim_db=dn_params["atten_lim"],
-                              enable_pf=dn_params["pf"])
+                              atten_lim_db=dn_params["atten_lim"])
         tmp = tempfile.mktemp(suffix=".wav")
         df_save(tmp, enhanced, df_state.sr())
         current = tmp
@@ -323,8 +314,7 @@ start = st.button(
 )
 
 if start:
-    dn_params = {"atten_lim": atten_lim if use_denoise else 0,
-                 "pf": pf if use_denoise else False}
+    dn_params = {"atten_lim": atten_lim if use_denoise else 0}
     dr_params = {"nfe": nfe if use_dereverb else 32,
                  "lambd": lambd if use_dereverb else 0.5}
 
