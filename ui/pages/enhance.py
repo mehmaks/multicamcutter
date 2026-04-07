@@ -233,7 +233,7 @@ def _run_pipeline(in_path: str, out_path: str,
         if _audio_data.ndim == 1:
             _audio_data = _audio_data[np.newaxis, :]
         _converted_tmp = tempfile.mktemp(suffix=".wav")
-        sf.write(_converted_tmp, _audio_data.T, _sr)
+        sf.write(_converted_tmp, _audio_data.T, _sr, subtype="PCM_24")
         current = _converted_tmp
 
     if use_dn:
