@@ -224,13 +224,20 @@ def _run_pipeline(in_path: str, out_path: str,
     """Run De-Noise and/or De-Reverb on a single file. Writes result to out_path."""
     import torch
     import soundfile as sf
+    import numpy as np
+
+    # Record original sample rate so we can resample back at the end
+    orig_sr = sf.info(in_path).samplerate if Path(in_path).suffix.lower() in {".wav", ".aif", ".aiff", ".flac"} else None
+    if orig_sr is None:
+        import librosa
+        _probe = librosa.get_samplerate(in_path)
+        orig_sr = _probe
 
     # soundfile (used by DeepFilterNet) doesn't support MP3 — convert to WAV first
     current = in_path
     _converted_tmp = None
     if Path(in_path).suffix.lower() in {".mp3", ".aif", ".aiff", ".flac", ".m4a"}:
         import librosa
-        import numpy as np
         _audio_data, _sr = librosa.load(in_path, sr=None, mono=False)
         if _audio_data.ndim == 1:
             _audio_data = _audio_data[np.newaxis, :]
@@ -257,21 +264,32 @@ def _run_pipeline(in_path: str, out_path: str,
     if use_dr:
         q.put("  De-Reverb …")
         device = "mps" if torch.backends.mps.is_available() else "cpu"
-        import numpy as np
-        _data, _sr = sf.read(current, dtype="float32", always_2d=True)  # (T, C)
+        _data, _dr_sr = sf.read(current, dtype="float32", always_2d=True)  # (T, C)
         wav = torch.from_numpy(_data.mean(axis=1))  # mix to mono -> (T,)
         enhanced_wav, new_sr = re_enhance(
-            wav, _sr, device,
+            wav, _dr_sr, device,
             nfe=dr_params["nfe"],
             solver="midpoint",
             lambd=dr_params["lambd"],
             tau=0.5,
         )
         _out_np = enhanced_wav.unsqueeze(0).cpu().numpy().T  # (1, T) -> (T, 1)
-        sf.write(out_path, _out_np, new_sr, subtype="PCM_24")
+        _final_sr = new_sr
     else:
-        import shutil
-        shutil.copy2(current, out_path)
+        _out_np, _final_sr = sf.read(current, dtype="float32", always_2d=True), sf.info(current).samplerate
+
+    # Resample back to original sample rate if needed
+    if _final_sr != orig_sr:
+        import librosa
+        _resampled = np.stack([
+            librosa.resample(ch, orig_sr=_final_sr, target_sr=orig_sr)
+            for ch in _out_np.T
+        ], axis=1)  # (T, C)
+        q.put(f"  Resample {_final_sr} Hz → {orig_sr} Hz …")
+    else:
+        _resampled = _out_np
+
+    sf.write(out_path, _resampled, orig_sr, subtype="PCM_24")
 
     # Cleanup temp files
     if _converted_tmp and Path(_converted_tmp).exists():
