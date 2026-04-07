@@ -285,6 +285,15 @@ def _process_files(files: list, use_dn: bool, dn_params: dict,
     If is_path=False: stores result bytes in result_store[name].
     resolve_import: optional (mp, folder) to auto-import into Resolve Media Pool.
     """
+    # Build parameter suffix for output filename
+    _parts = []
+    if use_dn:
+        _parts.append(f"denoise-{dn_params['atten_lim']}db")
+    if use_dr:
+        _lam = f"{dr_params['lambd']:.2f}".rstrip("0").rstrip(".")
+        _parts.append(f"dereverb-q{dr_params['nfe']}-lambda{_lam}")
+    _param_suffix = "_" + "_".join(_parts) if _parts else "_enhanced"
+
     try:
         q.put("Starte Verarbeitung …\n")
         for name, source, is_path in files:
@@ -293,7 +302,7 @@ def _process_files(files: list, use_dn: bool, dn_params: dict,
 
             if is_path:
                 src = Path(source)
-                out = src.parent / (src.stem + "_enhanced.wav")
+                out = src.parent / (src.stem + _param_suffix + ".wav")
                 _run_pipeline(str(src), str(out), use_dn, dn_params, use_dr, dr_params, q)
                 q.put(f"  ✓ gespeichert: {out.name}")
                 if resolve_import:
@@ -315,7 +324,7 @@ def _process_files(files: list, use_dn: bool, dn_params: dict,
                     _run_pipeline(tmp_in_path, tmp_out_path,
                                   use_dn, dn_params, use_dr, dr_params, q)
                     with open(tmp_out_path, "rb") as f:
-                        result_store[Path(name).stem + "_enhanced.wav"] = f.read()
+                        result_store[Path(name).stem + _param_suffix + ".wav"] = f.read()
                     q.put(f"  ✓ bereit zum Download\n")
                 finally:
                     for p in [tmp_in_path, tmp_out_path]:
