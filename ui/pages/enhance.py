@@ -97,6 +97,7 @@ source_mode = st.radio("Quelle", ["Resolve Media Pool", "Ordner / Dateien"], hor
 
 selected_path_files: list = []   # list of (display_name, absolute_path)
 uploaded_files = []
+resolve_import_target = None    # (mp, folder) when in Resolve mode
 
 # ── Mode A: Resolve Media Pool ─────────────────────────────────────────────────
 
@@ -153,6 +154,7 @@ if source_mode == "Resolve Media Pool":
                             default=[n for n, _ in audio_clips],
                         )
                         selected_path_files = [(n, p) for n, p in audio_clips if n in chosen]
+                        resolve_import_target = (mp, folder)
                     else:
                         st.info("Keine Audio-Dateien (WAV / MP3 / AIF) in diesem Bin gefunden.")
                 else:
@@ -275,11 +277,13 @@ def _run_pipeline(in_path: str, out_path: str,
 
 def _process_files(files: list, use_dn: bool, dn_params: dict,
                    use_dr: bool, dr_params: dict,
-                   q: queue.Queue, result_store: dict = None):
+                   q: queue.Queue, result_store: dict = None,
+                   resolve_import: tuple = None):
     """
     Process a list of (name, path_or_bytes, is_path) entries.
     If is_path=True: saves *_enhanced.wav alongside original.
     If is_path=False: stores result bytes in result_store[name].
+    resolve_import: optional (mp, folder) to auto-import into Resolve Media Pool.
     """
     try:
         q.put("Starte Verarbeitung …\n")
@@ -291,7 +295,17 @@ def _process_files(files: list, use_dn: bool, dn_params: dict,
                 src = Path(source)
                 out = src.parent / (src.stem + "_enhanced.wav")
                 _run_pipeline(str(src), str(out), use_dn, dn_params, use_dr, dr_params, q)
-                q.put(f"  ✓ gespeichert: {out.name}\n")
+                q.put(f"  ✓ gespeichert: {out.name}")
+                if resolve_import:
+                    try:
+                        _mp, _folder = resolve_import
+                        _mp.SetCurrentFolder(_folder)
+                        _mp.ImportMedia([str(out)])
+                        q.put(f"  ✓ in Resolve importiert\n")
+                    except Exception as _e:
+                        q.put(f"  ⚠ Resolve-Import fehlgeschlagen: {_e}\n")
+                else:
+                    q.put("")
             else:
                 with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp_in:
                     tmp_in.write(source)
@@ -349,7 +363,8 @@ if start:
     threading.Thread(
         target=_process_files,
         args=(file_list, use_denoise, dn_params, use_dereverb, dr_params,
-              q, st.session_state.enhance_download_results),
+              q, st.session_state.enhance_download_results,
+              resolve_import_target if has_path_files and source_mode == "Resolve Media Pool" else None),
         daemon=True,
     ).start()
     st.rerun()
