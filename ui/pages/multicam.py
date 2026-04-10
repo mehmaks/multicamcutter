@@ -12,40 +12,11 @@ import threading
 import queue
 import time
 from pathlib import Path
-from typing import Optional
-
 st.title("✂️ Multicam Cutter")
 
 SCRIPT_DIR = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter"
 
 tab_bin, tab_timeline = st.tabs(["Bin-Workflow", "Timeline-Workflow"])
-
-
-# ── Progress step definitions ─────────────────────────────────────────────────
-# (log_keyword, progress_0_to_1, display_label)
-BIN_STEPS = [
-    ("Scanne Bin",               0.04, "Bin scannen..."),
-    ("Waveform-Sync gestartet",  0.10, "Waveform-Sync..."),
-    ("CAM1 ↔ CAM2",             0.14, "Audio-Sync: CAM1 ↔ CAM2"),
-    ("CAM1 ↔ MIC",              0.22, "Audio-Sync: CAM1 ↔ MIC"),
-    ("Sync abgeschlossen",       0.30, "Sync abgeschlossen"),
-    ("Erstelle Sync-Timeline",   0.33, "Sync-Timeline aufbauen..."),
-    ("Nodding-Analyse CAM1",     0.40, "Nodding-Analyse CAM1..."),
-    ("ANALYSE ABGESCHLOSSEN",    0.57, "Nodding-Analyse fertig"),
-    ("Nodding-Analyse CAM2",     0.58, "Nodding-Analyse CAM2..."),
-    ("Base-EDL aus Audio",       0.76, "RMS-Diarisierung..."),
-    ("Nodding-Cutaways",         0.88, "Cutaways einfügen..."),
-    ("Parse finale EDL",         0.95, "Cut-Timeline aufbauen..."),
-    ("Erstelle Cut-Timeline",    0.97, "Cut-Timeline aufbauen..."),
-    ("Workflow abgeschlossen",   1.00, "Fertig!"),
-]
-
-# Sub-progress ranges for the two nodding analysis steps
-# (step_start, step_end) in the master 0–1 space
-NODDING_RANGES = {
-    "CAM1": (0.40, 0.57),
-    "CAM2": (0.58, 0.76),
-}
 
 
 # ── Shared helpers ────────────────────────────────────────────────────────────

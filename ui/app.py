@@ -28,6 +28,8 @@ _DEFAULTS = {
     "tl_running":   False, "tl_log":  [],
     "enhance_running": False, "enhance_log": [], "enhance_download_results": {},
     "silence_running": False, "silence_log": [], "silence_results": [],
+    "auphonic_running": False, "auphonic_log": [],
+    "mv_running": False, "mv_log": [],
 }
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
@@ -144,12 +146,16 @@ with st.sidebar:
         _active = "enhance"
     elif st.session_state.silence_running:
         _active = "silence"
+    elif st.session_state.auphonic_running:
+        _active = "auphonic"
+    elif st.session_state.mv_running:
+        _active = "mv"
     else:
         _active = None
 
     # Find last non-empty log for display after completion
     _last_log = next(
-        (st.session_state[k] for k in ("bin_log", "tl_log", "enhance_log", "silence_log")
+        (st.session_state[k] for k in ("bin_log", "tl_log", "enhance_log", "silence_log", "auphonic_log", "mv_log")
          if st.session_state.get(k)),
         []
     )
@@ -238,11 +244,39 @@ with st.sidebar:
             _log_ph.code("\n".join(st.session_state.enhance_log[-50:]), language=None)
             time.sleep(0.05)
 
+    elif _active == "mv" and "mv_queue" in st.session_state:
+        _log_ph = st.empty()
+        while st.session_state.mv_running:
+            try:
+                _line = st.session_state.mv_queue.get(timeout=0.1)
+                if _line.startswith("__DONE__"):
+                    st.session_state.mv_running = False
+                    break
+                st.session_state.mv_log.append(_line)
+            except _queue.Empty:
+                pass
+            _log_ph.code("\n".join(st.session_state.mv_log[-50:]), language=None)
+            time.sleep(0.05)
+
+    elif _active == "auphonic" and "auphonic_queue" in st.session_state:
+        _log_ph = st.empty()
+        while st.session_state.auphonic_running:
+            try:
+                _line = st.session_state.auphonic_queue.get(timeout=0.1)
+                if _line.startswith("__DONE__"):
+                    st.session_state.auphonic_running = False
+                    break
+                st.session_state.auphonic_log.append(_line)
+            except _queue.Empty:
+                pass
+            _log_ph.code("\n".join(st.session_state.auphonic_log[-50:]), language=None)
+            time.sleep(0.05)
+
     if _last_log and not _active:
         st.subheader("Letzter Log")
         st.code("\n".join(_last_log[-30:]), language=None)
         if st.button("Log leeren", use_container_width=True, key="sidebar_clear_log"):
-            for _k in ("bin_log", "tl_log", "enhance_log"):
+            for _k in ("bin_log", "tl_log", "enhance_log", "silence_log", "auphonic_log", "mv_log"):
                 st.session_state[_k] = []
             st.session_state.bin_progress = 0.0
             st.session_state.bin_label = ""
@@ -253,12 +287,31 @@ with st.sidebar:
 
 # ── Navigation ────────────────────────────────────────────────────────────────
 
-page = st.navigation([
-    st.Page("pages/multicam.py",  title="Multicam Cutter", icon="✂️"),
-    st.Page("pages/enhance.py",   title="Audio Enhance",   icon="🎙️"),
-    st.Page("pages/silence.py",   title="Silence Cutter",  icon="🔇"),
-    st.Page("pages/resolve.py",   title="Resolve Bridge",  icon="🔗"),
-    st.Page("pages/config.py",    title="Config",          icon="⚙️"),
-])
+import configparser as _cp
 
+_ui_cfg = _cp.ConfigParser()
+_ui_cfg.read(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+             "modules", "multicam_cutter", "config.ini"), encoding="utf-8")
+
+def _tab_visible(key: str) -> bool:
+    return _ui_cfg.getboolean("UI", key, fallback=True)
+
+_pages = []
+if _tab_visible("show_multicam"):
+    _pages.append(st.Page("pages/multicam.py",  title="Multicam Cutter", icon="✂️"))
+if _tab_visible("show_enhance"):
+    _pages.append(st.Page("pages/enhance.py",   title="Audio Enhance",   icon="🎙️"))
+if _tab_visible("show_auphonic"):
+    _pages.append(st.Page("pages/auphonic.py",   title="Auphonic",        icon="☁️"))
+if _tab_visible("show_maxxvolume"):
+    _pages.append(st.Page("pages/maxxvolume.py", title="MaxxVolume",      icon="📢"))
+if _tab_visible("show_silence"):
+    _pages.append(st.Page("pages/silence.py",   title="Silence Cutter",  icon="🔇"))
+if _tab_visible("show_resolve"):
+    _pages.append(st.Page("pages/resolve.py",   title="Resolve Bridge",  icon="🔗"))
+if _tab_visible("show_takes"):
+    _pages.append(st.Page("pages/takes.py",     title="Take Selector",   icon="🎬"))
+_pages.append(st.Page("pages/config.py",        title="Config",          icon="⚙️"))
+
+page = st.navigation(_pages)
 page.run()
