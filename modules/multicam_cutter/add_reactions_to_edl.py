@@ -462,6 +462,7 @@ def build_events_with_cutaways(section_start: int,
     last_cut_frame = section_start
     
     for i, reaction in enumerate(valid_reactions):
+        reaction_type = reaction['type']
         # Finde Cluster-Start: geh rückwärts solange Abstand ≤ cluster_max_gap
         # → schneidet beim ersten Event des Clusters, nicht beim auslösenden
         cluster_start = reaction['timeline_frame']
