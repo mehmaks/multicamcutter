@@ -12,6 +12,7 @@ from mediapipe.tasks.python import vision as mp_vision
 import numpy as np
 from pathlib import Path
 import json
+import subprocess
 from collections import deque
 import argparse
 import configparser
@@ -143,10 +144,10 @@ class AdvancedReactionDetector:
         if config and config.has_section('Nodding'):
             self.nod_cooldown_frames = config.getint('Nodding', 'cooldown_frames', fallback=35)
 
-        # Analyse-Auflösung (0 = kein Resize, sonst Zielbreite in Pixel)
-        self.analysis_width = 0
+        # Kalibrierungs-Auflösung: Thresholds wurden für diese Höhe eingestellt
+        self.calibration_height = 2160
         if config and config.has_section('Detection'):
-            self.analysis_width = config.getint('Detection', 'analysis_width', fallback=0)
+            self.calibration_height = config.getint('Detection', 'calibration_height', fallback=2160)
 
         # Reaktions-Cooldown (verhindert Doppel-Detektionen)
         self.last_nod_frame = -100
@@ -180,8 +181,12 @@ class AdvancedReactionDetector:
         y_range = max(y_positions) - min(y_positions)
         x_range = max(x_positions) - min(x_positions)
 
+        # Skaliere Pixel-Thresholds auf tatsächliche Auflösung
+        res_scale = height / self.calibration_height
+        effective_nod_threshold = self.settings['nod_threshold'] * res_scale
+
         # Mindest-Y-Bewegung
-        if y_range < self.settings['nod_threshold']:
+        if y_range < effective_nod_threshold:
             return False, 0.0
 
         # X-Achsen-Check: wenn horizontale Bewegung ≥ 70% der vertikalen,
@@ -195,7 +200,7 @@ class AdvancedReactionDetector:
         seg2_avg = np.mean(y_positions[third:2*third])
         seg3_avg = np.mean(y_positions[2*third:])
 
-        seg_threshold = max(8, y_range * 0.2)
+        seg_threshold = max(8 * res_scale, y_range * 0.2)
 
         # Mittleres Segment muss sich von beiden Rändern abheben
         if not (abs(seg2_avg - seg1_avg) > seg_threshold and
@@ -207,7 +212,7 @@ class AdvancedReactionDetector:
         if abs(seg3_avg - seg1_avg) > y_range * 0.45:
             return False, 0.0
 
-        confidence = min(y_range / 50.0, 1.0)
+        confidence = min(y_range / (50.0 * res_scale), 1.0)
         self.last_nod_frame = frame_number
         return True, confidence
     
@@ -222,9 +227,11 @@ class AdvancedReactionDetector:
         positions = list(self.head_x_history)
         movement_range = max(positions) - min(positions)
         
-        # Kopfschütteln = horizontale Bewegung
-        if movement_range > 25:
-            confidence = min(movement_range / 40.0, 1.0)
+        # Kopfschütteln = horizontale Bewegung (Thresholds skaliert auf tatsächliche Auflösung)
+        calibration_width = self.calibration_height * 16 / 9
+        res_scale_x = width / calibration_width
+        if movement_range > 25 * res_scale_x:
+            confidence = min(movement_range / (40.0 * res_scale_x), 1.0)
             return True, confidence
         
         return False, 0.0
@@ -303,16 +310,7 @@ class AdvancedReactionDetector:
         """Analysiert Frame auf alle Reaktionstypen"""
         height, width = frame.shape[:2]
 
-        # Verkleinerter Frame für MediaPipe-Inferenz (optional)
-        # Landmarks bleiben normiert (0–1), Schwellwerte rechnen weiter mit originalen Pixelwerten.
-        if self.analysis_width and self.analysis_width < width:
-            scale = self.analysis_width / width
-            small = cv2.resize(frame, (self.analysis_width, int(height * scale)),
-                               interpolation=cv2.INTER_AREA)
-            rgb_frame = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
-        else:
-            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         timestamp_ms = int(frame_number * 1000 / self.fps)
         result = self.face_landmarker.detect_for_video(mp_image, timestamp_ms)
@@ -366,51 +364,83 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     print(f"Analysiere Video: {video_path}")
     print(f"Sensitivität: {sensitivity}")
     print(f"{'='*60}\n")
-    
-    # Öffne Video
-    cap = cv2.VideoCapture(str(video_path))
-    if not cap.isOpened():
-        print(f"✗ Fehler: Konnte Video nicht öffnen")
+
+    # Video-Metadaten via ffprobe
+    probe = subprocess.run([
+        'ffprobe', '-v', 'error', '-select_streams', 'v:0',
+        '-show_entries', 'stream=width,height,avg_frame_rate,nb_frames,duration',
+        '-of', 'json', str(video_path),
+    ], capture_output=True, text=True)
+    if probe.returncode != 0:
+        print(f"✗ Fehler: ffprobe konnte Video nicht lesen")
         return None
-    
-    # Video-Infos
-    fps = cap.get(cv2.CAP_PROP_FPS)
-    total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
+
+    stream = json.loads(probe.stdout)['streams'][0]
+    orig_width  = int(stream['width'])
+    orig_height = int(stream['height'])
+    fps_num, fps_den = stream.get('avg_frame_rate', '25/1').split('/')
+    fps = float(fps_num) / float(fps_den)
+    total_frames = int(stream['nb_frames']) if stream.get('nb_frames') else \
+                   int(float(stream.get('duration', 0)) * fps)
     duration_sec = total_frames / fps
-    
+
+    # Decode-Auflösung bestimmen (ffmpeg skaliert direkt beim Dekodieren)
+    analysis_width = 0
+    if config and config.has_section('Detection'):
+        analysis_width = config.getint('Detection', 'analysis_width', fallback=0)
+
+    if analysis_width and analysis_width < orig_width:
+        scale_h = int(orig_height * analysis_width / orig_width)
+        scale_h += scale_h % 2  # muss gerade sein
+        frame_w, frame_h = analysis_width, scale_h
+        vf_arg = ['-vf', f'scale={frame_w}:{frame_h}']
+        print(f"Video: {orig_width}×{orig_height} → Analyse-Auflösung: {frame_w}×{frame_h}")
+    else:
+        frame_w, frame_h = orig_width, orig_height
+        vf_arg = []
+        print(f"Video: {orig_width}×{orig_height} (kein Resize)")
+
     print(f"FPS: {fps}")
     print(f"Frames: {total_frames}")
     print(f"Dauer: {duration_sec:.1f} Sekunden\n")
-    
+
+    # ffmpeg-Pipe: dekodiert (und skaliert) direkt in raw BGR-Frames
+    ff_cmd = ['ffmpeg', '-i', str(video_path)] + vf_arg + \
+             ['-f', 'rawvideo', '-pix_fmt', 'bgr24', '-an', 'pipe:1']
+    ff_proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+    frame_bytes = frame_w * frame_h * 3
+
     # Detector initialisieren mit Config und FPS
     detector = AdvancedReactionDetector(sensitivity=sensitivity, fps=fps, config=config)
-    
+
     # Zeige aktivierte Reaktionstypen
     enabled_types = [k for k, v in detector.enabled_reactions.items() if v]
     print(f"Aktivierte Reaktionstypen: {', '.join(enabled_types)}\n")
-    
+
     # Reaktionen sammeln
     all_reactions = []
     frame_number = 0
-    
+
     print("Verarbeitung läuft...")
-    
+
     # Für ETA-Berechnung
     start_time = time.time()
-    
+
     while True:
-        ret, frame = cap.read()
-        if not ret:
+        raw = ff_proc.stdout.read(frame_bytes)
+        if len(raw) < frame_bytes:
             break
-        
+
+        frame = np.frombuffer(raw, dtype=np.uint8).reshape((frame_h, frame_w, 3))
+
         # Analysiere Frame
         reactions = detector.analyze_frame(frame, frame_number)
-        
+
         # Speichere signifikante Reaktionen
         for reaction_type, data in reactions.items():
             if reaction_type == 'face_detected':
                 continue
-            
+
             if data['detected'] and data['confidence'] > 0.5:
                 timecode = frame_number / fps
                 all_reactions.append({
@@ -419,33 +449,31 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                     'type': reaction_type,
                     'confidence': round(data['confidence'], 3)
                 })
-                # Logging entfernt - Progress Bar nicht stören
-        
+
         # Preview
         if show_preview and reactions['face_detected']:
-            # Zeichne Reaktions-Indikator
+            preview = frame.copy()
             if reactions['nodding']['detected']:
-                cv2.putText(frame, "NODDING", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.putText(preview, "NODDING", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
             if reactions['laughing']['detected']:
-                cv2.putText(frame, "LAUGHING", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-            
-            cv2.imshow('Reaction Detection', frame)
+                cv2.putText(preview, "LAUGHING", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+            cv2.imshow('Reaction Detection', preview)
             if cv2.waitKey(1) & 0xFF == ord('q'):
                 break
-        
+
         frame_number += 1
-        
+
         # Progress Bar (einzeilig, überschreibend)
-        if frame_number % 25 == 0 or frame_number == total_frames:  # Update alle 25 Frames (1 Sekunde)
+        if frame_number % 25 == 0 or frame_number == total_frames:
             progress = (frame_number / total_frames)
             bar_length = 40
             filled = int(bar_length * progress)
             bar = '█' * filled + '░' * (bar_length - filled)
             percent = progress * 100
-            
+
             # ETA Berechnung
             elapsed = time.time() - start_time
-            if elapsed > 1 and frame_number > 0:  # Warte 1 Sekunde für stabile FPS
+            if elapsed > 1 and frame_number > 0:
                 fps_processing = frame_number / elapsed
                 remaining_frames = total_frames - frame_number
                 eta_seconds = remaining_frames / fps_processing
@@ -460,8 +488,9 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
             print(f'\r  Analysiere: [{bar}] {percent:.1f}% ({frame_number}/{total_frames}){eta_str}', end='', flush=True)
             print(f'__PROGRESS__ {percent:.1f} {eta_prog}', flush=True)
 
+    ff_proc.stdout.close()
+    ff_proc.wait()
     print()  # Neue Zeile nach Progress Bar
-    cap.release()
     if show_preview:
         cv2.destroyAllWindows()
     
