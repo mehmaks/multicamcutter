@@ -7,6 +7,8 @@ Kann unabhängig von Resolve laufen für Testing
 
 import cv2
 import mediapipe as mp
+from mediapipe.tasks import python as mp_tasks
+from mediapipe.tasks.python import vision as mp_vision
 import numpy as np
 from pathlib import Path
 import json
@@ -15,6 +17,23 @@ import argparse
 import configparser
 import os
 import time
+import urllib.request
+
+
+_MODEL_URL = (
+    "https://storage.googleapis.com/mediapipe-models/"
+    "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
+)
+_MODEL_PATH = Path(__file__).parent / "face_landmarker.task"
+
+
+def _ensure_model():
+    """Lädt face_landmarker.task herunter falls nicht vorhanden."""
+    if _MODEL_PATH.exists():
+        return
+    print(f"⬇ face_landmarker.task nicht gefunden — lade herunter...")
+    urllib.request.urlretrieve(_MODEL_URL, _MODEL_PATH)
+    print(f"✓ Modell gespeichert: {_MODEL_PATH}")
 
 
 def load_config(config_path='config.ini'):
@@ -42,15 +61,18 @@ class AdvancedReactionDetector:
     """Verbesserte Reaktionserkennung mit mehr Features"""
     
     def __init__(self, sensitivity='medium', fps=25.0, config=None):
-        # MediaPipe Face Mesh
-        self.mp_face_mesh = mp.solutions.face_mesh
-        self.face_mesh = self.mp_face_mesh.FaceMesh(
-            static_image_mode=False,
-            max_num_faces=1,
-            refine_landmarks=True,
-            min_detection_confidence=0.5,
-            min_tracking_confidence=0.5
+        # MediaPipe FaceLandmarker (Tasks API, mediapipe >= 0.10)
+        _ensure_model()
+        base_options = mp_tasks.BaseOptions(model_asset_path=str(_MODEL_PATH))
+        options = mp_vision.FaceLandmarkerOptions(
+            base_options=base_options,
+            running_mode=mp_vision.RunningMode.VIDEO,
+            num_faces=1,
+            min_face_detection_confidence=0.5,
+            min_face_presence_confidence=0.5,
+            min_tracking_confidence=0.5,
         )
+        self.face_landmarker = mp_vision.FaceLandmarker.create_from_options(options)
         
         # Video FPS (für Speaking-Detection timing)
         self.fps = fps
@@ -120,6 +142,11 @@ class AdvancedReactionDetector:
         self.nod_cooldown_frames = 35
         if config and config.has_section('Nodding'):
             self.nod_cooldown_frames = config.getint('Nodding', 'cooldown_frames', fallback=35)
+
+        # Analyse-Auflösung (0 = kein Resize, sonst Zielbreite in Pixel)
+        self.analysis_width = 0
+        if config and config.has_section('Detection'):
+            self.analysis_width = config.getint('Detection', 'analysis_width', fallback=0)
 
         # Reaktions-Cooldown (verhindert Doppel-Detektionen)
         self.last_nod_frame = -100
@@ -275,11 +302,21 @@ class AdvancedReactionDetector:
     def analyze_frame(self, frame, frame_number):
         """Analysiert Frame auf alle Reaktionstypen"""
         height, width = frame.shape[:2]
-        
-        # Konvertiere zu RGB
-        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-        results = self.face_mesh.process(rgb_frame)
-        
+
+        # Verkleinerter Frame für MediaPipe-Inferenz (optional)
+        # Landmarks bleiben normiert (0–1), Schwellwerte rechnen weiter mit originalen Pixelwerten.
+        if self.analysis_width and self.analysis_width < width:
+            scale = self.analysis_width / width
+            small = cv2.resize(frame, (self.analysis_width, int(height * scale)),
+                               interpolation=cv2.INTER_AREA)
+            rgb_frame = cv2.cvtColor(small, cv2.COLOR_BGR2RGB)
+        else:
+            rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
+        timestamp_ms = int(frame_number * 1000 / self.fps)
+        result = self.face_landmarker.detect_for_video(mp_image, timestamp_ms)
+
         reactions = {
             'nodding': {'detected': False, 'confidence': 0.0},
             'head_shake': {'detected': False, 'confidence': 0.0},
@@ -287,12 +324,12 @@ class AdvancedReactionDetector:
             'eyebrow_raise': {'detected': False, 'confidence': 0.0},
             'face_detected': False
         }
-        
-        if not results.multi_face_landmarks:
+
+        if not result.face_landmarks:
             return reactions
-        
+
         reactions['face_detected'] = True
-        landmarks = results.multi_face_landmarks[0].landmark
+        landmarks = result.face_landmarks[0]
         
         # Prüfe nur aktivierte Reaktionen
         if self.enabled_reactions.get('nodding', True):
