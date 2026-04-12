@@ -19,6 +19,7 @@ import re
 import json
 import subprocess
 import argparse
+import time
 from pathlib import Path
 
 os.environ.setdefault('PYTHONUNBUFFERED', '1')
@@ -186,29 +187,31 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
     print(f"\nErstelle Cut-Timeline: '{name}'")
 
     tl = mp.CreateEmptyTimeline(name)
+    time.sleep(0.5)  # Resolve braucht einen Moment nach CreateEmptyTimeline
     tl.DeleteTrack('audio', 1)  # Remove default stereo A1
     for _ in range(len(mics)):
         tl.AddTrack('audio', 'mono')
-
-    append_list = []
-    record_cursor = 0
+    time.sleep(0.3)  # Track-Operationen abwarten
 
     # V1: video segments sequentially
+    video_list = []
+    record_cursor = 0
     for event in cut_events:
         duration = event['source_out'] - event['source_in']
-        append_list.append({
+        video_list.append({
             'mediaPoolItem': event['clip'],
-            'startFrame': event['source_in'],
-            'endFrame':   event['source_out'],
-            'mediaType':  1,
-            'trackIndex': 1,
-            'recordFrame': record_cursor,
+            'startFrame':   event['source_in'],
+            'endFrame':     event['source_out'],
+            'mediaType':    1,
+            'trackIndex':   1,
+            'recordFrame':  record_cursor,
         })
         record_cursor += duration
 
+    mp.AppendToTimeline(video_list)
+    time.sleep(0.3)  # Video-Append abwarten bevor Audio folgt
+
     # A1/A2+: MIC files continuous, aligned with start of cut timeline.
-    # Convert first cut event's source position to absolute time (CAM1-relative),
-    # then subtract MIC1 offset to get the MIC source frame.
     first_event = cut_events[0] if cut_events else None
     mic1_offset = offsets.get('MIC1', 0)
     if first_event:
@@ -232,6 +235,7 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
         mic_source_start = 0
         mic_record_start = 0
 
+    audio_list = []
     for i, mic in enumerate(mics):
         try:
             mic_frames = int(mic.GetClipProperty('Frames') or 0)
@@ -247,16 +251,16 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
             mic_frames = round(float(probe.stdout.strip()) * fps)
         mic_available = record_cursor - mic_record_start
         mic_source_end = min(mic_frames, mic_source_start + mic_available)
-        append_list.append({
+        audio_list.append({
             'mediaPoolItem': mic,
-            'startFrame': mic_source_start,
-            'endFrame':   mic_source_end,
-            'mediaType':  2,
-            'trackIndex': 1 + i,
-            'recordFrame': mic_record_start,
+            'startFrame':   mic_source_start,
+            'endFrame':     mic_source_end,
+            'mediaType':    2,
+            'trackIndex':   1 + i,
+            'recordFrame':  mic_record_start,
         })
 
-    mp.AppendToTimeline(append_list)
+    mp.AppendToTimeline(audio_list)
     print(f"  {len(cut_events)} Video-Segmente, {len(mics)} MIC-Spur(en)")
 
     # Apply clip colors based on cut reason
