@@ -168,13 +168,18 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
 
 # ─── Speaking Reaction Detection (Rolling-Baseline) ───────────────────────────
 
-def _rms_windows(audio: np.ndarray, sr: int, window_s: float) -> np.ndarray:
+def _level_windows(audio: np.ndarray, sr: int, window_s: float,
+                   mode: str = 'rms') -> np.ndarray:
+    """Per-window level in dBFS. mode='rms' uses RMS, mode='peak' uses peak sample."""
     win = int(sr * window_s)
     n = len(audio) // win
     db = np.zeros(n)
     for i in range(n):
         chunk = audio[i * win:(i + 1) * win]
-        db[i] = 20 * np.log10(np.sqrt(np.mean(chunk ** 2)) + 1e-9)
+        if mode == 'peak':
+            db[i] = 20 * np.log10(np.max(np.abs(chunk)) + 1e-9)
+        else:
+            db[i] = 20 * np.log10(np.sqrt(np.mean(chunk ** 2)) + 1e-9)
     return db
 
 
@@ -186,9 +191,10 @@ def _bursts_rolling(
     min_duration_s: float, max_duration_s: float,
     hold_s: float,
     timeline_start_frame: int,
+    mode: str = 'rms',
 ) -> list:
     """Rolling-Baseline Burst Detection (identisch zu test_rolling_detection.py)."""
-    db        = _rms_windows(audio, sr, window_s)
+    db        = _level_windows(audio, sr, window_s, mode=mode)
     attack_n  = max(1, int(attack_window_s  / window_s))
     release_n = max(1, int(release_window_s / window_s))
     min_wins  = max(1, int(min_duration_s   / window_s))
@@ -260,6 +266,7 @@ def detect_speaking_reactions(
     release_window_s: float = 20.0,
     warmup_s: float        = 3.0,
     hold_s: float          = 0.0,
+    mode: str              = 'rms',
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -302,6 +309,7 @@ def detect_speaking_reactions(
                 attack_window_s, release_window_s, warmup_s,
                 rise_db, min_duration_s, max_duration_s, hold_s,
                 timeline_start_frame=tl_offset,
+                mode=mode,
             )
             for b in bursts:
                 r = _to_reaction(b, cam2_timeline_zero_video)
@@ -316,6 +324,7 @@ def detect_speaking_reactions(
                 attack_window_s, release_window_s, warmup_s,
                 rise_db, min_duration_s, max_duration_s, hold_s,
                 timeline_start_frame=tl_offset,
+                mode=mode,
             )
             for b in bursts:
                 r = _to_reaction(b, cam1_timeline_zero_video)
@@ -382,6 +391,7 @@ def main():
     parser.add_argument('--speaking-release-window',type=float, default=20.0)
     parser.add_argument('--speaking-warmup',        type=float, default=3.0)
     parser.add_argument('--speaking-hold',          type=float, default=0.0)
+    parser.add_argument('--speaking-mode',          choices=['rms', 'peak'], default='rms')
     args = parser.parse_args()
 
     print("=" * 70)
@@ -522,7 +532,7 @@ def main():
 
     # ── 6. Speaking Reactions (optional) ─────────────────────────────────────
     if args.speaking_reactions_cam1_out or args.speaking_reactions_cam2_out:
-        print("\n🗣️  Erkenne Speaking Reactions...")
+        print(f"\n🗣️  Erkenne Speaking Reactions (mode={args.speaking_mode})...")
         cam1_sr, cam2_sr = detect_speaking_reactions(
             audio_cam1, audio_cam2, sr1,
             segments,
@@ -536,6 +546,7 @@ def main():
             release_window_s=args.speaking_release_window,
             warmup_s=args.speaking_warmup,
             hold_s=args.speaking_hold,
+            mode=args.speaking_mode,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
         if args.speaking_reactions_cam1_out:

@@ -425,7 +425,8 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
 def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                  fps: float, work_dir: Path, config: Path,
                  skip_analysis: bool = False, skip_base_edl: bool = False,
-                 mic_index_cam1: int = 1, mic_index_cam2: int = 0):
+                 mic_index_cam1: int = 1, mic_index_cam2: int = 0,
+                 speaking_mode_override: str = None):
     """
     Runs nodding + RMS analysis, returns path to final EDL.
 
@@ -485,6 +486,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--threshold-db',      rms.get('threshold_db', '6.0'),
         ]
         if speaking_enabled:
+            mode = speaking_mode_override or sr_cfg.get('mode', 'rms')
             builder_args += [
                 '--speaking-reactions-cam1-out', str(cam1_speaking_json),
                 '--speaking-reactions-cam2-out', str(cam2_speaking_json),
@@ -495,6 +497,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--speaking-release-window', sr_cfg.get('release_window', '20.0'),
                 '--speaking-warmup',         sr_cfg.get('warmup',         '3.0'),
                 '--speaking-hold',           sr_cfg.get('hold',           '0.0'),
+                '--speaking-mode',           mode,
             ]
         run(builder_args, "Base-EDL aus Audio")
     else:
@@ -547,6 +550,8 @@ def main():
                         help='0-basierter MIC-Index für CAM1 (default: 1 = MIC2)')
     parser.add_argument('--mic-cam2', type=int, default=0,
                         help='0-basierter MIC-Index für CAM2 (default: 0 = MIC1)')
+    parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
+                        help='Überschreibt speaking_mode aus config.ini')
     args = parser.parse_args()
 
     resolve = get_resolve()
@@ -604,6 +609,7 @@ def main():
             args.skip_analysis, args.skip_base_edl,
             mic_index_cam1=args.mic_cam1,
             mic_index_cam2=args.mic_cam2,
+            speaking_mode_override=args.speaking_mode,
         )
     except RuntimeError as e:
         print(f"\nFEHLER in Analyse: {e}")

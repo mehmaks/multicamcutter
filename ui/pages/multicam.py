@@ -145,6 +145,7 @@ with tab_bin:
         fps_bin               = st.number_input("FPS", value=25.0, step=1.0, format="%.1f")
         skip_analysis_b       = st.checkbox("Nodding-Analyse überspringen (JSONs existieren)")
         skip_base_edl_b       = st.checkbox("Base-EDL überspringen (base.edl existiert)")
+        speaking_peak_mode_b  = st.checkbox("Speaking: Peak-Detektion (statt RMS)", help="Misst Peak-Pegel statt RMS pro Fenster — sensitiver für kurze Transients wie 'Mhm'")
     with col_b:
         sync_tl_name = st.text_input(
             "Sync-Timeline Name (optional)",
@@ -195,6 +196,8 @@ with tab_bin:
         if sync_tl_name.strip():
             cmd += ["--sync-timeline", sync_tl_name.strip()]
         cmd += ["--mic-cam1", str(mic_cam1_idx), "--mic-cam2", str(mic_cam2_idx)]
+        if speaking_peak_mode_b:
+            cmd += ["--speaking-mode", "peak"]
 
         q = queue.Queue()
         threading.Thread(target=_run_script, args=(cmd, q), daemon=True).start()
