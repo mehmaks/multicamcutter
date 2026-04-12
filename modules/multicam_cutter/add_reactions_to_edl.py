@@ -109,9 +109,10 @@ def frames_to_timecode(frames: int, fps: float = 25.0) -> str:
 
 class EDLEvent:
     """Ein Event in der EDL"""
-    def __init__(self, event_num: int, clip_name: str, 
+    def __init__(self, event_num: int, clip_name: str,
                  source_in: str, source_out: str,
-                 record_in: str, record_out: str, fps: float = 25.0):
+                 record_in: str, record_out: str, fps: float = 25.0,
+                 reason: str = "speaker"):
         self.event_num = event_num
         self.clip_name = clip_name
         self.source_in = source_in
@@ -119,6 +120,7 @@ class EDLEvent:
         self.record_in = record_in
         self.record_out = record_out
         self.fps = fps
+        self.reason = reason  # "speaker" | "reaction_nodding" | "reaction_speaking_reaction" | "max_time"
         
         # Konvertiere zu Frames
         self.source_in_frame = timecode_to_frames(source_in, fps)
@@ -414,21 +416,23 @@ def build_events_with_cutaways(section_start: int,
     reaction_duration_frames = int(config['reaction_min_duration'] * fps)
     max_shot_frames = int(config['max_shot_duration'] * fps)
     min_confidence = config['min_confidence']
+    speaking_min_confidence = config.get('speaking_min_confidence', min_confidence)
     cluster_max_gap = int(config.get('cluster_max_gap_frames', 75))
     pre_roll_frames = int(config.get('pre_roll_frames', 0))
     cutaway_enabled = config['cutaway_enabled']
-    
+
     # Filtere Reaktionen für diese Section
     valid_reactions = []
     for reaction in reactions:
         reaction_type = reaction['type']
         confidence = reaction['confidence']
         json_video_frame = reaction['frame']
-        
+
         # Filter
         if not cutaway_enabled.get(reaction_type, False):
             continue
-        if confidence < min_confidence:
+        threshold = speaking_min_confidence if reaction_type == 'speaking_reaction' else min_confidence
+        if confidence < threshold:
             continue
         
         # KRITISCH: JSON Video Frame → Timeline Frame Konvertierung!
@@ -492,21 +496,22 @@ def build_events_with_cutaways(section_start: int,
                 source_out=frames_to_timecode(on_source_out, fps),
                 record_in=frames_to_timecode(current_pos, fps),
                 record_out=frames_to_timecode(cutaway_frame, fps),
-                fps=fps
+                fps=fps,
+                reason="speaker",
             )
             events.append(event1)
-        
+
         # 2. OFF-Camera Cutaway
         cutaway_end = min(cutaway_frame + reaction_duration_frames, section_end)
-        
+
         # OFF-Clip: Timeline Frame → Video Frame
         # Video Frame = timeline_zero_video + timeline_frame
         off_video_in = off_timeline_zero_video + cutaway_frame
         off_video_out = off_timeline_zero_video + cutaway_end
-        
+
         off_source_in = off_reference_frame + off_video_in
         off_source_out = off_reference_frame + off_video_out
-        
+
         event2 = EDLEvent(
             event_num=0,
             clip_name=off_clip,
@@ -514,7 +519,8 @@ def build_events_with_cutaways(section_start: int,
             source_out=frames_to_timecode(off_source_out, fps),
             record_in=frames_to_timecode(cutaway_frame, fps),
             record_out=frames_to_timecode(cutaway_end, fps),
-            fps=fps
+            fps=fps,
+            reason=f"reaction_{reaction_type}",
         )
         events.append(event2)
         
@@ -537,10 +543,10 @@ def build_events_with_cutaways(section_start: int,
                     # Letzter Abschnitt - Timeline → Video Frame
                     video_in = section_video_start + (current_pos - section_start)
                     video_out = section_video_start + (section_end - section_start)
-                    
+
                     on_source_in = on_reference_frame + video_in
                     on_source_out = on_reference_frame + video_out
-                    
+
                     event = EDLEvent(
                         event_num=0,
                         clip_name=on_clip,
@@ -548,7 +554,8 @@ def build_events_with_cutaways(section_start: int,
                         source_out=frames_to_timecode(on_source_out, fps),
                         record_in=frames_to_timecode(current_pos, fps),
                         record_out=frames_to_timecode(section_end, fps),
-                        fps=fps
+                        fps=fps,
+                        reason="speaker",
                     )
                     events.append(event)
                     break
@@ -556,10 +563,10 @@ def build_events_with_cutaways(section_start: int,
                     # ON-Clip bis forced Cutaway - Timeline → Video Frame
                     video_in = section_video_start + (current_pos - section_start)
                     video_out = section_video_start + (next_cut - section_start)
-                    
+
                     on_source_in = on_reference_frame + video_in
                     on_source_out = on_reference_frame + video_out
-                    
+
                     event1 = EDLEvent(
                         event_num=0,
                         clip_name=on_clip,
@@ -567,20 +574,21 @@ def build_events_with_cutaways(section_start: int,
                         source_out=frames_to_timecode(on_source_out, fps),
                         record_in=frames_to_timecode(current_pos, fps),
                         record_out=frames_to_timecode(next_cut, fps),
-                        fps=fps
+                        fps=fps,
+                        reason="speaker",
                     )
                     events.append(event1)
-                    
+
                     # Forced Cutaway zur OFF-Kamera
                     cutaway_end = min(next_cut + reaction_duration_frames, section_end)
-                    
+
                     # OFF-Clip: Timeline Frame → Video Frame
                     off_video_in = off_timeline_zero_video + next_cut
                     off_video_out = off_timeline_zero_video + cutaway_end
-                    
+
                     off_source_in = off_reference_frame + off_video_in
                     off_source_out = off_reference_frame + off_video_out
-                    
+
                     event2 = EDLEvent(
                         event_num=0,
                         clip_name=off_clip,
@@ -588,7 +596,8 @@ def build_events_with_cutaways(section_start: int,
                         source_out=frames_to_timecode(off_source_out, fps),
                         record_in=frames_to_timecode(next_cut, fps),
                         record_out=frames_to_timecode(cutaway_end, fps),
-                        fps=fps
+                        fps=fps,
+                        reason="max_time",
                     )
                     events.append(event2)
                     
@@ -609,7 +618,8 @@ def build_events_with_cutaways(section_start: int,
                 source_out=frames_to_timecode(on_source_out, fps),
                 record_in=frames_to_timecode(current_pos, fps),
                 record_out=frames_to_timecode(section_end, fps),
-                fps=fps
+                fps=fps,
+                reason="speaker",
             )
             events.append(event3)
     
@@ -713,7 +723,7 @@ def split_long_shots(events: List[EDLEvent],
             # Event 1: ON bis Cutaway
             on_video_in_1 = timeline_zero_video_frames[event.clip_name] + event.record_in_frame
             on_video_out_1 = timeline_zero_video_frames[event.clip_name] + cutaway_start
-            
+
             event1 = EDLEvent(
                 event_num=0,
                 clip_name=event.clip_name,
@@ -721,14 +731,15 @@ def split_long_shots(events: List[EDLEvent],
                 source_out=frames_to_timecode(reference_frames[event.clip_name] + on_video_out_1, fps),
                 record_in=event.record_in,
                 record_out=frames_to_timecode(cutaway_start, fps),
-                fps=fps
+                fps=fps,
+                reason=getattr(event, 'reason', 'speaker'),
             )
             new_events.append(event1)
-            
-            # Event 2: OFF Cutaway
+
+            # Event 2: OFF Cutaway (forced split)
             off_video_in = timeline_zero_video_frames[other_clip] + cutaway_start
             off_video_out = timeline_zero_video_frames[other_clip] + cutaway_end
-            
+
             event2 = EDLEvent(
                 event_num=0,
                 clip_name=other_clip,
@@ -736,14 +747,15 @@ def split_long_shots(events: List[EDLEvent],
                 source_out=frames_to_timecode(reference_frames[other_clip] + off_video_out, fps),
                 record_in=frames_to_timecode(cutaway_start, fps),
                 record_out=frames_to_timecode(cutaway_end, fps),
-                fps=fps
+                fps=fps,
+                reason="max_time",
             )
             new_events.append(event2)
-            
+
             # Event 3: ON nach Cutaway
             on_video_in_3 = timeline_zero_video_frames[event.clip_name] + cutaway_end
             on_video_out_3 = timeline_zero_video_frames[event.clip_name] + event.record_out_frame
-            
+
             event3 = EDLEvent(
                 event_num=0,
                 clip_name=event.clip_name,
@@ -751,7 +763,8 @@ def split_long_shots(events: List[EDLEvent],
                 source_out=frames_to_timecode(reference_frames[event.clip_name] + on_video_out_3, fps),
                 record_in=frames_to_timecode(cutaway_end, fps),
                 record_out=event.record_out,
-                fps=fps
+                fps=fps,
+                reason=getattr(event, 'reason', 'speaker'),
             )
             new_events.append(event3)
             
@@ -806,6 +819,10 @@ def main():
                         help='Embedded TC von Cam1 bei Frame 0 (z.B. 00:32:36:11) - nur wenn --cam1-video nicht verfügbar')
     parser.add_argument('--cam2-embedded-tc', required=False,
                         help='Embedded TC von Cam2 bei Frame 0 (z.B. 10:26:39:13) - nur wenn --cam2-video nicht verfügbar')
+    parser.add_argument('--cam1-speaking-reactions', required=False,
+                        help='Speaking-Reactions JSON für CAM1 (aus detect_speaking_reactions)')
+    parser.add_argument('--cam2-speaking-reactions', required=False,
+                        help='Speaking-Reactions JSON für CAM2 (aus detect_speaking_reactions)')
     parser.add_argument('--output', '-o', required=True,
                         help='Output EDL')
     parser.add_argument('--config', default='config.ini',
@@ -827,8 +844,9 @@ def main():
     reaction_min_duration = 3.0
     max_shot_duration = 30.0
     min_confidence = 0.86
+    speaking_min_confidence = 0.90
     cleanup_min_duration = 1.5
-    
+
     if config:
         if config.has_option('General', 'min_shot_duration'):
             min_shot_duration = config.getfloat('General', 'min_shot_duration')
@@ -840,6 +858,8 @@ def main():
             cleanup_min_duration = config.getfloat('General', 'cleanup_min_duration')
         if config.has_option('Detection', 'min_confidence'):
             min_confidence = config.getfloat('Detection', 'min_confidence')
+        if config.has_option('SpeakingReaction', 'min_confidence'):
+            speaking_min_confidence = config.getfloat('SpeakingReaction', 'min_confidence')
     
     cutaway_enabled = {
         'nodding': True,
@@ -853,6 +873,7 @@ def main():
         cutaway_enabled['laughing'] = config.getboolean('ReactionCutaways', 'laughing_cutaway', fallback=False)
         cutaway_enabled['head_shake'] = config.getboolean('ReactionCutaways', 'headshake_cutaway', fallback=False)
         cutaway_enabled['eyebrow_raise'] = config.getboolean('ReactionCutaways', 'eyebrow_cutaway', fallback=False)
+        cutaway_enabled['speaking_reaction'] = config.getboolean('ReactionCutaways', 'speaking_cutaway', fallback=False)
     
     cluster_max_gap_frames = 75
     pre_roll_frames = 0
@@ -865,16 +886,18 @@ def main():
         'reaction_min_duration': reaction_min_duration,
         'max_shot_duration': max_shot_duration,
         'min_confidence': min_confidence,
+        'speaking_min_confidence': speaking_min_confidence,
         'cutaway_enabled': cutaway_enabled,
         'cluster_max_gap_frames': cluster_max_gap_frames,
         'pre_roll_frames': pre_roll_frames,
     }
-    
+
     print(f"\n⚙️  Settings:")
     print(f"  Min Shot Duration: {min_shot_duration}s")
     print(f"  Reaction Duration: {reaction_min_duration}s")
     print(f"  Max Shot Duration: {max_shot_duration}s")
-    print(f"  Min Confidence: {min_confidence}")
+    print(f"  Min Confidence (Nodding): {min_confidence}")
+    print(f"  Min Confidence (Speaking): {speaking_min_confidence}")
     print(f"  Cleanup Min Duration: {cleanup_min_duration}s")
     enabled_types = [k for k, v in cutaway_enabled.items() if v]
     print(f"  Cutaway Types: {', '.join(enabled_types)}")
@@ -930,6 +953,16 @@ def main():
     cam2_reactions, _ = load_reactions(args.cam2_reactions)
     print(f"  Cam1: {len(cam1_reactions)} Reaktionen")
     print(f"  Cam2: {len(cam2_reactions)} Reaktionen")
+
+    # Merge Speaking Reactions (optional)
+    if getattr(args, 'cam1_speaking_reactions', None) and Path(args.cam1_speaking_reactions).exists():
+        sr1, _ = load_reactions(args.cam1_speaking_reactions)
+        cam1_reactions.extend(sr1)
+        print(f"  + {len(sr1)} CAM1 Speaking Reactions")
+    if getattr(args, 'cam2_speaking_reactions', None) and Path(args.cam2_speaking_reactions).exists():
+        sr2, _ = load_reactions(args.cam2_speaking_reactions)
+        cam2_reactions.extend(sr2)
+        print(f"  + {len(sr2)} CAM2 Speaking Reactions")
     
     # Pass 2: Cam1 ON → Cam2 Cutaways
     print(f"\n🎬 PASS 2: Cam1 ON → Cam2 Cutaways")
@@ -992,6 +1025,13 @@ def main():
     
     # Schreibe finale EDL
     write_edl(final_events, args.output)
+
+    # Schreibe Colors-Metadaten als Companion JSON
+    colors_path = Path(args.output).with_suffix('.colors.json')
+    colors_path.write_text(
+        json.dumps([{'reason': e.reason} for e in final_events], indent=2)
+    )
+    print(f"✓ Colors-Metadaten: {colors_path.name}")
     
     print(f"\n{'='*70}")
     print(f"✓ FERTIG!")

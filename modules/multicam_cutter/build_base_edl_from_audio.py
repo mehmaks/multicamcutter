@@ -18,6 +18,7 @@ import numpy as np
 from pathlib import Path
 
 
+
 # ─── Timecode-Hilfsfunktionen (unverändert aus add_reactions_to_edl.py) ───────
 
 def timecode_to_frames(tc: str, fps: float = 25.0) -> int:
@@ -165,6 +166,165 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
     return final
 
 
+# ─── Speaking Reaction Detection (Rolling-Baseline) ───────────────────────────
+
+def _rms_windows(audio: np.ndarray, sr: int, window_s: float) -> np.ndarray:
+    win = int(sr * window_s)
+    n = len(audio) // win
+    db = np.zeros(n)
+    for i in range(n):
+        chunk = audio[i * win:(i + 1) * win]
+        db[i] = 20 * np.log10(np.sqrt(np.mean(chunk ** 2)) + 1e-9)
+    return db
+
+
+def _bursts_rolling(
+    audio: np.ndarray, sr: int, fps: float,
+    window_s: float,
+    attack_window_s: float, release_window_s: float,
+    warmup_s: float, rise_db: float,
+    min_duration_s: float, max_duration_s: float,
+    hold_s: float,
+    timeline_start_frame: int,
+) -> list:
+    """Rolling-Baseline Burst Detection (identisch zu test_rolling_detection.py)."""
+    db        = _rms_windows(audio, sr, window_s)
+    attack_n  = max(1, int(attack_window_s  / window_s))
+    release_n = max(1, int(release_window_s / window_s))
+    min_wins  = max(1, int(min_duration_s   / window_s))
+    max_wins  = max(1, int(max_duration_s   / window_s))
+    hold_wins = int(hold_s / window_s)
+    alpha_a   = 1.0 / attack_n
+    alpha_r   = 1.0 / release_n
+
+    def _build_baseline(db, start_idx, start_val):
+        b = np.empty(len(db))
+        b[:start_idx] = 0.0
+        b[start_idx]  = start_val
+        for k in range(start_idx + 1, len(db)):
+            if db[k] > b[k - 1]:
+                b[k] = b[k - 1] + alpha_a * (db[k] - b[k - 1])
+            else:
+                b[k] = b[k - 1] + alpha_r * (db[k] - b[k - 1])
+        return b
+
+    warmup_n  = max(1, int(warmup_s / window_s))
+    start_val = float(np.percentile(db[:warmup_n], 75))
+    baseline  = _build_baseline(db, 0, start_val)
+
+    bursts = []
+    i = 0
+    while i < len(db):
+        if db[i] > baseline[i] + rise_db:
+            j, hold_count = i, 0
+            while j < len(db):
+                if db[j] > baseline[j] + rise_db:
+                    hold_count = 0
+                    j += 1
+                elif hold_count < hold_wins:
+                    hold_count += 1
+                    j += 1
+                else:
+                    break
+            actual_end = j - hold_count
+            burst_len  = j - i
+            if min_wins <= burst_len <= max_wins:
+                start_s  = i * window_s
+                avg_rise = float(np.mean(db[i:actual_end] - baseline[i:actual_end]))
+                conf     = min(1.0, 0.5 + avg_rise / 20.0)
+                tl_frame = timeline_start_frame + round(start_s * fps)
+                bursts.append({
+                    'start_s':  start_s,
+                    'tl_frame': tl_frame,
+                    'conf':     round(conf, 3),
+                })
+                if actual_end < len(db):
+                    new_bl = _build_baseline(db, actual_end, baseline[i])
+                    baseline[actual_end:] = new_bl[actual_end:]
+            i = actual_end if actual_end > i else i + 1
+        else:
+            i += 1
+    return bursts
+
+
+def detect_speaking_reactions(
+    audio1: np.ndarray, audio2: np.ndarray, sr: int,
+    segments: list,
+    fps: float, wav_edl_frame: int,
+    cam1_timeline_zero_video: int, cam2_timeline_zero_video: int,
+    window_s: float        = 0.05,
+    rise_db: float         = 10.0,
+    min_duration_s: float  = 0.20,
+    max_duration_s: float  = 1.5,
+    attack_window_s: float = 1.0,
+    release_window_s: float = 20.0,
+    warmup_s: float        = 3.0,
+    hold_s: float          = 0.0,
+) -> tuple:
+    """
+    Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
+
+    Läuft auf dem vollständigen Audio (nicht per Segment), damit die Baseline
+    sich über die gesamte Aufnahme anpassen kann. Die Diarisierungs-Segmente
+    bestimmen nur noch, welche Bursts als CAM1- vs. CAM2-Reaktion zählen.
+
+    Returns (cam1_reactions, cam2_reactions).
+    """
+    def _to_reaction(burst, cam_tz):
+        edl_frame   = burst['tl_frame']
+        video_frame = cam_tz + edl_frame
+        if video_frame < 0:
+            return None
+        f  = edl_frame
+        tc = (f"{int(f/fps/3600):02d}:{int(f/fps%3600/60):02d}:"
+              f"{int(f/fps%60):02d}:{int(f%fps):02d}")
+        return {
+            'frame':      int(video_frame),
+            'timecode':   tc,
+            'type':       'speaking_reaction',
+            'confidence': burst['conf'],
+        }
+
+    cam1_reactions, cam2_reactions = [], []
+
+    for seg in segments:
+        seg_start_s  = seg['start_s']
+        seg_end_s    = seg['end_s']
+        seg_start_sa = int(seg_start_s * sr)
+        seg_end_sa   = int(seg_end_s   * sr)
+        tl_offset    = wav_edl_frame + round(seg_start_s * fps)
+
+        if seg['speaker'] == 'CAM1':
+            # CAM1 spricht → Off-Mic ist MIC2 (audio2)
+            audio_slice = audio2[seg_start_sa:seg_end_sa]
+            bursts = _bursts_rolling(
+                audio_slice, sr, fps, window_s,
+                attack_window_s, release_window_s, warmup_s,
+                rise_db, min_duration_s, max_duration_s, hold_s,
+                timeline_start_frame=tl_offset,
+            )
+            for b in bursts:
+                r = _to_reaction(b, cam2_timeline_zero_video)
+                if r:
+                    cam2_reactions.append(r)
+
+        elif seg['speaker'] == 'CAM2':
+            # CAM2 spricht → Off-Mic ist MIC1 (audio1)
+            audio_slice = audio1[seg_start_sa:seg_end_sa]
+            bursts = _bursts_rolling(
+                audio_slice, sr, fps, window_s,
+                attack_window_s, release_window_s, warmup_s,
+                rise_db, min_duration_s, max_duration_s, hold_s,
+                timeline_start_frame=tl_offset,
+            )
+            for b in bursts:
+                r = _to_reaction(b, cam1_timeline_zero_video)
+                if r:
+                    cam1_reactions.append(r)
+
+    return cam1_reactions, cam2_reactions
+
+
 # ─── EDL schreiben ─────────────────────────────────────────────────────────────
 
 def write_edl(events: list, output_path: str, title: str = "Audio Base Timeline"):
@@ -210,6 +370,18 @@ def main():
 
     parser.add_argument('--fps',    type=float, default=25.0)
     parser.add_argument('--output', '-o', default='base.edl')
+    # Speaking reaction output (optional)
+    parser.add_argument('--speaking-reactions-cam1-out', default=None,
+                        help='JSON output path for CAM1 speaking reactions')
+    parser.add_argument('--speaking-reactions-cam2-out', default=None,
+                        help='JSON output path for CAM2 speaking reactions')
+    parser.add_argument('--speaking-rise-db',       type=float, default=10.0)
+    parser.add_argument('--speaking-min-duration',  type=float, default=0.20)
+    parser.add_argument('--speaking-max-duration',  type=float, default=1.5)
+    parser.add_argument('--speaking-attack-window', type=float, default=1.0)
+    parser.add_argument('--speaking-release-window',type=float, default=20.0)
+    parser.add_argument('--speaking-warmup',        type=float, default=3.0)
+    parser.add_argument('--speaking-hold',          type=float, default=0.0)
     args = parser.parse_args()
 
     print("=" * 70)
@@ -347,6 +519,33 @@ def main():
 
     # ── 5. EDL schreiben ──────────────────────────────────────────────────────
     write_edl(events, args.output)
+
+    # ── 6. Speaking Reactions (optional) ─────────────────────────────────────
+    if args.speaking_reactions_cam1_out or args.speaking_reactions_cam2_out:
+        print("\n🗣️  Erkenne Speaking Reactions...")
+        cam1_sr, cam2_sr = detect_speaking_reactions(
+            audio_cam1, audio_cam2, sr1,
+            segments,
+            args.fps, args.wav_edl_frame,
+            cam1_timeline_zero_video, cam2_timeline_zero_video,
+            window_s=args.analysis_window,
+            rise_db=args.speaking_rise_db,
+            min_duration_s=args.speaking_min_duration,
+            max_duration_s=args.speaking_max_duration,
+            attack_window_s=args.speaking_attack_window,
+            release_window_s=args.speaking_release_window,
+            warmup_s=args.speaking_warmup,
+            hold_s=args.speaking_hold,
+        )
+        print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
+        if args.speaking_reactions_cam1_out:
+            Path(args.speaking_reactions_cam1_out).write_text(
+                json.dumps({'fps': args.fps, 'reactions': cam1_sr}, indent=2)
+            )
+        if args.speaking_reactions_cam2_out:
+            Path(args.speaking_reactions_cam2_out).write_text(
+                json.dumps({'fps': args.fps, 'reactions': cam2_sr}, indent=2)
+            )
 
     print("\n" + "=" * 70)
     print("✅ FERTIG")

@@ -95,26 +95,72 @@ with tab_bin:
     st.divider()
     st.subheader("Optionen")
 
+    # Bin-Clips für sprechende Labels scannen
+    _VIDEO_EXT = {'.mp4', '.mov', '.mxf', '.r3d', '.ari'}
+    _AUDIO_EXT = {'.wav', '.aif', '.aiff'}
+
+    cam_labels = ["CAM1", "CAM2"]
+    mic_labels = []
+
+    if resolve_ok and bin_name:
+        _cache_key = f"_bin_clips_{bin_name}"
+        if _cache_key not in st.session_state:
+            def _find_bin_folder(folder, name):
+                if folder.GetName() == name:
+                    return folder
+                for sf in (folder.GetSubFolderList() or []):
+                    r = _find_bin_folder(sf, name)
+                    if r:
+                        return r
+                return None
+            found = _find_bin_folder(mp.GetRootFolder(), bin_name)
+            if found:
+                _clips = found.GetClipList() or []
+                _cams = sorted([
+                    c.GetName() for c in _clips
+                    if 'Video' in (c.GetClipProperty('Type') or '')
+                ])
+                _mics = sorted([
+                    c.GetName() for c in _clips
+                    if 'Audio' in (c.GetClipProperty('Type') or '')
+                    and 'Video' not in (c.GetClipProperty('Type') or '')
+                ])
+                st.session_state[_cache_key] = (_cams, _mics)
+            else:
+                st.session_state[_cache_key] = ([], [])
+
+        _scanned_cams, _scanned_mics = st.session_state[_cache_key]
+        if len(_scanned_cams) >= 2:
+            cam_labels = [Path(_scanned_cams[0]).stem, Path(_scanned_cams[1]).stem]
+        mic_labels  = [Path(m).stem for m in _scanned_mics]
+
+    _n_mics     = max(2, len(mic_labels))
+    _mic_options = list(range(_n_mics))
+
+    def _mic_name(idx):
+        return mic_labels[idx] if idx < len(mic_labels) else f"MIC{idx + 1}"
+
     col_a, col_b = st.columns(2)
     with col_a:
-        fps_bin         = st.number_input("FPS", value=25.0, step=1.0, format="%.1f")
-        skip_analysis_b = st.checkbox("Nodding-Analyse überspringen (JSONs existieren)")
-        skip_base_edl_b = st.checkbox("Base-EDL überspringen (base.edl existiert)")
+        fps_bin               = st.number_input("FPS", value=25.0, step=1.0, format="%.1f")
+        skip_analysis_b       = st.checkbox("Nodding-Analyse überspringen (JSONs existieren)")
+        skip_base_edl_b       = st.checkbox("Base-EDL überspringen (base.edl existiert)")
     with col_b:
         sync_tl_name = st.text_input(
             "Sync-Timeline Name (optional)",
             placeholder="Standard: '<Cut-Name> Sync'",
         )
-        mic_names = ["MIC1 (Index 0)", "MIC2 (Index 1)"]
         mic_cam1_idx = st.selectbox(
-            "MIC für CAM1",
-            options=[0, 1], format_func=lambda x: mic_names[x],
-            index=1,
+            f"MIC für {cam_labels[0]}",
+            options=_mic_options,
+            format_func=_mic_name,
+            index=min(1, _n_mics - 1),
             help="Welches Mikrofon gehört zu Kamera 1?",
         )
         mic_cam2_idx = st.selectbox(
-            "MIC für CAM2",
-            options=[0, 1], format_func=lambda x: mic_names[x],
+            f"MIC für {cam_labels[1]}",
+            options=_mic_options,
+            format_func=_mic_name,
             index=0,
             help="Welches Mikrofon gehört zu Kamera 2?",
         )

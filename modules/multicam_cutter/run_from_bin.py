@@ -56,11 +56,10 @@ def scan_bin(folder) -> dict:
     clips = folder.GetClipList() or []
     cams, mics = [], []
     for clip in clips:
-        ext = Path(clip.GetName()).suffix.lower()
         ctype = clip.GetClipProperty('Type') or ''
-        if ext in VIDEO_EXT and 'Video' in ctype:
+        if 'Video' in ctype:
             cams.append(clip)
-        elif ext in AUDIO_EXT:
+        elif 'Audio' in ctype:
             mics.append(clip)
 
     return {
@@ -81,7 +80,15 @@ def build_sync_timeline(mp, name: str, cams: list, mics: list,
     """
     print(f"\nErstelle Sync-Timeline: '{name}'")
 
-    tl = mp.CreateEmptyTimeline(name)  # starts with V1 (stereo) + A1 (stereo)
+    tl = mp.CreateEmptyTimeline(name)
+    if tl is None:
+        # Name already taken — append a counter until we find a free name
+        i = 2
+        while tl is None:
+            tl = mp.CreateEmptyTimeline(f"{name} {i}")
+            i += 1
+        print(f"  Name vergeben, erstellt als '{tl.GetName()}'")
+    # starts with V1 (stereo) + A1 (stereo)
 
     # Add V2
     tl.AddTrack('video')
@@ -251,6 +258,35 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
 
     mp.AppendToTimeline(append_list)
     print(f"  {len(cut_events)} Video-Segmente, {len(mics)} MIC-Spur(en)")
+
+    # Apply clip colors based on cut reason
+    _COLOR_MAP = {
+        ('speaker', True):                      'Blue',    # CAM1 Hauptsprecher
+        ('speaker', False):                     'Teal',    # CAM2 Hauptsprecher
+        ('reaction_nodding', True):             'Purple',  # Nodding-Cutaway (auf CAM1)
+        ('reaction_nodding', False):            'Purple',  # Nodding-Cutaway (auf CAM2)
+        ('reaction_speaking_reaction', True):   'Green',   # Speaking-Cutaway (auf CAM1)
+        ('reaction_speaking_reaction', False):  'Green',   # Speaking-Cutaway (auf CAM2)
+        ('max_time', True):                     'Orange',  # Forced Max-Time Split (CAM1)
+        ('max_time', False):                    'Orange',  # Forced Max-Time Split (CAM2)
+    }
+    cam1_ref = cam_items['CAM1'][0]
+    video_items = sorted(
+        tl.GetItemListInTrack('video', 1) or [],
+        key=lambda x: x.GetStart(),
+    )
+    colored = 0
+    for i, item in enumerate(video_items):
+        if i >= len(cut_events):
+            break
+        ev = cut_events[i]
+        reason  = ev.get('reason', 'speaker')
+        is_cam1 = ev['clip'] is cam1_ref
+        color   = _COLOR_MAP.get((reason, is_cam1), 'Blue')
+        if item.SetClipColor(color):
+            colored += 1
+    print(f"  {colored}/{len(video_items)} Clips eingefärbt")
+
     return tl
 
 
@@ -359,7 +395,22 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
             'clip':       item,
             'source_in':  source_in,
             'source_out': source_out,
+            'reason':     'speaker',
         })
+
+    # Load companion colors JSON if available
+    colors_path = edl_path.with_suffix('.colors.json')
+    if colors_path.exists():
+        try:
+            colors_data = json.loads(colors_path.read_text())
+            if len(colors_data) == len(cut_events):
+                for ev, c in zip(cut_events, colors_data):
+                    ev['reason'] = c.get('reason', 'speaker')
+                print(f"  Colors-Metadaten geladen ({len(colors_data)} Einträge)")
+            else:
+                print(f"  ⚠ Colors JSON hat {len(colors_data)} Einträge, EDL hat {len(cut_events)} — ignoriert")
+        except Exception as e:
+            print(f"  ⚠ Colors JSON konnte nicht gelesen werden: {e}")
 
     print(f"  {len(cut_events)} Cut-Events aus EDL gelesen")
     return cut_events
@@ -405,9 +456,14 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         cfg = configparser.ConfigParser()
         cfg.read(str(config), encoding='utf-8')
         rms = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
+        sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
+
+        cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
+        cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
+        speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
 
         builder = str(SCRIPT_DIR / 'build_base_edl_from_audio.py')
-        run([
+        builder_args = [
             builder,
             '--mic-cam1',          mic_cam1,
             '--mic-cam2',          mic_cam2,
@@ -423,11 +479,32 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--min-edit-duration', rms.get('min_edit_duration', '1.0'),
             '--change-delay',      rms.get('change_delay', '0.3'),
             '--threshold-db',      rms.get('threshold_db', '6.0'),
-        ], "Base-EDL aus Audio")
+        ]
+        if speaking_enabled:
+            builder_args += [
+                '--speaking-reactions-cam1-out', str(cam1_speaking_json),
+                '--speaking-reactions-cam2-out', str(cam2_speaking_json),
+                '--speaking-rise-db',        sr_cfg.get('rise_db',        '10.0'),
+                '--speaking-min-duration',   sr_cfg.get('min_duration',   '0.20'),
+                '--speaking-max-duration',   sr_cfg.get('max_duration',   '1.5'),
+                '--speaking-attack-window',  sr_cfg.get('attack_window',  '1.0'),
+                '--speaking-release-window', sr_cfg.get('release_window', '20.0'),
+                '--speaking-warmup',         sr_cfg.get('warmup',         '3.0'),
+                '--speaking-hold',           sr_cfg.get('hold',           '0.0'),
+            ]
+        run(builder_args, "Base-EDL aus Audio")
+    else:
+        import configparser
+        cfg = configparser.ConfigParser()
+        cfg.read(str(config), encoding='utf-8')
+        sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
+        cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
+        cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
+        speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
 
     adder = str(SCRIPT_DIR / 'add_reactions_to_edl.py')
     final_edl = work_dir / 'final.edl'
-    run([
+    adder_args = [
         adder,
         '--resolve-edl',    str(base_edl),
         '--cam1-clip',      Path(cam1_path).name,
@@ -438,7 +515,12 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         '--cam2-video',     cam2_path,
         '--output',         str(final_edl),
         '--config',         str(config),
-    ], "Nodding-Cutaways einfügen")
+    ]
+    if speaking_enabled and cam1_speaking_json.exists():
+        adder_args += ['--cam1-speaking-reactions', str(cam1_speaking_json)]
+    if speaking_enabled and cam2_speaking_json.exists():
+        adder_args += ['--cam2-speaking-reactions', str(cam2_speaking_json)]
+    run(adder_args, "Nodding-Cutaways einfügen")
 
     return final_edl
 
