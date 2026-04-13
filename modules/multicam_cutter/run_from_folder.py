@@ -26,7 +26,6 @@ sys.path.insert(0, str(ROOT))
 
 from shared.waveform_sync import sync_sources, SyncError
 from modules.multicam_cutter.run_from_bin import run_analysis
-from modules.multicam_cutter.build_fcpxml import build_fcpxml
 from modules.multicam_cutter.build_aaf import build_aaf
 
 SCRIPT_DIR = Path(__file__).parent
@@ -126,21 +125,7 @@ def main():
         print(f"\nFEHLER in Analyse-Pipeline: {e}")
         return 1
 
-    # ── 4. FCPXML generieren (Resolve / Final Cut Pro) ───────────────────────
-    final_fcpxml = None
-    try:
-        final_fcpxml = build_fcpxml(
-            cam_paths=cam_paths[:2],
-            mic_paths=mic_paths,
-            offsets=offsets,
-            edl_path=final_edl,
-            fps=args.fps,
-            output=work_dir / 'final.fcpxml',
-        )
-    except Exception as e:
-        print(f"\nWarnung: FCPXML-Generierung fehlgeschlagen: {e}")
-
-    # ── 5. AAF generieren (Premiere Pro / Avid) ───────────────────────────────
+    # ── 4. AAF generieren ────────────────────────────────────────────────────
     final_aaf = None
     try:
         final_aaf = build_aaf(
@@ -154,21 +139,13 @@ def main():
     except Exception as e:
         print(f"\nWarnung: AAF-Generierung fehlgeschlagen: {e}")
 
-    # ── 6. Ergebnis ───────────────────────────────────────────────────────────
+    # ── 5. Ergebnis ───────────────────────────────────────────────────────────
     print(f"\n{'=' * 60}")
     print(f"✅ Workflow abgeschlossen — kein Resolve benötigt.")
     print(f"{'=' * 60}")
-    print(f"\n  Ausgabe-EDL:   {final_edl}")
-    if final_fcpxml:
-        print(f"  Ausgabe-FCPXML:{final_fcpxml}")
-    if final_aaf:
-        print(f"  Ausgabe-AAF:   {final_aaf}")
-    print(f"\n  Import:")
-    if final_fcpxml:
-        print(f"    DaVinci Resolve / Final Cut Pro → FCPXML importieren")
-    if final_aaf:
-        print(f"    Premiere Pro / Avid             → AAF importieren")
-    print(f"    Fallback (nur Video)            → EDL importieren")
+    print(f"\n  Ausgabe-AAF:   {final_aaf or '(fehlgeschlagen)'}")
+    print(f"  Ausgabe-EDL:   {final_edl}  (Fallback, nur Video)")
+    print(f"\n  Import: Datei → Import → final.aaf")
     print()
     return 0
 

@@ -96,7 +96,7 @@ Die Clips sind farblich markiert, damit du sofort siehst, warum ein Schnitt gese
 
 ## Ordner-Workflow (ohne DaVinci Resolve)
 
-Dieser Workflow läuft vollständig ohne Resolve. Eingabe ist ein Ordner mit den Mediendateien, Ausgabe sind eine **FCPXML-Datei** (für Resolve und Final Cut Pro), eine **AAF-Datei** (für Premiere Pro und Avid) sowie eine EDL — alle mit Video- und synchronisierten Mikrofon-Audiospuren.
+Dieser Workflow läuft vollständig ohne Resolve. Eingabe ist ein Ordner mit den Mediendateien, Ausgabe ist eine **AAF-Datei** mit Video- und synchronisierten Mikrofon-Audiospuren — importierbar in DaVinci Resolve, Premiere Pro und Avid.
 
 Alle Analyse-Zwischendateien landen in einem `analyse/`-Unterordner, getrennt von den Quelldateien.
 
@@ -133,21 +133,20 @@ Klicke auf **▶ Ordner-Workflow starten**. Die Progressbar zeigt den aktuellen 
 
 Nach Abschluss findest du im `analyse/`-Unterordner:
 
-- **`final.fcpxml`** — Timeline mit Video + synchronisierten MIC-Audiospuren (für Resolve und Final Cut Pro)
-- **`final.aaf`** — Timeline mit Video + synchronisierten MIC-Audiospuren (für Premiere Pro und Avid)
+- **`final.aaf`** — Timeline mit Video + synchronisierten MIC-Audiospuren
 - **`final.edl`** — Nur Video, ohne separate MIC-Spuren (Fallback)
 
 **Import in DaVinci Resolve:**
-`Datei → Import → Timeline → final.fcpxml auswählen`
-Die Mediendateien müssen dafür im Media Pool verlinkt sein.
+`Datei → Import → Timeline → final.aaf auswählen`
+Die Mediendateien werden automatisch mit bereits importierten Clips im Media Pool verknüpft.
 
 **Import in Premiere Pro:**
-`Datei → Importieren → final.aaf` — enthält Video auf V1, MIC1 auf A1, MIC2 auf A2.
+`Datei → Importieren → final.aaf`
 
-**Import in Final Cut Pro:**
-`Ablage → Importieren → XML → final.fcpxml`
+**Import in Avid Media Composer:**
+`File → Import → final.aaf`
 
-> **Hinweis:** Premiere Pro unterstützt kein FCPXML — dort die AAF-Datei verwenden. Resolve und Final Cut Pro importieren die FCPXML.
+> **Tipp:** Die AAF enthält Video auf V1, MIC1 auf A1 und MIC2 auf A2, jeweils synchron zum Schnitt. Das Kamera-internaudio ist nicht enthalten.
 
 ---
 
@@ -206,8 +205,8 @@ MIC-Index für CAM1 und CAM2 im UI tauschen. Beim nächsten Start kann „Base-E
 **Sync-Timeline sieht verschoben aus**
 Der Waveform-Abgleich funktioniert am besten wenn auf beiden Kameras dasselbe Umgebungsaudio zu hören ist. Stark gedämpfte Studios oder Richtmikrofone mit sehr wenig Übersprechen können den Abgleich erschweren.
 
-**FCPXML- oder AAF-Import: Clips offline / nicht verknüpft**
-Beide Formate referenzieren die Mediendateien über ihren absoluten Pfad. Die Dateien müssen noch an derselben Stelle liegen wie beim Workflow-Durchlauf, oder nach dem Import manuell neu verknüpft werden.
+**AAF-Import: Clips offline / nicht verknüpft**
+Die AAF referenziert die Mediendateien über ihren absoluten Pfad und eingebetteten Timecode. Die Clips müssen im Media Pool bereits importiert sein (oder noch am selben Ort liegen wie beim Workflow-Durchlauf), damit Resolve sie automatisch verknüpft.
 
 ---
 
