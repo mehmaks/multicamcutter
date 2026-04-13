@@ -249,6 +249,13 @@ def build_fcpxml(
     fps_int  = int(round(fps))
     fps_name = f"FFVideoFormat{h}p{fps_int}"
 
+    # Embedded Timecodes der Kameras (Resolve braucht diese als asset.start)
+    cam_tc = [
+        _probe_embedded_tc_frames(cam1_path, fps),
+        _probe_embedded_tc_frames(cam2_path, fps),
+    ]
+    cam_durs = [cam1_dur, cam2_dur]
+
     # MIC-Dateien (max. 2)
     mics = mic_paths[:2]
     mic_durs    = [_probe_duration_frames(str(p), fps) for p in mics]
@@ -269,8 +276,14 @@ def build_fcpxml(
         return _x(Path(p).resolve().as_uri())
 
     # ── FCPXML-Text aufbauen ─────────────────────────────────────────────────
+    # Struktur orientiert sich am Resolve-Export-Format:
+    # - asset.start = embedded TC der Quelldatei
+    # - <media-rep> statt src= auf dem Asset
+    # - clip.start = embedded_TC + src_in
+    # - <video> child-Element in jedem Clip
+    # - MIC-Audio als <asset-clip> mit positivem lane (2, 3)
     L = []
-    A = L.append  # Kurzform
+    A = L.append
 
     A('<?xml version="1.0" encoding="UTF-8"?>')
     A('<!DOCTYPE fcpxml>')
@@ -279,64 +292,76 @@ def build_fcpxml(
     A(f'    <format id="r1" name="{fps_name}"'
       f' frameDuration="{_frame_duration_str(fps)}" width="{w}" height="{h}"/>')
 
-    # Camera-Assets (nur Video, kein Audio)
-    for idx, (cp, dur) in enumerate([(cam1_path, cam1_dur), (cam2_path, cam2_dur)]):
+    # Camera-Assets (start = embedded TC, <media-rep> child)
+    for idx, (cp, dur, tc) in enumerate(zip(cam_paths, cam_durs, cam_tc)):
         rid = f"r{2 + idx}"
-        A(f'    <asset id="{rid}" name="{_x(Path(cp).stem)}" uid="{uid(cp)}"')
-        A(f'           src="{furi(cp)}" start="0s" duration="{ft(dur)}"')
-        A(f'           hasVideo="1" hasAudio="0"/>')
+        A(f'    <asset id="{rid}" name="{_x(Path(cp).name)}" format="r1"')
+        A(f'           start="{ft(tc)}" duration="{ft(dur)}"')
+        A(f'           hasVideo="1" hasAudio="1" audioSources="1" audioChannels="2">')
+        A(f'        <media-rep kind="original-media" src="{furi(cp)}"/>')
+        A( '    </asset>')
 
-    # MIC-Assets
+    # MIC-Assets (WAV ohne embedded TC → start="0s")
     for idx, (mp, dur, ch) in enumerate(zip(mics, mic_durs, mic_chs)):
         rid = f"r{4 + idx}"
-        A(f'    <asset id="{rid}" name="{_x(Path(mp).stem)}" uid="{uid(mp)}"')
-        A(f'           src="{furi(mp)}" start="0s" duration="{ft(dur)}"')
-        A(f'           hasVideo="0" hasAudio="1"'
-          f' audioSources="1" audioChannels="{ch}" audioRate="48000"/>')
+        A(f'    <asset id="{rid}" name="{_x(Path(mp).name)}"')
+        A(f'           start="0s" duration="{ft(dur)}"')
+        A(f'           hasVideo="0" hasAudio="1" audioSources="1" audioChannels="{ch}">')
+        A(f'        <media-rep kind="original-media" src="{furi(mp)}"/>')
+        A( '    </asset>')
 
     A('  </resources>')
     A('  <library>')
     A(f'    <event name="{_x(output.stem)}">')
     A(f'      <project name="{_x(output.stem)}">')
     A(f'        <sequence format="r1" duration="{ft(total_frames)}"'
-      f' tcStart="0s" tcFormat="NDF" audioLayout="stereo" audioRate="48000">')
+      f' tcStart="0s" tcFormat="NDF">')
     A('          <spine>')
 
+    # MIC-Startframe für kontinuierlichen Audio-Clip
+    ev0        = events[0]
+    abs_start0 = ev0['source_in'] + cam_offs[ev0['cam_index']]
+    # clip.start des ersten Clips = embedded_TC[cam_idx] + src_in
+    first_clip_start = cam_tc[ev0['cam_index']] + ev0['source_in']
+
     record_cursor = 0
-    for ev in events:
-        cam_idx  = ev['cam_index']
-        src_in   = ev['source_in']
-        src_out  = ev['source_out']
-        dur      = src_out - src_in
-        cam_ref  = f"r{2 + cam_idx}"
-        cam_name = _x(Path(cam_paths[cam_idx]).stem)
+    for ev_idx, ev in enumerate(events):
+        cam_idx   = ev['cam_index']
+        src_in    = ev['source_in']
+        dur       = ev['source_out'] - ev['source_in']
+        cam_ref   = f"r{2 + cam_idx}"
+        cam_name  = _x(Path(cam_paths[cam_idx]).stem)
+        tc        = cam_tc[cam_idx]
+        cam_dur   = cam_durs[cam_idx]
+        clip_start = tc + src_in  # embedded TC + source in-point
 
-        # Absoluter Frame (CAM1-relativ) am Anfang dieses Events
-        abs_start = src_in + cam_offs[cam_idx]
+        if ev_idx == 0:
+            A(f'            <clip start="{ft(clip_start)}" enabled="1"'
+              f' offset="{ft(record_cursor)}" name="{cam_name}"'
+              f' format="r1" tcFormat="NDF" duration="{ft(dur)}">')
+            A(f'                <video start="{ft(tc)}" ref="{cam_ref}"'
+              f' offset="{ft(tc)}" duration="{ft(cam_dur)}"/>')
+            # MIC als <asset-clip> mit positivem lane (wie Resolve es exportiert)
+            for i, (mic_off, mic_dur, ch) in enumerate(zip(mic_offsets, mic_durs, mic_chs)):
+                lane      = i + 2        # lane 2 = MIC1, lane 3 = MIC2
+                rid       = f"r{4 + i}"
+                mic_name  = _x(Path(mics[i]).name)
+                mic_start = max(0, abs_start0 - mic_off)
+                actual_dur = min(total_frames, max(0, mic_dur - mic_start))
+                if actual_dur <= 0:
+                    continue
+                A(f'                <asset-clip start="{ft(mic_start)}" ref="{rid}" enabled="1"'
+                  f' lane="{lane}" offset="{ft(first_clip_start)}"'
+                  f' name="{mic_name}" duration="{ft(actual_dur)}"/>')
+            A('            </clip>')
+        else:
+            A(f'            <clip start="{ft(clip_start)}" enabled="1"'
+              f' offset="{ft(record_cursor)}" name="{cam_name}"'
+              f' format="r1" tcFormat="NDF" duration="{ft(dur)}">')
+            A(f'                <video start="{ft(tc)}" ref="{cam_ref}"'
+              f' offset="{ft(tc)}" duration="{ft(cam_dur)}"/>')
+            A('            </clip>')
 
-        A(f'            <clip name="{cam_name}" ref="{cam_ref}"'
-          f' offset="{ft(record_cursor)}" duration="{ft(dur)}" start="{ft(src_in)}">')
-
-        # Verbundene Audio-Clips (ein <audio> pro MIC-Datei)
-        for i, (mic_off, mic_dur, ch) in enumerate(zip(mic_offsets, mic_durs, mic_chs)):
-            lane    = -(i + 1)          # -1 → A1, -2 → A2
-            role    = f'dialogue.MIC{i + 1}'
-            rid     = f"r{4 + i}"
-            mic_src = max(0, abs_start - mic_off)
-            # Nicht über das Ende der MIC-Datei hinausgehen
-            actual_dur = min(dur, max(0, mic_dur - mic_src))
-            if actual_dur <= 0:
-                continue
-
-            src_ch = '1, 2' if ch >= 2 else '1'
-            out_ch = 'L, R'
-
-            A(f'              <audio ref="{rid}" lane="{lane}" role="{role}"'
-              f' offset="0s" duration="{ft(actual_dur)}" start="{ft(mic_src)}">')
-            A(f'                <audio-channel-source srcCh="{src_ch}" outCh="{out_ch}" active="1"/>')
-            A( '              </audio>')
-
-        A('            </clip>')
         record_cursor += dur
 
     A('          </spine>')
