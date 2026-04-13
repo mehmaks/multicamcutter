@@ -615,7 +615,8 @@ def main():
     project.SetCurrentTimeline(sync_tl)
 
     # 4. Analyse-Pipeline
-    work_dir = Path(cam1_path).parent
+    work_dir = Path(cam1_path).parent / 'analyse'
+    work_dir.mkdir(exist_ok=True)
     try:
         final_edl = run_analysis(
             [cam1_path, cam2_path], mic_paths, offsets,

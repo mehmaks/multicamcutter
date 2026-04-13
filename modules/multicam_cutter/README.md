@@ -1,21 +1,36 @@
 # Multicam Cutter — Anleitung
 
-Dieses Tool analysiert eine Podcast-Aufnahme mit zwei Kameras und erstellt automatisch einen ersten Schnitt in DaVinci Resolve. Es erkennt, wer gerade spricht, schneidet zwischen den Kameras hin und her — und fügt kurze Reaktions-Cutaways ein, wenn die Off-Kamera nickt oder etwas sagt.
+Dieses Tool analysiert eine Podcast-Aufnahme mit zwei Kameras und erstellt automatisch einen ersten Schnitt. Es erkennt, wer gerade spricht, schneidet zwischen den Kameras hin und her — und fügt kurze Reaktions-Cutaways ein, wenn die Off-Kamera nickt oder etwas sagt.
+
+**Zwei Workflows stehen zur Wahl:**
+
+| | Bin-Workflow | Ordner-Workflow |
+|---|---|---|
+| **Voraussetzung** | DaVinci Resolve geöffnet | Nur FFmpeg + Python |
+| **Eingabe** | Resolve-Bin | Ordner mit Mediendateien |
+| **Ausgabe** | Timeline direkt in Resolve | FCPXML + EDL (importierbar in Resolve, Premiere Pro, Final Cut Pro) |
+| **NLE** | Resolve | Beliebig |
 
 ---
 
 ## Voraussetzungen
 
-### Software
-- **DaVinci Resolve 18 oder neuer** muss geöffnet sein und ein Projekt geladen haben
-- **Python 3.9** mit den installierten Abhängigkeiten (`pip install -r requirements.txt`)
+### Software (beide Workflows)
+- **Python 3.12** mit den installierten Abhängigkeiten (`pip install -r requirements.txt`)
 - **FFmpeg** muss systemweit verfügbar sein
 
-### Material
-- Genau **2 Kamera-Clips** (MP4, MOV oder MXF) im gleichen Resolve-Bin — alphabetisch sortiert nach Name, der erste wird als CAM1 behandelt, der zweite als CAM2
-- **1 oder 2 Mikrofon-Spuren** als separate WAV- oder AIF-Dateien (z.B. vom Zoom-Recorder), ebenfalls im gleichen Bin
+### Zusätzlich für den Bin-Workflow
+- **DaVinci Resolve 18 oder neuer** muss geöffnet sein und ein Projekt geladen haben
+
+### Material (beide Workflows)
+- Genau **2 Kamera-Clips** (MP4, MOV oder MXF) — alphabetisch sortiert nach Name, der erste wird als CAM1 behandelt, der zweite als CAM2
+- **1 oder 2 Mikrofon-Spuren** als separate WAV- oder AIF-Dateien (z.B. vom Zoom-Recorder)
 - Die Kameraclips müssen einen **eingebetteten Timecode** enthalten (Standard bei Sony, Canon, Blackmagic, etc.)
 - Die Kameras **müssen nicht gleichzeitig gestartet** worden sein — das Tool synchronisiert automatisch per Waveform-Abgleich
+
+---
+
+## Bin-Workflow (mit DaVinci Resolve)
 
 ### Empfohlener Aufbau im Bin
 
@@ -27,32 +42,30 @@ Bin: "31 - Katrin"
   └── MIC002.WAV    ← Mikrofon Moderator / CAM1 → Index 1
 ```
 
-> **Hinweis zur MIC-Zuordnung:** Die Mikrofone werden alphabetisch nummeriert (Index 0 = erstes WAV, Index 1 = zweites WAV). Welches Mic zu welcher Kamera gehört, stellst du im UI ein. Typisch bei einem Podcast ist, dass das Mikrofon des Moderators zur Moderatoren-Kamera gehört — aber nicht immer stimmt die alphabetische Reihenfolge damit überein.
+> **Hinweis zur MIC-Zuordnung:** Die Mikrofone werden alphabetisch nummeriert (Index 0 = erstes WAV, Index 1 = zweites WAV). Welches Mic zu welcher Kamera gehört, stellst du im UI ein.
 
----
+### Schritt-für-Schritt
 
-## Schritt-für-Schritt-Workflow
-
-### 1. Bin in Resolve vorbereiten
+#### 1. Bin in Resolve vorbereiten
 Lege alle Clips der Folge in einen gemeinsamen Bin in DaVinci Resolve. Der Bin muss genau 2 Videoclips und mindestens 1 Audioclip enthalten.
 
-### 2. App starten und Tab öffnen
+#### 2. App starten und Tab öffnen
 Öffne die Toolkit-App und wechsle in den Tab **Multicam Cutter → Bin-Workflow**.
 
-### 3. Bin und Timeline-Name wählen
+#### 3. Bin und Timeline-Name wählen
 - **Media Pool Bin:** Der aktuell in Resolve geöffnete Bin wird automatisch vorausgewählt
 - **Cut-Timeline Name:** Der Name der fertigen Timeline in Resolve (z.B. `31 Katrin Final Cut`)
 
-### 4. MIC-Zuordnung prüfen
+#### 4. MIC-Zuordnung prüfen
 Wähle unter „MIC für CAM1" und „MIC für CAM2" das jeweils passende Mikrofon. Die Namen der erkannten Audiodateien werden direkt angezeigt.
 
-### 5. Einstellungen anpassen (optional)
-Unter **Analyse-Einstellungen** findest du vier aufklappbare Gruppen. Jeder Wert hat ein **?-Symbol**, das beim Überfahren erklärt, was er tut. Die Standardwerte sind für einen typischen Podcast-Workflow kalibriert — du musst hier nichts ändern, wenn du das Tool zum ersten Mal benutzt.
+#### 5. Einstellungen anpassen (optional)
+Unter **Analyse-Einstellungen** findest du vier aufklappbare Gruppen. Jeder Wert hat ein **?-Symbol**, das beim Überfahren erklärt, was er tut. Die Standardwerte sind für einen typischen Podcast-Workflow kalibriert.
 
 Einstellungen lassen sich als **Preset** speichern und für andere Folgen oder Formate wieder laden.
 
-### 6. Workflow starten
-Klicke auf **▶ Bin-Workflow starten**. Das Log zeigt den Fortschritt in Echtzeit.
+#### 6. Workflow starten
+Klicke auf **▶ Bin-Workflow starten**. Die Progressbar zeigt den aktuellen Schritt und eine ETA in Echtzeit.
 
 **Typische Laufzeiten** (60-min-Folge, MacBook Pro M2):
 
@@ -63,7 +76,7 @@ Klicke auf **▶ Bin-Workflow starten**. Das Log zeigt den Fortschritt in Echtze
 | Gesichtsanalyse (KI, CAM1 + CAM2) | 5–15 Minuten |
 | Cutaway-Einbau + Timeline | ~1 Minute |
 
-### 7. Ergebnis in Resolve kontrollieren
+#### 7. Ergebnis in Resolve kontrollieren
 Nach Abschluss erscheinen in Resolve zwei neue Timelines:
 
 - **`<Name> Sync`** — alle Quellen übereinander, zum Kontrollieren der Synchronisation
@@ -81,13 +94,69 @@ Die Clips sind farblich markiert, damit du sofort siehst, warum ein Schnitt gese
 
 ---
 
+## Ordner-Workflow (ohne DaVinci Resolve)
+
+Dieser Workflow läuft vollständig ohne Resolve. Eingabe ist ein Ordner mit den Mediendateien, Ausgabe ist eine **FCPXML-Datei** (plus EDL), die direkt in DaVinci Resolve, Premiere Pro oder Final Cut Pro importiert werden kann — inklusive Video- und beiden Mikrofon-Audiospuren.
+
+Alle Analyse-Zwischendateien landen in einem `analyse/`-Unterordner, getrennt von den Quelldateien.
+
+### Empfohlener Ordneraufbau
+
+```
+/Episoden/31-Katrin/
+  ├── A001.MP4      ← CAM1 (alphabetisch zuerst)
+  ├── B002.MP4      ← CAM2
+  ├── MIC001.WAV    ← Mikrofon (Index 0)
+  └── MIC002.WAV    ← Mikrofon (Index 1)
+```
+
+### Schritt-für-Schritt
+
+#### 1. App starten und Tab öffnen
+Öffne die Toolkit-App und wechsle in den Tab **Multicam Cutter → Ordner-Workflow**.
+
+#### 2. Ordner wählen
+Trage den vollständigen Pfad zum Episoden-Ordner ein. Die App zeigt sofort die erkannten CAM- und MIC-Dateien an.
+
+#### 3. MIC-Zuordnung prüfen
+Wähle unter „MIC für CAM1" und „MIC für CAM2" das jeweils passende Mikrofon aus den Dropdowns.
+
+#### 4. Einstellungen anpassen (optional)
+Gleiche Einstellungen wie im Bin-Workflow, ebenfalls mit Preset-System.
+
+#### 5. Workflow starten
+Klicke auf **▶ Ordner-Workflow starten**. Die Progressbar zeigt den aktuellen Schritt und ETA.
+
+**Typische Laufzeiten** entsprechen dem Bin-Workflow. Der Waveform-Sync und die Gesichtsanalyse dauern gleich lang; der Resolve-Schritt entfällt dafür vollständig.
+
+#### 6. Ausgabedateien importieren
+
+Nach Abschluss findest du im `analyse/`-Unterordner:
+
+- **`final.fcpxml`** — Timeline mit Video + synchronisierten MIC-Audiospuren (empfohlen)
+- **`final.edl`** — Nur Video, ohne separate MIC-Spuren (Fallback)
+
+**Import in DaVinci Resolve:**
+`Datei → Import → Timeline → final.fcpxml auswählen`
+Die Mediendateien müssen dafür im Media Pool verlinkt sein.
+
+**Import in Premiere Pro:**
+`Datei → Import → final.fcpxml` — Premiere erkennt das Format direkt.
+
+**Import in Final Cut Pro:**
+`Ablage → Importieren → XML → final.fcpxml`
+
+> **Tipp:** Die FCPXML enthält Video auf Spur V1, MIC1 auf A1 und MIC2 auf A2, jeweils synchron zum Schnitt. Das Kamera-internaudio ist nicht enthalten.
+
+---
+
 ## Was das Tool intern macht
 
 1. **Waveform-Sync** — vergleicht das Audiosignal aller Quellen miteinander und berechnet, wie viele Frames sie gegeneinander verschoben sind
 2. **Sprecher-Erkennung** — analysiert beide Mikrofon-Spuren und entscheidet per Lautstärke-Vergleich, wer gerade spricht
 3. **Gesichtsanalyse** — analysiert mit KI (MediaPipe) nur die Frames, in denen eine Kamera *nicht* der aktive Sprecher ist — sucht nach Nicken und kurzen Einwürfen
 4. **Cutaway-Einbau** — fügt erkannte Reaktionen als Cutaways in die Timeline ein, bereinigt zu kurze Clips und erzwingt Schnitte bei zu langen Einstellungen
-5. **Timeline-Aufbau** — legt Sync-Timeline und Schnitt-Timeline direkt in Resolve an, speichert das Projekt
+5. **Timeline-Aufbau** — entweder direkt in Resolve (Bin-Workflow) oder als FCPXML/EDL (Ordner-Workflow)
 
 ---
 
@@ -95,35 +164,35 @@ Die Clips sind farblich markiert, damit du sofort siehst, warum ein Schnitt gese
 
 ### Anzahl Quellen
 - **Genau 2 Kameras** — mehr oder weniger werden nicht unterstützt
-- **1 oder 2 Mikrofon-Spuren** — bei mehr als 2 WAV-Dateien im Bin werden nur die ersten beiden (nach MIC-Index-Einstellung) verwendet
+- **1 oder 2 Mikrofon-Spuren** — bei mehr als 2 WAV-Dateien werden nur die ersten beiden verwendet
 
 ### Keine Multi-Gäste-Unterstützung
 Das Tool ist für das **1 Moderator + 1 Gast**-Format ausgelegt. Formate mit 3 oder mehr Gesprächspartnern werden aktuell nicht unterstützt — die Sprecher-Erkennung arbeitet mit genau zwei Kanälen.
 
 ### Schnitt beginnt beim ersten Sprecheinsatz
-Die fertige Timeline beginnt nicht bei Timecode 00:00:00, sondern dort, wo laut Mikrofonanalyse der Podcast startet. Material davor (Vorbereitung, stilles Warten) fehlt im Schnitt — das ist gewollt.
+Die fertige Timeline beginnt dort, wo laut Mikrofonanalyse der Podcast startet. Material davor (Vorbereitung, stilles Warten) fehlt im Schnitt — das ist gewollt.
 
 ### Nodding-Erkennung benötigt frontale Kamera
 Die KI-Gesichtsanalyse arbeitet am zuverlässigsten wenn das Gesicht **frontal oder leicht seitlich** in die Kamera schaut. Stark seitliche Aufnahmen (Profil-Perspektive) reduzieren die Erkennungsrate deutlich.
 
 ### Der erste Schnitt ist ein Vorschlag
-Das Ergebnis ist ein KI-gestützter Ersteditschnitt — kein Fertigschnitt. Gleichzeitiges Reden beider Personen, schlechte Reaktions-Cutaways oder zu ähnliche Mikrofonpegel können zu Fehlschnitten führen. Die Farbmarkierung hilft, schnell zu erkennen warum ein Schnitt gesetzt wurde, und erleichtert die Nachkorrektur.
+Das Ergebnis ist ein KI-gestützter Ersteditschnitt — kein Fertigschnitt. Gleichzeitiges Reden beider Personen, schlechte Reaktions-Cutaways oder zu ähnliche Mikrofonpegel können zu Fehlschnitten führen. Die Farbmarkierung hilft, schnell zu erkennen warum ein Schnitt gesetzt wurde.
 
 ### Keine Farbkorrektur oder Tonbearbeitung
-Das Tool legt nur den Schnitt an. Farbkorrektur, Tonpegel und alle weitere Postproduktion erfolgen wie gewohnt in Resolve.
+Das Tool legt nur den Schnitt an. Farbkorrektur, Tonpegel und alle weitere Postproduktion erfolgen wie gewohnt im NLE.
 
 ---
 
 ## Häufige Probleme
 
-**„Resolve nicht verbunden"**
+**„Resolve nicht verbunden"** (Bin-Workflow)
 Resolve muss geöffnet sein und ein Projekt geladen haben, *bevor* die Toolkit-App gestartet wird. Nach dem Starten von Resolve die App neu laden.
 
-**Kein Bin in der Liste**
+**Kein Bin in der Liste** (Bin-Workflow)
 Prüfen ob der Bin in Resolve sichtbar ist und mindestens 2 Videoclips sowie 1 Audioclip enthält. Untergeordnete Sub-Bins werden ebenfalls aufgelistet.
 
 **MIC-Zuordnung falsch (falscher Sprecher landet auf falscher Kamera)**
-MIC-Index für CAM1 und CAM2 im UI tauschen. Beim nächsten Start kann „Base-EDL überspringen" aktiviert werden — dann läuft nur die Sprecher-Erkennung neu, die deutlich schnellere Gesichtsanalyse entfällt.
+MIC-Index für CAM1 und CAM2 im UI tauschen. Beim nächsten Start kann „Base-EDL überspringen" aktiviert werden — dann läuft nur die Sprecher-Erkennung neu, ohne erneute Gesichtsanalyse.
 
 **Keine oder sehr wenige Cutaways**
 - Nodding: `Min. Konfidenz` etwas absenken oder `Min. Nod-Dauer` verkürzen
@@ -134,7 +203,10 @@ MIC-Index für CAM1 und CAM2 im UI tauschen. Beim nächsten Start kann „Base-E
 - Speaking: `Rise (dB)` erhöhen oder Speaking Reactions deaktivieren
 
 **Sync-Timeline sieht verschoben aus**
-Der Waveform-Abgleich funktioniert am besten wenn auf beiden Kameras dasselbe Umgebungsaudio zu hören ist. Stark gedämpfte Studios oder Richtmikrofone mit sehr wenig Übersprechen zwischen den Kanälen können den Abgleich erschweren.
+Der Waveform-Abgleich funktioniert am besten wenn auf beiden Kameras dasselbe Umgebungsaudio zu hören ist. Stark gedämpfte Studios oder Richtmikrofone mit sehr wenig Übersprechen können den Abgleich erschweren.
+
+**FCPXML-Import: Clips offline / nicht verknüpft**
+Die FCPXML referenziert die Mediendateien über ihren absoluten Pfad. Die Dateien müssen noch an derselben Stelle liegen wie beim Workflow-Durchlauf, oder nach dem Import manuell neu verknüpft werden.
 
 ---
 

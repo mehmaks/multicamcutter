@@ -2,9 +2,13 @@
 Composite silence detection and timeline rebuild for multi-track audio.
 """
 
+import subprocess
+import tempfile
 import numpy as np
 import soundfile as sf
 from pathlib import Path
+
+_VIDEO_EXT = {".mp4", ".mov", ".mxf", ".r3d", ".braw", ".avi", ".mkv", ".mts", ".m2ts"}
 
 
 # ── Analysis ──────────────────────────────────────────────────────────────────
@@ -61,8 +65,24 @@ def analyze_composite_silence(
             if progress_cb:
                 progress_cb(f"  Spur {track_idx}: {path.name}")
 
+            tmp_wav = None
             try:
-                info = sf.info(str(path))
+                read_path = path
+                if path.suffix.lower() in _VIDEO_EXT:
+                    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
+                    tmp.close()
+                    tmp_wav = Path(tmp.name)
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", str(path),
+                         "-map", "0:a:0", "-acodec", "pcm_s16le",
+                         "-ar", "16000", "-ac", "1", str(tmp_wav)],
+                        check=True,
+                        stdout=subprocess.DEVNULL,
+                        stderr=subprocess.DEVNULL,
+                    )
+                    read_path = tmp_wav
+
+                info = sf.info(str(read_path))
                 sr = info.samplerate
                 spf = sr / fps  # samples per frame
 
@@ -72,7 +92,7 @@ def analyze_composite_silence(
                 tl_offset    = clip.timeline_start - tl_start
 
                 frame_idx = 0
-                for block in sf.blocks(str(path), blocksize=block_size,
+                for block in sf.blocks(str(read_path), blocksize=block_size,
                                         start=start_sample, stop=end_sample,
                                         dtype="float32"):
                     tl_frame = tl_offset + frame_idx
@@ -86,6 +106,9 @@ def analyze_composite_silence(
             except Exception as e:
                 if progress_cb:
                     progress_cb(f"  ⚠ Fehler Spur {track_idx}: {e}")
+            finally:
+                if tmp_wav and tmp_wav.exists():
+                    tmp_wav.unlink(missing_ok=True)
 
     # Find contiguous silent regions
     padded = np.pad(silence_mask.astype(np.int8), (1, 1), constant_values=0)
@@ -104,7 +127,7 @@ def analyze_composite_silence(
         cut_start = s + pre_frames
         cut_end   = e - post_frames
         if cut_end > cut_start:
-            results.append((cut_start + tl_start, cut_end - cut_start))
+            results.append((int(cut_start + tl_start), int(cut_end - cut_start)))
 
     return results
 
@@ -152,7 +175,6 @@ def rebuild_timeline_without_silences(
     new_tl_name: str,
     selected_tracks: list,
     silence_segments: list,
-    audio_transition_frames: int,
     progress_cb=None,
 ) -> str:
     """
@@ -204,91 +226,89 @@ def rebuild_timeline_without_silences(
     new_tl.SetSetting("timelineFrameRate", str(int(fps)))
 
     # ── Remove default tracks, add correct number of audio tracks ─────────────
-    # Default timeline has 1 video + 1 stereo audio track
-    new_tl.DeleteTrack("audio", 1)
-    for _ in range(a_count):
+    # Default timeline has 1 video + 1 stereo audio track.
+    # DeleteTrack may not exist in older Resolve versions (returns None instead
+    # of raising AttributeError), so we guard with callable().
+    _delete_track = getattr(new_tl, "DeleteTrack", None)
+    if callable(_delete_track):
+        try:
+            _delete_track("audio", 1)
+            tracks_to_add = a_count
+        except Exception:
+            tracks_to_add = max(0, a_count - 1)
+    else:
+        tracks_to_add = max(0, a_count - 1)
+    for _ in range(tracks_to_add):
         new_tl.AddTrack("audio", "mono")
 
-    # ── Helper: append a clip segment to new timeline ─────────────────────────
+    # ── Precompute global keep segments with record positions ─────────────────
+    # Each entry: (tl_keep_start, tl_keep_end, record_start_in_new_tl)
+    # All tracks use the same record positions so they stay in sync.
+    global_keeps = []
+    _pos = tl_start
+    _rec = 0
+    for _ss, _sd in sorted(silence_segments):
+        _se = _ss + _sd
+        if _se <= tl_start or _ss >= tl_end:
+            continue
+        _ss = max(_ss, tl_start)
+        _se = min(_se, tl_end)
+        if _pos < _ss:
+            global_keeps.append((_pos, _ss, _rec))
+            _rec += _ss - _pos
+        _pos = _se
+    if _pos < tl_end:
+        global_keeps.append((_pos, tl_end, _rec))
+
     def _append_segment(mi, src_start: int, src_end: int,
-                        track_idx: int, media_type: int,
-                        fade_in: int, fade_out: int):
+                        track_idx: int, media_type: int, record_frame: int):
         if src_end <= src_start:
             return
-        clip_info = {
+        mp.AppendToTimeline([{
             "mediaPoolItem": mi,
             "startFrame":    src_start,
             "endFrame":      src_end,
             "trackIndex":    track_idx,
             "mediaType":     media_type,
-        }
-        items = new_tl.AppendToTimeline([clip_info])
-        if items and audio_transition_frames > 0 and media_type == 2:
-            item = items[0]
-            try:
-                if fade_in:
-                    item.SetProperty("audioFadeInLength", fade_in)
-                if fade_out:
-                    item.SetProperty("audioFadeOutLength", fade_out)
-            except Exception:
-                pass
+            "recordFrame":   record_frame,
+        }])
 
-    # ── Video tracks — copy unchanged ─────────────────────────────────────────
-    # We need at least 1 video track; add them if needed
-    for _ in range(v_count):
+    def _place_clip(item, track_idx: int, media_type: int, label: str):
+        """Place a single source clip cut to global_keeps."""
+        mi_obj = item.GetMediaPoolItem()
+        if mi_obj is None:
+            return
+        item_tl_start = item.GetStart()
+        item_tl_end   = item.GetEnd()
+        src_off       = item.GetSourceStartFrame()
+        n = 0
+        for tl_ks, tl_ke, rec_start in global_keeps:
+            clip_ks = max(item_tl_start, tl_ks)
+            clip_ke = min(item_tl_end,   tl_ke)
+            if clip_ke <= clip_ks:
+                continue
+            src_s = src_off + (clip_ks - item_tl_start)
+            src_e = src_off + (clip_ke - item_tl_start)
+            rec   = rec_start + (clip_ks - tl_ks)
+            _append_segment(mi_obj, src_s, src_e, track_idx, media_type, rec)
+            n += 1
+        if progress_cb:
+            progress_cb(f"  {label} → {n} Segmente")
+
+    # ── Video tracks ──────────────────────────────────────────────────────────
+    for _ in range(v_count - 1):
         new_tl.AddTrack("video")
 
     for v_idx in range(1, v_count + 1):
-        items = source_tl.GetItemListInTrack("video", v_idx) or []
-        for item in items:
-            mi_obj = item.GetMediaPoolItem()
-            if mi_obj is None:
-                continue
-            _append_segment(
-                mi_obj,
-                item.GetSourceStartFrame(),
-                item.GetSourceEndFrame(),
-                v_idx, 1,
-                0, 0,
-            )
-            if progress_cb:
-                progress_cb(f"  Video V{v_idx}: {item.GetName()}")
+        for item in sorted(source_tl.GetItemListInTrack("video", v_idx) or [],
+                           key=lambda x: x.GetStart()):
+            _place_clip(item, v_idx, 1, f"Video V{v_idx}: {item.GetName()}")
 
     # ── Audio tracks ──────────────────────────────────────────────────────────
     for a_idx in range(1, a_count + 1):
-        items = source_tl.GetItemListInTrack("audio", a_idx) or []
-        for item in sorted(items, key=lambda x: x.GetStart()):
-            mi_obj = item.GetMediaPoolItem()
-            if mi_obj is None:
-                continue
-
-            item_tl_start = item.GetStart()
-            item_tl_end   = item.GetEnd()
-            src_start_off = item.GetSourceStartFrame()
-
-            if a_idx in selected_tracks:
-                # Cut silence out of this track
-                keep_segs = _compute_keep_segments(item_tl_start, item_tl_end, silence_segments)
-                n = len(keep_segs)
-                for seg_i, (ks, ke) in enumerate(keep_segs):
-                    # Convert timeline keep range to source frames
-                    src_s = src_start_off + (ks - item_tl_start)
-                    src_e = src_start_off + (ke - item_tl_start)
-                    fade_in  = audio_transition_frames if seg_i > 0    else 0
-                    fade_out = audio_transition_frames if seg_i < n - 1 else 0
-                    _append_segment(mi_obj, src_s, src_e, a_idx, 2, fade_in, fade_out)
-                if progress_cb:
-                    progress_cb(f"  Audio A{a_idx}: {item.GetName()} → {n} Segmente")
-            else:
-                # Copy track unchanged
-                _append_segment(
-                    mi_obj,
-                    src_start_off,
-                    item.GetSourceEndFrame(),
-                    a_idx, 2, 0, 0,
-                )
-                if progress_cb:
-                    progress_cb(f"  Audio A{a_idx}: {item.GetName()} (unverändert)")
+        for item in sorted(source_tl.GetItemListInTrack("audio", a_idx) or [],
+                           key=lambda x: x.GetStart()):
+            _place_clip(item, a_idx, 2, f"Audio A{a_idx}: {item.GetName()}")
 
     project.SetCurrentTimeline(new_tl)
     return new_tl_name

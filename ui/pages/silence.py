@@ -19,14 +19,36 @@ st.caption("Composite Silence Detection · Duration-Marker Preview · Ripple Cut
 try:
     from resolve_bridge.connection import get_resolve
     from resolve_bridge.timeline_reader import read_timeline
+    from resolve_bridge.project_settings import load_page, save_page
 
     resolve  = get_resolve()
     tl       = read_timeline()
-    resolve_ok = True
+
+    _pm           = resolve.GetProjectManager()
+    _project_name = _pm.GetCurrentProject().GetName()
+    resolve_ok    = True
 except Exception as e:
     st.error(f"Resolve nicht verbunden: {e}")
     st.info("Resolve öffnen, Projekt laden und eine Timeline aktivieren.")
     st.stop()
+
+# ── Projektabhängige Einstellungen laden ───────────────────────────────────────
+
+_PAGE = "silence_cutter"
+_DEFAULTS = {
+    "sc_threshold_db":  -40,
+    "sc_min_silence_s": 0.8,
+    "sc_pre_pad_ms":    150,
+    "sc_post_pad_ms":   150,
+    "sc_marker_color":  "red",
+    "sc_gaps_silence":  True,
+}
+
+if st.session_state.get("_sc_loaded_project") != _project_name:
+    _saved = load_page(_project_name, _PAGE)
+    for _k, _default in _DEFAULTS.items():
+        st.session_state[_k] = _saved.get(_k, _default)
+    st.session_state["_sc_loaded_project"] = _project_name
 
 # ── Timeline info ──────────────────────────────────────────────────────────────
 
@@ -43,36 +65,38 @@ for w in (tl.warnings or []):
 st.divider()
 st.subheader("Audio-Spuren")
 
-from resolve_bridge.timeline_reader import get_primary_wav_clip
-
-wav_tracks = {
+audio_tracks_with_clips = {
     idx: clips
     for idx, clips in tl.audio_tracks.items()
-    if any(get_primary_wav_clip([c]) for c in clips)
+    if any(c.file_path for c in clips)
 }
 
-if not wav_tracks:
-    st.warning("Keine Audio-Spuren mit WAV-Clips gefunden.")
+if not audio_tracks_with_clips:
+    st.warning("Keine Audio-Spuren mit Clips gefunden.")
     st.stop()
 
-track_labels = {
-    idx: f"A{idx} — {tl.audio_track_names.get(idx, 'Audio')}  ({len(clips)} Clip{'s' if len(clips) != 1 else ''})"
-    for idx, clips in wav_tracks.items()
-}
+_VIDEO_EXT = {".mp4", ".mov", ".mxf", ".r3d", ".braw", ".avi", ".mkv"}
+
+def _track_label(idx, clips):
+    n = len(clips)
+    name = tl.audio_track_names.get(idx, "Audio")
+    has_video = any(Path(c.file_path).suffix.lower() in _VIDEO_EXT for c in clips if c.file_path)
+    tag = " · Video→Audio" if has_video else ""
+    return f"A{idx} — {name}  ({n} Clip{'s' if n != 1 else ''}){tag}"
 
 col_t1, col_t2 = st.columns([3, 1])
 with col_t1:
     selected_tracks = st.multiselect(
         "Spuren für Composite-Analyse",
-        options=list(wav_tracks.keys()),
-        default=list(wav_tracks.keys()),
-        format_func=lambda x: track_labels[x],
+        options=list(audio_tracks_with_clips.keys()),
+        default=list(audio_tracks_with_clips.keys()),
+        format_func=lambda x: _track_label(x, audio_tracks_with_clips[x]),
     )
 with col_t2:
     st.markdown("<br>", unsafe_allow_html=True)
     gaps_are_silence = st.toggle(
         "Lücken = Stille",
-        value=True,
+        key="sc_gaps_silence",
         help="An: Lücken zwischen Clips auf dieser Spur gelten als Stille.\nAus: Nur tatsächlich analysierte Audiobereiche fließen in die Composite-Detection ein.",
     )
 
@@ -88,25 +112,35 @@ st.subheader("Einstellungen")
 col_s1, col_s2 = st.columns(2)
 with col_s1:
     threshold_db = st.slider(
-        "Schwellwert (dB)", -60, -10, -40,
+        "Schwellwert (dB)", -60, -10,
+        key="sc_threshold_db",
         help="Signale unterhalb dieses Pegels gelten als Stille",
     )
     min_silence_s = st.slider(
-        "Mindestdauer Stille (s)", 0.1, 3.0, 0.8, step=0.1,
+        "Mindestdauer Stille (s)", 0.1, 3.0, step=0.1,
+        key="sc_min_silence_s",
         help="Kürzere Pausen werden ignoriert",
     )
 with col_s2:
     pre_pad_ms = st.slider(
-        "Pre-Pad (ms)", 0, 500, 150, step=25,
+        "Pre-Pad (ms)", 0, 500, step=25,
+        key="sc_pre_pad_ms",
         help="Puffer am Anfang jeder Stille — wird NICHT geschnitten",
     )
     post_pad_ms = st.slider(
-        "Post-Pad (ms)", 0, 500, 150, step=25,
+        "Post-Pad (ms)", 0, 500, step=25,
+        key="sc_post_pad_ms",
         help="Puffer am Ende jeder Stille — wird NICHT geschnitten",
     )
 
 MARKER_COLOR_OPTIONS = ["red", "pink", "yellow", "green", "blue", "purple", "cyan"]
-marker_color = st.selectbox("Marker-Farbe", MARKER_COLOR_OPTIONS, index=0)
+marker_color = st.selectbox(
+    "Marker-Farbe", MARKER_COLOR_OPTIONS,
+    key="sc_marker_color",
+)
+
+# Einstellungen für dieses Projekt persistieren
+save_page(_project_name, _PAGE, {k: st.session_state[k] for k in _DEFAULTS})
 
 # ── Analyse ────────────────────────────────────────────────────────────────────
 
@@ -152,15 +186,22 @@ def _run_analysis(params: dict, q: queue.Queue):
             total_frames = sum(d for _, d in segments)
             total_s = total_frames / params["fps"]
             q.put(f"Setze {len(segments)} Duration-Marker …")
+            ok_count = 0
             for frame, dur in segments:
-                add_marker(
+                result = add_marker(
                     frame    = frame,
                     color    = params["marker_color"],
                     name     = "Silence",
                     note     = f"{dur / params['fps']:.2f}s",
                     duration = dur,
                 )
-            q.put(f"✓ Marker gesetzt — {total_s:.1f}s werden gekürzt.")
+                if result:
+                    ok_count += 1
+            if ok_count == 0:
+                q.put(f"⚠ AddMarker schlug fehl (0/{len(segments)}). Erster Frame: {segments[0][0]}, tl_start={params['tl_start']}")
+            elif ok_count < len(segments):
+                q.put(f"⚠ Nur {ok_count}/{len(segments)} Marker gesetzt.")
+            q.put(f"✓ {ok_count} Marker gesetzt — {total_s:.1f}s werden gekürzt.")
         else:
             q.put("Keine Pausen gefunden. Schwellwert anpassen?")
 
@@ -217,11 +258,6 @@ if results:
     col_r1.metric("Erkannte Pausen", len(results))
     col_r2.metric("Einsparung", f"{total_s:.1f}s")
 
-    audio_transition = st.checkbox(
-        "Audio-Transition (2 Frames Fade an jedem Schnitt)",
-        value=False,
-    )
-
     new_tl_name = st.text_input(
         "Name der neuen Timeline",
         value=f"{tl.timeline_name} (cut)",
@@ -252,13 +288,12 @@ if results:
                 q.put(f"Erstelle Timeline '{params['new_tl_name']}' …")
 
                 rebuild_timeline_without_silences(
-                    resolve                 = params["resolve"],
-                    source_tl_name          = params["source_tl_name"],
-                    new_tl_name             = params["new_tl_name"],
-                    selected_tracks         = params["selected_tracks"],
-                    silence_segments        = params["segments"],
-                    audio_transition_frames = 2 if params["audio_transition"] else 0,
-                    progress_cb             = lambda m: q.put(m),
+                    resolve          = params["resolve"],
+                    source_tl_name   = params["source_tl_name"],
+                    new_tl_name      = params["new_tl_name"],
+                    selected_tracks  = params["selected_tracks"],
+                    silence_segments = params["segments"],
+                    progress_cb      = lambda m: q.put(m),
                 )
                 q.put(f"\n✓ Timeline '{params['new_tl_name']}' erstellt und aktiviert.")
                 q.put("__DONE__0")
@@ -274,7 +309,6 @@ if results:
                 "new_tl_name":      new_tl_name.strip() or f"{tl.timeline_name} (cut)",
                 "selected_tracks":  selected_tracks,
                 "segments":         results,
-                "audio_transition": audio_transition,
             }, q),
             daemon=True,
         ).start()
