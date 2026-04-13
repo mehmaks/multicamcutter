@@ -1,93 +1,163 @@
-# multicam_cutter
+# Multicam Cutter — Anleitung
 
-Automated EDL generation for multi-camera podcast recordings, with speaker detection and reaction cutaway insertion.
+Dieses Tool analysiert eine Podcast-Aufnahme mit zwei Kameras und erstellt automatisch einen ersten Schnitt in DaVinci Resolve. Es erkennt, wer gerade spricht, schneidet zwischen den Kameras hin und her — und fügt kurze Reaktions-Cutaways ein, wenn die Off-Kamera nickt oder etwas sagt.
 
-## Workflow
+---
 
-Two entry points depending on how the project is set up in Resolve:
+## Voraussetzungen
 
-### Bin-Workflow (`run_from_bin.py`)
-Fully automated: scans a Media Pool bin, syncs clips via waveform, runs analysis, builds the cut timeline.
+### Software
+- **DaVinci Resolve 18 oder neuer** muss geöffnet sein und ein Projekt geladen haben
+- **Python 3.9** mit den installierten Abhängigkeiten (`pip install -r requirements.txt`)
+- **FFmpeg** muss systemweit verfügbar sein
 
-```bash
-python run_from_bin.py \
-  --bin "30 - Ebra" \
-  --output "Final Cut" \
-  --fps 25.0 \
-  --config config.ini \
-  --mic-cam1 1 \
-  --mic-cam2 0
+### Material
+- Genau **2 Kamera-Clips** (MP4, MOV oder MXF) im gleichen Resolve-Bin — alphabetisch sortiert nach Name, der erste wird als CAM1 behandelt, der zweite als CAM2
+- **1 oder 2 Mikrofon-Spuren** als separate WAV- oder AIF-Dateien (z.B. vom Zoom-Recorder), ebenfalls im gleichen Bin
+- Die Kameraclips müssen einen **eingebetteten Timecode** enthalten (Standard bei Sony, Canon, Blackmagic, etc.)
+- Die Kameras **müssen nicht gleichzeitig gestartet** worden sein — das Tool synchronisiert automatisch per Waveform-Abgleich
+
+### Empfohlener Aufbau im Bin
+
+```
+Bin: "31 - Katrin"
+  ├── A001.MP4      ← CAM1 (alphabetisch zuerst)
+  ├── B002.MP4      ← CAM2
+  ├── MIC001.WAV    ← Mikrofon Gast / CAM2   → Index 0
+  └── MIC002.WAV    ← Mikrofon Moderator / CAM1 → Index 1
 ```
 
-### Timeline-Workflow (`run_from_resolve.py`)
-Starts from a manually synced Sync-Timeline already open in Resolve.
+> **Hinweis zur MIC-Zuordnung:** Die Mikrofone werden alphabetisch nummeriert (Index 0 = erstes WAV, Index 1 = zweites WAV). Welches Mic zu welcher Kamera gehört, stellst du im UI ein. Typisch bei einem Podcast ist, dass das Mikrofon des Moderators zur Moderatoren-Kamera gehört — aber nicht immer stimmt die alphabetische Reihenfolge damit überein.
 
-```bash
-python run_from_resolve.py \
-  --output final_resolve.edl \
-  --import-to-resolve
-```
+---
 
-Both workflows are also accessible via the Streamlit UI (`ui/pages/multicam.py`).
+## Schritt-für-Schritt-Workflow
 
-## Pipeline steps
+### 1. Bin in Resolve vorbereiten
+Lege alle Clips der Folge in einen gemeinsamen Bin in DaVinci Resolve. Der Bin muss genau 2 Videoclips und mindestens 1 Audioclip enthalten.
 
-| Step | Script | Description |
-|------|--------|-------------|
-| 1 | `build_base_edl_from_audio.py` | RMS/Peak diarization → base EDL with speaker turns + speaking reactions |
-| 2 | `video_reaction_analyzer_v2.4.py` | MediaPipe face landmark analysis → nodding/laughing/headshake JSON |
-| 3 | `add_reactions_to_edl.py` | Inserts reaction cutaways into base EDL (multi-pass, cluster-based) |
+### 2. App starten und Tab öffnen
+Öffne die Toolkit-App und wechsle in den Tab **Multicam Cutter → Bin-Workflow**.
 
-## Configuration (`config.ini`)
+### 3. Bin und Timeline-Name wählen
+- **Media Pool Bin:** Der aktuell in Resolve geöffnete Bin wird automatisch vorausgewählt
+- **Cut-Timeline Name:** Der Name der fertigen Timeline in Resolve (z.B. `31 Katrin Final Cut`)
 
-### `[General]`
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `min_shot_duration` | 3.0s | Minimum duration before a cut is allowed |
-| `max_shot_duration` | 14.0s | Forces a cutaway after this duration |
-| `reaction_min_duration` | 1.8s | Minimum duration for a reaction cutaway |
+### 4. MIC-Zuordnung prüfen
+Wähle unter „MIC für CAM1" und „MIC für CAM2" das jeweils passende Mikrofon. Die Namen der erkannten Audiodateien werden direkt angezeigt.
 
-### `[Detection]`
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `min_confidence` | 0.88 | Minimum face detection confidence for MediaPipe |
-| `analysis_width` | 640 | Frame width for MediaPipe inference (ffmpeg decodes+scales to this before analysis). 0 = original resolution |
-| `calibration_height` | 2160 | Reference height the nodding pixel thresholds were calibrated for. Thresholds auto-scale to actual video height |
+### 5. Einstellungen anpassen (optional)
+Unter **Analyse-Einstellungen** findest du vier aufklappbare Gruppen. Jeder Wert hat ein **?-Symbol**, das beim Überfahren erklärt, was er tut. Die Standardwerte sind für einen typischen Podcast-Workflow kalibriert — du musst hier nichts ändern, wenn du das Tool zum ersten Mal benutzt.
 
-### `[Nodding]`
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `threshold_low/medium/high` | 130/90/70px | Minimum nose Y-movement for a nod — calibrated for UHD (2160p), auto-scaled at runtime |
-| `min_nod_duration` | 0.65s | Minimum duration of the nod arc |
-| `cooldown_frames` | 35 | Frames to skip after a detected nod to prevent double-counting |
+Einstellungen lassen sich als **Preset** speichern und für andere Folgen oder Formate wieder laden.
 
-### `[SpeakingReaction]`
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `enabled` | true | Enable speaking-based cutaway detection |
-| `mode` | rms | `rms` (default) or `peak` — measurement method per 50ms window |
-| `rise_db` | 10.0 | dB rise above rolling baseline to trigger a speaking event |
-| `min_duration` | 0.20s | Minimum burst duration |
-| `attack_window` | 1.0s | Rolling baseline attack (rises quickly) |
-| `release_window` | 20.0s | Rolling baseline release (falls slowly) |
-| `warmup` | 3.0s | Seconds at start of segment used to seed the baseline |
-| `min_confidence` | 0.90 | Minimum face detection confidence required for speaking cutaways |
+### 6. Workflow starten
+Klicke auf **▶ Bin-Workflow starten**. Das Log zeigt den Fortschritt in Echtzeit.
 
-### `[RMSDiarization]`
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `threshold_db` | 6.0 | dB difference between mics to determine who is speaking |
-| `change_delay` | 0.3s | Delay before registering a speaker change |
+**Typische Laufzeiten** (60-min-Folge, MacBook Pro M2):
 
-### `[CutawayTiming]`
-| Parameter | Default | Description |
-|-----------|---------|-------------|
-| `cluster_max_gap_frames` | 75 | Reaction events within this gap are merged into one cutaway |
-| `pre_roll_frames` | 15 | Frame offset to compensate for detection latency |
+| Schritt | Dauer |
+|---|---|
+| Waveform-Sync | ~30 Sekunden |
+| Basis-Schnitt aus Audio | ~1 Minute |
+| Gesichtsanalyse (KI, CAM1 + CAM2) | 5–15 Minuten |
+| Cutaway-Einbau + Timeline | ~1 Minute |
 
-## Notes
+### 7. Ergebnis in Resolve kontrollieren
+Nach Abschluss erscheinen in Resolve zwei neue Timelines:
 
-- MIC numbering is **reversed** relative to CAM: `--mic-cam1` selects the mic for Camera 1, which is typically the *other* speaker's mic
-- Nodding thresholds are in absolute pixels **calibrated for UHD (2160p)**. At runtime they are automatically scaled by `actual_height / calibration_height` — no manual adjustment needed when switching between 4K and 1080p material
-- Speaking detection uses a **per-segment asymmetric rolling baseline** (p75 warmup seed). Peak mode (`--speaking-mode peak`) is more sensitive to short transients like "Mhm"
-- MediaPipe frames are delivered via an **ffmpeg pipe** (`scale=640:-2` by default), which is significantly faster than decoding via OpenCV for 4K material
+- **`<Name> Sync`** — alle Quellen übereinander, zum Kontrollieren der Synchronisation
+- **`<Name>`** — die fertige Schnitt-Timeline
+
+Die Clips sind farblich markiert, damit du sofort siehst, warum ein Schnitt gesetzt wurde:
+
+| Farbe | Bedeutung |
+|---|---|
+| 🔵 Blau | CAM1 spricht (Hauptsprecher) |
+| 🩵 Türkis | CAM2 spricht (Hauptsprecher) |
+| 🟣 Lila | Nodding-Cutaway (Nicken erkannt) |
+| 🟢 Grün | Speaking-Cutaway (Einwurf erkannt) |
+| 🟠 Orange | Erzwungener Schnitt (Shot zu lang) |
+
+---
+
+## Was das Tool intern macht
+
+1. **Waveform-Sync** — vergleicht das Audiosignal aller Quellen miteinander und berechnet, wie viele Frames sie gegeneinander verschoben sind
+2. **Sprecher-Erkennung** — analysiert beide Mikrofon-Spuren und entscheidet per Lautstärke-Vergleich, wer gerade spricht
+3. **Gesichtsanalyse** — analysiert mit KI (MediaPipe) nur die Frames, in denen eine Kamera *nicht* der aktive Sprecher ist — sucht nach Nicken und kurzen Einwürfen
+4. **Cutaway-Einbau** — fügt erkannte Reaktionen als Cutaways in die Timeline ein, bereinigt zu kurze Clips und erzwingt Schnitte bei zu langen Einstellungen
+5. **Timeline-Aufbau** — legt Sync-Timeline und Schnitt-Timeline direkt in Resolve an, speichert das Projekt
+
+---
+
+## Aktuelle Limitierungen
+
+### Anzahl Quellen
+- **Genau 2 Kameras** — mehr oder weniger werden nicht unterstützt
+- **1 oder 2 Mikrofon-Spuren** — bei mehr als 2 WAV-Dateien im Bin werden nur die ersten beiden (nach MIC-Index-Einstellung) verwendet
+
+### Keine Multi-Gäste-Unterstützung
+Das Tool ist für das **1 Moderator + 1 Gast**-Format ausgelegt. Formate mit 3 oder mehr Gesprächspartnern werden aktuell nicht unterstützt — die Sprecher-Erkennung arbeitet mit genau zwei Kanälen.
+
+### Schnitt beginnt beim ersten Sprecheinsatz
+Die fertige Timeline beginnt nicht bei Timecode 00:00:00, sondern dort, wo laut Mikrofonanalyse der Podcast startet. Material davor (Vorbereitung, stilles Warten) fehlt im Schnitt — das ist gewollt.
+
+### Nodding-Erkennung benötigt frontale Kamera
+Die KI-Gesichtsanalyse arbeitet am zuverlässigsten wenn das Gesicht **frontal oder leicht seitlich** in die Kamera schaut. Stark seitliche Aufnahmen (Profil-Perspektive) reduzieren die Erkennungsrate deutlich.
+
+### Der erste Schnitt ist ein Vorschlag
+Das Ergebnis ist ein KI-gestützter Ersteditschnitt — kein Fertigschnitt. Gleichzeitiges Reden beider Personen, schlechte Reaktions-Cutaways oder zu ähnliche Mikrofonpegel können zu Fehlschnitten führen. Die Farbmarkierung hilft, schnell zu erkennen warum ein Schnitt gesetzt wurde, und erleichtert die Nachkorrektur.
+
+### Keine Farbkorrektur oder Tonbearbeitung
+Das Tool legt nur den Schnitt an. Farbkorrektur, Tonpegel und alle weitere Postproduktion erfolgen wie gewohnt in Resolve.
+
+---
+
+## Häufige Probleme
+
+**„Resolve nicht verbunden"**
+Resolve muss geöffnet sein und ein Projekt geladen haben, *bevor* die Toolkit-App gestartet wird. Nach dem Starten von Resolve die App neu laden.
+
+**Kein Bin in der Liste**
+Prüfen ob der Bin in Resolve sichtbar ist und mindestens 2 Videoclips sowie 1 Audioclip enthält. Untergeordnete Sub-Bins werden ebenfalls aufgelistet.
+
+**MIC-Zuordnung falsch (falscher Sprecher landet auf falscher Kamera)**
+MIC-Index für CAM1 und CAM2 im UI tauschen. Beim nächsten Start kann „Base-EDL überspringen" aktiviert werden — dann läuft nur die Sprecher-Erkennung neu, die deutlich schnellere Gesichtsanalyse entfällt.
+
+**Keine oder sehr wenige Cutaways**
+- Nodding: `Min. Konfidenz` etwas absenken oder `Min. Nod-Dauer` verkürzen
+- Speaking: `Rise (dB)` absenken
+
+**Zu viele falsche Cutaways**
+- Nodding: `Min. Konfidenz` erhöhen
+- Speaking: `Rise (dB)` erhöhen oder Speaking Reactions deaktivieren
+
+**Sync-Timeline sieht verschoben aus**
+Der Waveform-Abgleich funktioniert am besten wenn auf beiden Kameras dasselbe Umgebungsaudio zu hören ist. Stark gedämpfte Studios oder Richtmikrofone mit sehr wenig Übersprechen zwischen den Kanälen können den Abgleich erschweren.
+
+---
+
+## Technische Referenz (`config.ini`)
+
+Die vollständige Konfiguration liegt in `config.ini` im gleichen Ordner. Alle relevanten Werte sind über das UI editierbar — direkte Änderungen in der Datei sind nur für fortgeschrittene Anpassungen nötig.
+
+| Sektion | Parameter | Beschreibung |
+|---|---|---|
+| `[General]` | `min_shot_duration` | Minimum Shotlänge vor einem Cutaway |
+| | `reaction_min_duration` | Basislänge eines Reaction-Cutaways |
+| | `max_shot_duration` | Maximale Shotlänge vor Pflicht-Cutaway |
+| | `cleanup_min_duration` | Clips kürzer als dieser Wert werden entfernt |
+| | `cutaway_randomness` | Zufälliger Aufschlag auf Cutaway-Länge (0–0.5) |
+| `[RMSDiarization]` | `threshold_db` | dB-Unterschied für Sprecherwechsel |
+| | `min_edit_duration` | Mindestlänge eines Sprechabschnitts |
+| | `change_delay` | Verzögerung vor Sprecherwechsel |
+| `[Detection]` | `min_confidence` | Mindest-Konfidenz für Nodding-Cutaways |
+| | `analysis_width` | Breite für KI-Analyse (0 = Originalauflösung) |
+| `[Nodding]` | `min_nod_duration` | Mindestdauer der Kopfbewegung |
+| | `cooldown_frames` | Frames Pause nach erkanntem Nod |
+| `[SpeakingReaction]` | `rise_db` | dB-Anstieg über Baseline für Sprecherkennung |
+| | `min_duration` / `max_duration` | Gültige Burst-Länge |
+| | `min_confidence` | Mindest-Konfidenz für Speaking-Cutaways |
+| `[CutawayTiming]` | `pre_roll_frames` | Frames Vorlauf vor dem Cutaway-Start |
+| | `cluster_max_gap_frames` | Max. Abstand um Reaktionen zu gruppieren |

@@ -392,6 +392,11 @@ def main():
     parser.add_argument('--speaking-warmup',        type=float, default=3.0)
     parser.add_argument('--speaking-hold',          type=float, default=0.0)
     parser.add_argument('--speaking-mode',          choices=['rms', 'peak'], default='rms')
+    # Off-sections output (für Nodding-Analyse Optimierung)
+    parser.add_argument('--cam1-off-sections-out', default=None,
+                        help='JSON-Ausgabe: Video-Frame-Ranges in denen CAM1 die Off-Kamera ist')
+    parser.add_argument('--cam2-off-sections-out', default=None,
+                        help='JSON-Ausgabe: Video-Frame-Ranges in denen CAM2 die Off-Kamera ist')
     args = parser.parse_args()
 
     print("=" * 70)
@@ -418,6 +423,12 @@ def main():
     print(f"        EDL Frame 0 liegt bei Video Frame {cam1_timeline_zero_video}")
     print(f"  CAM2 ({args.cam2_clip}): embedded TC {cam2_tc} = {cam2_ref} frames")
     print(f"        EDL Frame 0 liegt bei Video Frame {cam2_timeline_zero_video}")
+
+    if args.wav_edl_frame < 0:
+        pre_s = abs(args.wav_edl_frame) / args.fps
+        print(f"\n  ⚠️  WAV startete {pre_s:.1f}s VOR den Kameras (wav_edl_frame={args.wav_edl_frame}).")
+        print(f"      Die ersten {pre_s:.1f}s des Podcasts haben keine Kamera-Coverage")
+        print(f"      und fehlen daher in der Cut-Timeline.")
 
     # ── 2. Audio laden & diarisieren ──────────────────────────────────────────
     print("\n📂 Lade Audio...")
@@ -471,6 +482,28 @@ def main():
                 edl_start = args.cam1_edl_frame
                 speaker = 'CAM1'
 
+        # Symmetrischer Fallback: CAM2 noch nicht gestartet → CAM1
+        if speaker == 'CAM2' and edl_start < args.cam2_edl_frame:
+            if edl_end <= args.cam2_edl_frame:
+                speaker = 'CAM1'  # ganzes Segment vor CAM2-Start → CAM1
+            else:
+                # Segment überlappt CAM2-Start: aufteilen
+                # Teil vor CAM2-Start → CAM1
+                edl_end_pre = args.cam2_edl_frame
+                cam1_video_start = cam1_timeline_zero_video + edl_start
+                cam1_video_end   = cam1_timeline_zero_video + edl_end_pre
+                if cam1_video_start >= 0 and edl_end_pre > edl_start:
+                    events.append({
+                        'clip_name':  args.cam1_clip,
+                        'source_in':  frames_to_timecode(cam1_ref + cam1_video_start, args.fps),
+                        'source_out': frames_to_timecode(cam1_ref + cam1_video_end,   args.fps),
+                        'record_in':  frames_to_timecode(edl_start,    args.fps),
+                        'record_out': frames_to_timecode(edl_end_pre,  args.fps),
+                    })
+                # Rest des Segments → CAM2 (ab cam2_edl_frame)
+                edl_start = args.cam2_edl_frame
+                speaker = 'CAM2'
+
         # Skip segments entirely before the record timeline start
         if edl_end <= 0:
             skipped += 1
@@ -510,6 +543,19 @@ def main():
     if skipped:
         print(f"  ⚠️  {skipped} Segmente übersprungen (vor Kamera-Start, kein Fallback möglich)")
 
+    if events:
+        first = events[0]
+        first_record_s  = timecode_to_frames(first['record_in'],  args.fps) / args.fps
+        first_source_s  = (timecode_to_frames(first['source_in'], args.fps) -
+                           (cam1_ref if first['clip_name'] == args.cam1_clip else cam2_ref)) / args.fps
+        pre_podcast_s   = -args.wav_edl_frame / args.fps
+        print(f"\n  ℹ️  Erster Cut-Event:")
+        print(f"       Record-Startpunkt:  {first['record_in']}  ({first_record_s:.1f}s in der Audio-Spur)")
+        print(f"       Source (Video):      {first['source_in']}  ({first_source_s:.1f}s in {first['clip_name']})")
+        if args.wav_edl_frame < 0:
+            print(f"       → WAV startete {pre_podcast_s:.1f}s vor den Kameras."
+                  f" Diese {pre_podcast_s:.1f}s Podcast fehlen im Cut.")
+
     # ── 4. Statistik ──────────────────────────────────────────────────────────
     cam1_evts = [e for e in events if e['clip_name'] == args.cam1_clip]
     cam2_evts = [e for e in events if e['clip_name'] == args.cam2_clip]
@@ -527,10 +573,37 @@ def main():
     print(f"  {args.cam1_clip}: {cam1_s/60:.1f} min ({cam1_s/total*100:.0f}%)")
     print(f"  {args.cam2_clip}: {cam2_s/60:.1f} min ({cam2_s/total*100:.0f}%)")
 
-    # ── 5. EDL schreiben ──────────────────────────────────────────────────────
+    # ── 5. Off-Sektionen schreiben (für Nodding-Analyse) ─────────────────────
+    if args.cam1_off_sections_out or args.cam2_off_sections_out:
+        cam1_off, cam2_off = [], []
+        for seg in segments:
+            edl_s = round(seg['start_s'] * args.fps) + args.wav_edl_frame
+            edl_e = round(seg['end_s']   * args.fps) + args.wav_edl_frame
+            if seg['speaker'] == 'CAM2':
+                # CAM2 spricht → CAM1 ist Off-Kamera
+                v_s = cam1_timeline_zero_video + edl_s
+                v_e = cam1_timeline_zero_video + edl_e
+                if v_s >= 0 and v_e > v_s:
+                    cam1_off.append([int(v_s), int(v_e)])
+            elif seg['speaker'] == 'CAM1':
+                # CAM1 spricht → CAM2 ist Off-Kamera
+                v_s = cam2_timeline_zero_video + edl_s
+                v_e = cam2_timeline_zero_video + edl_e
+                if v_s >= 0 and v_e > v_s:
+                    cam2_off.append([int(v_s), int(v_e)])
+        if args.cam1_off_sections_out:
+            Path(args.cam1_off_sections_out).write_text(json.dumps(cam1_off))
+            total_off_s = sum(e - s for s, e in cam1_off) / args.fps
+            print(f"  CAM1 Off-Sektionen: {len(cam1_off)} Segmente ({total_off_s/60:.1f} min)")
+        if args.cam2_off_sections_out:
+            Path(args.cam2_off_sections_out).write_text(json.dumps(cam2_off))
+            total_off_s = sum(e - s for s, e in cam2_off) / args.fps
+            print(f"  CAM2 Off-Sektionen: {len(cam2_off)} Segmente ({total_off_s/60:.1f} min)")
+
+    # ── 6. EDL schreiben ──────────────────────────────────────────────────────
     write_edl(events, args.output)
 
-    # ── 6. Speaking Reactions (optional) ─────────────────────────────────────
+    # ── 7. Speaking Reactions (optional) ─────────────────────────────────────
     if args.speaking_reactions_cam1_out or args.speaking_reactions_cam2_out:
         print(f"\n🗣️  Erkenne Speaking Reactions (mode={args.speaking_mode})...")
         cam1_sr, cam2_sr = detect_speaking_reactions(

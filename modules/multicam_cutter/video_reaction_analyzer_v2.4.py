@@ -152,6 +152,16 @@ class AdvancedReactionDetector:
         # Reaktions-Cooldown (verhindert Doppel-Detektionen)
         self.last_nod_frame = -100
         self.last_laugh_frame = -100
+
+    def reset_history(self):
+        """Setzt alle Bewegungs-Historien zurück (beim Betreten einer neuen Off-Sektion)."""
+        self.head_y_history.clear()
+        self.head_x_history_nod.clear()
+        self.head_x_history.clear()
+        self.mouth_history.clear()
+        self.eyebrow_history.clear()
+        self.last_nod_frame = -100
+        self.last_laugh_frame = -100
     
     def get_landmark_coord(self, landmarks, index, width, height):
         """Holt Landmark-Koordinaten in Pixel"""
@@ -349,16 +359,19 @@ class AdvancedReactionDetector:
         return reactions
 
 
-def analyze_video(video_path, output_json=None, sensitivity='medium', show_preview=False, config=None):
+def analyze_video(video_path, output_json=None, sensitivity='medium', show_preview=False, config=None, off_sections=None):
     """
     Analysiert Video auf Reaktionen
-    
+
     Args:
         video_path: Pfad zum Video
         output_json: Pfad für JSON-Output (optional)
         sensitivity: 'low', 'medium', 'high'
         show_preview: Zeigt Live-Preview während Analyse
         config: ConfigParser-Objekt (optional)
+        off_sections: Liste von [start_frame, end_frame] Paaren (Video-Frame-Nummern).
+                      Nur diese Bereiche werden mit MediaPipe analysiert. Alle anderen
+                      Frames werden übersprungen (dekodiert aber nicht inferiert).
     """
     print(f"\n{'='*60}")
     print(f"Analysiere Video: {video_path}")
@@ -404,10 +417,6 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     print(f"Frames: {total_frames}")
     print(f"Dauer: {duration_sec:.1f} Sekunden\n")
 
-    # ffmpeg-Pipe: dekodiert (und skaliert) direkt in raw BGR-Frames
-    ff_cmd = ['ffmpeg', '-i', str(video_path)] + vf_arg + \
-             ['-f', 'rawvideo', '-pix_fmt', 'bgr24', '-an', 'pipe:1']
-    ff_proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
     frame_bytes = frame_w * frame_h * 3
 
     # Detector initialisieren mit Config und FPS
@@ -415,81 +424,109 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
 
     # Zeige aktivierte Reaktionstypen
     enabled_types = [k for k, v in detector.enabled_reactions.items() if v]
-    print(f"Aktivierte Reaktionstypen: {', '.join(enabled_types)}\n")
+    print(f"Aktivierte Reaktionstypen: {', '.join(enabled_types)}")
 
-    # Reaktionen sammeln
+    # Off-Sektionen vorbereiten
+    _off_sections = sorted(off_sections, key=lambda x: x[0]) if off_sections else None
+    if _off_sections:
+        total_off_frames = sum(e - s for s, e in _off_sections)
+        print(f"Off-Sektionen: {len(_off_sections)} Segmente "
+              f"({total_off_frames / fps / 60:.1f} min von {total_frames / fps / 60:.1f} min)")
+    print()
+
     all_reactions = []
-    frame_number = 0
-
     print("Verarbeitung läuft...")
-
-    # Für ETA-Berechnung
     start_time = time.time()
 
-    while True:
-        raw = ff_proc.stdout.read(frame_bytes)
-        if len(raw) < frame_bytes:
-            break
-
-        frame = np.frombuffer(raw, dtype=np.uint8).reshape((frame_h, frame_w, 3))
-
-        # Analysiere Frame
-        reactions = detector.analyze_frame(frame, frame_number)
-
-        # Speichere signifikante Reaktionen
+    def _collect_reactions(reactions, frame_num):
         for reaction_type, data in reactions.items():
             if reaction_type == 'face_detected':
                 continue
-
             if data['detected'] and data['confidence'] > 0.5:
-                timecode = frame_number / fps
+                tc = frame_num / fps
                 all_reactions.append({
-                    'frame': frame_number,
-                    'timecode': f"{int(timecode // 60):02d}:{timecode % 60:06.3f}",
-                    'type': reaction_type,
-                    'confidence': round(data['confidence'], 3)
+                    'frame':      frame_num,
+                    'timecode':   f"{int(tc // 60):02d}:{tc % 60:06.3f}",
+                    'type':       reaction_type,
+                    'confidence': round(data['confidence'], 3),
                 })
 
-        # Preview
-        if show_preview and reactions['face_detected']:
-            preview = frame.copy()
-            if reactions['nodding']['detected']:
-                cv2.putText(preview, "NODDING", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            if reactions['laughing']['detected']:
-                cv2.putText(preview, "LAUGHING", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
-            cv2.imshow('Reaction Detection', preview)
-            if cv2.waitKey(1) & 0xFF == ord('q'):
+    def _progress(done, total, label=''):
+        progress = done / total if total else 1.0
+        bar = '█' * int(40 * progress) + '░' * (40 - int(40 * progress))
+        elapsed = time.time() - start_time
+        if elapsed > 1 and done > 0:
+            eta_s = (total - done) / (done / elapsed)
+            eta_str = f" | ETA: {int(eta_s//60)}:{int(eta_s%60):02d}"
+            eta_prog = f"{int(eta_s//60)}:{int(eta_s%60):02d}"
+        else:
+            eta_str = " | ETA: --:--"
+            eta_prog = "--:--"
+        print(f'\r  Analysiere{label}: [{bar}] {progress*100:.1f}% ({done}/{total}){eta_str}',
+              end='', flush=True)
+        print(f'__PROGRESS__ {progress*100:.1f} {eta_prog}', flush=True)
+
+    if _off_sections:
+        # ── Seeking-Modus: ein ffmpeg-Aufruf pro Off-Sektion ─────────────────
+        # Nur das tatsächlich benötigte Material wird dekodiert.
+        analyzed = 0
+        for sec_idx, (sec_start, sec_end) in enumerate(_off_sections):
+            n_frames = sec_end - sec_start
+            start_s  = sec_start / fps
+            ff_cmd = [
+                'ffmpeg', '-ss', f'{start_s:.6f}', '-i', str(video_path),
+            ] + vf_arg + [
+                '-frames:v', str(n_frames),
+                '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-an', 'pipe:1',
+            ]
+            ff_proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            detector.reset_history()
+            local = 0
+            while local < n_frames:
+                raw = ff_proc.stdout.read(frame_bytes)
+                if len(raw) < frame_bytes:
+                    break
+                actual_frame = sec_start + local
+                frame = np.frombuffer(raw, dtype=np.uint8).reshape((frame_h, frame_w, 3))
+                reactions = detector.analyze_frame(frame, actual_frame)
+                _collect_reactions(reactions, actual_frame)
+                local   += 1
+                analyzed += 1
+                if analyzed % 25 == 0 or analyzed == total_off_frames:
+                    _progress(analyzed, total_off_frames)
+            ff_proc.stdout.close()
+            ff_proc.wait()
+
+    else:
+        # ── Vollständige Analyse: ein ffmpeg-Aufruf für das gesamte Video ────
+        ff_cmd = ['ffmpeg', '-i', str(video_path)] + vf_arg + \
+                 ['-f', 'rawvideo', '-pix_fmt', 'bgr24', '-an', 'pipe:1']
+        ff_proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+        frame_number = 0
+        while True:
+            raw = ff_proc.stdout.read(frame_bytes)
+            if len(raw) < frame_bytes:
                 break
+            frame = np.frombuffer(raw, dtype=np.uint8).reshape((frame_h, frame_w, 3))
+            reactions = detector.analyze_frame(frame, frame_number)
+            _collect_reactions(reactions, frame_number)
 
-        frame_number += 1
+            if show_preview and reactions['face_detected']:
+                preview = frame.copy()
+                if reactions['nodding']['detected']:
+                    cv2.putText(preview, "NODDING", (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                if reactions['laughing']['detected']:
+                    cv2.putText(preview, "LAUGHING", (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 255), 2)
+                cv2.imshow('Reaction Detection', preview)
+                if cv2.waitKey(1) & 0xFF == ord('q'):
+                    break
 
-        # Progress Bar (einzeilig, überschreibend)
-        if frame_number % 25 == 0 or frame_number == total_frames:
-            progress = (frame_number / total_frames)
-            bar_length = 40
-            filled = int(bar_length * progress)
-            bar = '█' * filled + '░' * (bar_length - filled)
-            percent = progress * 100
+            frame_number += 1
+            if frame_number % 25 == 0 or frame_number == total_frames:
+                _progress(frame_number, total_frames)
+        ff_proc.stdout.close()
+        ff_proc.wait()
 
-            # ETA Berechnung
-            elapsed = time.time() - start_time
-            if elapsed > 1 and frame_number > 0:
-                fps_processing = frame_number / elapsed
-                remaining_frames = total_frames - frame_number
-                eta_seconds = remaining_frames / fps_processing
-                eta_min = int(eta_seconds // 60)
-                eta_sec = int(eta_seconds % 60)
-                eta_str = f" | ETA: {eta_min}:{eta_sec:02d}"
-                eta_prog = f"{eta_min}:{eta_sec:02d}"
-            else:
-                eta_str = " | ETA: --:--"
-                eta_prog = "--:--"
-
-            print(f'\r  Analysiere: [{bar}] {percent:.1f}% ({frame_number}/{total_frames}){eta_str}', end='', flush=True)
-            print(f'__PROGRESS__ {percent:.1f} {eta_prog}', flush=True)
-
-    ff_proc.stdout.close()
-    ff_proc.wait()
     print()  # Neue Zeile nach Progress Bar
     if show_preview:
         cv2.destroyAllWindows()
@@ -538,7 +575,9 @@ def main():
                         help='Zeige Live-Preview')
     parser.add_argument('--config', default='config.ini',
                         help='Pfad zur Config-Datei (default: config.ini)')
-    
+    parser.add_argument('--off-sections', default=None,
+                        help='JSON-Datei mit [[start_frame, end_frame], ...] — nur diese Bereiche werden analysiert')
+
     args = parser.parse_args()
     
     # Lade Config
@@ -562,13 +601,23 @@ def main():
     if not output_json:
         output_json = video_path.stem + '_reactions.json'
     
+    # Off-Sektionen laden (optional)
+    off_sections = None
+    if args.off_sections:
+        off_sections_path = Path(args.off_sections)
+        if off_sections_path.exists():
+            off_sections = json.loads(off_sections_path.read_text())
+        else:
+            print(f"⚠️  --off-sections Datei nicht gefunden: {args.off_sections} — analysiere alle Frames")
+
     # Analysiere mit Config
     reactions = analyze_video(
         video_path,
         output_json=output_json,
         sensitivity=sensitivity,
         show_preview=args.preview,
-        config=config
+        config=config,
+        off_sections=off_sections,
     )
     
     if reactions is not None:

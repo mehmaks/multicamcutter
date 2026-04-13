@@ -16,6 +16,7 @@ Version: 3.0 - Multi-Pass Architektur
 import json
 import argparse
 import re
+import random
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 import configparser
@@ -502,8 +503,13 @@ def build_events_with_cutaways(section_start: int,
             )
             events.append(event1)
 
-        # 2. OFF-Camera Cutaway
-        cutaway_end = min(cutaway_frame + reaction_duration_frames, section_end)
+        # 2. OFF-Camera Cutaway (mit optionalem Zufalls-Aufschlag)
+        randomness = config.get('cutaway_randomness', 0.0)
+        if randomness > 0:
+            this_cutaway_frames = int(reaction_duration_frames * (1.0 + random.uniform(0.0, randomness)))
+        else:
+            this_cutaway_frames = reaction_duration_frames
+        cutaway_end = min(cutaway_frame + this_cutaway_frames, section_end)
 
         # OFF-Clip: Timeline Frame → Video Frame
         # Video Frame = timeline_zero_video + timeline_frame
@@ -847,6 +853,7 @@ def main():
     min_confidence = 0.86
     speaking_min_confidence = 0.90
     cleanup_min_duration = 1.5
+    cutaway_randomness = 0.0
 
     if config:
         if config.has_option('General', 'min_shot_duration'):
@@ -857,6 +864,8 @@ def main():
             max_shot_duration = config.getfloat('General', 'max_shot_duration')
         if config.has_option('General', 'cleanup_min_duration'):
             cleanup_min_duration = config.getfloat('General', 'cleanup_min_duration')
+        if config.has_option('General', 'cutaway_randomness'):
+            cutaway_randomness = config.getfloat('General', 'cutaway_randomness')
         if config.has_option('Detection', 'min_confidence'):
             min_confidence = config.getfloat('Detection', 'min_confidence')
         if config.has_option('SpeakingReaction', 'min_confidence'):
@@ -867,14 +876,16 @@ def main():
         'laughing': False,
         'head_shake': False,
         'eyebrow_raise': False,
+        'speaking_reaction': False,
     }
-    
+
     if config and config.has_section('ReactionCutaways'):
         cutaway_enabled['nodding'] = config.getboolean('ReactionCutaways', 'nodding_cutaway', fallback=True)
         cutaway_enabled['laughing'] = config.getboolean('ReactionCutaways', 'laughing_cutaway', fallback=False)
         cutaway_enabled['head_shake'] = config.getboolean('ReactionCutaways', 'headshake_cutaway', fallback=False)
         cutaway_enabled['eyebrow_raise'] = config.getboolean('ReactionCutaways', 'eyebrow_cutaway', fallback=False)
-        cutaway_enabled['speaking_reaction'] = config.getboolean('ReactionCutaways', 'speaking_cutaway', fallback=False)
+    if config and config.has_option('SpeakingReaction', 'enabled'):
+        cutaway_enabled['speaking_reaction'] = config.getboolean('SpeakingReaction', 'enabled', fallback=False)
     
     cluster_max_gap_frames = 75
     pre_roll_frames = 0
@@ -891,6 +902,7 @@ def main():
         'cutaway_enabled': cutaway_enabled,
         'cluster_max_gap_frames': cluster_max_gap_frames,
         'pre_roll_frames': pre_roll_frames,
+        'cutaway_randomness': cutaway_randomness,
     }
 
     print(f"\n⚙️  Settings:")

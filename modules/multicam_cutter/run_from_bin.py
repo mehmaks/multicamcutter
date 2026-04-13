@@ -188,7 +188,15 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
 
     tl = mp.CreateEmptyTimeline(name)
     time.sleep(0.5)  # Resolve braucht einen Moment nach CreateEmptyTimeline
-    tl.DeleteTrack('audio', 1)  # Remove default stereo A1
+
+    # Alle default Audio-Tracks entfernen (Resolve erstellt einen stereo A1)
+    n_audio = tl.GetTrackCount('audio') or 0
+    for _ in range(n_audio):
+        tl.DeleteTrack('audio', 1)
+        time.sleep(0.1)
+    time.sleep(0.2)
+
+    # Gewünschte Mono-Tracks anlegen
     for _ in range(len(mics)):
         tl.AddTrack('audio', 'mono')
     time.sleep(0.3)  # Track-Operationen abwarten
@@ -417,6 +425,10 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
             print(f"  ⚠ Colors JSON konnte nicht gelesen werden: {e}")
 
     print(f"  {len(cut_events)} Cut-Events aus EDL gelesen")
+    if cut_events:
+        first = cut_events[0]
+        first_s = first['source_in'] / fps
+        print(f"  Erster Event: source_in={first['source_in']} ({first_s:.1f}s ins Video)")
     return cut_events
 
 
@@ -442,6 +454,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     cam1_json = work_dir / (Path(cam1_path).stem + '_reactions.json')
     cam2_json = work_dir / (Path(cam2_path).stem + '_reactions.json')
     base_edl  = work_dir / 'base.edl'
+    cam1_off_sections = work_dir / (Path(cam1_path).stem + '_off_sections.json')
+    cam2_off_sections = work_dir / (Path(cam2_path).stem + '_off_sections.json')
 
     def run(cmd, desc):
         print(f"\n  {desc}...")
@@ -449,24 +463,17 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         if result.returncode != 0:
             raise RuntimeError(f"Fehlgeschlagen: {desc}")
 
-    if not skip_analysis:
-        analyzer = str(SCRIPT_DIR / 'video_reaction_analyzer_v2.4.py')
-        run([analyzer, cam1_path, '--output', str(cam1_json), '--config', str(config)],
-            f"Nodding-Analyse CAM1")
-        run([analyzer, cam2_path, '--output', str(cam2_json), '--config', str(config)],
-            f"Nodding-Analyse CAM2")
+    import configparser
+    cfg = configparser.ConfigParser()
+    cfg.read(str(config), encoding='utf-8')
+    rms   = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
+    sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
+    cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
+    cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
+    speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
 
+    # ── Schritt 1: Base-EDL aus Audio (immer zuerst, liefert Off-Sektionen) ──
     if not skip_base_edl:
-        import configparser
-        cfg = configparser.ConfigParser()
-        cfg.read(str(config), encoding='utf-8')
-        rms = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
-        sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
-
-        cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
-        cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
-        speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
-
         builder = str(SCRIPT_DIR / 'build_base_edl_from_audio.py')
         builder_args = [
             builder,
@@ -484,6 +491,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--min-edit-duration', rms.get('min_edit_duration', '1.0'),
             '--change-delay',      rms.get('change_delay', '0.3'),
             '--threshold-db',      rms.get('threshold_db', '6.0'),
+            '--cam1-off-sections-out', str(cam1_off_sections),
+            '--cam2-off-sections-out', str(cam2_off_sections),
         ]
         if speaking_enabled:
             mode = speaking_mode_override or sr_cfg.get('mode', 'rms')
@@ -500,14 +509,19 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--speaking-mode',           mode,
             ]
         run(builder_args, "Base-EDL aus Audio")
-    else:
-        import configparser
-        cfg = configparser.ConfigParser()
-        cfg.read(str(config), encoding='utf-8')
-        sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
-        cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
-        cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
-        speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
+
+    # ── Schritt 2: Nodding-Analyse (nur Off-Sektionen) ────────────────────────
+    if not skip_analysis:
+        analyzer = str(SCRIPT_DIR / 'video_reaction_analyzer_v2.4.py')
+        cam1_analyzer_args = [analyzer, cam1_path, '--output', str(cam1_json), '--config', str(config)]
+        if cam1_off_sections.exists():
+            cam1_analyzer_args += ['--off-sections', str(cam1_off_sections)]
+        run(cam1_analyzer_args, "Nodding-Analyse CAM1")
+
+        cam2_analyzer_args = [analyzer, cam2_path, '--output', str(cam2_json), '--config', str(config)]
+        if cam2_off_sections.exists():
+            cam2_analyzer_args += ['--off-sections', str(cam2_off_sections)]
+        run(cam2_analyzer_args, "Nodding-Analyse CAM2")
 
     adder = str(SCRIPT_DIR / 'add_reactions_to_edl.py')
     final_edl = work_dir / 'final.edl'
@@ -636,7 +650,9 @@ def main():
         offsets=offsets, cam_items=cam_items, fps=args.fps,
     )
     project.SetCurrentTimeline(cut_tl)
-    print(f"  '{args.output}' angelegt und aktiviert.")
+    time.sleep(0.3)
+    pm.SaveProject()
+    print(f"  '{args.output}' angelegt, aktiviert und gespeichert.")
 
     print(f"\nWorkflow abgeschlossen.")
     print(f"  Sync-Timeline: {sync_name}")

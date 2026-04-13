@@ -67,4 +67,5 @@ def import_edl(edl_path: str, timeline_name: str = None):
             "Prüfe ob der Pfad korrekt ist und Resolve ein Projekt geöffnet hat."
         )
 
+    pm.SaveProject()
     return timeline.GetName()
