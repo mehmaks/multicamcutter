@@ -105,7 +105,11 @@ def _probe_audio_channels(path: str) -> int:
 
 
 def _probe_embedded_tc_frames(path: str, fps: float) -> int:
-    """Liefert den embedded Timecode eines Videos als Frame-Zahl (oder 0)."""
+    """
+    Liest embedded TC aus Video- oder Audiodateien:
+    - Video: timecode-Tag in format- oder stream-Tags
+    - Audio: timecode-Tag (falls vorhanden) oder BWF BEXT time_reference
+    """
     r = subprocess.run(
         ['ffprobe', '-v', 'quiet', '-print_format', 'json',
          '-show_format', '-show_streams', path],
@@ -115,17 +119,36 @@ def _probe_embedded_tc_frames(path: str, fps: float) -> int:
         data = json.loads(r.stdout)
     except json.JSONDecodeError:
         return 0
-    tc = data.get('format', {}).get('tags', {}).get('timecode')
-    if not tc:
-        for stream in data.get('streams', []):
-            tc = stream.get('tags', {}).get('timecode')
-            if tc:
-                break
+
+    fmt_tags    = data.get('format', {}).get('tags', {})
+    stream_tags = {}
+    sample_rate = None
+    for stream in data.get('streams', []):
+        if stream.get('codec_type') == 'audio' and sample_rate is None:
+            try:
+                sample_rate = int(stream.get('sample_rate', 0))
+            except ValueError:
+                pass
+        t = stream.get('tags', {})
+        if t:
+            stream_tags = t
+
+    # 1) Standard timecode-Tag (Video und manche Audio-Formate)
+    tc = fmt_tags.get('timecode') or stream_tags.get('timecode')
     if tc:
         try:
             return _tc_to_frames(tc, fps)
         except Exception:
             pass
+
+    # 2) BWF BEXT time_reference: Sample-Offset ab Mitternacht
+    time_ref = fmt_tags.get('time_reference')
+    if time_ref and sample_rate:
+        try:
+            return round(int(time_ref) / sample_rate * fps)
+        except (ValueError, ZeroDivisionError):
+            pass
+
     return 0
 
 
