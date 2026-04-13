@@ -1,14 +1,19 @@
 #!/usr/bin/env python3
 """
-Generiert eine FCPXML 1.9 Timeline aus final.edl + synchronisierten Mediendateien.
+Generiert FCPXML 1.9 Timelines aus final.edl + synchronisierten Mediendateien.
 
-Ausgabe:
+Zwei Formate werden erzeugt:
+
+  target='resolve'  — DaVinci Resolve (embedded TC als asset.start, <media-rep>,
+                      <video> child, <asset-clip lane=2/3> für Audio)
+
+  target='fcpx'     — Final Cut Pro X / Premiere Pro (asset.start=0s, src= auf
+                      Asset, <audio lane=-1/-2> connected clips)
+
+Ausgabe jeweils:
   V1   — Videoschnitte aus der EDL
   A1   — mic_paths[0] kontinuierlich, mit Sync-Offset
   A2   — mic_paths[1] kontinuierlich, mit Sync-Offset (wenn vorhanden)
-
-Kamera-Audio wird ausgeschlossen (hasAudio="0" auf Camera-Assets).
-FCPXML kann direkt in DaVinci Resolve, Premiere Pro und Final Cut Pro importiert werden.
 """
 
 import json
@@ -217,19 +222,19 @@ def build_fcpxml(
     edl_path: Path,
     fps: float,
     output: Path,
+    target: str = 'resolve',
 ) -> Path:
     """
     Erzeugt eine FCPXML 1.9 Timeline aus final.edl + synchronisierten Medien.
 
-    V1:  Videoschnitte aus edl_path (Kamera-Audio ausgeschlossen)
-    A1:  mic_paths[0], synchronisiert über offsets['MIC1']
-    A2:  mic_paths[1], synchronisiert über offsets['MIC2']  (wenn vorhanden)
+    target='resolve'  DaVinci Resolve (embedded TC, <media-rep>, <video>, lane 2/3)
+    target='fcpx'     Final Cut Pro X / Premiere Pro (src=, lane -1/-2, <audio>)
 
     offsets: {'CAM1': 0, 'CAM2': N, 'MIC1': N, 'MIC2': N}
              Werte = Frame-Offset relativ zu CAM1-Start.
              Positiv = Quelle startet N Frames nach CAM1.
     """
-    print("\nErstelle FCPXML...")
+    print(f"\nErstelle FCPXML ({target})...")
 
     # ── EDL parsen ────────────────────────────────────────────────────────────
     events = _parse_edl(edl_path, cam_paths, fps)
