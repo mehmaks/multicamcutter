@@ -34,7 +34,7 @@ Das Passwort deines Macs wird abgefragt (die Eingabe ist unsichtbar — einfach 
 ## Schritt 2 — Python und Git installieren
 
 ```
-brew install python git
+brew install python@3.12 git
 ```
 
 ---

@@ -6,8 +6,12 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$SCRIPT_DIR/venv"
-# Homebrew-Python bevorzugen (aktueller als macOS-System-Python)
-if [ -x "/opt/homebrew/bin/python3" ]; then
+# Python 3.12 bevorzugen — getestete Version für alle Abhängigkeiten
+if [ -x "/opt/homebrew/bin/python3.12" ]; then
+    PYTHON="/opt/homebrew/bin/python3.12"
+elif [ -x "/usr/local/bin/python3.12" ]; then
+    PYTHON="/usr/local/bin/python3.12"
+elif [ -x "/opt/homebrew/bin/python3" ]; then
     PYTHON="/opt/homebrew/bin/python3"
 elif [ -x "/usr/local/bin/python3" ]; then
     PYTHON="/usr/local/bin/python3"
@@ -41,7 +45,12 @@ PY_MAJOR=$($PYTHON -c "import sys; print(sys.version_info.major)")
 PY_MINOR=$($PYTHON -c "import sys; print(sys.version_info.minor)")
 
 if [ "$PY_MAJOR" -lt 3 ] || ([ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -lt 10 ]); then
-    err "Python $PY_VERSION gefunden — mindestens 3.10 benötigt.\nBitte von https://python.org herunterladen."
+    err "Python $PY_VERSION gefunden — mindestens 3.10 benötigt.\nEmpfehlung: brew install python@3.12"
+fi
+if [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -gt 12 ]; then
+    echo -e "${YELLOW}⚠${RESET}  Python $PY_VERSION — empfohlen ist 3.12 (brew install python@3.12)"
+    echo "   Fortfahren auf eigenes Risiko, manche Pakete haben möglicherweise keine Binaries."
+    sleep 3
 fi
 ok "Python $PY_VERSION"
 
