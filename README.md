@@ -1,62 +1,95 @@
 # resolve-toolkit
 
-A collection of tools to automate and streamline video editing workflows in DaVinci Resolve.
-
-Built for podcast and interview productions with multi-camera setups.
+A collection of tools to automate and streamline video editing workflows — for podcast, interview, and multi-camera productions.
 
 ## Modules
 
 ### `multicam_cutter`
-Automatically generates cut timelines for multi-camera podcast recordings.
+Automatically generates a first-cut timeline from multi-camera recordings.
 
-- Detects speaker turns via RMS diarization of separate lav mic tracks
-- Detects speaking reactions (short backchannel utterances) via rolling-baseline audio analysis
-- Detects nodding reactions via computer vision (MediaPipe Face Landmarker)
-- Outputs a finished cut timeline directly in DaVinci Resolve
+**How it works:**
+1. **Waveform sync** — aligns all cameras and mics by audio fingerprint (no clapperboard needed)
+2. **Speaker detection** — determines who is talking using RMS diarization of lavalier mic tracks
+3. **Reaction detection** — finds nodding and short verbal reactions on the off-camera using MediaPipe face analysis
+4. **Cut assembly** — builds a finished timeline with color-coded clips and reaction cutaways
 
-Two workflows: **Bin-Workflow** (fully automated from a Media Pool bin) and **Timeline-Workflow** (starts from a manually synced timeline in Resolve).
+**Supports:**
+- N cameras (close + wide roles), M lavalier mics — flexible N:M mic-to-camera assignment
+- Multi-person face tracking (up to 4 faces per camera)
+- Wide-cam cutaways with automatic zoom (Premiere Pro-compatible via AAF Video Scale)
+- Camera-level nodding analysis toggle (skip analysis for wide/overhead cameras)
 
-**[→ Module README](modules/multicam_cutter/README.md)**
+**Two workflows:**
+
+| | Bin Workflow | Folder Workflow |
+|---|---|---|
+| **Requires** | DaVinci Resolve running | FFmpeg + Python only |
+| **Input** | Resolve Media Pool bin | Folder with media files |
+| **Output** | Timeline directly in Resolve | `final.aaf` (Resolve, Premiere Pro, Avid) |
+| **NLE** | Resolve | Any |
+
+**[→ Full module documentation](modules/multicam_cutter/README.md)**
+
+---
 
 ### `resolve_bridge`
 Python bridge to the DaVinci Resolve scripting API.
 
-- `connection.py` — connect to the running Resolve instance
-- `timeline_reader.py` — read clip metadata, sync offsets, and track layout from the active timeline
+- `connection.py` — connect to a running Resolve instance
+- `timeline_reader.py` — read clip metadata, sync offsets, and track layout
 - `markers.py` — read and write timeline markers
 - `silence_cutter.py` — silence-based rough cut helper
 
+---
+
 ### `ui`
-Streamlit-based control dashboard. Start with:
+Streamlit control dashboard. Launch with:
 
 ```bash
-cd ~/Developer/resolve-toolkit
-python3 -m streamlit run ui/app.py
+streamlit run ui/app.py
 ```
 
-Then open http://localhost:8501. DaVinci Resolve must be running.
+Then open [http://localhost:8501](http://localhost:8501).
 
-Pages:
-- **Multicam Cutter** — Bin-Workflow and Timeline-Workflow with live log output
-- **Silence Cutter** — Rough cut based on silence detection
-- **Auphonic / MaxxVolume** — Audio processing helpers
-- **Takes** — Take selector for multi-take recordings
+**Pages:**
+- **Multicam Cutter** — Bin and Folder workflows with live progress bar and log
+- **Audio Enhance** — Auphonic / MaxxVolume integration
+- **Silence Cutter** — rough cut based on silence detection
+- **Take Selector** — multi-take selection helper
+- **Config** — edit all analysis parameters with presets
 
-## Requirements
+**Sidebar:**
+- Resolve connection status
+- Live workflow log (last 30 lines)
+- 💬 Feedback / bug report — submits a GitHub Issue directly, no account required
 
-See [requirements.txt](requirements.txt) for dependencies.
+---
 
 ## Setup
 
 ```bash
-pip3 install -r requirements.txt
+pip install -r requirements.txt
 ```
 
-> **Note:** Do not use a venv for the DaVinci Resolve bridge — `fusionscript.so` is compiled against the system Python (3.9) and must be importable from there.
+> **Note on the Bin Workflow:** The Resolve scripting bridge requires the system Python (3.9) that ships with DaVinci Resolve. Do not run the Bin Workflow inside a venv — `fusionscript.so` must be importable from the system Python.
 
-## Production Setup
+The Folder Workflow runs entirely in any Python 3.10+ environment.
 
-- Cameras: 4K UHD (3840×2160) @ 25fps
-- Audio: Separate WAV per speaker (lav mics via Zoom recorder)
-- NLE: DaVinci Resolve 19
-- Analysis: MediaPipe Face Landmarker, ffmpeg for frame decode
+---
+
+## Requirements
+
+- Python 3.10+
+- FFmpeg (system-wide)
+- DaVinci Resolve 18+ *(Bin Workflow only)*
+
+See [requirements.txt](requirements.txt) for Python dependencies.
+
+---
+
+## Production reference setup
+
+- Cameras: 4K UHD @ 25 fps (Sony, Canon, Blackmagic)
+- Audio: Separate WAV per speaker via Zoom field recorder (lav mics)
+- NLE: DaVinci Resolve 19 / Adobe Premiere Pro 2025
+- Analysis: MediaPipe Face Landmarker, ffmpeg for frame decoding
