@@ -119,6 +119,53 @@ with st.sidebar:
         st.session_state.license_info = _lic.validate()
         st.rerun()
 
+    # ── Update-Check ──────────────────────────────────────────────────────────
+
+    st.divider()
+
+    _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+
+    def _git(*args):
+        r = __import__("subprocess").run(
+            ["git", "-C", _REPO_ROOT] + list(args),
+            capture_output=True, text=True)
+        return r.stdout.strip()
+
+    def _check_for_update():
+        try:
+            _git("fetch", "origin", "--quiet")
+            local  = _git("rev-parse", "HEAD")
+            remote = _git("rev-parse", "origin/main")
+            return local != remote, remote[:7]
+        except Exception:
+            return False, None
+
+    if "update_available" not in st.session_state:
+        st.session_state.update_available, st.session_state.update_hash = _check_for_update()
+
+    if st.session_state.update_available:
+        st.info(f"Update verfügbar (#{st.session_state.update_hash})")
+        if st.button("⬇ Jetzt aktualisieren", use_container_width=True, type="primary"):
+            with st.spinner("Aktualisiere..."):
+                import subprocess as _sup, sys as _sys
+                # Prüfen ob requirements sich geändert haben
+                _req_before = _git("show", "HEAD:requirements.txt")
+                _git("pull", "origin", "main")
+                _req_after  = _git("show", "HEAD:requirements.txt")
+                if _req_before != _req_after:
+                    _sup.run(
+                        [_sys.executable, "-m", "pip", "install", "-q",
+                         "-r", os.path.join(_REPO_ROOT, "requirements.txt")],
+                        check=False)
+            st.session_state.update_available = False
+            st.success("Aktualisiert! Bitte Streamlit neu starten:")
+            st.code("bash ~/resolve-toolkit/start.command")
+    else:
+        st.caption("✓ Aktuell")
+        if st.button("Nach Updates suchen", use_container_width=True):
+            st.session_state.update_available, st.session_state.update_hash = _check_for_update()
+            st.rerun()
+
     # ── Workflow Log ──────────────────────────────────────────────────────────
 
     st.divider()
