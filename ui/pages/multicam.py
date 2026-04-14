@@ -597,11 +597,33 @@ with tab_folder:
 
     st.subheader("Ordner & Dateien")
 
-    folder_path = st.text_input(
-        "Ordner-Pfad",
-        placeholder="/Pfad/zur/Episode",
-        help="Ordner mit genau 2 Videodateien (.mp4/.mov/.mxf) und 1–2 Audiodateien (.wav/.aif)",
-    )
+    if "folder_path_sel" not in st.session_state:
+        st.session_state.folder_path_sel = ""
+
+    _col_path, _col_btn = st.columns([5, 1])
+    with _col_path:
+        folder_path = st.text_input(
+            "Ordner-Pfad",
+            placeholder="/Pfad/zur/Episode",
+            help="Ordner mit genau 2 Videodateien (.mp4/.mov/.mxf) und 1–2 Audiodateien (.wav/.aif)",
+            key="folder_path_sel",
+        )
+    with _col_btn:
+        st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
+        if st.button("📂", use_container_width=True, help="Ordner auswählen"):
+            try:
+                import tkinter as _tk
+                from tkinter import filedialog as _fd
+                _root = _tk.Tk()
+                _root.withdraw()
+                _root.wm_attributes("-topmost", True)
+                _picked = _fd.askdirectory(title="Ordner auswählen")
+                _root.destroy()
+                if _picked:
+                    st.session_state.folder_path_sel = _picked
+                    st.rerun()
+            except Exception:
+                st.warning("Ordner-Dialog nicht verfügbar — Pfad bitte manuell eingeben.")
 
     _folder_valid = bool(folder_path and Path(folder_path).is_dir())
 
