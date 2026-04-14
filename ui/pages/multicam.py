@@ -612,15 +612,14 @@ with tab_folder:
         st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
         if st.button("📂", use_container_width=True, help="Ordner auswählen"):
             try:
-                import tkinter as _tk
-                from tkinter import filedialog as _fd
-                _root = _tk.Tk()
-                _root.withdraw()
-                _root.wm_attributes("-topmost", True)
-                _picked = _fd.askdirectory(title="Ordner auswählen")
-                _root.destroy()
-                if _picked:
-                    st.session_state.folder_path_sel = _picked
+                import subprocess as _subp
+                _r = _subp.run(
+                    ["osascript", "-e",
+                     'POSIX path of (choose folder with prompt "Ordner auswählen")'],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if _r.returncode == 0 and _r.stdout.strip():
+                    st.session_state.folder_path_sel = _r.stdout.strip()
                     st.rerun()
             except Exception:
                 st.warning("Ordner-Dialog nicht verfügbar — Pfad bitte manuell eingeben.")
