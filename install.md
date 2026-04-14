@@ -31,10 +31,24 @@ Das Passwort deines Macs wird abgefragt (die Eingabe ist unsichtbar — einfach 
 
 ---
 
-## Schritt 2 — Python und Git installieren
+## Schritt 2 — Python 3.12 und Git installieren
+
+Das Tool benötigt **Python 3.12** — neuere Versionen werden von einzelnen Abhängigkeiten noch nicht unterstützt.
 
 ```
 brew install python@3.12 git
+```
+
+Danach Python 3.12 als Standard setzen:
+
+```
+echo 'export PATH="/opt/homebrew/opt/python@3.12/bin:$PATH"' >> ~/.zprofile && source ~/.zprofile
+```
+
+Prüfen ob es geklappt hat (sollte `Python 3.12.x` ausgeben):
+
+```
+python3 --version
 ```
 
 ---
