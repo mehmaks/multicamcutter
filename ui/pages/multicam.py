@@ -30,7 +30,13 @@ _PARAM_NAMES = [
     'speaking_enabled', 'rise_db', 'speaking_min_dur', 'speaking_max_dur', 'speaking_min_conf',
 ]
 
-tab_bin, tab_folder = st.tabs(["Bin-Workflow", "Ordner-Workflow"])
+_resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"
+
+if _resolve_ok:
+    tab_bin, tab_folder = st.tabs(["Bin-Workflow", "Ordner-Workflow"])
+else:
+    tab_bin  = None
+    tab_folder = st.container()
 
 
 # ── Workflow step definitions ─────────────────────────────────────────────────
@@ -391,10 +397,11 @@ def _save_settings_to_config(v):
 
 
 # ══════════════════════════════════════════════════════════════════════════════
-# TAB 1 — Bin-Workflow
+# TAB 1 — Bin-Workflow (nur wenn Resolve verbunden)
 # ══════════════════════════════════════════════════════════════════════════════
 
-with tab_bin:
+if tab_bin is not None:
+ with tab_bin:
     st.caption("Vollautomatisch: Bin scannen → Waveform-Sync → Analyse → Cut-Timeline")
 
     st.subheader("Bin & Output")
