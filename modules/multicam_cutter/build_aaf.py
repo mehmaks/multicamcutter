@@ -24,6 +24,14 @@ from pathlib import Path
 
 import aaf2
 import aaf2.rational
+from aaf2.auid import AUID
+
+# ── Premiere "Video Scale" OperationGroup AUIDs ───────────────────────────────
+# Reverse-engineered aus Premiere Pro AAF-Export.
+_SCALE_OP_AUID = AUID("2e0a119d-e6f7-4bee-b5dc-6dd42988687e")
+_SCALEX_AUID   = AUID("8d568129-847e-11d5-935a-50f857c10000")
+_SCALEY_AUID   = AUID("8d56812a-847e-11d5-935a-50f857c10000")
+_SCALE_DENOM   = 100_000_000   # Premiere speichert Skalierung ×10^8
 
 
 # ── ffprobe helpers ───────────────────────────────────────────────────────────
@@ -117,6 +125,32 @@ def _tc_to_frames(tc: str, fps: float) -> int:
 
 # ── AAF helpers ───────────────────────────────────────────────────────────────
 
+def _register_scale_op(f):
+    """Registriert Premiere-kompatible 'Video Scale' OperationDef + ParameterDefs."""
+    d = f.dictionary
+    sx = f.create.ParameterDef(_SCALEX_AUID, 'ScaleX', 'Horizontal Scale', 'Rational')
+    sy = f.create.ParameterDef(_SCALEY_AUID, 'ScaleY', 'Vertical Scale',   'Rational')
+    d.register_def(sx)
+    d.register_def(sy)
+    op = f.create.OperationDef(_SCALE_OP_AUID, 'Video Scale', 'Premiere Video Scale')
+    op.media_kind          = 'picture'
+    op['IsTimeWarp'].value = False
+    op.number_inputs       = 1
+    op.parameters.append(sx)
+    op.parameters.append(sy)
+    d.register_def(op)
+
+
+def _wrap_scale(f, clip, length: int, zoom: float):
+    """Verpackt einen SourceClip in einen Premiere-kompatiblen Video-Scale OperationGroup."""
+    op_group = f.create.OperationGroup(_SCALE_OP_AUID, length=length, media_kind='picture')
+    op_group.segments.append(clip)
+    val = aaf2.rational.AAFRational(int(round(zoom * _SCALE_DENOM)), _SCALE_DENOM)
+    op_group.parameters.append(f.create.ConstantValue(_SCALEX_AUID, val))
+    op_group.parameters.append(f.create.ConstantValue(_SCALEY_AUID, val))
+    return op_group
+
+
 def _make_timecode_slot(f, mob, edit_rate: int, fps: int, start: int, length: int):
     """Fügt einen Timecode-Slot zu einem Mob hinzu (für korrekte FPS-Erkennung in Resolve)."""
     slot = mob.create_timeline_slot(edit_rate=edit_rate)
@@ -181,15 +215,19 @@ def build_aaf(
     edl_path: Path,
     fps: float,
     output: Path,
+    cam_types: list = None,
+    wide_zoom: float = 1.5,
 ) -> Path:
     """
     Erzeugt eine AAF-Timeline aus final.edl + synchronisierten Medien.
 
-    V1:  Videoschnitte aus edl_path
+    V1:  Videoschnitte aus edl_path (Wide-Cam-Cutaways optional mit Zoom)
     A1:  mic_paths[0] kontinuierlich, synchronisiert
     A2:  mic_paths[1] kontinuierlich, synchronisiert (wenn vorhanden)
 
-    offsets: {'CAM1': 0, 'CAM2': N, ..., 'MIC1': N, 'MIC2': N, ...}
+    offsets:   {'CAM1': 0, 'CAM2': N, ..., 'MIC1': N, 'MIC2': N, ...}
+    cam_types: ['close', 'close', 'wide', ...] — Wide-Cams bekommen wide_zoom
+    wide_zoom: Skalierungsfaktor für Wide-Cam-Cutaways (Default 1.5 = 150%)
     """
     print("\nErstelle AAF...")
 
@@ -217,9 +255,9 @@ def build_aaf(
 
     with aaf2.open(str(output), 'w') as f:
 
-        # ── Video: TapeMob + FileMob + MasterMob ──────────────────────────────
+        # ── Video: TapeMob + FileMob + MasterMob (alle Kameras) ──────────────
         cam_masters = []
-        for idx, (cp, dur, tc) in enumerate(zip(cam_paths[:2], cam_durs, cam_tc)):
+        for idx, (cp, dur, tc) in enumerate(zip(cam_paths, cam_durs, cam_tc)):
             stem = Path(cp).stem
 
             # TapeMob — Reel-Name + embedded TC (damit Resolve die Datei zuordnen kann)
@@ -331,11 +369,13 @@ def build_aaf(
         _make_timecode_slot(f, comp, edit_rate=fps_int, fps=fps_int,
                             start=0, length=total_frames)
 
-        # V1 — Videoschnitte
-        v_slot = comp.create_picture_slot(edit_rate=fps_int)
-        v_slot['PhysicalTrackNumber'].value = 1
-        v_slot.name = 'V1'
+        # V1 — Videoschnitte (ggf. Wide-Cam-Cutaways mit Zoom)
+        wide_indices = {i for i, t in enumerate(cam_types or []) if t == 'wide'}
+        has_zoom     = bool(wide_indices)
+        if has_zoom:
+            _register_scale_op(f)
 
+        v_seq = f.create.Sequence(media_kind='picture')
         for ev in events:
             cam_idx = ev['cam_index']
             src_in  = ev['source_in']
@@ -343,7 +383,20 @@ def build_aaf(
             master, m_slot = cam_masters[cam_idx]
             sc = master.create_source_clip(
                 slot_id=m_slot.slot_id, start=src_in, length=dur)
-            v_slot.segment.components.append(sc)
+            if has_zoom and cam_idx in wide_indices:
+                sc = _wrap_scale(f, sc, dur, wide_zoom)
+            v_seq.components.append(sc)
+
+        v_slot = comp.create_timeline_slot(edit_rate=fps_int)
+        v_slot['PhysicalTrackNumber'].value = 1
+        v_slot.name = 'V1'
+        if has_zoom:
+            # NestedScope erforderlich für Premiere-Zoom-Kompatibilität
+            nested = f.create.NestedScope(media_kind='picture', length=total_frames)
+            nested['Slots'].append(v_seq)
+            v_slot.segment = nested
+        else:
+            v_slot.segment = v_seq
 
         # A1 / A2 — kontinuierliche MIC-Clips
         for i, (mic_data, mic_off, mic_dur) in enumerate(

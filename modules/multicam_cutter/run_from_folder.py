@@ -116,6 +116,11 @@ def main():
         print(f"  {label}: {sign}{frames} frames ({sign}{frames / args.fps:.2f}s)")
 
     # ── 3. Analyse-Pipeline → final.edl ──────────────────────────────────────
+    import configparser
+    _cfg = configparser.ConfigParser()
+    _cfg.read(args.config)
+    wide_zoom = _cfg.getfloat('General', 'wide_zoom', fallback=1.5)
+
     n_cams      = len(cams)
     cam_mic_map = _parse_cam_mics(args.cam_mics,    n_cams, len(mics))
     cam_types   = _parse_cam_list(args.cam_types,   n_cams, 'close')
@@ -147,6 +152,8 @@ def main():
             edl_path=final_edl,
             fps=args.fps,
             output=work_dir / 'final.aaf',
+            cam_types=cam_types,
+            wide_zoom=wide_zoom,
         )
     except Exception as e:
         print(f"\nWarnung: AAF-Generierung fehlgeschlagen: {e}")
