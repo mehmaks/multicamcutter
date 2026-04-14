@@ -335,18 +335,18 @@ class AdvancedReactionDetector:
         timestamp_ms = int(frame_number * 1000 / self.fps)
         result = self.face_landmarker.detect_for_video(mp_image, timestamp_ms)
 
+        n_faces = len(result.face_landmarks) if result.face_landmarks else 0
         reactions = {
             'nodding':      {'detected': False, 'confidence': 0.0},
             'head_shake':   {'detected': False, 'confidence': 0.0},
             'laughing':     {'detected': False, 'confidence': 0.0},
             'eyebrow_raise':{'detected': False, 'confidence': 0.0},
-            'face_detected': False,
+            'face_detected': n_faces > 0,
+            'face_count':    n_faces,
         }
 
         if not result.face_landmarks:
             return reactions
-
-        reactions['face_detected'] = True
 
         # Sortiere Gesichter nach x-Position der Nase (links→rechts) für stabiles Tracking
         sorted_faces = sorted(result.face_landmarks, key=lambda lm: lm[1].x)
@@ -458,7 +458,7 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
 
     def _collect_reactions(reactions, frame_num):
         for reaction_type, data in reactions.items():
-            if reaction_type == 'face_detected':
+            if reaction_type in ('face_detected', 'face_count'):
                 continue
             if data['detected'] and data['confidence'] > 0.5:
                 tc = frame_num / fps
@@ -468,6 +468,28 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                     'type':       reaction_type,
                     'confidence': round(data['confidence'], 3),
                 })
+
+    def _log_face_counts(face_counts: list, label: str):
+        """Gibt Verteilung + Stabilitäts-Warnung für eine Liste von Gesichts-Zählwerten aus."""
+        if not face_counts:
+            return
+        from collections import Counter
+        dist = Counter(face_counts)
+        total = len(face_counts)
+        mode  = dist.most_common(1)[0][0]
+        avg   = sum(face_counts) / total
+        dist_str = '  '.join(
+            f"{k} Gesicht{'er' if k != 1 else ''}: {v/total*100:.0f}%"
+            for k, v in sorted(dist.items())
+        )
+        instability = sum(1 for c in face_counts if c != mode) / total
+        lines = [f"  {label}: ∅{avg:.1f} erkannte Gesichter  [{dist_str}]"]
+        if dist.get(0, 0) / total > 0.3:
+            lines.append(f"  ⚠  Kein Gesicht in {dist[0]/total*100:.0f}% der Frames — Kamera zu seitlich?")
+        if instability > 0.25 and len(dist) > 1:
+            lines.append(f"  ⚠  Instabil: {instability*100:.0f}% der Frames weichen vom häufigsten Wert ({mode}) ab")
+        for l in lines:
+            print(l)
 
     def _progress(done, total, label=''):
         progress = done / total if total else 1.0
@@ -483,6 +505,8 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
         print(f'\r  Analysiere{label}: [{bar}] {progress*100:.1f}% ({done}/{total}){eta_str}',
               end='', flush=True)
         print(f'__PROGRESS__ {progress*100:.1f} {eta_prog}', flush=True)
+
+    all_face_counts = []  # Gesamt-Tracking über alle Sektionen / das gesamte Video
 
     if _off_sections:
         # ── Seeking-Modus: ein ffmpeg-Aufruf pro Off-Sektion ─────────────────
@@ -500,6 +524,7 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
             ff_proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
             detector.reset_history()
             local = 0
+            sec_face_counts = []
             while local < n_frames:
                 raw = ff_proc.stdout.read(frame_bytes)
                 if len(raw) < frame_bytes:
@@ -508,12 +533,20 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                 frame = np.frombuffer(raw, dtype=np.uint8).reshape((frame_h, frame_w, 3))
                 reactions = detector.analyze_frame(frame, actual_frame)
                 _collect_reactions(reactions, actual_frame)
+                sec_face_counts.append(reactions['face_count'])
                 local   += 1
                 analyzed += 1
                 if analyzed % 25 == 0 or analyzed == total_off_frames:
                     _progress(analyzed, total_off_frames)
             ff_proc.stdout.close()
             ff_proc.wait()
+            all_face_counts.extend(sec_face_counts)
+            print()  # Zeilenumbruch nach Progress
+            _log_face_counts(
+                sec_face_counts,
+                f"Sektion {sec_idx + 1}/{len(_off_sections)} "
+                f"(Frame {sec_start}–{sec_end}, {n_frames/fps:.0f}s)"
+            )
 
     else:
         # ── Vollständige Analyse: ein ffmpeg-Aufruf für das gesamte Video ────
@@ -528,6 +561,7 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
             frame = np.frombuffer(raw, dtype=np.uint8).reshape((frame_h, frame_w, 3))
             reactions = detector.analyze_frame(frame, frame_number)
             _collect_reactions(reactions, frame_number)
+            all_face_counts.append(reactions['face_count'])
 
             if show_preview and reactions['face_detected']:
                 preview = frame.copy()
@@ -548,7 +582,12 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     print()  # Neue Zeile nach Progress Bar
     if show_preview:
         cv2.destroyAllWindows()
-    
+
+    # Gesamt-Gesichts-Statistik
+    if all_face_counts:
+        label = "Gesamt" if not _off_sections else f"Gesamt ({len(_off_sections)} Sektionen)"
+        _log_face_counts(all_face_counts, label)
+
     # Ergebnisse
     print(f"\n{'='*60}")
     print(f"ANALYSE ABGESCHLOSSEN")
