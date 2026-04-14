@@ -69,8 +69,6 @@ Du hast von uns eine Datei namens `license.json` erhalten.
 
 ## Hinweise
 
-**Beim ersten Audio-Enhance-Lauf** lädt das Tool einmalig ein ~500 MB großes KI-Modell von Hugging Face herunter. Das passiert nur einmal und dauert je nach Internetverbindung einige Minuten.
-
 **Tool beenden:** Terminal-Fenster schließen oder `Ctrl + C` im Terminal drücken.
 
 **Tool erneut starten:** Immer per Doppelklick auf `start.command`.
