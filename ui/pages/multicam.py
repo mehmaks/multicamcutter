@@ -78,9 +78,11 @@ def _advance_progress_step(line, current, steps):
 
 
 def _parse_subprogress(line, current_progress):
-    if not line.startswith("__PROGRESS__"):
+    # __PROGRESS__ kann nach einem \r-Balken in derselben Pipe-Zeile stehen
+    idx = line.find("__PROGRESS__")
+    if idx == -1:
         return None, None, None
-    parts = line.split()
+    parts = line[idx:].split()
     if len(parts) < 3:
         return None, None, None
     try:
