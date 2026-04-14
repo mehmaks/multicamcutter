@@ -438,6 +438,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                  fps: float, work_dir: Path, config: Path,
                  skip_analysis: bool = False, skip_base_edl: bool = False,
                  cam_mic_map: list = None,
+                 cam_types: list = None,
+                 cam_nodding: list = None,
                  speaking_mode_override: str = None):
     """
     Runs nodding + RMS analysis for N cameras, returns path to final EDL.
@@ -450,8 +452,11 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                [[0, 1], [2]]   → CAM1 nutzt MIC1+MIC2 (aggregiert), CAM2 nutzt MIC3
     """
     if cam_mic_map is None:
-        # Bisheriger Default: CAM1→MIC2 (idx 1), CAM2→MIC1 (idx 0)
         cam_mic_map = [[min(1, len(mic_paths) - 1)], [0]]
+    if cam_types is None:
+        cam_types = ['close'] * len(cam_paths)
+    if cam_nodding is None:
+        cam_nodding = [True] * len(cam_paths)
 
     cam1_path = cam_paths[0]
     cam2_path = cam_paths[1]
@@ -532,6 +537,10 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     if not skip_analysis:
         analyzer = str(SCRIPT_DIR / 'video_reaction_analyzer_v2.4.py')
         for i, cp in enumerate(cam_paths):
+            nodding_enabled = cam_nodding[i] if i < len(cam_nodding) else True
+            if not nodding_enabled:
+                print(f"\n  Nodding-Analyse CAM{i + 1} übersprungen (nodding_detection=false)")
+                continue
             json_out = work_dir / (Path(cp).stem + '_reactions.json')
             args_list = [analyzer, cp, '--output', str(json_out), '--config', str(config)]
             off_sec = off_sections_map.get(cp)
@@ -549,10 +558,12 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         mic_idxs = cam_mic_map[i] if i < len(cam_mic_map) else []
         mics_for_cam = [mic_paths[j] for j in mic_idxs if j < len(mic_paths)]
         entry = {
-            'name':      Path(cp).name,
-            'video':     cp,
-            'mics':      mics_for_cam,
-            'reactions': str(work_dir / (Path(cp).stem + '_reactions.json')),
+            'name':              Path(cp).name,
+            'video':             cp,
+            'type':              cam_types[i]   if i < len(cam_types)   else 'close',
+            'nodding_detection': cam_nodding[i] if i < len(cam_nodding) else True,
+            'mics':              mics_for_cam,
+            'reactions':         str(work_dir / (Path(cp).stem + '_reactions.json')),
         }
         sp = speaking_jsons.get(cp)
         if speaking_enabled and sp and sp.exists():
@@ -578,6 +589,26 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
 
 
 # ── Entry point ───────────────────────────────────────────────────────────────
+
+def _parse_cam_list(arg, n_cams: int, default: str) -> list:
+    """Parst z.B. --cam-types 'close close wide' → ['close', 'close', 'wide']."""
+    if arg is None:
+        return [default] * n_cams
+    result = list(arg[:n_cams])
+    while len(result) < n_cams:
+        result.append(default)
+    return result
+
+
+def _parse_cam_nodding(arg, n_cams: int) -> list:
+    """Parst --cam-nodding 'true true false' → [True, True, False]."""
+    if arg is None:
+        return [True] * n_cams
+    result = [s.lower() not in ('false', '0', 'no') for s in arg[:n_cams]]
+    while len(result) < n_cams:
+        result.append(True)
+    return result
+
 
 def _parse_cam_mics(cam_mics_arg, n_cams: int, n_mics: int) -> list:
     """
@@ -615,6 +646,12 @@ def main():
                         help='MIC-Zuordnung pro Kamera als "INDEX[,INDEX]" je CAM. '
                              'Reihenfolge = CAM1, CAM2, ... '
                              'Beispiele: "1 0" (Default) oder "0,1 2" (CAM1→MIC1+MIC2, CAM2→MIC3)')
+    parser.add_argument('--cam-types', nargs='+', default=None,
+                        help='Kamera-Typ je CAM: "close" (default) oder "wide". '
+                             'Beispiel: "close close wide" für 2 Close-Ups + 1 Totale')
+    parser.add_argument('--cam-nodding', nargs='+', default=None,
+                        help='Nodding-Analyse je CAM: "true" (default) oder "false". '
+                             'Beispiel: "true true false" (deaktiviert für CAM3)')
     parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
                         help='Überschreibt speaking_mode aus config.ini')
     args = parser.parse_args()
@@ -666,7 +703,10 @@ def main():
     project.SetCurrentTimeline(sync_tl)
 
     # 4. Analyse-Pipeline
-    cam_mic_map = _parse_cam_mics(args.cam_mics, len(cams), len(mic_paths))
+    n_cams      = len(cams)
+    cam_mic_map = _parse_cam_mics(args.cam_mics,   n_cams, len(mic_paths))
+    cam_types   = _parse_cam_list(args.cam_types,   n_cams, 'close')
+    cam_nodding = _parse_cam_nodding(args.cam_nodding, n_cams)
     work_dir = Path(cam1_path).parent / 'analyse'
     work_dir.mkdir(exist_ok=True)
     try:
@@ -675,6 +715,8 @@ def main():
             args.fps, work_dir, Path(args.config),
             args.skip_analysis, args.skip_base_edl,
             cam_mic_map=cam_mic_map,
+            cam_types=cam_types,
+            cam_nodding=cam_nodding,
             speaking_mode_override=args.speaking_mode,
         )
     except RuntimeError as e:

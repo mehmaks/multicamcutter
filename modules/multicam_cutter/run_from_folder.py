@@ -26,7 +26,9 @@ ROOT = Path(__file__).resolve().parent.parent.parent
 sys.path.insert(0, str(ROOT))
 
 from shared.waveform_sync import sync_sources, SyncError
-from modules.multicam_cutter.run_from_bin import run_analysis, _parse_cam_mics
+from modules.multicam_cutter.run_from_bin import (
+    run_analysis, _parse_cam_mics, _parse_cam_list, _parse_cam_nodding
+)
 from modules.multicam_cutter.build_aaf import build_aaf
 
 SCRIPT_DIR = Path(__file__).parent
@@ -58,6 +60,12 @@ def main():
                         help='MIC-Zuordnung pro Kamera als "INDEX[,INDEX]" je CAM. '
                              'Reihenfolge = CAM1, CAM2, ... '
                              'Beispiele: "1 0" (Default) oder "0,1 2" (CAM1→MIC1+MIC2, CAM2→MIC3)')
+    parser.add_argument('--cam-types', nargs='+', default=None,
+                        help='Kamera-Typ je CAM: "close" (default) oder "wide". '
+                             'Beispiel: "close close wide"')
+    parser.add_argument('--cam-nodding', nargs='+', default=None,
+                        help='Nodding-Analyse je CAM: "true" (default) oder "false". '
+                             'Beispiel: "true true false"')
     parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
                         help='Überschreibt speaking_mode aus config.ini')
     args = parser.parse_args()
@@ -108,7 +116,10 @@ def main():
         print(f"  {label}: {sign}{frames} frames ({sign}{frames / args.fps:.2f}s)")
 
     # ── 3. Analyse-Pipeline → final.edl ──────────────────────────────────────
-    cam_mic_map = _parse_cam_mics(args.cam_mics, len(cams), len(mics))
+    n_cams      = len(cams)
+    cam_mic_map = _parse_cam_mics(args.cam_mics,    n_cams, len(mics))
+    cam_types   = _parse_cam_list(args.cam_types,   n_cams, 'close')
+    cam_nodding = _parse_cam_nodding(args.cam_nodding, n_cams)
     work_dir = folder / 'analyse'
     work_dir.mkdir(exist_ok=True)
     try:
@@ -118,6 +129,8 @@ def main():
             skip_analysis=args.skip_analysis,
             skip_base_edl=args.skip_base_edl,
             cam_mic_map=cam_mic_map,
+            cam_types=cam_types,
+            cam_nodding=cam_nodding,
             speaking_mode_override=args.speaking_mode,
         )
     except RuntimeError as e:

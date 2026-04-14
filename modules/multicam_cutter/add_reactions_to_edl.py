@@ -182,15 +182,17 @@ def build_events_with_cutaways(
     section_video_start: int,
     on_clip: str,
     on_reference_frame: int,
-    cutaway_cams: List[Dict],  # [{'name', 'reference_frame', 'timeline_zero_video', 'reactions'}]
+    cutaway_cams: List[Dict],  # [{'name', 'type', 'reference_frame', 'timeline_zero_video', 'reactions'}]
     config: Dict,
     fps: float,
 ) -> List[EDLEvent]:
     """
     Baut Events für eine Section mit Cutaways von einer oder mehreren OFF-Kameras.
 
-    cutaway_cams enthält alle Kameras die als Cutaway-Quelle infrage kommen.
-    Bei mehreren Reaktionen gleichzeitig wird die mit höchster Confidence gewählt.
+    Kamera-Rollen (Feld 'type' im cam-Dict):
+    - 'close' (default): Normale Reaktions-Cutaways (Single-Person).
+    - 'wide': Totale — wird verwendet wenn ≥2 Close-Kameras gleichzeitig reagieren
+              oder als Reset-Schnitt nach max_shot_duration.
     """
     min_shot_frames          = int(config['min_shot_duration'] * fps)
     reaction_duration_frames = int(config['reaction_min_duration'] * fps)
@@ -201,9 +203,13 @@ def build_events_with_cutaways(
     pre_roll_frames          = int(config.get('pre_roll_frames', 0))
     cutaway_enabled          = config['cutaway_enabled']
 
-    # Reaktionen aller OFF-Kameras sammeln
+    # Close-up vs. Wide-Kameras trennen
+    close_cams = [c for c in cutaway_cams if c.get('type', 'close') != 'wide']
+    wide_cams  = [c for c in cutaway_cams if c.get('type', 'close') == 'wide']
+
+    # Reaktionen nur von Close-Kameras sammeln (Wide wird durch Multi-Person-Logik entschieden)
     valid_reactions = []
-    for cam in cutaway_cams:
+    for cam in close_cams:
         tzvf = cam['timeline_zero_video']
         for reaction in cam['reactions']:
             rtype      = reaction['type']
@@ -228,8 +234,23 @@ def build_events_with_cutaways(
     # Sortieren: erst nach Position, dann nach Confidence absteigend
     valid_reactions.sort(key=lambda x: (x['timeline_frame'], -x['confidence']))
 
+    # Multi-Person-Erkennung: Frames mit ≥2 verschiedenen Close-Kameras innerhalb cluster_max_gap
+    close_cam_frames: Dict[str, List[int]] = {}
+    for r in valid_reactions:
+        close_cam_frames.setdefault(r['cam']['name'], []).append(r['timeline_frame'])
+
+    def _is_multi_person(frame: int) -> bool:
+        """True wenn ≥2 Close-Kameras eine Reaktion innerhalb cluster_max_gap von frame haben."""
+        if not wide_cams:
+            return False
+        active = sum(
+            1 for frames in close_cam_frames.values()
+            if any(abs(f - frame) <= cluster_max_gap for f in frames)
+        )
+        return active >= 2
+
     events: List[EDLEvent] = []
-    current_pos   = section_start
+    current_pos    = section_start
     last_cut_frame = section_start
 
     for i, reaction in enumerate(valid_reactions):
@@ -263,11 +284,17 @@ def build_events_with_cutaways(
                 fps=fps, reason="speaker",
             ))
 
-        # OFF-Cutaway — Kamera mit höchster Confidence dieser Position
-        off_cam               = reaction['cam']
-        off_clip              = off_cam['name']
-        off_reference_frame   = off_cam['reference_frame']
-        off_tzvf              = off_cam['timeline_zero_video']
+        # OFF-Cutaway: Multi-Person → Wide-Kamera; Single-Person → beste Close-Kamera
+        if _is_multi_person(cutaway_frame) and wide_cams:
+            off_cam    = wide_cams[0]
+            cut_reason = f"reaction_{rtype}_wide"
+        else:
+            off_cam    = reaction['cam']
+            cut_reason = f"reaction_{rtype}"
+
+        off_clip            = off_cam['name']
+        off_reference_frame = off_cam['reference_frame']
+        off_tzvf            = off_cam['timeline_zero_video']
 
         randomness = config.get('cutaway_randomness', 0.0)
         this_cutaway_frames = int(
@@ -283,7 +310,7 @@ def build_events_with_cutaways(
             source_out=frames_to_timecode(off_reference_frame + off_vo, fps),
             record_in=frames_to_timecode(cutaway_frame, fps),
             record_out=frames_to_timecode(cutaway_end, fps),
-            fps=fps, reason=f"reaction_{rtype}",
+            fps=fps, reason=cut_reason,
         ))
 
         last_cut_frame = cutaway_end
@@ -291,9 +318,9 @@ def build_events_with_cutaways(
 
     # Rest der Section
     if current_pos < section_end:
+        # Wide als bevorzugter Reset-Schnitt; Fallback: erste Close-Kamera
+        reset_cam = wide_cams[0] if wide_cams else (close_cams[0] if close_cams else None)
         if section_end - current_pos > max_shot_frames:
-            # Forced Cutaways: immer erste OFF-Kamera als Ziel
-            off_cam = cutaway_cams[0] if cutaway_cams else None
             while current_pos < section_end:
                 next_cut = min(current_pos + max_shot_frames, section_end)
                 vi = section_video_start + (current_pos - section_start)
@@ -309,13 +336,13 @@ def build_events_with_cutaways(
                 if next_cut >= section_end:
                     break
                 cutaway_end = min(next_cut + reaction_duration_frames, section_end)
-                if off_cam:
-                    off_vi = off_cam['timeline_zero_video'] + next_cut
-                    off_vo = off_cam['timeline_zero_video'] + cutaway_end
+                if reset_cam:
+                    off_vi = reset_cam['timeline_zero_video'] + next_cut
+                    off_vo = reset_cam['timeline_zero_video'] + cutaway_end
                     events.append(EDLEvent(
-                        event_num=0, clip_name=off_cam['name'],
-                        source_in=frames_to_timecode(off_cam['reference_frame'] + off_vi, fps),
-                        source_out=frames_to_timecode(off_cam['reference_frame'] + off_vo, fps),
+                        event_num=0, clip_name=reset_cam['name'],
+                        source_in=frames_to_timecode(reset_cam['reference_frame'] + off_vi, fps),
+                        source_out=frames_to_timecode(reset_cam['reference_frame'] + off_vo, fps),
                         record_in=frames_to_timecode(next_cut, fps),
                         record_out=frames_to_timecode(cutaway_end, fps),
                         fps=fps, reason="max_time",
@@ -366,12 +393,14 @@ def split_long_shots(
     timeline_zero_video_frames: Dict[str, int],
     all_cam_names: List[str],
     fps: float,
+    cam_types_dict: Dict[str, str] = None,  # {clip_name: 'close'|'wide'}
 ) -> List[EDLEvent]:
     print(f"\n✂️  PASS 4: Split zu lange Shots")
     threshold_frames = int((max_shot_duration + 3.0) * fps)
     cutaway_frames   = int(cutaway_duration * fps)
     new_events = []
     split_count = 0
+    types = cam_types_dict or {}
 
     for event in events:
         duration = event.duration_frames()
@@ -379,14 +408,11 @@ def split_long_shots(
             new_events.append(event)
             continue
 
-        # Nächste verfügbare Kamera als Cutaway-Ziel
-        others = [c for c in all_cam_names if c != event.clip_name]
-        if not others:
-            new_events.append(event)
-            continue
-        other_clip = others[0]
-
-        if other_clip not in reference_frames:
+        # Wide-Kamera bevorzugt als Split-Ziel (Reset-Schnitt); Fallback: erste andere Close-Kamera
+        wide_others  = [c for c in all_cam_names if c != event.clip_name and types.get(c, 'close') == 'wide']
+        close_others = [c for c in all_cam_names if c != event.clip_name and types.get(c, 'close') != 'wide']
+        other_clip = wide_others[0] if wide_others else (close_others[0] if close_others else None)
+        if not other_clip or other_clip not in reference_frames:
             new_events.append(event)
             continue
 
@@ -566,10 +592,11 @@ def main():
         name = cam['name']
         if name in reference_frames:
             cam_dicts[name] = {
-                'name':               name,
-                'reference_frame':    reference_frames[name],
+                'name':                name,
+                'type':                cam.get('type', 'close'),
+                'reference_frame':     reference_frames[name],
                 'timeline_zero_video': timeline_zero_video_frames[name],
-                'reactions':          reactions_by_cam.get(name, []),
+                'reactions':           reactions_by_cam.get(name, []),
             }
 
     # Pass 2: Für jede ON-Kamera Cutaways aus allen OFF-Kameras einfügen
@@ -613,10 +640,12 @@ def main():
     final_events = cleanup_short_events(all_events, cleanup_min_duration, args.fps)
 
     # Pass 4: Split zu lange Shots
-    all_cam_names = [cam['name'] for cam in cameras]
+    all_cam_names  = [cam['name'] for cam in cameras]
+    cam_types_dict = {cam['name']: cam.get('type', 'close') for cam in cameras}
     final_events = split_long_shots(
         final_events, max_shot_duration, cleanup_min_duration,
         reference_frames, timeline_zero_video_frames, all_cam_names, args.fps,
+        cam_types_dict=cam_types_dict,
     )
 
     write_edl(final_events, args.output)
