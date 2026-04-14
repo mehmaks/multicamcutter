@@ -199,19 +199,20 @@ with st.sidebar:
 
     # ── Feedback / Bug melden ─────────────────────────────────────────────────
     with st.expander("💬 Feedback / Bug melden"):
-        _fb_type = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
-                            label_visibility="collapsed", key="fb_type")
-        _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'",
-                                  key="fb_title")
-        _fb_body  = st.text_area("Beschreibung", placeholder="Was ist passiert? Was wurde erwartet?",
-                                 height=120, key="fb_body")
-        _fb_log   = st.checkbox("Letzten Log anhängen", value=True, key="fb_log")
+        import subprocess as _sp, requests as _rq, configparser as _fcp
+        with st.form("fb_form", clear_on_submit=True):
+            _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
+                                 label_visibility="collapsed")
+            _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
+            _fb_body  = st.text_area("Beschreibung", placeholder="Was ist passiert? Was wurde erwartet?",
+                                     height=120)
+            _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
+            _submitted = st.form_submit_button("Senden", use_container_width=True)
 
-        if st.button("Senden", use_container_width=True, key="fb_send"):
+        if _submitted:
             if not _fb_title.strip():
                 st.warning("Bitte einen Kurztitel eingeben.")
             else:
-                import subprocess as _sp, requests as _rq, configparser as _fcp
                 _fcfg = _fcp.ConfigParser()
                 _fcfg.read(os.path.join(os.path.dirname(os.path.dirname(
                     os.path.abspath(__file__))), "modules", "multicam_cutter", "config.ini"))
@@ -251,8 +252,6 @@ with st.sidebar:
                     )
                     if _resp.status_code == 201:
                         st.success("Gesendet! Danke für dein Feedback.")
-                        st.session_state["fb_title"] = ""
-                        st.session_state["fb_body"]  = ""
                     else:
                         st.error(f"Fehler beim Senden ({_resp.status_code}). Bitte später erneut versuchen.")
 
