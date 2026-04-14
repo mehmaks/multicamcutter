@@ -49,6 +49,63 @@ with st.sidebar:
     st.caption("Automated video editing tools")
     st.divider()
 
+    # ── Hilfsfunktionen ───────────────────────────────────────────────────────
+
+    _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _GH_REPO   = "mehmaks/resolve-toolkit"
+
+    def _git(*args):
+        import subprocess as _sp2
+        r = _sp2.run(["git", "-C", _REPO_ROOT] + list(args), capture_output=True, text=True)
+        return r.stdout.strip()
+
+    def _current_version() -> str:
+        try:
+            with open(os.path.join(_REPO_ROOT, "VERSION")) as _f:
+                return _f.read().strip()
+        except Exception:
+            return "?"
+
+    def _fetch_release_notes(_tag: str) -> str:
+        import requests as _rq2, configparser as _cp2
+        _fcfg2 = _cp2.ConfigParser()
+        _fcfg2.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"))
+        _tok2 = _fcfg2.get("Feedback", "github_token", fallback="").strip()
+        _h = {"Accept": "application/vnd.github+json"}
+        if _tok2:
+            _h["Authorization"] = f"Bearer {_tok2}"
+        try:
+            _r = _rq2.get(f"https://api.github.com/repos/{_GH_REPO}/releases/tags/{_tag}",
+                          headers=_h, timeout=5)
+            if _r.status_code == 200:
+                return _r.json().get("body", "").strip()
+        except Exception:
+            pass
+        return ""
+
+    def _check_for_update():
+        try:
+            _git("fetch", "--tags", "--quiet")
+            _tags = _git("tag", "--list", "v*", "--sort=-version:refname")
+            _latest = _tags.splitlines()[0] if _tags else ""
+            if not _latest or _latest == _current_version():
+                return False, None, ""
+            return True, _latest, _fetch_release_notes(_latest)
+        except Exception:
+            return False, None, ""
+
+    import subprocess as _sp, requests as _rq, configparser as _fcp
+    _fcfg = _fcp.ConfigParser()
+    _fcfg.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"))
+    _token = _fcfg.get("Feedback", "github_token", fallback="").strip()
+    _repo  = _fcfg.get("Feedback", "github_repo",  fallback="").strip()
+
+    if "update_available" not in st.session_state:
+        (_up, _tag, _notes) = _check_for_update()
+        st.session_state.update_available = _up
+        st.session_state.update_tag       = _tag
+        st.session_state.update_notes     = _notes
+
     # ── Resolve connection status ─────────────────────────────────────────────
 
     def _check_resolve():
@@ -95,125 +152,10 @@ with st.sidebar:
         _run_resolve_check()
         st.rerun()
 
-    # ── License status ────────────────────────────────────────────────────────
-
-    st.divider()
-    st.subheader("Lizenz")
-    if _license.valid:
-        if _license.grace:
-            st.warning("⚠️ Offline — Grace Period aktiv")
-        else:
-            _mode_label = {"dummy": " (Dev)", "local": " (Beta)", "remote": ""}.get(
-                _lic.MODE, "")
-            st.success(f"✓ Aktiv{_mode_label}")
-        if _license.email and _lic.MODE != "dummy":
-            st.caption(f"{_license.email}")
-        if _license.expires and _lic.MODE != "dummy":
-            st.caption(f"Gültig bis: **{_license.expires}**")
-    else:
-        st.error("✗ Keine gültige Lizenz")
-        if _license.error:
-            st.caption(_license.error)
-
-    if st.button("↻ Lizenz prüfen", use_container_width=True):
-        st.session_state.license_info = _lic.validate()
-        st.rerun()
-
-    # ── Update-Check ──────────────────────────────────────────────────────────
-
-    st.divider()
-
-    _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _GH_REPO   = "mehmaks/resolve-toolkit"
-
-    def _current_version() -> str:
-        try:
-            with open(os.path.join(_REPO_ROOT, "VERSION")) as _f:
-                return _f.read().strip()
-        except Exception:
-            return "unbekannt"
-
-    def _fetch_release_notes(_tag: str) -> str:
-        """Holt Release Notes via API — optional, schlägt still fehl."""
-        import requests as _rq, configparser as _cp2
-        _fcfg2 = _cp2.ConfigParser()
-        _fcfg2.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"))
-        _api_token = _fcfg2.get("Feedback", "github_token", fallback="").strip()
-        _headers = {"Accept": "application/vnd.github+json"}
-        if _api_token:
-            _headers["Authorization"] = f"Bearer {_api_token}"
-        try:
-            _resp = _rq.get(
-                f"https://api.github.com/repos/{_GH_REPO}/releases/tags/{_tag}",
-                headers=_headers, timeout=5)
-            if _resp.status_code == 200:
-                return _resp.json().get("body", "").strip()
-        except Exception:
-            pass
-        return ""
-
-    def _check_for_update():
-        """Prüft via git fetch --tags ob ein neueres Tag vorhanden ist."""
-        try:
-            _git("fetch", "--tags", "--quiet")
-            # Neuestes vX.Y.Z-Tag nach Versionsnummer sortiert
-            _latest_tag = _git(
-                "tag", "--list", "v*", "--sort=-version:refname"
-            ).splitlines()[0] if _git("tag", "--list", "v*") else ""
-            _current = _current_version()
-            if not _latest_tag or _latest_tag == _current:
-                return False, None, ""
-            _notes = _fetch_release_notes(_latest_tag)
-            return True, _latest_tag, _notes
-        except Exception:
-            return False, None, ""
-
-    def _git(*args):
-        import subprocess as _sp2
-        r = _sp2.run(["git", "-C", _REPO_ROOT] + list(args), capture_output=True, text=True)
-        return r.stdout.strip()
-
-    if "update_available" not in st.session_state:
-        (_up, _tag, _notes) = _check_for_update()
-        st.session_state.update_available = _up
-        st.session_state.update_tag       = _tag
-        st.session_state.update_notes     = _notes
-
-    _cur_ver = _current_version()
-    st.caption(f"Version: **{_cur_ver}**")
-
-    if st.session_state.update_available:
-        st.info(f"Update auf **{st.session_state.update_tag}** verfügbar")
-        if st.session_state.update_notes:
-            with st.expander("Was ist neu?"):
-                st.markdown(st.session_state.update_notes)
-        if st.button("⬇ Jetzt aktualisieren", use_container_width=True, type="primary"):
-            with st.spinner("Aktualisiere..."):
-                import subprocess as _sup, sys as _sys
-                _req_before = _git("show", "HEAD:requirements.txt")
-                _git("pull", "origin", "main")
-                _req_after  = _git("show", "HEAD:requirements.txt")
-                if _req_before != _req_after:
-                    _sup.run(
-                        [_sys.executable, "-m", "pip", "install", "-q",
-                         "-r", os.path.join(_REPO_ROOT, "requirements.txt")],
-                        check=False)
-            st.session_state.update_available = False
-            st.success(f"Auf {st.session_state.update_tag} aktualisiert! Bitte neu starten:")
-            st.code("bash ~/resolve-toolkit/start.command")
-    else:
-        if st.button("Nach Updates suchen", use_container_width=True):
-            (_up, _tag, _notes) = _check_for_update()
-            st.session_state.update_available = _up
-            st.session_state.update_tag       = _tag
-            st.session_state.update_notes     = _notes
-            st.rerun()
-
     # ── Workflow Log ──────────────────────────────────────────────────────────
 
     st.divider()
 
-    # Determine which workflow is active
     if st.session_state.bin_running:
         _active = "bin"
     elif st.session_state.folder_running:
@@ -229,11 +171,10 @@ with st.sidebar:
     else:
         _active = None
 
-    # Find last non-empty log for display after completion
     _last_log = next(
-        (st.session_state[k] for k in ("bin_log", "folder_log", "enhance_log", "silence_log", "auphonic_log", "mv_log")
-         if st.session_state.get(k)),
-        []
+        (st.session_state[k] for k in ("bin_log", "folder_log", "enhance_log",
+                                        "silence_log", "auphonic_log", "mv_log")
+         if st.session_state.get(k)), []
     )
 
     if _active:
@@ -315,65 +256,103 @@ with st.sidebar:
                 st.session_state[_k] = 0
             st.rerun()
 
+    # ── Untere Leiste: Feedback · Update · Version · Lizenz ───────────────────
+
     st.divider()
 
-    # ── Feedback / Bug melden ─────────────────────────────────────────────────
-    import subprocess as _sp, requests as _rq, configparser as _fcp
-    _fcfg = _fcp.ConfigParser()
-    _fcfg.read(os.path.join(os.path.dirname(os.path.dirname(
-        os.path.abspath(__file__))), "modules", "multicam_cutter", "config.ini"))
-    _token = _fcfg.get("Feedback", "github_token", fallback="").strip()
-    _repo  = _fcfg.get("Feedback", "github_repo",  fallback="").strip()
+    _ver = _current_version()
+    _upd = st.session_state.get("update_available", False)
+    _upd_tag = st.session_state.get("update_tag") or ""
 
-    if _token and _repo:
-        with st.expander("💬 Feedback / Bug melden"):
-            with st.form("fb_form", clear_on_submit=True):
-                _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
-                                     label_visibility="collapsed")
-                _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
-                _fb_body  = st.text_area("Beschreibung", placeholder="Was ist passiert? Was wurde erwartet?",
-                                         height=120)
-                _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
-                _submitted = st.form_submit_button("Senden", use_container_width=True)
+    # Aktionszeile
+    _bl, _bm, _br = st.columns([2, 2, 1])
 
-            if _submitted:
-                if not _fb_title.strip():
-                    st.warning("Bitte einen Kurztitel eingeben.")
-                else:
-                    try:
-                        _git_hash = _sp.run(
-                            ["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                             "rev-parse", "--short", "HEAD"],
-                            capture_output=True, text=True).stdout.strip()
-                    except Exception:
-                        _git_hash = "unbekannt"
-
-                    _label = "bug" if "Bug" in _fb_type else "enhancement"
-                    _body_parts = [_fb_body.strip()]
-                    if _fb_log:
-                        _all_logs = (st.session_state.get("bin_log", []) +
-                                     st.session_state.get("folder_log", []))
-                        if _all_logs:
-                            _body_parts.append(
-                                "**Log (letzte 30 Zeilen):**\n```\n" +
-                                "\n".join(_all_logs[-30:]) + "\n```")
-                    _body_parts.append(f"*Version: `{_git_hash}`*")
-
-                    _resp = _rq.post(
-                        f"https://api.github.com/repos/{_repo}/issues",
-                        headers={"Authorization": f"Bearer {_token}",
-                                 "Accept": "application/vnd.github+json"},
-                        json={"title": _fb_title.strip(),
-                              "body":  "\n\n".join(_body_parts),
-                              "labels": [_label]},
-                        timeout=10,
-                    )
-                    if _resp.status_code == 201:
-                        st.success("Gesendet! Danke für dein Feedback.")
+    with _bl:
+        if _token and _repo:
+            with st.popover("💬 Feedback", use_container_width=True):
+                with st.form("fb_form", clear_on_submit=True):
+                    _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
+                                         label_visibility="collapsed")
+                    _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
+                    _fb_body  = st.text_area("Beschreibung",
+                                             placeholder="Was ist passiert? Was wurde erwartet?",
+                                             height=100)
+                    _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
+                    _submitted = st.form_submit_button("Senden", use_container_width=True)
+                if _submitted:
+                    if not _fb_title.strip():
+                        st.warning("Bitte einen Kurztitel eingeben.")
                     else:
-                        st.error(f"Fehler beim Senden ({_resp.status_code}). Bitte später erneut versuchen.")
+                        try:
+                            _git_hash = _sp.run(
+                                ["git", "-C", _REPO_ROOT, "rev-parse", "--short", "HEAD"],
+                                capture_output=True, text=True).stdout.strip()
+                        except Exception:
+                            _git_hash = "?"
+                        _label = "bug" if "Bug" in _fb_type else "enhancement"
+                        _body_parts = [_fb_body.strip()]
+                        if _fb_log:
+                            _all_logs = (st.session_state.get("bin_log", []) +
+                                         st.session_state.get("folder_log", []))
+                            if _all_logs:
+                                _body_parts.append(
+                                    "**Log (letzte 30 Zeilen):**\n```\n" +
+                                    "\n".join(_all_logs[-30:]) + "\n```")
+                        _body_parts.append(f"*Version: `{_git_hash}`*")
+                        _resp = _rq.post(
+                            f"https://api.github.com/repos/{_repo}/issues",
+                            headers={"Authorization": f"Bearer {_token}",
+                                     "Accept": "application/vnd.github+json"},
+                            json={"title": _fb_title.strip(),
+                                  "body":  "\n\n".join(_body_parts),
+                                  "labels": [_label]},
+                            timeout=10)
+                        if _resp.status_code == 201:
+                            st.success("Gesendet! Danke.")
+                        else:
+                            st.error(f"Fehler ({_resp.status_code})")
 
-    st.caption("github.com/mehmaks/resolve-toolkit")
+    with _bm:
+        if _upd:
+            if st.button(f"⬆ {_upd_tag}", use_container_width=True, type="primary"):
+                with st.spinner("Aktualisiere..."):
+                    import subprocess as _sup, sys as _sys
+                    _req_before = _git("show", "HEAD:requirements.txt")
+                    _git("pull", "origin", "main")
+                    _req_after  = _git("show", "HEAD:requirements.txt")
+                    if _req_before != _req_after:
+                        _sup.run([_sys.executable, "-m", "pip", "install", "-q",
+                                  "-r", os.path.join(_REPO_ROOT, "requirements.txt")],
+                                 check=False)
+                st.session_state.update_available = False
+                st.success(f"{_upd_tag} installiert — bitte neu starten.")
+                st.code("bash ~/resolve-toolkit/start.command")
+        else:
+            if st.button("↻ Updates", use_container_width=True):
+                (_up2, _tag2, _notes2) = _check_for_update()
+                st.session_state.update_available = _up2
+                st.session_state.update_tag       = _tag2
+                st.session_state.update_notes     = _notes2
+                st.rerun()
+
+    with _br:
+        if _license.valid:
+            if _license.grace:
+                st.markdown("🟡", help="Offline — Grace Period")
+            else:
+                _mode_tip = {"dummy": "Dev-Modus", "local": "Beta-Lizenz",
+                             "remote": _license.email or "Lizenz aktiv"}.get(_lic.MODE, "")
+                st.markdown("🟢", help=_mode_tip)
+        else:
+            st.markdown("🔴", help=_license.error or "Keine gültige Lizenz")
+
+    # Versions- und Lizenzzeile
+    _lic_label = {
+        "dummy": "Dev",
+        "local": f"Beta · {_license.email or ''}",
+        "remote": _license.email or ("Aktiv" if _license.valid else "Keine Lizenz"),
+    }.get(_lic.MODE, "")
+    st.caption(f"`{_ver}` · {_lic_label}")
 
 # ── Navigation ────────────────────────────────────────────────────────────────
 
