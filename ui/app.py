@@ -133,8 +133,8 @@ with st.sidebar:
         except Exception:
             return "unbekannt"
 
-    def _check_for_update():
-        """Fragt GitHub Releases API nach dem neuesten Release."""
+    def _fetch_release_notes(_tag: str) -> str:
+        """Holt Release Notes via API — optional, schlägt still fehl."""
         import requests as _rq, configparser as _cp2
         _fcfg2 = _cp2.ConfigParser()
         _fcfg2.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"))
@@ -144,18 +144,29 @@ with st.sidebar:
             _headers["Authorization"] = f"Bearer {_api_token}"
         try:
             _resp = _rq.get(
-                f"https://api.github.com/repos/{_GH_REPO}/releases/latest",
+                f"https://api.github.com/repos/{_GH_REPO}/releases/tags/{_tag}",
                 headers=_headers, timeout=5)
-            if _resp.status_code != 200:
-                return False, None, None
-            _data = _resp.json()
-            _latest_tag  = _data.get("tag_name", "")
-            _notes       = _data.get("body", "").strip()
-            _current     = _current_version()
-            _newer       = _latest_tag != _current and _latest_tag != ""
-            return _newer, _latest_tag, _notes
+            if _resp.status_code == 200:
+                return _resp.json().get("body", "").strip()
         except Exception:
-            return False, None, None
+            pass
+        return ""
+
+    def _check_for_update():
+        """Prüft via git fetch --tags ob ein neueres Tag vorhanden ist."""
+        try:
+            _git("fetch", "--tags", "--quiet")
+            # Neuestes vX.Y.Z-Tag nach Versionsnummer sortiert
+            _latest_tag = _git(
+                "tag", "--list", "v*", "--sort=-version:refname"
+            ).splitlines()[0] if _git("tag", "--list", "v*") else ""
+            _current = _current_version()
+            if not _latest_tag or _latest_tag == _current:
+                return False, None, ""
+            _notes = _fetch_release_notes(_latest_tag)
+            return True, _latest_tag, _notes
+        except Exception:
+            return False, None, ""
 
     def _git(*args):
         import subprocess as _sp2
