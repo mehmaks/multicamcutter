@@ -56,7 +56,7 @@ python3 --version
 ## Schritt 3 — Projekt herunterladen
 
 ```
-git clone https://github.com/mehmaks/resolve-toolkit.git ~/resolve-toolkit
+git clone https://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@github.com/mehmaks/resolve-toolkit.git ~/resolve-toolkit
 ```
 
 Der Projektordner landet in deinem Benutzerordner unter `resolve-toolkit`.
