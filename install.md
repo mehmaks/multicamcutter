@@ -1,6 +1,8 @@
 # resolve-toolkit — Installation
 
-Geschätzte Zeit: **15–30 Minuten** (davon ~10–20 Min. automatischer Download)
+Geschätzte Zeit: **15–25 Minuten** (davon ~10–20 Min. automatischer Download)
+
+Alle Schritte laufen im **Terminal**. Du findest das Terminal über Spotlight: **Cmd + Leertaste**, dann „Terminal" eintippen und Enter drücken.
 
 ---
 
@@ -8,45 +10,56 @@ Geschätzte Zeit: **15–30 Minuten** (davon ~10–20 Min. automatischer Downloa
 
 - Einen Mac (Apple Silicon empfohlen — M1/M2/M3/M4)
 - macOS 13 oder neuer
-- Eine Internetverbindung für die Installation
+- Eine Internetverbindung
 - Ca. 5 GB freier Speicherplatz
 
 ---
 
-## Schritt 1 — Python installieren
+## Schritt 1 — Homebrew installieren
 
-1. Gehe auf **https://www.python.org/downloads/**
-2. Klicke auf den großen gelben „Download Python"-Button
-3. Öffne die heruntergeladene Datei und folge dem Installationsassistenten
+Homebrew ist ein Programm, das andere Programme für den Mac installiert. Falls du es bereits hast, kannst du diesen Schritt überspringen.
 
-> Falls du dir nicht sicher bist ob Python bereits installiert ist: Terminal öffnen (Spotlight → „Terminal"), `python3 --version` eintippen und Enter drücken. Erscheint eine Versionsnummer ≥ 3.10, kannst du diesen Schritt überspringen.
+Diesen Befehl ins Terminal kopieren und mit **Enter** bestätigen:
 
----
+```
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+```
 
-## Schritt 2 — Repo herunterladen
+Das Passwort deines Macs wird abgefragt (die Eingabe ist unsichtbar — einfach tippen und Enter drücken). Die Installation dauert einige Minuten.
 
-1. Gehe auf die GitHub-Seite des Projekts
-2. Klicke auf den grünen **„Code"**-Button → **„Download ZIP"**
-3. Entpacke die ZIP-Datei (Doppelklick)
-4. Verschiebe den entpackten Ordner an einen festen Ort, z.B. in deinen **Dokumente**-Ordner
-
-> Den Ordner danach **nicht mehr verschieben** — die Installation ist an diesen Pfad gebunden.
+> **Apple Silicon (M1/M2/M3/M4):** Nach der Installation erscheint ein Hinweis, zwei weitere Befehle auszuführen (`eval "$(/opt/homebrew/bin/brew shellenv)"`). Diese bitte ausführen, bevor du weitermachst.
 
 ---
 
-## Schritt 3 — Setup ausführen
+## Schritt 2 — Python und Git installieren
 
-1. Öffne den Projektordner
-2. Mache einen **Rechtsklick** auf die Datei `setup.sh` → **„Öffnen mit" → „Terminal"**
-   - Falls ein Sicherheitshinweis erscheint: **„Trotzdem öffnen"** klicken
-3. Das Terminal öffnet sich und läuft automatisch durch — das dauert **10–20 Minuten**
-4. Am Ende erscheint: `Setup abgeschlossen!`
-
-Das Script installiert alle nötigen Bibliotheken und lädt die KI-Modelle herunter.
+```
+brew install python git
+```
 
 ---
 
-## Schritt 4 — Lizenz eintragen
+## Schritt 3 — Projekt herunterladen
+
+```
+git clone https://github.com/mehmaks/resolve-toolkit.git ~/resolve-toolkit
+```
+
+Der Projektordner landet in deinem Benutzerordner unter `resolve-toolkit`.
+
+---
+
+## Schritt 4 — Setup ausführen
+
+```
+bash ~/resolve-toolkit/setup.sh
+```
+
+Das Script läuft automatisch durch und installiert alles Nötige. Es dauert **10–20 Minuten**. Am Ende erscheint: `Setup abgeschlossen!`
+
+---
+
+## Schritt 5 — Lizenz eintragen
 
 Du hast von uns eine Datei namens `license.json` erhalten.
 
@@ -56,12 +69,16 @@ Du hast von uns eine Datei namens `license.json` erhalten.
 
 ---
 
-## Schritt 5 — Tool starten
+## Schritt 6 — Tool starten
 
-1. Mache einen **Doppelklick** auf `start.command` im Projektordner
-   - Falls ein Sicherheitshinweis erscheint: **Rechtsklick → „Öffnen" → „Öffnen"**
-2. Ein Terminal-Fenster öffnet sich, der Browser startet automatisch
-3. Das Tool ist bereit
+```
+bash ~/resolve-toolkit/start.command
+```
+
+Der Browser öffnet sich automatisch mit der Oberfläche des Tools.
+
+Alternativ: **Doppelklick** auf `start.command` im Ordner `~/resolve-toolkit`.
+Falls ein Sicherheitshinweis erscheint: **Rechtsklick → „Öffnen" → „Öffnen"**.
 
 > Das Terminal-Fenster offen lassen — es läuft im Hintergrund. Schließen beendet das Tool.
 
@@ -69,9 +86,9 @@ Du hast von uns eine Datei namens `license.json` erhalten.
 
 ## Hinweise
 
-**Tool beenden:** Terminal-Fenster schließen oder `Ctrl + C` im Terminal drücken.
+**Tool erneut starten:** Immer über `bash ~/resolve-toolkit/start.command` oder Doppelklick auf `start.command`.
 
-**Tool erneut starten:** Immer per Doppelklick auf `start.command`.
+**Tool beenden:** Terminal-Fenster schließen oder `Ctrl + C` im Terminal drücken.
 
 ---
 

@@ -6,7 +6,14 @@ set -e
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$SCRIPT_DIR/venv"
-PYTHON="python3"
+# Homebrew-Python bevorzugen (aktueller als macOS-System-Python)
+if [ -x "/opt/homebrew/bin/python3" ]; then
+    PYTHON="/opt/homebrew/bin/python3"
+elif [ -x "/usr/local/bin/python3" ]; then
+    PYTHON="/usr/local/bin/python3"
+else
+    PYTHON="python3"
+fi
 
 # ── Farben ────────────────────────────────────────────────────────────────────
 
