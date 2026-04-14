@@ -196,6 +196,66 @@ with st.sidebar:
             st.rerun()
 
     st.divider()
+
+    # ── Feedback / Bug melden ─────────────────────────────────────────────────
+    with st.expander("💬 Feedback / Bug melden"):
+        _fb_type = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
+                            label_visibility="collapsed", key="fb_type")
+        _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'",
+                                  key="fb_title")
+        _fb_body  = st.text_area("Beschreibung", placeholder="Was ist passiert? Was wurde erwartet?",
+                                 height=120, key="fb_body")
+        _fb_log   = st.checkbox("Letzten Log anhängen", value=True, key="fb_log")
+
+        if st.button("Senden", use_container_width=True, key="fb_send"):
+            if not _fb_title.strip():
+                st.warning("Bitte einen Kurztitel eingeben.")
+            else:
+                import subprocess as _sp, requests as _rq, configparser as _fcp
+                _fcfg = _fcp.ConfigParser()
+                _fcfg.read(os.path.join(os.path.dirname(os.path.dirname(
+                    os.path.abspath(__file__))), "modules", "multicam_cutter", "config.ini"))
+                _token = _fcfg.get("Feedback", "github_token", fallback="").strip()
+                _repo  = _fcfg.get("Feedback", "github_repo",  fallback="mehmaks/resolve-toolkit").strip()
+
+                if not _token:
+                    st.error("Kein GitHub-Token konfiguriert — Feedback kann nicht gesendet werden.")
+                else:
+                    try:
+                        _git_hash = _sp.run(
+                            ["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                             "rev-parse", "--short", "HEAD"],
+                            capture_output=True, text=True).stdout.strip()
+                    except Exception:
+                        _git_hash = "unbekannt"
+
+                    _label = "bug" if "Bug" in _fb_type else "enhancement"
+                    _body_parts = [_fb_body.strip()]
+                    if _fb_log:
+                        _all_logs = (st.session_state.get("bin_log", []) +
+                                     st.session_state.get("folder_log", []))
+                        if _all_logs:
+                            _body_parts.append(
+                                "**Log (letzte 30 Zeilen):**\n```\n" +
+                                "\n".join(_all_logs[-30:]) + "\n```")
+                    _body_parts.append(f"*Version: `{_git_hash}`*")
+
+                    _resp = _rq.post(
+                        f"https://api.github.com/repos/{_repo}/issues",
+                        headers={"Authorization": f"Bearer {_token}",
+                                 "Accept": "application/vnd.github+json"},
+                        json={"title": _fb_title.strip(),
+                              "body":  "\n\n".join(_body_parts),
+                              "labels": [_label]},
+                        timeout=10,
+                    )
+                    if _resp.status_code == 201:
+                        st.success("Gesendet! Danke für dein Feedback.")
+                        st.session_state["fb_title"] = ""
+                        st.session_state["fb_body"]  = ""
+                    else:
+                        st.error(f"Fehler beim Senden ({_resp.status_code}). Bitte später erneut versuchen.")
+
     st.caption("github.com/mehmaks/resolve-toolkit")
 
 # ── Navigation ────────────────────────────────────────────────────────────────
