@@ -440,20 +440,18 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                  mic_index_cam1: int = 1, mic_index_cam2: int = 0,
                  speaking_mode_override: str = None):
     """
-    Runs nodding + RMS analysis, returns path to final EDL.
+    Runs nodding + RMS analysis for N cameras, returns path to final EDL.
 
-    mic_index_cam1 / mic_index_cam2: 0-based index into mic_paths for each camera.
-    Default: MIC2 (index 1) → CAM1, MIC1 (index 0) → CAM2.
+    Sprecher-Erkennung (Base-EDL) läuft binär über cam_paths[0] und cam_paths[1].
+    Nodding-Analyse läuft über alle cam_paths.
+    mic_index_cam1 / mic_index_cam2: 0-based index in mic_paths für binäre Diarisierung.
     """
-
     cam1_path = cam_paths[0]
     cam2_path = cam_paths[1]
     mic_cam1  = mic_paths[mic_index_cam1]
     mic_cam2  = mic_paths[mic_index_cam2]
 
-    cam1_json = work_dir / (Path(cam1_path).stem + '_reactions.json')
-    cam2_json = work_dir / (Path(cam2_path).stem + '_reactions.json')
-    base_edl  = work_dir / 'base.edl'
+    base_edl = work_dir / 'base.edl'
     cam1_off_sections = work_dir / (Path(cam1_path).stem + '_off_sections.json')
     cam2_off_sections = work_dir / (Path(cam2_path).stem + '_off_sections.json')
 
@@ -466,17 +464,16 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     import configparser
     cfg = configparser.ConfigParser()
     cfg.read(str(config), encoding='utf-8')
-    rms   = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
+    rms    = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
     sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
-    cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
-    cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
     speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
 
-    # ── Schritt 1: Base-EDL aus Audio (immer zuerst, liefert Off-Sektionen) ──
+    # ── Schritt 1: Base-EDL aus Audio (binäre Diarisierung CAM1/CAM2) ────────
     if not skip_base_edl:
-        builder = str(SCRIPT_DIR / 'build_base_edl_from_audio.py')
+        cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
+        cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
         builder_args = [
-            builder,
+            str(SCRIPT_DIR / 'build_base_edl_from_audio.py'),
             '--mic-cam1',          mic_cam1,
             '--mic-cam2',          mic_cam2,
             '--cam1-video',        cam1_path,
@@ -510,38 +507,54 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             ]
         run(builder_args, "Base-EDL aus Audio")
 
-    # ── Schritt 2: Nodding-Analyse (nur Off-Sektionen) ────────────────────────
+    # ── Schritt 2: Nodding-Analyse für ALLE Kameras ───────────────────────────
+    # Off-Sections stehen nur für CAM1/CAM2 zur Verfügung (aus binärer Diarisierung).
+    # Zusätzliche Kameras werden vollständig analysiert.
+    off_sections_map = {
+        cam1_path: cam1_off_sections,
+        cam2_path: cam2_off_sections,
+    }
     if not skip_analysis:
         analyzer = str(SCRIPT_DIR / 'video_reaction_analyzer_v2.4.py')
-        cam1_analyzer_args = [analyzer, cam1_path, '--output', str(cam1_json), '--config', str(config)]
-        if cam1_off_sections.exists():
-            cam1_analyzer_args += ['--off-sections', str(cam1_off_sections)]
-        run(cam1_analyzer_args, "Nodding-Analyse CAM1")
+        for i, cp in enumerate(cam_paths):
+            json_out = work_dir / (Path(cp).stem + '_reactions.json')
+            args_list = [analyzer, cp, '--output', str(json_out), '--config', str(config)]
+            off_sec = off_sections_map.get(cp)
+            if off_sec and off_sec.exists():
+                args_list += ['--off-sections', str(off_sec)]
+            run(args_list, f"Nodding-Analyse CAM{i + 1} ({Path(cp).name})")
 
-        cam2_analyzer_args = [analyzer, cam2_path, '--output', str(cam2_json), '--config', str(config)]
-        if cam2_off_sections.exists():
-            cam2_analyzer_args += ['--off-sections', str(cam2_off_sections)]
-        run(cam2_analyzer_args, "Nodding-Analyse CAM2")
+    # ── Schritt 3: Cameras-JSON bauen und Cutaways einfügen ──────────────────
+    cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
+    cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
+    speaking_jsons = {cam1_path: cam1_speaking_json, cam2_path: cam2_speaking_json}
 
-    adder = str(SCRIPT_DIR / 'add_reactions_to_edl.py')
+    cameras_config = []
+    for cp in cam_paths:
+        entry = {
+            'name':      Path(cp).name,
+            'video':     cp,
+            'reactions': str(work_dir / (Path(cp).stem + '_reactions.json')),
+        }
+        sp = speaking_jsons.get(cp)
+        if speaking_enabled and sp and sp.exists():
+            entry['speaking_reactions'] = str(sp)
+        cameras_config.append(entry)
+
+    cameras_json_path = work_dir / 'cameras.json'
+    cameras_json_path.write_text(
+        __import__('json').dumps(cameras_config, indent=2, ensure_ascii=False)
+    )
+
     final_edl = work_dir / 'final.edl'
-    adder_args = [
-        adder,
-        '--resolve-edl',    str(base_edl),
-        '--cam1-clip',      Path(cam1_path).name,
-        '--cam1-reactions', str(cam1_json),
-        '--cam2-clip',      Path(cam2_path).name,
-        '--cam2-reactions', str(cam2_json),
-        '--cam1-video',     cam1_path,
-        '--cam2-video',     cam2_path,
-        '--output',         str(final_edl),
-        '--config',         str(config),
-    ]
-    if speaking_enabled and cam1_speaking_json.exists():
-        adder_args += ['--cam1-speaking-reactions', str(cam1_speaking_json)]
-    if speaking_enabled and cam2_speaking_json.exists():
-        adder_args += ['--cam2-speaking-reactions', str(cam2_speaking_json)]
-    run(adder_args, "Nodding-Cutaways einfügen")
+    run([
+        str(SCRIPT_DIR / 'add_reactions_to_edl.py'),
+        '--cameras-json', str(cameras_json_path),
+        '--resolve-edl',  str(base_edl),
+        '--output',       str(final_edl),
+        '--config',       str(config),
+        '--fps',          str(fps),
+    ], "Cutaways einfügen")
 
     return final_edl
 

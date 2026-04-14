@@ -1,15 +1,16 @@
 #!/usr/bin/env python3
 """
-Resolve-freier Multicam-Workflow: Ordner → EDL
+Resolve-freier Multicam-Workflow: Ordner → AAF
 
 Analysiert einen Ordner mit Kamera- und Mikrofon-Dateien komplett ohne
-DaVinci Resolve. Das Ergebnis ist eine final.edl, die manuell in Resolve,
-Premiere, Final Cut oder jedes andere EDL-fähige NLE importiert werden kann.
+DaVinci Resolve. Unterstützt beliebig viele Kameras (N) und Mikrofone (M).
+Ausgabe: final.aaf (importierbar in Resolve, Premiere Pro, Avid).
 
 Voraussetzungen im Ordner:
-  - Genau 2 Video-Dateien (.mp4 / .mov / .mxf), alphabetisch sortiert
-    → Erste Datei = CAM1, zweite Datei = CAM2
-  - 1 oder 2 Audio-Dateien (.wav / .aif), alphabetisch sortiert
+  - Mindestens 2 Video-Dateien (.mp4 / .mov / .mxf), alphabetisch sortiert
+    → Erste Datei = CAM1, zweite Datei = CAM2 (Hauptsprecher-Erkennung)
+    → Weitere Dateien = CAM3+ (nur als Cutaway-Quelle)
+  - Mindestens 1 Audio-Datei (.wav / .aif)
     → Zuordnung zu CAM1/CAM2 via --mic-cam1 / --mic-cam2
 
 Verwendung:
@@ -83,13 +84,11 @@ def main():
     cam_paths = [str(c) for c in cams]
     mic_paths = [str(m) for m in mics]
 
-    print(f"  CAM1: {cams[0].name}")
-    print(f"  CAM2: {cams[1].name}")
+    for i, c in enumerate(cams):
+        label = f"CAM{i + 1}" + (" (Sprecher-Erkennung)" if i < 2 else " (Cutaway)")
+        print(f"  {label}: {c.name}")
     for i, m in enumerate(mics):
         print(f"  MIC{i+1}: {m.name}")
-    if len(cams) > 2:
-        print(f"  ⚠  {len(cams) - 2} weitere Videodatei(en) werden ignoriert: "
-              f"{[f.name for f in cams[2:]]}")
 
     # ── 2. Waveform-Sync ──────────────────────────────────────────────────────
     print()
@@ -113,7 +112,7 @@ def main():
     work_dir.mkdir(exist_ok=True)
     try:
         final_edl = run_analysis(
-            cam_paths[:2], mic_paths, offsets,
+            cam_paths, mic_paths, offsets,
             args.fps, work_dir, Path(args.config),
             skip_analysis=args.skip_analysis,
             skip_base_edl=args.skip_base_edl,
@@ -129,7 +128,7 @@ def main():
     final_aaf = None
     try:
         final_aaf = build_aaf(
-            cam_paths=cam_paths[:2],
+            cam_paths=cam_paths,
             mic_paths=mic_paths,
             offsets=offsets,
             edl_path=final_edl,

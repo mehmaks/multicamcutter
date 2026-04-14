@@ -189,7 +189,7 @@ def build_aaf(
     A1:  mic_paths[0] kontinuierlich, synchronisiert
     A2:  mic_paths[1] kontinuierlich, synchronisiert (wenn vorhanden)
 
-    offsets: {'CAM1': 0, 'CAM2': N, 'MIC1': N, 'MIC2': N}
+    offsets: {'CAM1': 0, 'CAM2': N, ..., 'MIC1': N, 'MIC2': N, ...}
     """
     print("\nErstelle AAF...")
 
@@ -200,11 +200,13 @@ def build_aaf(
 
     fps_int  = int(round(fps))
 
-    cam_tc   = [_probe_embedded_tc_frames(p, fps) for p in cam_paths[:2]]
-    cam_durs = [_probe_duration_frames(p, fps)     for p in cam_paths[:2]]
-    cam_offs = [offsets.get('CAM1', 0), offsets.get('CAM2', 0)]
+    # N Kameras — offsets-Keys: CAM1, CAM2, CAM3, ...
+    cam_tc   = [_probe_embedded_tc_frames(p, fps) for p in cam_paths]
+    cam_durs = [_probe_duration_frames(p, fps)     for p in cam_paths]
+    cam_offs = [offsets.get(f'CAM{i + 1}', 0)     for i in range(len(cam_paths))]
 
-    mics        = mic_paths[:2]
+    # M Mikrofone — alle mic_paths
+    mics        = mic_paths
     mic_durs    = [_probe_duration_frames(str(p), fps) for p in mics]
     mic_infos   = [_probe_audio_info(str(p))           for p in mics]
     mic_offsets = [offsets.get(f'MIC{i + 1}', 0)      for i in range(len(mics))]

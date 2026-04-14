@@ -1,16 +1,20 @@
 #!/usr/bin/env python3
 """
-Add Reactions to EDL v3.0
-Kombiniert Resolve's Scene-Cut EDL mit MediaPipe Reaktions-Daten
+Add Reactions to EDL v4.0 — N-Kamera-Architektur
 
-Multi-Pass Architektur:
-- Pass 1: Original-EDL parsen, Cam1/Cam2 Sections sammeln
-- Pass 2: Für Cam1-Sections → Cam2-Reaktionen einbauen
-- Pass 3: Für Cam2-Sections → Cam1-Reaktionen einbauen
-- Pass 4: Cleanup - zu kurze Events entfernen
+Multi-Pass:
+- Pass 1: Original-EDL parsen, Sections je Kamera sammeln
+- Pass 2: Für jede ON-Kamera → Cutaways von allen anderen Kameras
+- Pass 3: Cleanup zu kurze Events
+- Pass 4: Split zu lange Shots
 
-Author: Max's Podcast Automation
-Version: 3.0 - Multi-Pass Architektur
+Eingabe (--cameras-json):
+[
+  {"name": "C5576.MP4", "video": "/path/C5576.MP4",
+   "reactions": "/path/C5576_reactions.json",
+   "speaking_reactions": "/path/C5576_speaking.json"},  # optional
+  ...
+]
 """
 
 import json
@@ -25,91 +29,56 @@ import subprocess
 
 
 def load_config(config_path='config.ini'):
-    """Lade Config-Datei"""
     config = configparser.ConfigParser()
-    
-    search_paths = [
-        config_path,
-        Path(__file__).parent / 'config.ini',
-        Path.cwd() / 'config.ini'
-    ]
-    
-    for path in search_paths:
+    for path in [config_path, Path(__file__).parent / 'config.ini', Path.cwd() / 'config.ini']:
         if os.path.exists(path):
             config.read(path)
             print(f"✓ Config geladen: {path}")
             return config
-    
-    print(f"⚠️  config.ini nicht gefunden, nutze Default-Werte")
+    print("⚠️  config.ini nicht gefunden, nutze Default-Werte")
     return None
 
 
 def timecode_to_frames(tc: str, fps: float = 25.0) -> int:
-    """Konvertiert Timecode zu Frames (HH:MM:SS:FF)"""
     parts = tc.split(':')
-    hours = int(parts[0])
-    minutes = int(parts[1])
-    seconds = int(parts[2])
-    frames = int(parts[3])
-    
-    total_frames = (hours * 3600 + minutes * 60 + seconds) * fps + frames
-    return int(total_frames)
-
-
-def get_embedded_timecode(video_path: str, fps: float = 25.0) -> Optional[str]:
-    """
-    Lese embedded timecode bei Frame 0 aus Video File mit ffprobe
-    
-    Returns:
-        Timecode string (HH:MM:SS:FF) oder None wenn nicht vorhanden
-    """
-    try:
-        # ffprobe um embedded TC zu lesen
-        cmd = [
-            'ffprobe',
-            '-v', 'quiet',
-            '-print_format', 'json',
-            '-show_streams',
-            '-select_streams', 'v:0',
-            video_path
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True, timeout=10)
-        if result.returncode != 0:
-            return None
-            
-        data = json.loads(result.stdout)
-        streams = data.get('streams', [])
-        if not streams:
-            return None
-            
-        # Suche nach timecode tag
-        tags = streams[0].get('tags', {})
-        timecode = tags.get('timecode')
-        
-        return timecode if timecode else None
-        
-    except Exception as e:
-        print(f"    ⚠️  ffprobe Fehler bei {Path(video_path).name}: {e}")
-        return None
+    total = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * fps + int(parts[3])
+    return int(total)
 
 
 def frames_to_timecode(frames: int, fps: float = 25.0) -> str:
-    """Konvertiert Frames zu Timecode (HH:MM:SS:FF)"""
     if frames < 0:
         frames = 0
-    
     total_seconds = frames / fps
-    hours = int(total_seconds // 3600)
-    minutes = int((total_seconds % 3600) // 60)
-    seconds = int(total_seconds % 60)
-    frame_part = int(frames % fps)
-    
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}:{frame_part:02d}"
+    h = int(total_seconds // 3600)
+    m = int((total_seconds % 3600) // 60)
+    s = int(total_seconds % 60)
+    f = int(frames % fps)
+    return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
+
+
+def get_video_timecode_with_ffprobe(video_path: str) -> Optional[str]:
+    try:
+        result = subprocess.run(
+            ['ffprobe', '-v', 'quiet', '-print_format', 'json',
+             '-show_format', '-show_streams', str(video_path)],
+            capture_output=True, text=True,
+        )
+        data = json.loads(result.stdout)
+        if 'format' in data and 'tags' in data['format']:
+            tc = data['format']['tags'].get('timecode')
+            if tc:
+                return tc
+        for stream in data.get('streams', []):
+            tc = stream.get('tags', {}).get('timecode')
+            if tc:
+                return tc
+        return None
+    except Exception as e:
+        print(f"    ⚠️  ffprobe Fehler: {e}")
+        return None
 
 
 class EDLEvent:
-    """Ein Event in der EDL"""
     def __init__(self, event_num: int, clip_name: str,
                  source_in: str, source_out: str,
                  record_in: str, record_out: str, fps: float = 25.0,
@@ -121,939 +90,542 @@ class EDLEvent:
         self.record_in = record_in
         self.record_out = record_out
         self.fps = fps
-        self.reason = reason  # "speaker" | "reaction_nodding" | "reaction_speaking_reaction" | "max_time"
-        
-        # Konvertiere zu Frames
-        self.source_in_frame = timecode_to_frames(source_in, fps)
+        self.reason = reason
+        self.source_in_frame  = timecode_to_frames(source_in, fps)
         self.source_out_frame = timecode_to_frames(source_out, fps)
-        self.record_in_frame = timecode_to_frames(record_in, fps)
+        self.record_in_frame  = timecode_to_frames(record_in, fps)
         self.record_out_frame = timecode_to_frames(record_out, fps)
-    
+
     def duration_frames(self) -> int:
-        """Event-Dauer in Frames"""
         return self.record_out_frame - self.record_in_frame
-    
+
     def __repr__(self):
         return f"Event {self.event_num}: {self.clip_name} R[{self.record_in}-{self.record_out}]"
 
 
 def parse_resolve_edl(edl_path: str, fps: float = 25.0) -> List[EDLEvent]:
-    """
-    Pass 1: Parse Resolve EDL (nur Video-Events)
-    """
     print(f"\n📋 PASS 1: Parse Resolve EDL")
     print(f"  File: {edl_path}")
-    
     events = []
-    
     with open(edl_path, 'r') as f:
         lines = f.readlines()
-    
     i = 0
     while i < len(lines):
         line = lines[i].strip()
-        
-        # Event-Zeile - NUR Video (V)
-        event_match = re.match(r'^(\d+)\s+\w+\s+V\s+C\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)', line)
-        
-        if event_match:
-            event_num = int(event_match.group(1))
-            source_in = event_match.group(2)
-            source_out = event_match.group(3)
-            record_in = event_match.group(4)
-            record_out = event_match.group(5)
-            
-            # Nächste Zeile: Clip-Name
+        m = re.match(r'^(\d+)\s+\w+\s+V\s+C\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)', line)
+        if m:
+            event_num = int(m.group(1))
             if i + 1 < len(lines):
-                next_line = lines[i + 1].strip()
-                clip_match = re.match(r'\* FROM CLIP NAME:\s*(.+)', next_line)
-                
-                if clip_match:
-                    clip_name = clip_match.group(1).strip()
-                    
-                    event = EDLEvent(
+                cn = re.match(r'\* FROM CLIP NAME:\s*(.+)', lines[i + 1].strip())
+                if cn:
+                    events.append(EDLEvent(
                         event_num=event_num,
-                        clip_name=clip_name,
-                        source_in=source_in,
-                        source_out=source_out,
-                        record_in=record_in,
-                        record_out=record_out,
-                        fps=fps
-                    )
-                    events.append(event)
-        
+                        clip_name=cn.group(1).strip(),
+                        source_in=m.group(2), source_out=m.group(3),
+                        record_in=m.group(4), record_out=m.group(5),
+                        fps=fps,
+                    ))
         i += 1
-    
     print(f"  ✓ {len(events)} Video-Events gefunden")
-    
     return events
 
 
 def load_reactions(json_path: str) -> Tuple[List[Dict], float]:
-    """Lade Reaktions-JSON"""
     with open(json_path, 'r') as f:
         data = json.load(f)
-    
-    reactions = data.get('reactions', [])
-    fps = data.get('fps', 25.0)
-    
-    return reactions, fps
+    return data.get('reactions', []), data.get('fps', 25.0)
 
 
-def get_video_timecode_with_ffprobe(video_path: str) -> Optional[str]:
+def calculate_reference_frames(
+    events: List[EDLEvent],
+    cameras: List[Dict],   # [{'name': str, 'video': str}, ...]
+    fps: float = 25.0,
+) -> Tuple[Dict[str, int], Dict[str, int]]:
     """
-    Liest embedded Timecode aus Video mit ffprobe
-    
-    Returns:
-        Timecode string (HH:MM:SS:FF) oder None
-    """
-    import subprocess
-    import json as json_module
-    
-    try:
-        cmd = [
-            'ffprobe',
-            '-v', 'quiet',
-            '-print_format', 'json',
-            '-show_format',
-            '-show_streams',
-            str(video_path)
-        ]
-        
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        data = json_module.loads(result.stdout)
-        
-        # Suche timecode in format tags
-        if 'format' in data and 'tags' in data['format']:
-            if 'timecode' in data['format']['tags']:
-                return data['format']['tags']['timecode']
-        
-        # Suche timecode in stream tags
-        if 'streams' in data:
-            for stream in data['streams']:
-                if 'tags' in stream and 'timecode' in stream['tags']:
-                    return stream['tags']['timecode']
-        
-        return None
-        
-    except Exception as e:
-        print(f"    ⚠️  ffprobe Fehler: {e}")
-        return None
+    Berechnet reference_frames und timeline_zero_video_frames für alle Kameras.
 
+    reference_frames[clip_name]           = embedded TC in Frames
+    timeline_zero_video_frames[clip_name] = welcher Video-Frame bei Timeline 0 liegt
+    """
+    video_paths = {cam['name']: cam['video'] for cam in cameras}
 
-def calculate_reference_frames(events: List[EDLEvent], cam1_clip: str, cam2_clip: str,
-                              cam1_video_path: Optional[str] = None,
-                              cam2_video_path: Optional[str] = None,
-                              cam1_embedded_tc: Optional[str] = None,
-                              cam2_embedded_tc: Optional[str] = None,
-                              fps: float = 25.0) -> Tuple[Dict[str, int], Dict[str, int]]:
-    """
-    Berechne Referenz-Frames für Timeline → Video Frame Mapping
-    
-    WICHTIG: Reference Frame = ffprobe TAG:timecode des Videos
-    Die EDL Source-TCs beziehen sich auf diesen TC.
-    Video Frame = EDL Source Frame - TAG:timecode Frame
-    
-    Returns:
-        Tuple: (reference_frames, timeline_zero_video_frames)
-        - reference_frames: Für Source TC Berechnung
-        - timeline_zero_video_frames: Welcher Video Frame ist bei Timeline 0
-    
-    Args:
-        cam1_video_path: Pfad zur Cam1 Video-Datei (für ffprobe)
-        cam2_video_path: Pfad zur Cam2 Video-Datei (für ffprobe)
-        cam1_embedded_tc: Manuell angegebener TC (überschreibt ffprobe)
-        cam2_embedded_tc: Manuell angegebener TC (überschreibt ffprobe)
-    """
-    reference_frames = {}
-    timeline_zero_video_frames = {}
-    
-    # Finde ersten Event mit tatsächlicher Dauer für jeden Clip
-    # (Zero-duration events haben falsche record TCs → tzvf-Berechnung überspringen)
-    first_events = {}
+    reference_frames: Dict[str, int] = {}
+    timeline_zero_video_frames: Dict[str, int] = {}
+
+    first_events: Dict[str, EDLEvent] = {}
     for event in events:
-        if event.clip_name not in first_events:
-            if event.record_in_frame < event.record_out_frame:
-                first_events[event.clip_name] = event
-    
-    # Berechne Reference Frames
-    for clip_name, event in first_events.items():
-        embedded_tc = None
-        source = "fallback"
-        
-        # Bestimme embedded TC
-        if clip_name == cam1_clip:
-            if cam1_embedded_tc:
-                # Manuell angegeben (höchste Priorität)
-                embedded_tc = cam1_embedded_tc
-                source = "manual"
-            elif cam1_video_path:
-                # Aus Video lesen
-                embedded_tc = get_video_timecode_with_ffprobe(cam1_video_path)
-                source = "ffprobe"
-            
-        elif clip_name == cam2_clip:
-            if cam2_embedded_tc:
-                embedded_tc = cam2_embedded_tc
-                source = "manual"
-            elif cam2_video_path:
-                embedded_tc = get_video_timecode_with_ffprobe(cam2_video_path)
-                source = "ffprobe"
-        
-        if embedded_tc:
-            # Reference Frame = Video TAG:timecode
-            reference_frame = timecode_to_frames(embedded_tc, fps)
-            reference_frames[clip_name] = reference_frame
-            
-            # KRITISCH: Berechne wo Timeline 0 im Video liegt!
-            # Erster Event: Timeline X, Video Frame Y
-            # Timeline 0 = Video Frame (Y - X)
-            first_event_video_frame = event.source_in_frame - reference_frame
-            first_event_timeline_frame = event.record_in_frame
-            timeline_zero_video_frame = first_event_video_frame - first_event_timeline_frame
-            timeline_zero_video_frames[clip_name] = timeline_zero_video_frame
-            
-            print(f"    {clip_name}:")
-            print(f"      Video TAG:timecode: {embedded_tc} = {reference_frame} frames [{source}]")
-            print(f"      Timeline 0 = Video Frame {timeline_zero_video_frame}")
-            print(f"      Verification: Timeline {first_event_timeline_frame} = Video Frame {first_event_video_frame}")
-            
-        else:
-            # Fallback: alte (falsche) Methode
-            old_reference = event.source_in_frame - event.record_in_frame
-            reference_frames[clip_name] = old_reference
-            timeline_zero_video_frames[clip_name] = 0
-            print(f"    {clip_name}: {old_reference}")
-            print(f"      ⚠️  WARNUNG: Kein embedded TC - Mapping möglicherweise inkorrekt!")
-    
-    return reference_frames, timeline_zero_video_frames
-    
-    # Finde ersten Event für jeden Clip
-    first_events = {}
-    for event in events:
-        if event.clip_name not in first_events:
+        if event.clip_name not in first_events and event.record_in_frame < event.record_out_frame:
             first_events[event.clip_name] = event
-    
-    # Berechne Reference Frames
+
     for clip_name, event in first_events.items():
-        # Standard-Methode (FALSCH - gibt Timeline Frames statt Video Frames!)
-        # Wird nur als Fallback benutzt wenn keine embedded TCs gefunden werden
-        old_reference = event.source_in_frame - event.record_in_frame
-        
-        embedded_tc = None
-        video_path = None
-        
-        # Bestimme welche Kamera
-        if clip_name == cam1_clip:
-            video_path = cam1_video_path
-            embedded_tc = cam1_embedded_tc
-        elif clip_name == cam2_clip:
-            video_path = cam2_video_path
-            embedded_tc = cam2_embedded_tc
-        
-        # 1. Versuche ffprobe
-        if video_path and Path(video_path).exists():
-            print(f"    {clip_name}: Lese embedded TC mit ffprobe...")
-            auto_tc = get_embedded_timecode(video_path, fps)
-            if auto_tc:
-                embedded_tc = auto_tc
-                print(f"      ✓ Gefunden: {embedded_tc}")
-        
-        # 2. Berechne mit embedded TC (automatisch oder manuell)
+        video_path = video_paths.get(clip_name)
+        embedded_tc = get_video_timecode_with_ffprobe(video_path) if video_path else None
+
         if embedded_tc:
-            embedded_frame = timecode_to_frames(embedded_tc, fps)
-            
-            # Timeline Frame 0 liegt bei diesem embedded TC Frame:
-            timeline_zero_tc = event.source_in_frame - event.record_in_frame
-            
-            # Multicam Offset = Wo im Video liegt Timeline Frame 0
-            multicam_offset = timeline_zero_tc - embedded_frame
-            
-            # Reference = Embedded TC - Offset
-            reference_frames[clip_name] = embedded_frame - multicam_offset
-            
-            print(f"      Embedded TC bei Frame 0: {embedded_tc} ({embedded_frame} frames)")
-            print(f"      Timeline 0 liegt bei TC: {timeline_zero_tc} frames")
-            print(f"      Multicam Offset: {multicam_offset} frames")
-            print(f"      → Reference: {reference_frames[clip_name]}")
-            
+            ref = timecode_to_frames(embedded_tc, fps)
+            reference_frames[clip_name] = ref
+            tzvf = (event.source_in_frame - ref) - event.record_in_frame
+            timeline_zero_video_frames[clip_name] = tzvf
+            print(f"    {clip_name}: TC={embedded_tc} ({ref} f), tl0={tzvf}")
         else:
-            # 3. Fallback: alte (falsche) Methode
-            reference_frames[clip_name] = old_reference
-            print(f"    {clip_name}: {old_reference}")
-            print(f"      ⚠️  WARNUNG: Kein embedded TC! Ergebnis möglicherweise inkorrekt!")
-            print(f"      → Gib Video-Pfad mit --cam1-video/--cam2-video an")
-    
-    return reference_frames
+            ref = event.source_in_frame - event.record_in_frame
+            reference_frames[clip_name] = ref
+            timeline_zero_video_frames[clip_name] = 0
+            print(f"    {clip_name}: {ref} (kein embedded TC ⚠️)")
+
+    return reference_frames, timeline_zero_video_frames
 
 
-def build_events_with_cutaways(section_start: int,
-                               section_end: int,
-                               section_video_start: int,
-                               on_clip: str,
-                               on_reference_frame: int,
-                               off_clip: str,
-                               off_reference_frame: int,
-                               off_timeline_zero_video: int,
-                               reactions: List[Dict],
-                               config: Dict,
-                               fps: float) -> List[EDLEvent]:
+def build_events_with_cutaways(
+    section_start: int,
+    section_end: int,
+    section_video_start: int,
+    on_clip: str,
+    on_reference_frame: int,
+    cutaway_cams: List[Dict],  # [{'name', 'reference_frame', 'timeline_zero_video', 'reactions'}]
+    config: Dict,
+    fps: float,
+) -> List[EDLEvent]:
     """
-    Baut Events für eine Section mit Cutaways
-    
-    Args:
-        section_start/end: Timeline Frames der Section
-        section_video_start: Video Frame wo diese Section im ON-clip startet
-        on_clip: Clip der zu sehen ist (ON-camera)
-        on_reference_frame: Referenz-Frame für ON-clip
-        off_clip: Clip für Cutaways (OFF-camera)
-        off_reference_frame: Referenz-Frame für OFF-clip
-        off_timeline_zero_video: Welcher Video Frame im OFF-clip ist bei Timeline 0
-        reactions: Reaktionen vom OFF-clip
-        config: Settings (min_shot_duration, reaction_min_duration, min_confidence, max_shot_duration)
-        fps: Frames per second
+    Baut Events für eine Section mit Cutaways von einer oder mehreren OFF-Kameras.
+
+    cutaway_cams enthält alle Kameras die als Cutaway-Quelle infrage kommen.
+    Bei mehreren Reaktionen gleichzeitig wird die mit höchster Confidence gewählt.
     """
-    min_shot_frames = int(config['min_shot_duration'] * fps)
+    min_shot_frames          = int(config['min_shot_duration'] * fps)
     reaction_duration_frames = int(config['reaction_min_duration'] * fps)
-    max_shot_frames = int(config['max_shot_duration'] * fps)
-    min_confidence = config['min_confidence']
-    speaking_min_confidence = config.get('speaking_min_confidence', min_confidence)
-    cluster_max_gap = int(config.get('cluster_max_gap_frames', 75))
-    pre_roll_frames = int(config.get('pre_roll_frames', 0))
-    cutaway_enabled = config['cutaway_enabled']
+    max_shot_frames          = int(config['max_shot_duration'] * fps)
+    min_confidence           = config['min_confidence']
+    speaking_min_confidence  = config.get('speaking_min_confidence', min_confidence)
+    cluster_max_gap          = int(config.get('cluster_max_gap_frames', 75))
+    pre_roll_frames          = int(config.get('pre_roll_frames', 0))
+    cutaway_enabled          = config['cutaway_enabled']
 
-    # Filtere Reaktionen für diese Section
+    # Reaktionen aller OFF-Kameras sammeln
     valid_reactions = []
-    for reaction in reactions:
-        reaction_type = reaction['type']
-        confidence = reaction['confidence']
-        json_video_frame = reaction['frame']
+    for cam in cutaway_cams:
+        tzvf = cam['timeline_zero_video']
+        for reaction in cam['reactions']:
+            rtype      = reaction['type']
+            confidence = reaction['confidence']
+            timeline_frame = reaction['frame'] - tzvf
 
-        # Filter
-        if not cutaway_enabled.get(reaction_type, False):
-            continue
-        threshold = speaking_min_confidence if reaction_type == 'speaking_reaction' else min_confidence
-        if confidence < threshold:
-            continue
-        
-        # KRITISCH: JSON Video Frame → Timeline Frame Konvertierung!
-        # JSON gibt Video Frames (ab 0 im File)
-        # Timeline Frame = JSON Video Frame - Timeline-0-Video-Frame
-        timeline_frame = json_video_frame - off_timeline_zero_video
-        
-        # Ignoriere Reaktionen vor Timeline 0
-        # (JSON analysiert komplettes Video, auch Teile vor Multicam-Start)
-        if timeline_frame < 0:
-            continue
-        
-        # Liegt in dieser Section?
-        if section_start <= timeline_frame < section_end:
-            valid_reactions.append({
-                'timeline_frame': timeline_frame,
-                'type': reaction_type,
-                'confidence': confidence
-            })
-    
-    # Sortiere Reaktionen
-    valid_reactions.sort(key=lambda x: x['timeline_frame'])
-    
-    # Baue Events
-    events = []
-    current_pos = section_start
+            if not cutaway_enabled.get(rtype, False):
+                continue
+            threshold = speaking_min_confidence if rtype == 'speaking_reaction' else min_confidence
+            if confidence < threshold:
+                continue
+            if timeline_frame < 0:
+                continue
+            if section_start <= timeline_frame < section_end:
+                valid_reactions.append({
+                    'timeline_frame': timeline_frame,
+                    'type':           rtype,
+                    'confidence':     confidence,
+                    'cam':            cam,
+                })
+
+    # Sortieren: erst nach Position, dann nach Confidence absteigend
+    valid_reactions.sort(key=lambda x: (x['timeline_frame'], -x['confidence']))
+
+    events: List[EDLEvent] = []
+    current_pos   = section_start
     last_cut_frame = section_start
-    
+
     for i, reaction in enumerate(valid_reactions):
-        reaction_type = reaction['type']
-        # Finde Cluster-Start: geh rückwärts solange Abstand ≤ cluster_max_gap
-        # → schneidet beim ersten Event des Clusters, nicht beim auslösenden
+        rtype = reaction['type']
+
+        # Cluster-Start suchen (rückwärts, gleicher Typ)
         cluster_start = reaction['timeline_frame']
         for j in range(i - 1, -1, -1):
-            if valid_reactions[j]['type'] != reaction['type']:
+            if valid_reactions[j]['type'] != rtype:
                 break
-            gap = valid_reactions[j + 1]['timeline_frame'] - valid_reactions[j]['timeline_frame']
-            if gap <= cluster_max_gap:
+            if valid_reactions[j + 1]['timeline_frame'] - valid_reactions[j]['timeline_frame'] <= cluster_max_gap:
                 cluster_start = valid_reactions[j]['timeline_frame']
             else:
                 break
-        # Pre-Roll anwenden (nach Cluster-Suche, begrenzt auf section_start)
+
         cutaway_frame = max(cluster_start - pre_roll_frames, section_start)
 
-        # Min Shot Duration check
         if cutaway_frame - last_cut_frame < min_shot_frames:
             continue
-        
-        # 1. ON-Event bis Cutaway
+
+        # ON-Clip bis Cutaway
         if cutaway_frame > current_pos:
-            # Timeline Frame → Video Frame Konvertierung
-            video_in = section_video_start + (current_pos - section_start)
-            video_out = section_video_start + (cutaway_frame - section_start)
-            
-            on_source_in = on_reference_frame + video_in
-            on_source_out = on_reference_frame + video_out
-            
-            event1 = EDLEvent(
-                event_num=0,  # Wird später renummeriert
-                clip_name=on_clip,
-                source_in=frames_to_timecode(on_source_in, fps),
-                source_out=frames_to_timecode(on_source_out, fps),
+            vi = section_video_start + (current_pos - section_start)
+            vo = section_video_start + (cutaway_frame - section_start)
+            events.append(EDLEvent(
+                event_num=0, clip_name=on_clip,
+                source_in=frames_to_timecode(on_reference_frame + vi, fps),
+                source_out=frames_to_timecode(on_reference_frame + vo, fps),
                 record_in=frames_to_timecode(current_pos, fps),
                 record_out=frames_to_timecode(cutaway_frame, fps),
-                fps=fps,
-                reason="speaker",
-            )
-            events.append(event1)
+                fps=fps, reason="speaker",
+            ))
 
-        # 2. OFF-Camera Cutaway (mit optionalem Zufalls-Aufschlag)
+        # OFF-Cutaway — Kamera mit höchster Confidence dieser Position
+        off_cam               = reaction['cam']
+        off_clip              = off_cam['name']
+        off_reference_frame   = off_cam['reference_frame']
+        off_tzvf              = off_cam['timeline_zero_video']
+
         randomness = config.get('cutaway_randomness', 0.0)
-        if randomness > 0:
-            this_cutaway_frames = int(reaction_duration_frames * (1.0 + random.uniform(0.0, randomness)))
-        else:
-            this_cutaway_frames = reaction_duration_frames
+        this_cutaway_frames = int(
+            reaction_duration_frames * (1.0 + random.uniform(0.0, randomness))
+        ) if randomness > 0 else reaction_duration_frames
         cutaway_end = min(cutaway_frame + this_cutaway_frames, section_end)
 
-        # OFF-Clip: Timeline Frame → Video Frame
-        # Video Frame = timeline_zero_video + timeline_frame
-        off_video_in = off_timeline_zero_video + cutaway_frame
-        off_video_out = off_timeline_zero_video + cutaway_end
-
-        off_source_in = off_reference_frame + off_video_in
-        off_source_out = off_reference_frame + off_video_out
-
-        event2 = EDLEvent(
-            event_num=0,
-            clip_name=off_clip,
-            source_in=frames_to_timecode(off_source_in, fps),
-            source_out=frames_to_timecode(off_source_out, fps),
+        off_vi = off_tzvf + cutaway_frame
+        off_vo = off_tzvf + cutaway_end
+        events.append(EDLEvent(
+            event_num=0, clip_name=off_clip,
+            source_in=frames_to_timecode(off_reference_frame + off_vi, fps),
+            source_out=frames_to_timecode(off_reference_frame + off_vo, fps),
             record_in=frames_to_timecode(cutaway_frame, fps),
             record_out=frames_to_timecode(cutaway_end, fps),
-            fps=fps,
-            reason=f"reaction_{reaction_type}",
-        )
-        events.append(event2)
-        
+            fps=fps, reason=f"reaction_{rtype}",
+        ))
+
         last_cut_frame = cutaway_end
-        current_pos = cutaway_end
-    
-    # 3. Rest der Section (falls übrig)
-    # Wenn Rest > max_shot_duration: Füge forced Cutaways ein
+        current_pos    = cutaway_end
+
+    # Rest der Section
     if current_pos < section_end:
-        remaining_duration = section_end - current_pos
-        
-        if remaining_duration > max_shot_frames:
-            # Rest ist zu lang - füge forced Cutaways ein
+        if section_end - current_pos > max_shot_frames:
+            # Forced Cutaways: immer erste OFF-Kamera als Ziel
+            off_cam = cutaway_cams[0] if cutaway_cams else None
             while current_pos < section_end:
-                # Nächster forced Cutaway bei current_pos + max_shot_frames
                 next_cut = min(current_pos + max_shot_frames, section_end)
-                
-                # Ist das der letzte Abschnitt?
+                vi = section_video_start + (current_pos - section_start)
+                vo = section_video_start + (next_cut - section_start)
+                events.append(EDLEvent(
+                    event_num=0, clip_name=on_clip,
+                    source_in=frames_to_timecode(on_reference_frame + vi, fps),
+                    source_out=frames_to_timecode(on_reference_frame + vo, fps),
+                    record_in=frames_to_timecode(current_pos, fps),
+                    record_out=frames_to_timecode(next_cut, fps),
+                    fps=fps, reason="speaker",
+                ))
                 if next_cut >= section_end:
-                    # Letzter Abschnitt - Timeline → Video Frame
-                    video_in = section_video_start + (current_pos - section_start)
-                    video_out = section_video_start + (section_end - section_start)
-
-                    on_source_in = on_reference_frame + video_in
-                    on_source_out = on_reference_frame + video_out
-
-                    event = EDLEvent(
-                        event_num=0,
-                        clip_name=on_clip,
-                        source_in=frames_to_timecode(on_source_in, fps),
-                        source_out=frames_to_timecode(on_source_out, fps),
-                        record_in=frames_to_timecode(current_pos, fps),
-                        record_out=frames_to_timecode(section_end, fps),
-                        fps=fps,
-                        reason="speaker",
-                    )
-                    events.append(event)
                     break
-                else:
-                    # ON-Clip bis forced Cutaway - Timeline → Video Frame
-                    video_in = section_video_start + (current_pos - section_start)
-                    video_out = section_video_start + (next_cut - section_start)
-
-                    on_source_in = on_reference_frame + video_in
-                    on_source_out = on_reference_frame + video_out
-
-                    event1 = EDLEvent(
-                        event_num=0,
-                        clip_name=on_clip,
-                        source_in=frames_to_timecode(on_source_in, fps),
-                        source_out=frames_to_timecode(on_source_out, fps),
-                        record_in=frames_to_timecode(current_pos, fps),
-                        record_out=frames_to_timecode(next_cut, fps),
-                        fps=fps,
-                        reason="speaker",
-                    )
-                    events.append(event1)
-
-                    # Forced Cutaway zur OFF-Kamera
-                    cutaway_end = min(next_cut + reaction_duration_frames, section_end)
-
-                    # OFF-Clip: Timeline Frame → Video Frame
-                    off_video_in = off_timeline_zero_video + next_cut
-                    off_video_out = off_timeline_zero_video + cutaway_end
-
-                    off_source_in = off_reference_frame + off_video_in
-                    off_source_out = off_reference_frame + off_video_out
-
-                    event2 = EDLEvent(
-                        event_num=0,
-                        clip_name=off_clip,
-                        source_in=frames_to_timecode(off_source_in, fps),
-                        source_out=frames_to_timecode(off_source_out, fps),
+                cutaway_end = min(next_cut + reaction_duration_frames, section_end)
+                if off_cam:
+                    off_vi = off_cam['timeline_zero_video'] + next_cut
+                    off_vo = off_cam['timeline_zero_video'] + cutaway_end
+                    events.append(EDLEvent(
+                        event_num=0, clip_name=off_cam['name'],
+                        source_in=frames_to_timecode(off_cam['reference_frame'] + off_vi, fps),
+                        source_out=frames_to_timecode(off_cam['reference_frame'] + off_vo, fps),
                         record_in=frames_to_timecode(next_cut, fps),
                         record_out=frames_to_timecode(cutaway_end, fps),
-                        fps=fps,
-                        reason="max_time",
-                    )
-                    events.append(event2)
-                    
-                    current_pos = cutaway_end
+                        fps=fps, reason="max_time",
+                    ))
+                current_pos = cutaway_end
         else:
-            # Rest ist kurz genug - normal einfügen
-            # Timeline → Video Frame
-            video_in = section_video_start + (current_pos - section_start)
-            video_out = section_video_start + (section_end - section_start)
-            
-            on_source_in = on_reference_frame + video_in
-            on_source_out = on_reference_frame + video_out
-            
-            event3 = EDLEvent(
-                event_num=0,
-                clip_name=on_clip,
-                source_in=frames_to_timecode(on_source_in, fps),
-                source_out=frames_to_timecode(on_source_out, fps),
+            vi = section_video_start + (current_pos - section_start)
+            vo = section_video_start + (section_end - section_start)
+            events.append(EDLEvent(
+                event_num=0, clip_name=on_clip,
+                source_in=frames_to_timecode(on_reference_frame + vi, fps),
+                source_out=frames_to_timecode(on_reference_frame + vo, fps),
                 record_in=frames_to_timecode(current_pos, fps),
                 record_out=frames_to_timecode(section_end, fps),
-                fps=fps,
-                reason="speaker",
-            )
-            events.append(event3)
-    
+                fps=fps, reason="speaker",
+            ))
+
     return events
 
 
 def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float) -> List[EDLEvent]:
-    """
-    Pass 4: Cleanup - entferne zu kurze Events
-    
-    Wenn Event < min_duration:
-    - Entferne diesen Event
-    - Verlängere vorherigen Event bis zum nächsten
-    """
-    print(f"\n🧹 PASS 4: Cleanup kurzer Events")
+    print(f"\n🧹 PASS 3: Cleanup kurzer Events")
     print(f"  Min Duration: {min_duration}s ({int(min_duration * fps)} Frames)")
-    
     min_frames = int(min_duration * fps)
-    
     cleaned = []
-    removed_count = 0
-    
-    i = 0
-    while i < len(events):
-        event = events[i]
-        duration = event.duration_frames()
-        
-        if duration < min_frames and cleaned:
-            # Event zu kurz! Entferne ihn und verlängere vorherigen
-            prev_event = cleaned[-1]
-            
-            # Verlängere vorherigen bis zum Ende dieses Events.
-            # Source-Out via konstantem Offset berechnen (source = record + offset,
-            # gilt unabhängig davon ob Clips gleich sind oder verschieden).
-            source_offset = prev_event.source_in_frame - prev_event.record_in_frame
-            new_record_out_frame = event.record_out_frame
-            prev_event.record_out = event.record_out
-            prev_event.record_out_frame = new_record_out_frame
-            prev_event.source_out_frame = source_offset + new_record_out_frame
-            prev_event.source_out = frames_to_timecode(prev_event.source_out_frame, fps)
-            
-            removed_count += 1
-            print(f"  ✗ Entfernt: Event @ {event.record_in} ({duration} Frames = {duration/fps:.2f}s)")
+    removed = 0
+    for event in events:
+        if event.duration_frames() < min_frames and cleaned:
+            prev = cleaned[-1]
+            source_offset = prev.source_in_frame - prev.record_in_frame
+            prev.record_out       = event.record_out
+            prev.record_out_frame = event.record_out_frame
+            prev.source_out_frame = source_offset + event.record_out_frame
+            prev.source_out       = frames_to_timecode(prev.source_out_frame, fps)
+            removed += 1
+            print(f"  ✗ Entfernt: Event @ {event.record_in} ({event.duration_frames()} Frames)")
         else:
             cleaned.append(event)
-        
-        i += 1
-    
-    print(f"  ✓ {removed_count} Events entfernt")
-    print(f"  ✓ {len(cleaned)} Events verbleiben")
-    
+    print(f"  ✓ {removed} entfernt, {len(cleaned)} verbleiben")
     return cleaned
 
 
-def split_long_shots(events: List[EDLEvent],
-                     max_shot_duration: float,
-                     cutaway_duration: float,
-                     reference_frames: Dict[str, int],
-                     timeline_zero_video_frames: Dict[str, int],
-                     fps: float) -> List[EDLEvent]:
-    """
-    Pass 5: Split zu lange Shots
-    
-    Wenn Event > max_shot_duration + 3s:
-    - Schneide in der Mitte auf andere Kamera für cutaway_duration
-    """
-    print(f"\n✂️  PASS 5: Split zu lange Shots")
-    
+def split_long_shots(
+    events: List[EDLEvent],
+    max_shot_duration: float,
+    cutaway_duration: float,
+    reference_frames: Dict[str, int],
+    timeline_zero_video_frames: Dict[str, int],
+    all_cam_names: List[str],
+    fps: float,
+) -> List[EDLEvent]:
+    print(f"\n✂️  PASS 4: Split zu lange Shots")
     threshold_frames = int((max_shot_duration + 3.0) * fps)
-    cutaway_frames = int(cutaway_duration * fps)
-    
-    print(f"  Threshold: {max_shot_duration + 3.0}s ({threshold_frames} Frames)")
-    print(f"  Cutaway Duration: {cutaway_duration}s ({cutaway_frames} Frames)")
-    
-    # Finde die beiden Clips
-    clips = list(set(e.clip_name for e in events))
-    if len(clips) != 2:
-        print(f"  ⚠️  Warnung: Erwarte 2 Clips, fand {len(clips)} - überspringe Pass 5")
-        return events
-    
+    cutaway_frames   = int(cutaway_duration * fps)
     new_events = []
     split_count = 0
-    
+
     for event in events:
         duration = event.duration_frames()
-        
-        if duration > threshold_frames:
-            # Zu lang! Split in der Mitte
-            split_count += 1
-            
-            # Andere Kamera
-            other_clip = clips[1] if event.clip_name == clips[0] else clips[0]
-            
-            # Mitte des Events
-            middle_timeline = event.record_in_frame + (duration // 2)
-            
-            # Cutaway Start/End (zentriert um Mitte)
-            cutaway_start = middle_timeline - (cutaway_frames // 2)
-            cutaway_end = cutaway_start + cutaway_frames
-            
-            # Event 1: ON bis Cutaway
-            on_video_in_1 = timeline_zero_video_frames[event.clip_name] + event.record_in_frame
-            on_video_out_1 = timeline_zero_video_frames[event.clip_name] + cutaway_start
-
-            event1 = EDLEvent(
-                event_num=0,
-                clip_name=event.clip_name,
-                source_in=frames_to_timecode(reference_frames[event.clip_name] + on_video_in_1, fps),
-                source_out=frames_to_timecode(reference_frames[event.clip_name] + on_video_out_1, fps),
-                record_in=event.record_in,
-                record_out=frames_to_timecode(cutaway_start, fps),
-                fps=fps,
-                reason=getattr(event, 'reason', 'speaker'),
-            )
-            new_events.append(event1)
-
-            # Event 2: OFF Cutaway (forced split)
-            off_video_in = timeline_zero_video_frames[other_clip] + cutaway_start
-            off_video_out = timeline_zero_video_frames[other_clip] + cutaway_end
-
-            event2 = EDLEvent(
-                event_num=0,
-                clip_name=other_clip,
-                source_in=frames_to_timecode(reference_frames[other_clip] + off_video_in, fps),
-                source_out=frames_to_timecode(reference_frames[other_clip] + off_video_out, fps),
-                record_in=frames_to_timecode(cutaway_start, fps),
-                record_out=frames_to_timecode(cutaway_end, fps),
-                fps=fps,
-                reason="max_time",
-            )
-            new_events.append(event2)
-
-            # Event 3: ON nach Cutaway
-            on_video_in_3 = timeline_zero_video_frames[event.clip_name] + cutaway_end
-            on_video_out_3 = timeline_zero_video_frames[event.clip_name] + event.record_out_frame
-
-            event3 = EDLEvent(
-                event_num=0,
-                clip_name=event.clip_name,
-                source_in=frames_to_timecode(reference_frames[event.clip_name] + on_video_in_3, fps),
-                source_out=frames_to_timecode(reference_frames[event.clip_name] + on_video_out_3, fps),
-                record_in=frames_to_timecode(cutaway_end, fps),
-                record_out=event.record_out,
-                fps=fps,
-                reason=getattr(event, 'reason', 'speaker'),
-            )
-            new_events.append(event3)
-            
-            print(f"  ✂️  Split: Event @ {event.record_in} ({duration/fps:.1f}s) → 3 Events")
-        else:
+        if duration <= threshold_frames:
             new_events.append(event)
-    
-    print(f"  ✓ {split_count} Events gesplittet")
-    print(f"  ✓ {len(new_events)} Events total")
-    
+            continue
+
+        # Nächste verfügbare Kamera als Cutaway-Ziel
+        others = [c for c in all_cam_names if c != event.clip_name]
+        if not others:
+            new_events.append(event)
+            continue
+        other_clip = others[0]
+
+        if other_clip not in reference_frames:
+            new_events.append(event)
+            continue
+
+        split_count += 1
+        middle    = event.record_in_frame + (duration // 2)
+        cut_start = middle - (cutaway_frames // 2)
+        cut_end   = cut_start + cutaway_frames
+
+        for (on_in, on_out, rec_in, rec_out, reason) in [
+            (event.record_in_frame, cut_start, event.record_in_frame, cut_start, getattr(event, 'reason', 'speaker')),
+            (cut_end, event.record_out_frame, cut_end, event.record_out_frame, getattr(event, 'reason', 'speaker')),
+        ]:
+            vi = timeline_zero_video_frames[event.clip_name] + on_in
+            vo = timeline_zero_video_frames[event.clip_name] + on_out
+            new_events.append(EDLEvent(
+                event_num=0, clip_name=event.clip_name,
+                source_in=frames_to_timecode(reference_frames[event.clip_name] + vi, fps),
+                source_out=frames_to_timecode(reference_frames[event.clip_name] + vo, fps),
+                record_in=frames_to_timecode(rec_in, fps),
+                record_out=frames_to_timecode(rec_out, fps),
+                fps=fps, reason=reason,
+            ))
+            if on_in == event.record_in_frame:
+                # Insert cutaway between first and second ON-segment
+                off_vi = timeline_zero_video_frames[other_clip] + cut_start
+                off_vo = timeline_zero_video_frames[other_clip] + cut_end
+                new_events.append(EDLEvent(
+                    event_num=0, clip_name=other_clip,
+                    source_in=frames_to_timecode(reference_frames[other_clip] + off_vi, fps),
+                    source_out=frames_to_timecode(reference_frames[other_clip] + off_vo, fps),
+                    record_in=frames_to_timecode(cut_start, fps),
+                    record_out=frames_to_timecode(cut_end, fps),
+                    fps=fps, reason="max_time",
+                ))
+
+        print(f"  ✂️  Split: @ {event.record_in} ({duration/fps:.1f}s)")
+
+    print(f"  ✓ {split_count} gesplittet, {len(new_events)} Events total")
     return new_events
 
 
 def write_edl(events: List[EDLEvent], output_path: str, title: str = "Multicam with Reactions"):
-    """Schreibt Events als EDL"""
     print(f"\n💾 Schreibe EDL: {output_path}")
-    
-    lines = [
-        f"TITLE: {title}",
-        "FCM: NON-DROP FRAME\n"
-    ]
-    
+    lines = [f"TITLE: {title}", "FCM: NON-DROP FRAME\n"]
     for i, event in enumerate(events, 1):
-        lines.append(f"{i:03d}  AX       V     C        {event.source_in} {event.source_out} {event.record_in} {event.record_out}")
+        lines.append(
+            f"{i:03d}  AX       V     C        "
+            f"{event.source_in} {event.source_out} {event.record_in} {event.record_out}"
+        )
         lines.append(f"* FROM CLIP NAME: {event.clip_name}\n")
-    
     with open(output_path, 'w') as f:
         f.write('\n'.join(lines))
-    
     print(f"✓ {len(events)} Events geschrieben")
 
 
 def main():
     parser = argparse.ArgumentParser(
-        description='Fügt Reaktions-Cutaways zu Resolve EDL hinzu (v3.0 - Multi-Pass)'
+        description='Fügt Reaktions-Cutaways zu EDL hinzu (v4.0 - N Kameras)'
     )
+    parser.add_argument('--cameras-json', required=True,
+                        help='JSON-Datei mit Kamera-Konfiguration')
     parser.add_argument('--resolve-edl', required=True,
-                        help='Resolve EDL (flattened Multicam)')
-    parser.add_argument('--cam1-clip', required=True,
-                        help='Clip-Name für Kamera 1')
-    parser.add_argument('--cam1-reactions', required=True,
-                        help='Reaktions-JSON für Kamera 1')
-    parser.add_argument('--cam1-video', required=False,
-                        help='Pfad zur Cam1 Video-Datei (für automatische embedded TC Erkennung)')
-    parser.add_argument('--cam2-clip', required=True,
-                        help='Clip-Name für Kamera 2')
-    parser.add_argument('--cam2-reactions', required=True,
-                        help='Reaktions-JSON für Kamera 2')
-    parser.add_argument('--cam2-video', required=False,
-                        help='Pfad zur Cam2 Video-Datei (für automatische embedded TC Erkennung)')
-    parser.add_argument('--cam1-embedded-tc', required=False,
-                        help='Embedded TC von Cam1 bei Frame 0 (z.B. 00:32:36:11) - nur wenn --cam1-video nicht verfügbar')
-    parser.add_argument('--cam2-embedded-tc', required=False,
-                        help='Embedded TC von Cam2 bei Frame 0 (z.B. 10:26:39:13) - nur wenn --cam2-video nicht verfügbar')
-    parser.add_argument('--cam1-speaking-reactions', required=False,
-                        help='Speaking-Reactions JSON für CAM1 (aus detect_speaking_reactions)')
-    parser.add_argument('--cam2-speaking-reactions', required=False,
-                        help='Speaking-Reactions JSON für CAM2 (aus detect_speaking_reactions)')
-    parser.add_argument('--output', '-o', required=True,
-                        help='Output EDL')
-    parser.add_argument('--config', default='config.ini',
-                        help='Config-Datei')
-    parser.add_argument('--fps', type=float, default=25.0,
-                        help='FPS (default: 25)')
-    
+                        help='Base-EDL (Sprecher-Segmente)')
+    parser.add_argument('--output', '-o', required=True)
+    parser.add_argument('--config', default='config.ini')
+    parser.add_argument('--fps', type=float, default=25.0)
     args = parser.parse_args()
-    
-    print("="*70)
-    print("🎬 ADD REACTIONS TO EDL v3.0 - Multi-Pass Architektur")
-    print("="*70)
-    
-    # Lade Config
+
+    print("=" * 70)
+    print("🎬 ADD REACTIONS TO EDL v4.0 — N-Kamera-Architektur")
+    print("=" * 70)
+
+    cameras: List[Dict] = json.loads(Path(args.cameras_json).read_text())
     config = load_config(args.config)
-    
-    # Settings
-    min_shot_duration = 2.0
-    reaction_min_duration = 3.0
-    max_shot_duration = 30.0
-    min_confidence = 0.86
+
+    # Settings aus config
+    min_shot_duration       = 2.0
+    reaction_min_duration   = 3.0
+    max_shot_duration       = 30.0
+    min_confidence          = 0.86
     speaking_min_confidence = 0.90
-    cleanup_min_duration = 1.5
-    cutaway_randomness = 0.0
+    cleanup_min_duration    = 1.5
+    cutaway_randomness      = 0.0
+    cluster_max_gap_frames  = 75
+    pre_roll_frames         = 0
 
     if config:
-        if config.has_option('General', 'min_shot_duration'):
-            min_shot_duration = config.getfloat('General', 'min_shot_duration')
-        if config.has_option('General', 'reaction_min_duration'):
-            reaction_min_duration = config.getfloat('General', 'reaction_min_duration')
-        if config.has_option('General', 'max_shot_duration'):
-            max_shot_duration = config.getfloat('General', 'max_shot_duration')
-        if config.has_option('General', 'cleanup_min_duration'):
-            cleanup_min_duration = config.getfloat('General', 'cleanup_min_duration')
-        if config.has_option('General', 'cutaway_randomness'):
-            cutaway_randomness = config.getfloat('General', 'cutaway_randomness')
+        g = config['General'] if config.has_section('General') else {}
+        min_shot_duration       = float(g.get('min_shot_duration',     min_shot_duration))
+        reaction_min_duration   = float(g.get('reaction_min_duration', reaction_min_duration))
+        max_shot_duration       = float(g.get('max_shot_duration',     max_shot_duration))
+        cleanup_min_duration    = float(g.get('cleanup_min_duration',  cleanup_min_duration))
+        cutaway_randomness      = float(g.get('cutaway_randomness',    cutaway_randomness))
         if config.has_option('Detection', 'min_confidence'):
             min_confidence = config.getfloat('Detection', 'min_confidence')
         if config.has_option('SpeakingReaction', 'min_confidence'):
             speaking_min_confidence = config.getfloat('SpeakingReaction', 'min_confidence')
-    
-    cutaway_enabled = {
-        'nodding': True,
-        'laughing': False,
-        'head_shake': False,
-        'eyebrow_raise': False,
-        'speaking_reaction': False,
-    }
+        if config.has_section('CutawayTiming'):
+            cluster_max_gap_frames = config.getint('CutawayTiming', 'cluster_max_gap_frames', fallback=75)
+            pre_roll_frames        = config.getint('CutawayTiming', 'pre_roll_frames', fallback=0)
 
+    cutaway_enabled = {
+        'nodding': True, 'laughing': False,
+        'head_shake': False, 'eyebrow_raise': False, 'speaking_reaction': False,
+    }
     if config and config.has_section('ReactionCutaways'):
-        cutaway_enabled['nodding'] = config.getboolean('ReactionCutaways', 'nodding_cutaway', fallback=True)
-        cutaway_enabled['laughing'] = config.getboolean('ReactionCutaways', 'laughing_cutaway', fallback=False)
-        cutaway_enabled['head_shake'] = config.getboolean('ReactionCutaways', 'headshake_cutaway', fallback=False)
-        cutaway_enabled['eyebrow_raise'] = config.getboolean('ReactionCutaways', 'eyebrow_cutaway', fallback=False)
+        rc = config['ReactionCutaways']
+        cutaway_enabled['nodding']          = rc.getboolean('nodding_cutaway',  True)
+        cutaway_enabled['laughing']         = rc.getboolean('laughing_cutaway', False)
+        cutaway_enabled['head_shake']       = rc.getboolean('headshake_cutaway', False)
+        cutaway_enabled['eyebrow_raise']    = rc.getboolean('eyebrow_cutaway',  False)
     if config and config.has_option('SpeakingReaction', 'enabled'):
         cutaway_enabled['speaking_reaction'] = config.getboolean('SpeakingReaction', 'enabled', fallback=False)
-    
-    cluster_max_gap_frames = 75
-    pre_roll_frames = 0
-    if config and config.has_section('CutawayTiming'):
-        cluster_max_gap_frames = config.getint('CutawayTiming', 'cluster_max_gap_frames', fallback=75)
-        pre_roll_frames = config.getint('CutawayTiming', 'pre_roll_frames', fallback=0)
 
     settings = {
-        'min_shot_duration': min_shot_duration,
-        'reaction_min_duration': reaction_min_duration,
-        'max_shot_duration': max_shot_duration,
-        'min_confidence': min_confidence,
+        'min_shot_duration':      min_shot_duration,
+        'reaction_min_duration':  reaction_min_duration,
+        'max_shot_duration':      max_shot_duration,
+        'min_confidence':         min_confidence,
         'speaking_min_confidence': speaking_min_confidence,
-        'cutaway_enabled': cutaway_enabled,
+        'cutaway_enabled':        cutaway_enabled,
         'cluster_max_gap_frames': cluster_max_gap_frames,
-        'pre_roll_frames': pre_roll_frames,
-        'cutaway_randomness': cutaway_randomness,
+        'pre_roll_frames':        pre_roll_frames,
+        'cutaway_randomness':     cutaway_randomness,
     }
 
-    print(f"\n⚙️  Settings:")
-    print(f"  Min Shot Duration: {min_shot_duration}s")
-    print(f"  Reaction Duration: {reaction_min_duration}s")
-    print(f"  Max Shot Duration: {max_shot_duration}s")
-    print(f"  Min Confidence (Nodding): {min_confidence}")
-    print(f"  Min Confidence (Speaking): {speaking_min_confidence}")
-    print(f"  Cleanup Min Duration: {cleanup_min_duration}s")
-    enabled_types = [k for k, v in cutaway_enabled.items() if v]
-    print(f"  Cutaway Types: {', '.join(enabled_types)}")
-    
-    # Pass 1: Parse Original-EDL
+    print(f"\n⚙️  Kameras: {[c['name'] for c in cameras]}")
+    print(f"⚙️  Min Shot: {min_shot_duration}s  Reaction: {reaction_min_duration}s  Max: {max_shot_duration}s")
+
+    # Pass 1: EDL parsen
     original_events = parse_resolve_edl(args.resolve_edl, args.fps)
-    
     if not original_events:
-        print("✗ Keine Events in EDL gefunden!")
+        print("✗ Keine Events in EDL!")
         return 1
-    
-    # Berechne Referenz-Frames und Timeline-0 Offsets
+
+    # Referenz-Frames für alle Kameras berechnen
     print(f"\n  Referenz-Frames:")
     reference_frames, timeline_zero_video_frames = calculate_reference_frames(
-        original_events, 
-        args.cam1_clip, 
-        args.cam2_clip,
-        cam1_video_path=args.cam1_video if hasattr(args, 'cam1_video') else None,
-        cam2_video_path=args.cam2_video if hasattr(args, 'cam2_video') else None,
-        cam1_embedded_tc=args.cam1_embedded_tc,
-        cam2_embedded_tc=args.cam2_embedded_tc,
-        fps=args.fps
-    )
-    
-    # Sammle Sections mit Video Frame Offsets
-    cam1_sections = []
-    cam2_sections = []
-    
-    for event in original_events:
-        if event.clip_name == args.cam1_clip:
-            # Berechne Video Frame für diesen Event
-            video_start = event.source_in_frame - reference_frames[args.cam1_clip]
-            cam1_sections.append({
-                'timeline_start': event.record_in_frame,
-                'timeline_end': event.record_out_frame,
-                'video_start': video_start
-            })
-        elif event.clip_name == args.cam2_clip:
-            video_start = event.source_in_frame - reference_frames[args.cam2_clip]
-            cam2_sections.append({
-                'timeline_start': event.record_in_frame,
-                'timeline_end': event.record_out_frame,
-                'video_start': video_start
-            })
-    
-    print(f"\n  Sections:")
-    print(f"    Cam1 (ON): {len(cam1_sections)} Sections")
-    print(f"    Cam2 (ON): {len(cam2_sections)} Sections")
-    
-    # Lade Reaktionen
-    print(f"\n📊 Lade Reaktions-Daten:")
-    cam1_reactions, _ = load_reactions(args.cam1_reactions)
-    cam2_reactions, _ = load_reactions(args.cam2_reactions)
-    print(f"  Cam1: {len(cam1_reactions)} Reaktionen")
-    print(f"  Cam2: {len(cam2_reactions)} Reaktionen")
+        original_events, cameras, args.fps)
 
-    # Merge Speaking Reactions (optional)
-    if getattr(args, 'cam1_speaking_reactions', None) and Path(args.cam1_speaking_reactions).exists():
-        sr1, _ = load_reactions(args.cam1_speaking_reactions)
-        cam1_reactions.extend(sr1)
-        print(f"  + {len(sr1)} CAM1 Speaking Reactions")
-    if getattr(args, 'cam2_speaking_reactions', None) and Path(args.cam2_speaking_reactions).exists():
-        sr2, _ = load_reactions(args.cam2_speaking_reactions)
-        cam2_reactions.extend(sr2)
-        print(f"  + {len(sr2)} CAM2 Speaking Reactions")
-    
-    # Pass 2: Cam1 ON → Cam2 Cutaways
-    print(f"\n🎬 PASS 2: Cam1 ON → Cam2 Cutaways")
-    
-    all_events = []
-    cam2_cutaways = 0
-    
-    for section in cam1_sections:
-        events = build_events_with_cutaways(
-            section['timeline_start'], section['timeline_end'], section['video_start'],
-            args.cam1_clip, reference_frames[args.cam1_clip],
-            args.cam2_clip, reference_frames[args.cam2_clip],
-            timeline_zero_video_frames[args.cam2_clip],
-            cam2_reactions,
-            settings,
-            args.fps
-        )
-        all_events.extend(events)
-        cam2_cutaways += sum(1 for e in events if e.clip_name == args.cam2_clip)
-    
-    print(f"  ✓ {cam2_cutaways} Cam2-Cutaways eingefügt")
-    
-    # Pass 3: Cam2 ON → Cam1 Cutaways
-    print(f"\n🎬 PASS 3: Cam2 ON → Cam1 Cutaways")
-    
-    cam1_cutaways = 0
-    
-    for section in cam2_sections:
-        events = build_events_with_cutaways(
-            section['timeline_start'], section['timeline_end'], section['video_start'],
-            args.cam2_clip, reference_frames[args.cam2_clip],
-            args.cam1_clip, reference_frames[args.cam1_clip],
-            timeline_zero_video_frames[args.cam1_clip],
-            cam1_reactions,
-            settings,
-            args.fps
-        )
-        all_events.extend(events)
-        cam1_cutaways += sum(1 for e in events if e.clip_name == args.cam1_clip)
-    
-    print(f"  ✓ {cam1_cutaways} Cam1-Cutaways eingefügt")
-    
-    # Sortiere Events nach Timeline-Position
+    # Sections je Kamera sammeln
+    cam_sections: Dict[str, List[Dict]] = {}
+    for event in original_events:
+        name = event.clip_name
+        if name not in cam_sections:
+            cam_sections[name] = []
+        if name in reference_frames:
+            video_start = event.source_in_frame - reference_frames[name]
+            cam_sections[name].append({
+                'timeline_start': event.record_in_frame,
+                'timeline_end':   event.record_out_frame,
+                'video_start':    video_start,
+            })
+
+    print(f"\n  Sections: " + ", ".join(f"{k}: {len(v)}" for k, v in cam_sections.items()))
+
+    # Reaktionen laden
+    print(f"\n📊 Lade Reaktions-Daten:")
+    reactions_by_cam: Dict[str, List[Dict]] = {}
+    for cam in cameras:
+        rlist = []
+        rpath = cam.get('reactions', '')
+        if rpath and Path(rpath).exists():
+            r, _ = load_reactions(rpath)
+            rlist.extend(r)
+            print(f"  {cam['name']}: {len(r)} Reaktionen")
+        spath = cam.get('speaking_reactions', '')
+        if spath and Path(spath).exists():
+            sr, _ = load_reactions(spath)
+            rlist.extend(sr)
+            print(f"  + {len(sr)} Speaking Reactions für {cam['name']}")
+        reactions_by_cam[cam['name']] = rlist
+
+    # cutaway_cams-Dicts aufbauen (brauchen reference_frame + timeline_zero_video)
+    cam_dicts: Dict[str, Dict] = {}
+    for cam in cameras:
+        name = cam['name']
+        if name in reference_frames:
+            cam_dicts[name] = {
+                'name':               name,
+                'reference_frame':    reference_frames[name],
+                'timeline_zero_video': timeline_zero_video_frames[name],
+                'reactions':          reactions_by_cam.get(name, []),
+            }
+
+    # Pass 2: Für jede ON-Kamera Cutaways aus allen OFF-Kameras einfügen
+    print(f"\n🎬 PASS 2: Cutaways einfügen")
+    all_events: List[EDLEvent] = []
+
+    for on_name, sections in cam_sections.items():
+        if on_name not in reference_frames:
+            continue
+        cutaway_cams = [cam_dicts[n] for n in cam_dicts if n != on_name]
+        if not cutaway_cams:
+            # Keine OFF-Kamera → Sections direkt als Speaker-Events übernehmen
+            for sec in sections:
+                vi = sec['video_start']
+                vo = vi + (sec['timeline_end'] - sec['timeline_start'])
+                all_events.append(EDLEvent(
+                    event_num=0, clip_name=on_name,
+                    source_in=frames_to_timecode(reference_frames[on_name] + vi, args.fps),
+                    source_out=frames_to_timecode(reference_frames[on_name] + vo, args.fps),
+                    record_in=frames_to_timecode(sec['timeline_start'], args.fps),
+                    record_out=frames_to_timecode(sec['timeline_end'], args.fps),
+                    fps=args.fps, reason="speaker",
+                ))
+            continue
+
+        cam_cutaways = 0
+        for sec in sections:
+            evs = build_events_with_cutaways(
+                sec['timeline_start'], sec['timeline_end'], sec['video_start'],
+                on_name, reference_frames[on_name],
+                cutaway_cams, settings, args.fps,
+            )
+            all_events.extend(evs)
+            cam_cutaways += sum(1 for e in evs if e.clip_name != on_name)
+        print(f"  {on_name}: {cam_cutaways} Cutaways eingefügt")
+
     all_events.sort(key=lambda e: e.record_in_frame)
-    
     print(f"\n  Gesamt vor Cleanup: {len(all_events)} Events")
-    
-    # Pass 4: Cleanup
+
+    # Pass 3: Cleanup
     final_events = cleanup_short_events(all_events, cleanup_min_duration, args.fps)
-    
-    # Pass 5: Split zu lange Shots
+
+    # Pass 4: Split zu lange Shots
+    all_cam_names = [cam['name'] for cam in cameras]
     final_events = split_long_shots(
-        final_events,
-        max_shot_duration,
-        cleanup_min_duration,
-        reference_frames,
-        timeline_zero_video_frames,
-        args.fps
+        final_events, max_shot_duration, cleanup_min_duration,
+        reference_frames, timeline_zero_video_frames, all_cam_names, args.fps,
     )
-    
-    # Schreibe finale EDL
+
     write_edl(final_events, args.output)
 
-    # Schreibe Colors-Metadaten als Companion JSON
     colors_path = Path(args.output).with_suffix('.colors.json')
-    colors_path.write_text(
-        json.dumps([{'reason': e.reason} for e in final_events], indent=2)
-    )
+    colors_path.write_text(json.dumps([{'reason': e.reason} for e in final_events], indent=2))
     print(f"✓ Colors-Metadaten: {colors_path.name}")
-    
-    print(f"\n{'='*70}")
-    print(f"✓ FERTIG!")
-    print(f"{'='*70}")
-    print(f"Importiere in Resolve:")
-    print(f"  File → Import → Timeline → EDL")
-    print(f"  → {args.output}")
-    print()
-    
+
+    print(f"\n{'=' * 70}\n✓ FERTIG! {len(final_events)} Events → {args.output}\n{'=' * 70}")
     return 0
 
 
