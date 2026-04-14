@@ -122,6 +122,32 @@ else
     ok "Lizenzdatei bereits vorhanden"
 fi
 
+# ── KI-Modelle vorab herunterladen ───────────────────────────────────────────
+
+info "KI-Modelle herunterladen (einmalig, kann einige Minuten dauern)..."
+
+# MediaPipe face_landmarker.task (~4 MB)
+LANDMARK_MODEL="$SCRIPT_DIR/modules/multicam_cutter/face_landmarker.task"
+if [ ! -f "$LANDMARK_MODEL" ]; then
+    info "  face_landmarker.task (~4 MB)..."
+    curl --silent --show-error --location \
+        "https://storage.googleapis.com/mediapipe-models/face_landmarker/face_landmarker/float16/1/face_landmarker.task" \
+        -o "$LANDMARK_MODEL" && ok "face_landmarker.task" || echo "  (Download fehlgeschlagen — wird beim ersten Start nachgeladen)"
+else
+    ok "face_landmarker.task bereits vorhanden"
+fi
+
+# DeepFilterNet Modell (~30 MB) — wird in ~/Library/Caches/DeepFilterNet gespeichert
+python -c "
+from df.enhance import init_df
+init_df()
+print('DeepFilterNet OK')
+" 2>/dev/null && ok "DeepFilterNet Modell" || echo "  (DeepFilterNet Modell wird beim ersten Enhance-Lauf geladen)"
+
+# Resemble Enhance Modell (~500 MB) — nur herunterladen wenn Audio Enhance genutzt wird
+# Wird beim ersten Enhance-Lauf automatisch geladen (Hugging Face)
+echo "  Resemble Enhance Modell wird beim ersten Audio-Enhance-Lauf geladen (~500 MB)"
+
 # ── start.command ausführbar machen ───────────────────────────────────────────
 
 chmod +x "$SCRIPT_DIR/start.command" 2>/dev/null || true
