@@ -611,6 +611,7 @@ with tab_folder:
     with _col_btn:
         st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
         if st.button("📂", use_container_width=True, help="Ordner auswählen"):
+            _picked = None
             try:
                 import subprocess as _subp
                 _r = _subp.run(
@@ -619,10 +620,12 @@ with tab_folder:
                     capture_output=True, text=True, timeout=60,
                 )
                 if _r.returncode == 0 and _r.stdout.strip():
-                    st.session_state.folder_path_sel = _r.stdout.strip()
-                    st.rerun()
+                    _picked = _r.stdout.strip()
             except Exception:
                 st.warning("Ordner-Dialog nicht verfügbar — Pfad bitte manuell eingeben.")
+            if _picked:
+                st.session_state.folder_path_sel = _picked
+                st.rerun()
 
     _folder_valid = bool(folder_path and Path(folder_path).is_dir())
 
