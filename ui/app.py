@@ -171,14 +171,18 @@ with st.sidebar:
     # Sidebar-Inhalt
     # ═══════════════════════════════════════════════════════════════════════════
 
+    # Navigation ohne eigene UI — wir bauen sie manuell mit st.page_link
+    page = st.navigation(_pages, position="hidden")
+
     # 1. Titel + Version
     st.title("resolve-toolkit")
     st.caption(f"`{_ver}`")
 
     st.divider()
 
-    # 2. Navigation (Module)
-    page = st.navigation(_pages)
+    # 2. Modul-Liste
+    for _p in _pages:
+        st.page_link(_p, use_container_width=True)
 
     st.divider()
 
