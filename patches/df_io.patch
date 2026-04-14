@@ -1,0 +1,65 @@
+--- /tmp/dfpkg_unpacked/df/io.py	1980-01-01 00:00:00
++++ /Users/maxmenge/Developer/resolve-toolkit/venv/lib/python3.12/site-packages/df/io.py	2026-04-07 12:20:39
+@@ -6,7 +6,13 @@
+ from loguru import logger
+ from numpy import ndarray
+ from torch import Tensor
+-from torchaudio.backend.common import AudioMetaData
++try:
++    from torchaudio.backend.common import AudioMetaData
++except ImportError:
++    try:
++        from torchaudio import AudioMetaData
++    except ImportError:
++        AudioMetaData = object  # type: ignore[assignment,misc]
+ 
+ from df.logger import warn_once
+ from df.utils import download_file, get_cache_dir, get_git_root
+@@ -33,10 +39,24 @@
+     rkwargs = {}
+     if "method" in kwargs:
+         rkwargs["method"] = kwargs.pop("method")
+-    info: AudioMetaData = ta.info(file, **ikwargs)
++    # torchaudio 2.11+ requires torchcodec — use soundfile as stable fallback
++    import soundfile as _sf
++    import torch as _torch
++    _sfi = _sf.info(file)
++    class _Meta:
++        sample_rate  = _sfi.samplerate
++        num_frames   = _sfi.frames
++        num_channels = _sfi.channels
++        bits_per_sample = 16
++        encoding = "PCM_S"
++    info = _Meta()
++    orig_sr = _sfi.samplerate
++    _start = 0
++    _stop = None
+     if "num_frames" in kwargs and sr is not None:
+-        kwargs["num_frames"] *= info.sample_rate // sr
+-    audio, orig_sr = ta.load(file, **kwargs)
++        _stop = kwargs["num_frames"] * (orig_sr // sr)
++    _data, _ = _sf.read(file, start=_start, stop=_stop, dtype="float32", always_2d=True)
++    audio = _torch.from_numpy(_data.T.copy())  # [C, T]
+     if sr is not None and orig_sr != sr:
+         if verbose:
+             warn_once(
+@@ -68,10 +88,17 @@
+     if audio.ndim == 1:
+         audio.unsqueeze_(0)
+     if dtype == torch.int16 and audio.dtype != torch.int16:
+-        audio = (audio * (1 << 15)).to(torch.int16)
++        audio = (audio.clamp(-1.0, 1.0) * ((1 << 15) - 1)).to(torch.int16)
+     if dtype == torch.float32 and audio.dtype != torch.float32:
+         audio = audio.to(torch.float32) / (1 << 15)
+-    ta.save(outpath, audio, sr)
++    try:
++        ta.save(outpath, audio, sr)
++    except (ImportError, RuntimeError):
++        import soundfile as _sf
++        _np = audio.cpu().numpy()
++        if _np.ndim == 2:
++            _np = _np.T  # [C, T] -> [T, C] as soundfile expects
++        _sf.write(outpath, _np, sr)
+ 
+ 
+ try:

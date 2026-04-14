@@ -35,3 +35,10 @@ venv/
 # Logs
 *.log
 venv/
+
+# Config mit persönlichen Tokens — Template liegt im Repo, nicht die echte config.ini
+modules/multicam_cutter/config.ini
+
+# Lizenz-Schlüssel (lokal, nie ins Repo)
+*.key
+license_cache.json

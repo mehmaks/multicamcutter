@@ -1,0 +1,11 @@
+--- /tmp/resemble_orig/resemble_enhance/enhancer/lcfm/cfm.py	2026-04-14 17:56:41
++++ /Users/maxmenge/Developer/resolve-toolkit/venv/lib/python3.12/site-packages/resemble_enhance/enhancer/lcfm/cfm.py	2026-04-07 11:23:08
+@@ -70,7 +70,7 @@
+             return (a**t - 1) / (a - 1)
+ 
+         # Solve h(1/n) = 0.5
+-        a = float(scipy.optimize.fsolve(lambda a: h(1 / n, a) - 0.5, x0=0))
++        a = float(scipy.optimize.fsolve(lambda a: h(1 / n, a) - 0.5, x0=0)[0])
+ 
+         t = h(t, a=a)
+ 
