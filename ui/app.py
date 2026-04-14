@@ -124,31 +124,61 @@ with st.sidebar:
     st.divider()
 
     _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _GH_REPO   = "mehmaks/resolve-toolkit"
 
-    def _git(*args):
-        r = __import__("subprocess").run(
-            ["git", "-C", _REPO_ROOT] + list(args),
-            capture_output=True, text=True)
-        return r.stdout.strip()
+    def _current_version() -> str:
+        try:
+            with open(os.path.join(_REPO_ROOT, "VERSION")) as _f:
+                return _f.read().strip()
+        except Exception:
+            return "unbekannt"
 
     def _check_for_update():
+        """Fragt GitHub Releases API nach dem neuesten Release."""
+        import requests as _rq
+        _fcfg2 = _fcp.ConfigParser()
+        _fcfg2.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"))
+        _api_token = _fcfg2.get("Feedback", "github_token", fallback="").strip()
+        _headers = {"Accept": "application/vnd.github+json"}
+        if _api_token:
+            _headers["Authorization"] = f"Bearer {_api_token}"
         try:
-            _git("fetch", "origin", "--quiet")
-            local  = _git("rev-parse", "HEAD")
-            remote = _git("rev-parse", "origin/main")
-            return local != remote, remote[:7]
+            _resp = _rq.get(
+                f"https://api.github.com/repos/{_GH_REPO}/releases/latest",
+                headers=_headers, timeout=5)
+            if _resp.status_code != 200:
+                return False, None, None
+            _data = _resp.json()
+            _latest_tag  = _data.get("tag_name", "")
+            _notes       = _data.get("body", "").strip()
+            _current     = _current_version()
+            _newer       = _latest_tag != _current and _latest_tag != ""
+            return _newer, _latest_tag, _notes
         except Exception:
-            return False, None
+            return False, None, None
+
+    def _git(*args):
+        import subprocess as _sp2
+        r = _sp2.run(["git", "-C", _REPO_ROOT] + list(args), capture_output=True, text=True)
+        return r.stdout.strip()
 
     if "update_available" not in st.session_state:
-        st.session_state.update_available, st.session_state.update_hash = _check_for_update()
+        (_up, _tag, _notes) = _check_for_update()
+        st.session_state.update_available = _up
+        st.session_state.update_tag       = _tag
+        st.session_state.update_notes     = _notes
+
+    _cur_ver = _current_version()
+    st.caption(f"Version: **{_cur_ver}**")
 
     if st.session_state.update_available:
-        st.info(f"Update verfügbar (#{st.session_state.update_hash})")
+        st.info(f"Update auf **{st.session_state.update_tag}** verfügbar")
+        if st.session_state.update_notes:
+            with st.expander("Was ist neu?"):
+                st.markdown(st.session_state.update_notes)
         if st.button("⬇ Jetzt aktualisieren", use_container_width=True, type="primary"):
             with st.spinner("Aktualisiere..."):
                 import subprocess as _sup, sys as _sys
-                # Prüfen ob requirements sich geändert haben
                 _req_before = _git("show", "HEAD:requirements.txt")
                 _git("pull", "origin", "main")
                 _req_after  = _git("show", "HEAD:requirements.txt")
@@ -158,12 +188,14 @@ with st.sidebar:
                          "-r", os.path.join(_REPO_ROOT, "requirements.txt")],
                         check=False)
             st.session_state.update_available = False
-            st.success("Aktualisiert! Bitte Streamlit neu starten:")
+            st.success(f"Auf {st.session_state.update_tag} aktualisiert! Bitte neu starten:")
             st.code("bash ~/resolve-toolkit/start.command")
     else:
-        st.caption("✓ Aktuell")
         if st.button("Nach Updates suchen", use_container_width=True):
-            st.session_state.update_available, st.session_state.update_hash = _check_for_update()
+            (_up, _tag, _notes) = _check_for_update()
+            st.session_state.update_available = _up
+            st.session_state.update_tag       = _tag
+            st.session_state.update_notes     = _notes
             st.rerun()
 
     # ── Workflow Log ──────────────────────────────────────────────────────────
