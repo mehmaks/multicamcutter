@@ -62,13 +62,18 @@ class AdvancedReactionDetector:
     """Verbesserte Reaktionserkennung mit mehr Features"""
     
     def __init__(self, sensitivity='medium', fps=25.0, config=None):
+        # Anzahl gleichzeitig erkannter Gesichter (konfigurierbar für Totalen / Zweier-Shots)
+        max_faces = 1
+        if config and config.has_section('Detection'):
+            max_faces = config.getint('Detection', 'max_faces', fallback=1)
+
         # MediaPipe FaceLandmarker (Tasks API, mediapipe >= 0.10)
         _ensure_model()
         base_options = mp_tasks.BaseOptions(model_asset_path=str(_MODEL_PATH))
         options = mp_vision.FaceLandmarkerOptions(
             base_options=base_options,
             running_mode=mp_vision.RunningMode.VIDEO,
-            num_faces=1,
+            num_faces=max_faces,
             min_face_detection_confidence=0.5,
             min_face_presence_confidence=0.5,
             min_tracking_confidence=0.5,
@@ -130,15 +135,6 @@ class AdvancedReactionDetector:
             if config.has_section('EyebrowRaise'):
                 self.enabled_reactions['eyebrow_raise'] = config.getboolean('EyebrowRaise', 'enabled', fallback=True)
         
-        # Bewegungs-Historie
-        # Dynamische Größe basierend auf min_nod_duration
-        nod_history_size = max(30, int(self.min_nod_duration * self.fps) + 10)
-        self.head_y_history = deque(maxlen=nod_history_size)  # Nicken Y
-        self.head_x_history_nod = deque(maxlen=nod_history_size)  # Nicken X (Stuhl-Check)
-        self.head_x_history = deque(maxlen=30)  # Kopfschütteln
-        self.mouth_history = deque(maxlen=20)  # Lachen
-        self.eyebrow_history = deque(maxlen=15)
-
         # Nod-Cooldown aus Config (verhindert Drift-Loop)
         self.nod_cooldown_frames = 35
         if config and config.has_section('Nodding'):
@@ -149,44 +145,53 @@ class AdvancedReactionDetector:
         if config and config.has_section('Detection'):
             self.calibration_height = config.getint('Detection', 'calibration_height', fallback=2160)
 
-        # Reaktions-Cooldown (verhindert Doppel-Detektionen)
-        self.last_nod_frame = -100
-        self.last_laugh_frame = -100
+        # Per-Gesicht-Historien (keyed by Sortier-Index = links→rechts-Position im Frame)
+        # Separate Deques pro Gesicht verhindern Vermischung bei mehreren Personen
+        self._nod_history_size = max(30, int(self.min_nod_duration * self.fps) + 10)
+        self._face_states: dict = {}
+
+    def _get_face_state(self, face_idx: int) -> dict:
+        """Gibt den Zustand (Historien + Cooldowns) für ein Gesicht zurück, legt ihn bei Bedarf an."""
+        if face_idx not in self._face_states:
+            self._face_states[face_idx] = {
+                'head_y_history':     deque(maxlen=self._nod_history_size),
+                'head_x_history_nod': deque(maxlen=self._nod_history_size),
+                'head_x_history':     deque(maxlen=30),
+                'mouth_history':      deque(maxlen=20),
+                'eyebrow_history':    deque(maxlen=15),
+                'last_nod_frame':     -100,
+                'last_laugh_frame':   -100,
+            }
+        return self._face_states[face_idx]
 
     def reset_history(self):
         """Setzt alle Bewegungs-Historien zurück (beim Betreten einer neuen Off-Sektion)."""
-        self.head_y_history.clear()
-        self.head_x_history_nod.clear()
-        self.head_x_history.clear()
-        self.mouth_history.clear()
-        self.eyebrow_history.clear()
-        self.last_nod_frame = -100
-        self.last_laugh_frame = -100
+        self._face_states.clear()
     
     def get_landmark_coord(self, landmarks, index, width, height):
         """Holt Landmark-Koordinaten in Pixel"""
         lm = landmarks[index]
         return int(lm.x * width), int(lm.y * height)
     
-    def detect_nodding(self, landmarks, frame_number, height, width):
+    def detect_nodding(self, landmarks, frame_number, height, width, state: dict):
         """Nicken-Erkennung v2.4 mit X-Achsen-Check und Return-to-Baseline"""
         # Nasenpunkt (Landmark 1) — Y und X tracken
         nose_y = landmarks[1].y * height
         nose_x = landmarks[1].x * width
-        self.head_y_history.append(nose_y)
-        self.head_x_history_nod.append(nose_x)
+        state['head_y_history'].append(nose_y)
+        state['head_x_history_nod'].append(nose_x)
 
         min_frames = int(self.min_nod_duration * self.fps)
 
-        if len(self.head_y_history) < min_frames:
+        if len(state['head_y_history']) < min_frames:
             return False, 0.0
 
         # Cooldown (jetzt konfigurierbar, verhindert Drift-Loop)
-        if frame_number - self.last_nod_frame < self.nod_cooldown_frames:
+        if frame_number - state['last_nod_frame'] < self.nod_cooldown_frames:
             return False, 0.0
 
-        y_positions = list(self.head_y_history)
-        x_positions = list(self.head_x_history_nod)
+        y_positions = list(state['head_y_history'])
+        x_positions = list(state['head_x_history_nod'])
 
         y_range = max(y_positions) - min(y_positions)
         x_range = max(x_positions) - min(x_positions)
@@ -223,18 +228,18 @@ class AdvancedReactionDetector:
             return False, 0.0
 
         confidence = min(y_range / (50.0 * res_scale), 1.0)
-        self.last_nod_frame = frame_number
+        state['last_nod_frame'] = frame_number
         return True, confidence
     
-    def detect_head_shake(self, landmarks, frame_number, width):
+    def detect_head_shake(self, landmarks, frame_number, width, state: dict):
         """Erkennt Kopfschütteln (nein-nein)"""
         nose_x = landmarks[1].x * width
-        self.head_x_history.append(nose_x)
-        
-        if len(self.head_x_history) < 30:
+        state['head_x_history'].append(nose_x)
+
+        if len(state['head_x_history']) < 30:
             return False, 0.0
-        
-        positions = list(self.head_x_history)
+
+        positions = list(state['head_x_history'])
         movement_range = max(positions) - min(positions)
         
         # Kopfschütteln = horizontale Bewegung (Thresholds skaliert auf tatsächliche Auflösung)
@@ -246,7 +251,7 @@ class AdvancedReactionDetector:
         
         return False, 0.0
     
-    def detect_laughing(self, landmarks, frame_number):
+    def detect_laughing(self, landmarks, frame_number, state: dict):
         """Verbesserte Lach-Erkennung"""
         # Mundpunkte: Oberlippe (13), Unterlippe (14)
         # Mundwinkel: Links (78), Rechts (308)
@@ -254,70 +259,75 @@ class AdvancedReactionDetector:
         lower_lip = landmarks[14]
         left_mouth = landmarks[78]
         right_mouth = landmarks[308]
-        
+
         # Vertikale Mundöffnung
         mouth_open_v = abs(upper_lip.y - lower_lip.y)
-        
+
         # Horizontale Mundbreite (Lachen = breiterer Mund)
         mouth_width = abs(left_mouth.x - right_mouth.x)
-        
+
         # Kombinierter Mouth-Score
         mouth_score = mouth_open_v * mouth_width
-        
-        self.mouth_history.append(mouth_score)
-        
-        if len(self.mouth_history) < 10:
+
+        state['mouth_history'].append(mouth_score)
+
+        if len(state['mouth_history']) < 10:
             return False, 0.0
-        
+
         # Cooldown
-        if frame_number - self.last_laugh_frame < 20:  # Mind. 0.66s
+        if frame_number - state['last_laugh_frame'] < 20:  # Mind. 0.66s
             return False, 0.0
-        
+
         # Durchschnitt der letzten Frames
-        recent_avg = np.mean(list(self.mouth_history)[-10:])
-        baseline_avg = np.mean(list(self.mouth_history)[:10])
-        
+        recent_avg = np.mean(list(state['mouth_history'])[-10:])
+        baseline_avg = np.mean(list(state['mouth_history'])[:10])
+
         # Lachen = deutlich größerer Mund als Baseline
         threshold = self.settings['laugh_threshold']
         if recent_avg > baseline_avg * threshold and mouth_score > 0.003:
             confidence = min((recent_avg / baseline_avg - 1.0), 1.0)
-            self.last_laugh_frame = frame_number
+            state['last_laugh_frame'] = frame_number
             return True, confidence
-        
+
         return False, 0.0
     
-    def detect_eyebrow_raise(self, landmarks):
+    def detect_eyebrow_raise(self, landmarks, state: dict):
         """Erkennt Augenbrauen hochziehen (Überraschung)"""
         # Augenbrauen-Landmarks: 70, 300 (über den Augen)
         # Augen-Landmarks: 159, 386 (Augenmitte)
-        
         left_brow = landmarks[70]
         right_brow = landmarks[300]
         left_eye = landmarks[159]
         right_eye = landmarks[386]
-        
+
         # Distanz Augenbraue zu Auge
         left_dist = abs(left_brow.y - left_eye.y)
         right_dist = abs(right_brow.y - right_eye.y)
         avg_dist = (left_dist + right_dist) / 2
-        
-        self.eyebrow_history.append(avg_dist)
-        
-        if len(self.eyebrow_history) < 15:
+
+        state['eyebrow_history'].append(avg_dist)
+
+        if len(state['eyebrow_history']) < 15:
             return False, 0.0
-        
+
         # Augenbrauen hochgezogen = größere Distanz
-        baseline = np.mean(list(self.eyebrow_history)[:10])
+        baseline = np.mean(list(state['eyebrow_history'])[:10])
         current = avg_dist
-        
+
         if current > baseline * 1.3:
             confidence = min((current / baseline - 1.0) * 2, 1.0)
             return True, confidence
-        
+
         return False, 0.0
     
     def analyze_frame(self, frame, frame_number):
-        """Analysiert Frame auf alle Reaktionstypen"""
+        """
+        Analysiert Frame auf alle Reaktionstypen.
+
+        Bei mehreren erkannten Gesichtern (num_faces > 1) wird OR-Logik verwendet:
+        Reagiert IRGENDEINES der Gesichter → Reaktion registrieren (höchste Confidence).
+        Gesichter werden nach x-Position sortiert (links→rechts) für stabiles per-Gesicht-Tracking.
+        """
         height, width = frame.shape[:2]
 
         rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
@@ -326,36 +336,44 @@ class AdvancedReactionDetector:
         result = self.face_landmarker.detect_for_video(mp_image, timestamp_ms)
 
         reactions = {
-            'nodding': {'detected': False, 'confidence': 0.0},
-            'head_shake': {'detected': False, 'confidence': 0.0},
-            'laughing': {'detected': False, 'confidence': 0.0},
-            'eyebrow_raise': {'detected': False, 'confidence': 0.0},
-            'face_detected': False
+            'nodding':      {'detected': False, 'confidence': 0.0},
+            'head_shake':   {'detected': False, 'confidence': 0.0},
+            'laughing':     {'detected': False, 'confidence': 0.0},
+            'eyebrow_raise':{'detected': False, 'confidence': 0.0},
+            'face_detected': False,
         }
 
         if not result.face_landmarks:
             return reactions
 
         reactions['face_detected'] = True
-        landmarks = result.face_landmarks[0]
-        
-        # Prüfe nur aktivierte Reaktionen
-        if self.enabled_reactions.get('nodding', True):
-            nod_detected, nod_conf = self.detect_nodding(landmarks, frame_number, height, width)
-            reactions['nodding'] = {'detected': nod_detected, 'confidence': nod_conf}
-        
-        if self.enabled_reactions.get('head_shake', True):
-            shake_detected, shake_conf = self.detect_head_shake(landmarks, frame_number, width)
-            reactions['head_shake'] = {'detected': shake_detected, 'confidence': shake_conf}
-        
-        if self.enabled_reactions.get('laughing', True):
-            laugh_detected, laugh_conf = self.detect_laughing(landmarks, frame_number)
-            reactions['laughing'] = {'detected': laugh_detected, 'confidence': laugh_conf}
-        
-        if self.enabled_reactions.get('eyebrow_raise', True):
-            brow_detected, brow_conf = self.detect_eyebrow_raise(landmarks)
-            reactions['eyebrow_raise'] = {'detected': brow_detected, 'confidence': brow_conf}
-        
+
+        # Sortiere Gesichter nach x-Position der Nase (links→rechts) für stabiles Tracking
+        sorted_faces = sorted(result.face_landmarks, key=lambda lm: lm[1].x)
+
+        for face_idx, landmarks in enumerate(sorted_faces):
+            state = self._get_face_state(face_idx)
+
+            if self.enabled_reactions.get('nodding', True):
+                det, conf = self.detect_nodding(landmarks, frame_number, height, width, state)
+                if det and conf > reactions['nodding']['confidence']:
+                    reactions['nodding'] = {'detected': True, 'confidence': conf}
+
+            if self.enabled_reactions.get('head_shake', True):
+                det, conf = self.detect_head_shake(landmarks, frame_number, width, state)
+                if det and conf > reactions['head_shake']['confidence']:
+                    reactions['head_shake'] = {'detected': True, 'confidence': conf}
+
+            if self.enabled_reactions.get('laughing', True):
+                det, conf = self.detect_laughing(landmarks, frame_number, state)
+                if det and conf > reactions['laughing']['confidence']:
+                    reactions['laughing'] = {'detected': True, 'confidence': conf}
+
+            if self.enabled_reactions.get('eyebrow_raise', True):
+                det, conf = self.detect_eyebrow_raise(landmarks, state)
+                if det and conf > reactions['eyebrow_raise']['confidence']:
+                    reactions['eyebrow_raise'] = {'detected': True, 'confidence': conf}
+
         return reactions
 
 
