@@ -171,7 +171,18 @@ with st.sidebar:
     # Sidebar-Inhalt
     # ═══════════════════════════════════════════════════════════════════════════
 
-    # 1. Feedback-Button
+    # 1. Titel + Version
+    st.title("resolve-toolkit")
+    st.caption(f"`{_ver}`")
+
+    st.divider()
+
+    # 2. Navigation (Module)
+    page = st.navigation(_pages)
+
+    st.divider()
+
+    # 3. Feedback-Button
     if _token and _repo:
         with st.popover("💬 Feedback", use_container_width=True):
             with st.form("fb_form", clear_on_submit=True):
@@ -217,12 +228,7 @@ with st.sidebar:
                     else:
                         st.error(f"Fehler ({_resp.status_code})")
 
-    st.divider()
-
-    # 2. Titel + Version + Update
-    st.title("resolve-toolkit")
-    st.caption(f"`{_ver}`")
-
+    # 4. Update-Button
     if _upd:
         if st.button(f"⬆ {_upd_tag} verfügbar", use_container_width=True, type="primary"):
             with st.spinner("Aktualisiere..."):
@@ -244,11 +250,6 @@ with st.sidebar:
             st.session_state.update_tag       = _tag2
             st.session_state.update_notes     = _notes2
             st.rerun()
-
-    st.divider()
-
-    # 3. Navigation (Module)
-    page = st.navigation(_pages)
 
     # 4. Workflow Log (nur wenn aktiv oder letzter Log vorhanden)
     if st.session_state.bin_running:
