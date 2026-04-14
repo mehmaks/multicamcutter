@@ -228,29 +228,27 @@ with st.sidebar:
     st.divider()
 
     # ── Feedback / Bug melden ─────────────────────────────────────────────────
-    with st.expander("💬 Feedback / Bug melden"):
-        import subprocess as _sp, requests as _rq, configparser as _fcp
-        with st.form("fb_form", clear_on_submit=True):
-            _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
-                                 label_visibility="collapsed")
-            _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
-            _fb_body  = st.text_area("Beschreibung", placeholder="Was ist passiert? Was wurde erwartet?",
-                                     height=120)
-            _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
-            _submitted = st.form_submit_button("Senden", use_container_width=True)
+    import subprocess as _sp, requests as _rq, configparser as _fcp
+    _fcfg = _fcp.ConfigParser()
+    _fcfg.read(os.path.join(os.path.dirname(os.path.dirname(
+        os.path.abspath(__file__))), "modules", "multicam_cutter", "config.ini"))
+    _token = _fcfg.get("Feedback", "github_token", fallback="").strip()
+    _repo  = _fcfg.get("Feedback", "github_repo",  fallback="").strip()
 
-        if _submitted:
-            if not _fb_title.strip():
-                st.warning("Bitte einen Kurztitel eingeben.")
-            else:
-                _fcfg = _fcp.ConfigParser()
-                _fcfg.read(os.path.join(os.path.dirname(os.path.dirname(
-                    os.path.abspath(__file__))), "modules", "multicam_cutter", "config.ini"))
-                _token = _fcfg.get("Feedback", "github_token", fallback="").strip()
-                _repo  = _fcfg.get("Feedback", "github_repo",  fallback="mehmaks/resolve-toolkit").strip()
+    if _token and _repo:
+        with st.expander("💬 Feedback / Bug melden"):
+            with st.form("fb_form", clear_on_submit=True):
+                _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
+                                     label_visibility="collapsed")
+                _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
+                _fb_body  = st.text_area("Beschreibung", placeholder="Was ist passiert? Was wurde erwartet?",
+                                         height=120)
+                _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
+                _submitted = st.form_submit_button("Senden", use_container_width=True)
 
-                if not _token:
-                    st.error("Kein GitHub-Token konfiguriert — Feedback kann nicht gesendet werden.")
+            if _submitted:
+                if not _fb_title.strip():
+                    st.warning("Bitte einen Kurztitel eingeben.")
                 else:
                     try:
                         _git_hash = _sp.run(
