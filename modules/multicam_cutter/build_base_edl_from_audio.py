@@ -74,6 +74,27 @@ def load_audio(path: str):
     return audio, sr
 
 
+def combine_audios(paths: list):
+    """
+    Lädt mehrere WAV-Dateien und kombiniert sie zu einem aggregierten Signal.
+    Gibt element-weises Maximum der absoluten Amplituden zurück (OR-Logik:
+    die Kamera "spricht", wenn IRGENDEIN ihrer Mikrofone aktiv ist).
+    """
+    audios, sr = [], None
+    for path in paths:
+        a, s = load_audio(path)
+        if sr is None:
+            sr = s
+        else:
+            assert s == sr, f"Sample rates differ: {s} vs {sr}"
+        audios.append(a)
+    if len(audios) == 1:
+        return audios[0], sr
+    n = min(len(a) for a in audios)
+    combined = np.max(np.stack([np.abs(a[:n]) for a in audios]), axis=0)
+    return combined, sr
+
+
 def compute_rms_db(audio: np.ndarray, sr: int, window_s: float) -> np.ndarray:
     win = int(sr * window_s)
     rms_db = []
@@ -353,9 +374,11 @@ def write_edl(events: list, output_path: str, title: str = "Audio Base Timeline"
 def main():
     parser = argparse.ArgumentParser(description='Build Base EDL from Audio (RMS)')
 
-    # Audio
-    parser.add_argument('--mic-cam1', required=True, help='Mikrofon-Spur für CAM1 (WAV)')
-    parser.add_argument('--mic-cam2', required=True, help='Mikrofon-Spur für CAM2 (WAV)')
+    # Audio (nargs='+' erlaubt mehrere MICs pro Kamera)
+    parser.add_argument('--mic-cam1', required=True, nargs='+',
+                        help='Mikrofon-Spur(en) für CAM1 (WAV). Mehrere Pfade = aggregiert.')
+    parser.add_argument('--mic-cam2', required=True, nargs='+',
+                        help='Mikrofon-Spur(en) für CAM2 (WAV). Mehrere Pfade = aggregiert.')
 
     # Video (für ffprobe embedded TC)
     parser.add_argument('--cam1-video', required=True, help='CAM1 Video-Datei')
@@ -432,8 +455,10 @@ def main():
 
     # ── 2. Audio laden & diarisieren ──────────────────────────────────────────
     print("\n📂 Lade Audio...")
-    audio_cam1, sr1 = load_audio(args.mic_cam1)
-    audio_cam2, sr2 = load_audio(args.mic_cam2)
+    print(f"  CAM1 ({len(args.mic_cam1)} MIC(s)): {[Path(p).name for p in args.mic_cam1]}")
+    audio_cam1, sr1 = combine_audios(args.mic_cam1)
+    print(f"  CAM2 ({len(args.mic_cam2)} MIC(s)): {[Path(p).name for p in args.mic_cam2]}")
+    audio_cam2, sr2 = combine_audios(args.mic_cam2)
     assert sr1 == sr2, f"Sample rates differ: {sr1} vs {sr2}"
     n = min(len(audio_cam1), len(audio_cam2))
     audio_cam1, audio_cam2 = audio_cam1[:n], audio_cam2[:n]

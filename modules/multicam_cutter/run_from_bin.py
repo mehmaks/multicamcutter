@@ -437,19 +437,34 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
 def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                  fps: float, work_dir: Path, config: Path,
                  skip_analysis: bool = False, skip_base_edl: bool = False,
-                 mic_index_cam1: int = 1, mic_index_cam2: int = 0,
+                 cam_mic_map: list = None,
                  speaking_mode_override: str = None):
     """
     Runs nodding + RMS analysis for N cameras, returns path to final EDL.
 
     Sprecher-Erkennung (Base-EDL) läuft binär über cam_paths[0] und cam_paths[1].
     Nodding-Analyse läuft über alle cam_paths.
-    mic_index_cam1 / mic_index_cam2: 0-based index in mic_paths für binäre Diarisierung.
+
+    cam_mic_map: Liste von Listen mit 0-basierten MIC-Indizes pro Kamera.
+      Beispiel: [[1], [0]]      → CAM1 nutzt MIC2, CAM2 nutzt MIC1 (Default)
+               [[0, 1], [2]]   → CAM1 nutzt MIC1+MIC2 (aggregiert), CAM2 nutzt MIC3
     """
+    if cam_mic_map is None:
+        # Bisheriger Default: CAM1→MIC2 (idx 1), CAM2→MIC1 (idx 0)
+        cam_mic_map = [[min(1, len(mic_paths) - 1)], [0]]
+
     cam1_path = cam_paths[0]
     cam2_path = cam_paths[1]
-    mic_cam1  = mic_paths[mic_index_cam1]
-    mic_cam2  = mic_paths[mic_index_cam2]
+
+    def _resolve_mic_paths(indices):
+        return [mic_paths[i] for i in indices if i < len(mic_paths)]
+
+    mic_cam1_paths = _resolve_mic_paths(cam_mic_map[0] if len(cam_mic_map) > 0 else [1])
+    mic_cam2_paths = _resolve_mic_paths(cam_mic_map[1] if len(cam_mic_map) > 1 else [0])
+    if not mic_cam1_paths:
+        mic_cam1_paths = [mic_paths[min(1, len(mic_paths) - 1)]]
+    if not mic_cam2_paths:
+        mic_cam2_paths = [mic_paths[0]]
 
     base_edl = work_dir / 'base.edl'
     cam1_off_sections = work_dir / (Path(cam1_path).stem + '_off_sections.json')
@@ -474,8 +489,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
         builder_args = [
             str(SCRIPT_DIR / 'build_base_edl_from_audio.py'),
-            '--mic-cam1',          mic_cam1,
-            '--mic-cam2',          mic_cam2,
+            '--mic-cam1'] + mic_cam1_paths + [
+            '--mic-cam2'] + mic_cam2_paths + [
             '--cam1-video',        cam1_path,
             '--cam2-video',        cam2_path,
             '--cam1-clip',         Path(cam1_path).name,
@@ -530,10 +545,13 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     speaking_jsons = {cam1_path: cam1_speaking_json, cam2_path: cam2_speaking_json}
 
     cameras_config = []
-    for cp in cam_paths:
+    for i, cp in enumerate(cam_paths):
+        mic_idxs = cam_mic_map[i] if i < len(cam_mic_map) else []
+        mics_for_cam = [mic_paths[j] for j in mic_idxs if j < len(mic_paths)]
         entry = {
             'name':      Path(cp).name,
             'video':     cp,
+            'mics':      mics_for_cam,
             'reactions': str(work_dir / (Path(cp).stem + '_reactions.json')),
         }
         sp = speaking_jsons.get(cp)
@@ -561,6 +579,26 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
 
 # ── Entry point ───────────────────────────────────────────────────────────────
 
+def _parse_cam_mics(cam_mics_arg, n_cams: int, n_mics: int) -> list:
+    """
+    Parst --cam-mics in List[List[int]].
+
+    Beispiele:
+      None         → [[1], [0]]          (bisheriger Default)
+      ["1", "0"]   → [[1], [0]]
+      ["0,1", "2"] → [[0, 1], [2]]
+    """
+    if cam_mics_arg is None:
+        return [[min(1, n_mics - 1)], [0]]
+    result = []
+    for spec in cam_mics_arg[:n_cams]:
+        indices = [int(x.strip()) for x in spec.split(',') if x.strip()]
+        result.append(indices)
+    while len(result) < n_cams:
+        result.append([])
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Multicam Workflow: Bin → Sync → Analyse → Cut-Timeline'
@@ -573,10 +611,10 @@ def main():
     parser.add_argument('--skip-base-edl', action='store_true')
     parser.add_argument('--sync-timeline', default=None,
                         help='Name der Sync-Timeline (default: <output> Sync)')
-    parser.add_argument('--mic-cam1', type=int, default=1,
-                        help='0-basierter MIC-Index für CAM1 (default: 1 = MIC2)')
-    parser.add_argument('--mic-cam2', type=int, default=0,
-                        help='0-basierter MIC-Index für CAM2 (default: 0 = MIC1)')
+    parser.add_argument('--cam-mics', nargs='+', default=None,
+                        help='MIC-Zuordnung pro Kamera als "INDEX[,INDEX]" je CAM. '
+                             'Reihenfolge = CAM1, CAM2, ... '
+                             'Beispiele: "1 0" (Default) oder "0,1 2" (CAM1→MIC1+MIC2, CAM2→MIC3)')
     parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
                         help='Überschreibt speaking_mode aus config.ini')
     args = parser.parse_args()
@@ -628,6 +666,7 @@ def main():
     project.SetCurrentTimeline(sync_tl)
 
     # 4. Analyse-Pipeline
+    cam_mic_map = _parse_cam_mics(args.cam_mics, len(cams), len(mic_paths))
     work_dir = Path(cam1_path).parent / 'analyse'
     work_dir.mkdir(exist_ok=True)
     try:
@@ -635,8 +674,7 @@ def main():
             [cam1_path, cam2_path], mic_paths, offsets,
             args.fps, work_dir, Path(args.config),
             args.skip_analysis, args.skip_base_edl,
-            mic_index_cam1=args.mic_cam1,
-            mic_index_cam2=args.mic_cam2,
+            cam_mic_map=cam_mic_map,
             speaking_mode_override=args.speaking_mode,
         )
     except RuntimeError as e:
