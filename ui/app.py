@@ -106,7 +106,7 @@ with st.sidebar:
         st.session_state.update_tag       = _tag
         st.session_state.update_notes     = _notes
 
-    # ── Resolve connection status ─────────────────────────────────────────────
+    # ── Resolve connection status (silent — shown in fixed bottom bar) ───────
 
     def _check_resolve():
         from resolve_bridge.connection import get_resolve
@@ -123,8 +123,8 @@ with st.sidebar:
         try:
             with ThreadPoolExecutor(max_workers=1) as ex:
                 future = ex.submit(_check_resolve)
-                project_name, tl_name = future.result(timeout=2.0)
-            st.session_state.resolve_status = ("ok", project_name, tl_name)
+                _rp, _rt = future.result(timeout=2.0)
+            st.session_state.resolve_status = ("ok", _rp, _rt)
         except FuturesTimeout:
             st.session_state.resolve_status = ("timeout", None, None)
         except Exception:
@@ -133,24 +133,7 @@ with st.sidebar:
     if "resolve_status" not in st.session_state:
         _run_resolve_check()
 
-    status, project_name, tl_name = st.session_state.resolve_status
-
-    st.subheader("DaVinci Resolve")
-    if status == "ok":
-        st.success("Verbunden")
-        if project_name:
-            st.caption(f"Projekt: **{project_name}**")
-        if tl_name:
-            st.caption(f"Timeline: **{tl_name}**")
-    elif status == "timeout":
-        st.warning("Antwortet nicht")
-    else:
-        st.error("Nicht verbunden")
-        st.caption("Resolve öffnen und Projekt laden")
-
-    if st.button("↻ Aktualisieren", use_container_width=True):
-        _run_resolve_check()
-        st.rerun()
+    _rs_status, _rs_project, _rs_tl = st.session_state.resolve_status
 
     # ── Workflow Log ──────────────────────────────────────────────────────────
 
@@ -256,7 +239,7 @@ with st.sidebar:
                 st.session_state[_k] = 0
             st.rerun()
 
-    # ── Untere Leiste: Feedback · Update · Version · Lizenz ───────────────────
+    # ── Update-Button (normal im Fluss) ──────────────────────────────────────
 
     st.divider()
 
@@ -264,95 +247,147 @@ with st.sidebar:
     _upd = st.session_state.get("update_available", False)
     _upd_tag = st.session_state.get("update_tag") or ""
 
-    # Aktionszeile
-    _bl, _bm, _br = st.columns([2, 2, 1])
+    if _upd:
+        if st.button(f"⬆ {_upd_tag} verfügbar", use_container_width=True, type="primary"):
+            with st.spinner("Aktualisiere..."):
+                import subprocess as _sup, sys as _sys
+                _req_before = _git("show", "HEAD:requirements.txt")
+                _git("pull", "origin", "main")
+                _req_after  = _git("show", "HEAD:requirements.txt")
+                if _req_before != _req_after:
+                    _sup.run([_sys.executable, "-m", "pip", "install", "-q",
+                              "-r", os.path.join(_REPO_ROOT, "requirements.txt")],
+                             check=False)
+            st.session_state.update_available = False
+            st.success(f"{_upd_tag} installiert — bitte neu starten.")
+            st.code("bash ~/resolve-toolkit/start.command")
+    else:
+        if st.button("↻ Updates prüfen", use_container_width=True):
+            (_up2, _tag2, _notes2) = _check_for_update()
+            st.session_state.update_available = _up2
+            st.session_state.update_tag       = _tag2
+            st.session_state.update_notes     = _notes2
+            st.rerun()
 
-    with _bl:
-        if _token and _repo:
-            with st.popover("💬 Feedback", use_container_width=True):
-                with st.form("fb_form", clear_on_submit=True):
-                    _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
-                                         label_visibility="collapsed")
-                    _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
-                    _fb_body  = st.text_area("Beschreibung",
-                                             placeholder="Was ist passiert? Was wurde erwartet?",
-                                             height=100)
-                    _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
-                    _submitted = st.form_submit_button("Senden", use_container_width=True)
-                if _submitted:
-                    if not _fb_title.strip():
-                        st.warning("Bitte einen Kurztitel eingeben.")
+    # ── Feedback-Button — am unteren Rand fixiert ─────────────────────────────
+    # Spacer drückt den Button ans untere Ende der Sidebar
+    st.markdown('<div class="_rtk-sidebar-spacer"></div>', unsafe_allow_html=True)
+
+    if _token and _repo:
+        with st.popover("💬 Feedback", use_container_width=True):
+            with st.form("fb_form", clear_on_submit=True):
+                _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
+                                     label_visibility="collapsed")
+                _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
+                _fb_body  = st.text_area("Beschreibung",
+                                         placeholder="Was ist passiert? Was wurde erwartet?",
+                                         height=100)
+                _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
+                _submitted = st.form_submit_button("Senden", use_container_width=True)
+            if _submitted:
+                if not _fb_title.strip():
+                    st.warning("Bitte einen Kurztitel eingeben.")
+                else:
+                    try:
+                        _git_hash = _sp.run(
+                            ["git", "-C", _REPO_ROOT, "rev-parse", "--short", "HEAD"],
+                            capture_output=True, text=True).stdout.strip()
+                    except Exception:
+                        _git_hash = "?"
+                    _label = "bug" if "Bug" in _fb_type else "enhancement"
+                    _body_parts = [_fb_body.strip()]
+                    if _fb_log:
+                        _all_logs = (st.session_state.get("bin_log", []) +
+                                     st.session_state.get("folder_log", []))
+                        if _all_logs:
+                            _body_parts.append(
+                                "**Log (letzte 30 Zeilen):**\n```\n" +
+                                "\n".join(_all_logs[-30:]) + "\n```")
+                    _body_parts.append(f"*Version: `{_git_hash}`*")
+                    _resp = _rq.post(
+                        f"https://api.github.com/repos/{_repo}/issues",
+                        headers={"Authorization": f"Bearer {_token}",
+                                 "Accept": "application/vnd.github+json"},
+                        json={"title": _fb_title.strip(),
+                              "body":  "\n\n".join(_body_parts),
+                              "labels": [_label]},
+                        timeout=10)
+                    if _resp.status_code == 201:
+                        st.success("Gesendet! Danke.")
                     else:
-                        try:
-                            _git_hash = _sp.run(
-                                ["git", "-C", _REPO_ROOT, "rev-parse", "--short", "HEAD"],
-                                capture_output=True, text=True).stdout.strip()
-                        except Exception:
-                            _git_hash = "?"
-                        _label = "bug" if "Bug" in _fb_type else "enhancement"
-                        _body_parts = [_fb_body.strip()]
-                        if _fb_log:
-                            _all_logs = (st.session_state.get("bin_log", []) +
-                                         st.session_state.get("folder_log", []))
-                            if _all_logs:
-                                _body_parts.append(
-                                    "**Log (letzte 30 Zeilen):**\n```\n" +
-                                    "\n".join(_all_logs[-30:]) + "\n```")
-                        _body_parts.append(f"*Version: `{_git_hash}`*")
-                        _resp = _rq.post(
-                            f"https://api.github.com/repos/{_repo}/issues",
-                            headers={"Authorization": f"Bearer {_token}",
-                                     "Accept": "application/vnd.github+json"},
-                            json={"title": _fb_title.strip(),
-                                  "body":  "\n\n".join(_body_parts),
-                                  "labels": [_label]},
-                            timeout=10)
-                        if _resp.status_code == 201:
-                            st.success("Gesendet! Danke.")
-                        else:
-                            st.error(f"Fehler ({_resp.status_code})")
+                        st.error(f"Fehler ({_resp.status_code})")
 
-    with _bm:
-        if _upd:
-            if st.button(f"⬆ {_upd_tag}", use_container_width=True, type="primary"):
-                with st.spinner("Aktualisiere..."):
-                    import subprocess as _sup, sys as _sys
-                    _req_before = _git("show", "HEAD:requirements.txt")
-                    _git("pull", "origin", "main")
-                    _req_after  = _git("show", "HEAD:requirements.txt")
-                    if _req_before != _req_after:
-                        _sup.run([_sys.executable, "-m", "pip", "install", "-q",
-                                  "-r", os.path.join(_REPO_ROOT, "requirements.txt")],
-                                 check=False)
-                st.session_state.update_available = False
-                st.success(f"{_upd_tag} installiert — bitte neu starten.")
-                st.code("bash ~/resolve-toolkit/start.command")
-        else:
-            if st.button("↻ Updates", use_container_width=True):
-                (_up2, _tag2, _notes2) = _check_for_update()
-                st.session_state.update_available = _up2
-                st.session_state.update_tag       = _tag2
-                st.session_state.update_notes     = _notes2
-                st.rerun()
+# ── Feste Statusleiste (volle Browserbreite) ──────────────────────────────────
 
-    with _br:
-        if _license.valid:
-            if _license.grace:
-                st.markdown("🟡", help="Offline — Grace Period")
-            else:
-                _mode_tip = {"dummy": "Dev-Modus", "local": "Beta-Lizenz",
-                             "remote": _license.email or "Lizenz aktiv"}.get(_lic.MODE, "")
-                st.markdown("🟢", help=_mode_tip)
-        else:
-            st.markdown("🔴", help=_license.error or "Keine gültige Lizenz")
+_bar_parts = []
 
-    # Versions- und Lizenzzeile
-    _lic_label = {
-        "dummy": "Dev",
-        "local": f"Beta · {_license.email or ''}",
-        "remote": _license.email or ("Aktiv" if _license.valid else "Keine Lizenz"),
-    }.get(_lic.MODE, "")
-    st.caption(f"`{_ver}` · {_lic_label}")
+# Lizenz-Status
+if _license.valid:
+    _bar_dot = "🟡" if _license.grace else "🟢"
+else:
+    _bar_dot = "🔴"
+_bar_lic = {
+    "dummy": "Dev",
+    "local": f"Betatester · {_license.email or ''}",
+    "remote": _license.email or ("Aktiv" if _license.valid else "Keine Lizenz"),
+}.get(_lic.MODE, "")
+_bar_parts.append(f"{_bar_dot}&nbsp;{_bar_lic}")
+
+# Version
+_bar_parts.append(f"<code>{_ver}</code>")
+
+# Resolve — nur wenn verbunden
+if _rs_status == "ok" and _rs_project:
+    _bar_resolve = f"🎬&nbsp;{_rs_project}"
+    if _rs_tl:
+        _bar_resolve += f"&nbsp;·&nbsp;{_rs_tl}"
+    _bar_parts.append(_bar_resolve)
+
+_bar_html = "&nbsp;&nbsp;<span style='color:#444'>|</span>&nbsp;&nbsp;".join(_bar_parts)
+
+st.markdown(f"""
+<style>
+    ._rtk-statusbar {{
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 28px;
+        background: rgba(14, 17, 23, 0.97);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        align-items: center;
+        padding: 0 1.2rem;
+        font-size: 12px;
+        color: rgba(250, 250, 250, 0.55);
+        z-index: 99999;
+        gap: 0;
+        font-family: "Source Sans Pro", sans-serif;
+    }}
+    ._rtk-statusbar code {{
+        font-size: 11px;
+        background: transparent;
+        color: rgba(250, 250, 250, 0.4);
+        padding: 0;
+    }}
+    /* Abstand damit Seiteninhalt nicht hinter Leiste verschwindet */
+    section[data-testid="stMain"] > div:first-child {{
+        padding-bottom: 36px !important;
+    }}
+    /* Sidebar als Flex-Spalte — ermöglicht Spacer vor Feedback-Button */
+    [data-testid="stSidebarContent"] {{
+        display: flex;
+        flex-direction: column;
+        height: calc(100vh - 28px);
+    }}
+    /* Spacer füllt verbleibenden Platz auf und drückt Feedback nach unten */
+    ._rtk-sidebar-spacer {{
+        flex: 1;
+        min-height: 1rem;
+    }}
+</style>
+<div class="_rtk-statusbar">{_bar_html}</div>
+""", unsafe_allow_html=True)
 
 # ── Navigation ────────────────────────────────────────────────────────────────
 
