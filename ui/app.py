@@ -135,8 +135,8 @@ with st.sidebar:
 
     def _check_for_update():
         """Fragt GitHub Releases API nach dem neuesten Release."""
-        import requests as _rq
-        _fcfg2 = _fcp.ConfigParser()
+        import requests as _rq, configparser as _cp2
+        _fcfg2 = _cp2.ConfigParser()
         _fcfg2.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"))
         _api_token = _fcfg2.get("Feedback", "github_token", fallback="").strip()
         _headers = {"Accept": "application/vnd.github+json"}
