@@ -12,6 +12,7 @@ import queue as _queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 
 import streamlit as st
+import license as _lic
 
 st.set_page_config(
     page_title="resolve-toolkit",
@@ -35,6 +36,11 @@ _DEFAULTS = {
 for _k, _v in _DEFAULTS.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
+
+# ── License — validate once per session ──────────────────────────────────────
+if "license_info" not in st.session_state:
+    st.session_state.license_info = _lic.validate()
+_license: _lic.LicenseInfo = st.session_state.license_info
 
 # ── Sidebar ──────────────────────────────────────────────────────────────────
 
@@ -87,6 +93,30 @@ with st.sidebar:
 
     if st.button("↻ Aktualisieren", use_container_width=True):
         _run_resolve_check()
+        st.rerun()
+
+    # ── License status ────────────────────────────────────────────────────────
+
+    st.divider()
+    st.subheader("Lizenz")
+    if _license.valid:
+        if _license.grace:
+            st.warning("⚠️ Offline — Grace Period aktiv")
+        else:
+            _mode_label = {"dummy": " (Dev)", "local": " (Beta)", "remote": ""}.get(
+                _lic.MODE, "")
+            st.success(f"✓ Aktiv{_mode_label}")
+        if _license.email and _lic.MODE != "dummy":
+            st.caption(f"{_license.email}")
+        if _license.expires and _lic.MODE != "dummy":
+            st.caption(f"Gültig bis: **{_license.expires}**")
+    else:
+        st.error("✗ Keine gültige Lizenz")
+        if _license.error:
+            st.caption(_license.error)
+
+    if st.button("↻ Lizenz prüfen", use_container_width=True):
+        st.session_state.license_info = _lic.validate()
         st.rerun()
 
     # ── Workflow Log ──────────────────────────────────────────────────────────
@@ -265,23 +295,26 @@ _ui_cfg = _cp.ConfigParser()
 _ui_cfg.read(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
              "modules", "multicam_cutter", "config.ini"), encoding="utf-8")
 
-def _tab_visible(key: str) -> bool:
-    return _ui_cfg.getboolean("UI", key, fallback=True)
+def _tab_visible(config_key: str, module: str) -> bool:
+    """Tab is shown only if both: user enabled it in config AND license grants the module."""
+    cfg_on = _ui_cfg.getboolean("UI", config_key, fallback=True)
+    lic_on = _license.has_module(module)
+    return cfg_on and lic_on
 
 _pages = []
-if _tab_visible("show_multicam"):
+if _tab_visible("show_multicam",   "multicam"):
     _pages.append(st.Page("pages/multicam.py",  title="Multicam Cutter", icon="✂️"))
-if _tab_visible("show_enhance"):
+if _tab_visible("show_enhance",    "enhance"):
     _pages.append(st.Page("pages/enhance.py",   title="Audio Enhance",   icon="🎙️"))
-if _tab_visible("show_auphonic"):
-    _pages.append(st.Page("pages/auphonic.py",   title="Auphonic",        icon="☁️"))
-if _tab_visible("show_maxxvolume"):
-    _pages.append(st.Page("pages/maxxvolume.py", title="MaxxVolume",      icon="📢"))
-if _tab_visible("show_silence"):
+if _tab_visible("show_auphonic",   "auphonic"):
+    _pages.append(st.Page("pages/auphonic.py",  title="Auphonic",        icon="☁️"))
+if _tab_visible("show_maxxvolume", "maxxvolume"):
+    _pages.append(st.Page("pages/maxxvolume.py",title="MaxxVolume",      icon="📢"))
+if _tab_visible("show_silence",    "silence"):
     _pages.append(st.Page("pages/silence.py",   title="Silence Cutter",  icon="🔇"))
-if _tab_visible("show_resolve"):
+if _tab_visible("show_resolve",    "resolve"):
     _pages.append(st.Page("pages/resolve.py",   title="Resolve Bridge",  icon="🔗"))
-if _tab_visible("show_takes"):
+if _tab_visible("show_takes",      "takes"):
     _pages.append(st.Page("pages/takes.py",     title="Take Selector",   icon="🎬"))
 _pages.append(st.Page("pages/config.py",        title="Config",          icon="⚙️"))
 
