@@ -175,7 +175,7 @@ with st.sidebar:
     page = st.navigation(_pages, position="hidden")
 
     # 1. Titel + Version
-    st.title("resolve-toolkit")
+    st.title("RESOLVE TOOLKIT")
     st.caption(f"`{_ver}`")
 
     st.divider()
