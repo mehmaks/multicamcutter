@@ -597,6 +597,11 @@ with tab_folder:
 
     st.subheader("Ordner & Dateien")
 
+    # Picked-Pfad vor Widget-Rendering übernehmen (Streamlit erlaubt kein
+    # Setzen eines Widget-Keys nach der Widget-Instanziierung)
+    if "_folder_path_pending" in st.session_state:
+        st.session_state.folder_path_sel = st.session_state.pop("_folder_path_pending")
+
     if "folder_path_sel" not in st.session_state:
         st.session_state.folder_path_sel = ""
 
@@ -624,7 +629,7 @@ with tab_folder:
             except Exception:
                 st.warning("Ordner-Dialog nicht verfügbar — Pfad bitte manuell eingeben.")
             if _picked:
-                st.session_state.folder_path_sel = _picked
+                st.session_state["_folder_path_pending"] = _picked
                 st.rerun()
 
     _folder_valid = bool(folder_path and Path(folder_path).is_dir())
