@@ -269,10 +269,7 @@ with st.sidebar:
             st.session_state.update_notes     = _notes2
             st.rerun()
 
-    # ── Feedback-Button — am unteren Rand fixiert ─────────────────────────────
-    # Spacer drückt den Button ans untere Ende der Sidebar
-    st.markdown('<div class="_rtk-sidebar-spacer"></div>', unsafe_allow_html=True)
-
+    # ── Feedback-Button ───────────────────────────────────────────────────────
     if _token and _repo:
         with st.popover("💬 Feedback", use_container_width=True):
             with st.form("fb_form", clear_on_submit=True):
@@ -317,78 +314,6 @@ with st.sidebar:
                     else:
                         st.error(f"Fehler ({_resp.status_code})")
 
-# ── Feste Statusleiste (volle Browserbreite) ──────────────────────────────────
-
-_bar_parts = []
-
-# Lizenz-Status
-if _license.valid:
-    _bar_dot = "🟡" if _license.grace else "🟢"
-else:
-    _bar_dot = "🔴"
-_bar_lic = {
-    "dummy": "Dev",
-    "local": f"Betatester · {_license.email or ''}",
-    "remote": _license.email or ("Aktiv" if _license.valid else "Keine Lizenz"),
-}.get(_lic.MODE, "")
-_bar_parts.append(f"{_bar_dot}&nbsp;{_bar_lic}")
-
-# Version
-_bar_parts.append(f"<code>{_ver}</code>")
-
-# Resolve — nur wenn verbunden
-if _rs_status == "ok" and _rs_project:
-    _bar_resolve = f"🎬&nbsp;{_rs_project}"
-    if _rs_tl:
-        _bar_resolve += f"&nbsp;·&nbsp;{_rs_tl}"
-    _bar_parts.append(_bar_resolve)
-
-_bar_html = "&nbsp;&nbsp;<span style='color:#444'>|</span>&nbsp;&nbsp;".join(_bar_parts)
-
-st.markdown(f"""
-<style>
-    ._rtk-statusbar {{
-        position: fixed;
-        bottom: 0;
-        left: 0;
-        right: 0;
-        height: 28px;
-        background: rgba(14, 17, 23, 0.97);
-        border-top: 1px solid rgba(255, 255, 255, 0.08);
-        display: flex;
-        align-items: center;
-        padding: 0 1.2rem;
-        font-size: 12px;
-        color: rgba(250, 250, 250, 0.55);
-        z-index: 99999;
-        gap: 0;
-        font-family: "Source Sans Pro", sans-serif;
-    }}
-    ._rtk-statusbar code {{
-        font-size: 11px;
-        background: transparent;
-        color: rgba(250, 250, 250, 0.4);
-        padding: 0;
-    }}
-    /* Abstand damit Seiteninhalt nicht hinter Leiste verschwindet */
-    section[data-testid="stMain"] > div:first-child {{
-        padding-bottom: 36px !important;
-    }}
-    /* Sidebar als Flex-Spalte — ermöglicht Spacer vor Feedback-Button */
-    [data-testid="stSidebarContent"] {{
-        display: flex;
-        flex-direction: column;
-        height: calc(100vh - 28px);
-    }}
-    /* Spacer füllt verbleibenden Platz auf und drückt Feedback nach unten */
-    ._rtk-sidebar-spacer {{
-        flex: 1;
-        min-height: 1rem;
-    }}
-</style>
-<div class="_rtk-statusbar">{_bar_html}</div>
-""", unsafe_allow_html=True)
-
 # ── Navigation ────────────────────────────────────────────────────────────────
 
 import configparser as _cp
@@ -422,3 +347,58 @@ _pages.append(st.Page("pages/config.py",        title="Config",          icon="�
 
 page = st.navigation(_pages)
 page.run()
+
+# ── Feste Statusleiste — NACH page.run() damit sie nicht überschrieben wird ───
+
+_bar_parts = []
+
+if _license.valid:
+    _bar_dot = "🟡" if _license.grace else "🟢"
+else:
+    _bar_dot = "🔴"
+_bar_lic = {
+    "dummy": "Dev",
+    "local": f"Betatester · {_license.email or ''}",
+    "remote": _license.email or ("Aktiv" if _license.valid else "Keine Lizenz"),
+}.get(_lic.MODE, "")
+_bar_parts.append(f"{_bar_dot}&nbsp;{_bar_lic}")
+_bar_parts.append(f"<code>{_ver}</code>")
+
+if _rs_status == "ok" and _rs_project:
+    _bar_resolve = f"🎬&nbsp;{_rs_project}"
+    if _rs_tl:
+        _bar_resolve += f"&nbsp;·&nbsp;{_rs_tl}"
+    _bar_parts.append(_bar_resolve)
+
+_bar_html = "&nbsp;&nbsp;<span style='color:#555'>|</span>&nbsp;&nbsp;".join(_bar_parts)
+
+st.markdown(f"""
+<style>
+    ._rtk-statusbar {{
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        height: 28px;
+        background: rgba(14, 17, 23, 0.97);
+        border-top: 1px solid rgba(255, 255, 255, 0.08);
+        display: flex;
+        align-items: center;
+        padding: 0 1.2rem;
+        font-size: 12px;
+        color: rgba(250, 250, 250, 0.6);
+        z-index: 99999;
+        font-family: "Source Sans Pro", sans-serif;
+    }}
+    ._rtk-statusbar code {{
+        font-size: 11px;
+        background: transparent;
+        color: rgba(250, 250, 250, 0.4);
+        padding: 0;
+    }}
+    section[data-testid="stMain"] > div:first-child {{
+        padding-bottom: 36px !important;
+    }}
+</style>
+<div class="_rtk-statusbar">{_bar_html}</div>
+""", unsafe_allow_html=True)
