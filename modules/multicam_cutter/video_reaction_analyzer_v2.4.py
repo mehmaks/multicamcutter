@@ -61,7 +61,7 @@ def load_config(config_path='config.ini'):
 class AdvancedReactionDetector:
     """Verbesserte Reaktionserkennung mit mehr Features"""
     
-    def __init__(self, sensitivity='medium', fps=25.0, config=None):
+    def __init__(self, sensitivity='medium', fps=25.0, config=None, auto_accuracy=False):
         # Anzahl gleichzeitig erkannter Gesichter (konfigurierbar für Totalen / Zweier-Shots)
         max_faces = 1
         if config and config.has_section('Detection'):
@@ -79,7 +79,8 @@ class AdvancedReactionDetector:
             min_tracking_confidence=0.5,
         )
         self.face_landmarker = mp_vision.FaceLandmarker.create_from_options(options)
-        
+        self._last_result = None  # letztes FaceLandmarker-Ergebnis (für Preview-Overlay)
+
         # Video FPS (für Speaking-Detection timing)
         self.fps = fps
         
@@ -90,31 +91,26 @@ class AdvancedReactionDetector:
         if config and config.has_option('General', 'default_sensitivity'):
             sensitivity = config.get('General', 'default_sensitivity')
         
-        # Lade Threshold-Werte aus Config
-        nod_threshold_low = 20
-        nod_threshold_medium = 15
-        nod_threshold_high = 10
+        # Nodding-Threshold: einzelner Wert (kalibriert für calibration_height px)
+        self.nod_threshold = 80.0
+        if config and config.has_section('Nodding'):
+            self.nod_threshold = config.getfloat('Nodding', 'threshold', fallback=80.0)
+
+        # Laughing-Threshold: weiterhin sensitiv-abhängig
         laugh_threshold_low = 1.7
         laugh_threshold_medium = 1.5
         laugh_threshold_high = 1.3
-        
-        if config:
-            if config.has_section('Nodding'):
-                nod_threshold_low = config.getfloat('Nodding', 'threshold_low', fallback=20)
-                nod_threshold_medium = config.getfloat('Nodding', 'threshold_medium', fallback=15)
-                nod_threshold_high = config.getfloat('Nodding', 'threshold_high', fallback=10)
-            if config.has_section('Laughing'):
-                laugh_threshold_low = config.getfloat('Laughing', 'threshold_low', fallback=1.7)
-                laugh_threshold_medium = config.getfloat('Laughing', 'threshold_medium', fallback=1.5)
-                laugh_threshold_high = config.getfloat('Laughing', 'threshold_high', fallback=1.3)
-        
-        # Sensitivität-Einstellungen
-        self.sensitivity_settings = {
-            'low': {'nod_threshold': nod_threshold_low, 'laugh_threshold': laugh_threshold_low},
-            'medium': {'nod_threshold': nod_threshold_medium, 'laugh_threshold': laugh_threshold_medium},
-            'high': {'nod_threshold': nod_threshold_high, 'laugh_threshold': laugh_threshold_high}
+        if config and config.has_section('Laughing'):
+            laugh_threshold_low = config.getfloat('Laughing', 'threshold_low', fallback=1.7)
+            laugh_threshold_medium = config.getfloat('Laughing', 'threshold_medium', fallback=1.5)
+            laugh_threshold_high = config.getfloat('Laughing', 'threshold_high', fallback=1.3)
+
+        laugh_settings = {
+            'low':    {'laugh_threshold': laugh_threshold_low},
+            'medium': {'laugh_threshold': laugh_threshold_medium},
+            'high':   {'laugh_threshold': laugh_threshold_high},
         }
-        self.settings = self.sensitivity_settings.get(sensitivity, self.sensitivity_settings['medium'])
+        self.settings = laugh_settings.get(sensitivity, laugh_settings['medium'])
         
         # Reaktionstypen Enables aus Config laden
         self.enabled_reactions = {
@@ -144,6 +140,12 @@ class AdvancedReactionDetector:
         self.calibration_height = 2160
         if config and config.has_section('Detection'):
             self.calibration_height = config.getint('Detection', 'calibration_height', fallback=2160)
+
+        # Auto Accuracy: skaliert Nodding-Threshold dynamisch auf erkannte Gesichtsgröße
+        # Referenz-Gesichtshöhe = 0.45 (normiert auf Frame-Höhe), gemessen an einem
+        # nahaufnahme-typischen Podcast-Frame mit einer Person (gute Erkennungsrate).
+        self.auto_accuracy = auto_accuracy
+        self._auto_accuracy_ref = 0.45
 
         # Per-Gesicht-Historien (keyed by Sortier-Index = links→rechts-Position im Frame)
         # Separate Deques pro Gesicht verhindern Vermischung bei mehreren Personen
@@ -196,9 +198,18 @@ class AdvancedReactionDetector:
         y_range = max(y_positions) - min(y_positions)
         x_range = max(x_positions) - min(x_positions)
 
-        # Skaliere Pixel-Thresholds auf tatsächliche Auflösung
+        # Skaliere Pixel-Threshold auf tatsächliche Auflösung
         res_scale = height / self.calibration_height
-        effective_nod_threshold = self.settings['nod_threshold'] * res_scale
+        effective_nod_threshold = self.nod_threshold * res_scale
+
+        # Auto Accuracy: Threshold proportional zur erkannten Gesichtsgröße skalieren.
+        # Kleinere Gesichter (z.B. Totale mit 2 Personen) erzeugen kleinere Landmark-Deltas
+        # → Threshold wird proportional reduziert, sodass Nickbewegungen nicht verfehlt werden.
+        if self.auto_accuracy:
+            face_height_norm = abs(landmarks[10].y - landmarks[152].y)
+            if face_height_norm > 0.05:  # Mindestgröße, um Rauschen zu vermeiden
+                face_scale = max(0.3, min(2.0, face_height_norm / self._auto_accuracy_ref))
+                effective_nod_threshold *= face_scale
 
         # Mindest-Y-Bewegung
         if y_range < effective_nod_threshold:
@@ -334,6 +345,7 @@ class AdvancedReactionDetector:
         mp_image = mp.Image(image_format=mp.ImageFormat.SRGB, data=rgb_frame)
         timestamp_ms = int(frame_number * 1000 / self.fps)
         result = self.face_landmarker.detect_for_video(mp_image, timestamp_ms)
+        self._last_result = result
 
         n_faces = len(result.face_landmarks) if result.face_landmarks else 0
         reactions = {
@@ -377,7 +389,41 @@ class AdvancedReactionDetector:
         return reactions
 
 
-def analyze_video(video_path, output_json=None, sensitivity='medium', show_preview=False, config=None, off_sections=None):
+def _write_preview_frame(frame, detector, reactions, cam_label: str, preview_path: str) -> None:
+    """Zeichnet Face-Landmarks und Reaktions-Labels auf einen Frame und speichert als JPEG."""
+    try:
+        preview = frame.copy()
+        h, w = preview.shape[:2]
+
+        # Alle Landmark-Punkte als kleine Kreise zeichnen
+        result = detector._last_result
+        if result and result.face_landmarks:
+            for lm_list in result.face_landmarks:
+                for lm in lm_list:
+                    cv2.circle(preview, (int(lm.x * w), int(lm.y * h)), 1, (0, 255, 80), -1)
+
+        # Reaktions-Labels oben links
+        y_pos = 30
+        for rtype, data in reactions.items():
+            if rtype in ('face_detected', 'face_count'):
+                continue
+            if isinstance(data, dict) and data.get('detected'):
+                cv2.putText(preview, rtype.upper(), (10, y_pos),
+                            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 80), 2, cv2.LINE_AA)
+                y_pos += 32
+
+        # Kamera-Label oben rechts
+        label_size, _ = cv2.getTextSize(cam_label, cv2.FONT_HERSHEY_SIMPLEX, 0.7, 2)
+        cv2.putText(preview, cam_label, (w - label_size[0] - 10, 28),
+                    cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2, cv2.LINE_AA)
+
+        cv2.imwrite(preview_path, preview, [cv2.IMWRITE_JPEG_QUALITY, 75])
+    except Exception:
+        pass
+
+
+def analyze_video(video_path, output_json=None, sensitivity='medium', show_preview=False,
+                  config=None, off_sections=None, preview_path=None, auto_accuracy=False):
     """
     Analysiert Video auf Reaktionen
 
@@ -431,14 +477,24 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
         vf_arg = []
         print(f"Video: {orig_width}×{orig_height} (kein Resize)")
 
+    # Debug: Frame-Limit aus Config lesen
+    _debug_limit = False
+    _max_frames = None
+    if config and config.has_section('Debug'):
+        _debug_limit = config.getboolean('Debug', 'limit_frames', fallback=False)
+        if _debug_limit:
+            _max_frames = config.getint('Debug', 'max_analysis_frames', fallback=10000)
+            total_frames = min(total_frames, _max_frames)
+            duration_sec = total_frames / fps
+
     print(f"FPS: {fps}")
-    print(f"Frames: {total_frames}")
+    print(f"Frames: {total_frames}" + (f" (Debug-Limit: {_max_frames})" if _debug_limit else ""))
     print(f"Dauer: {duration_sec:.1f} Sekunden\n")
 
     frame_bytes = frame_w * frame_h * 3
 
     # Detector initialisieren mit Config und FPS
-    detector = AdvancedReactionDetector(sensitivity=sensitivity, fps=fps, config=config)
+    detector = AdvancedReactionDetector(sensitivity=sensitivity, fps=fps, config=config, auto_accuracy=auto_accuracy)
 
     # Zeige aktivierte Reaktionstypen
     enabled_types = [k for k, v in detector.enabled_reactions.items() if v]
@@ -513,7 +569,11 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
         # Nur das tatsächlich benötigte Material wird dekodiert.
         analyzed = 0
         for sec_idx, (sec_start, sec_end) in enumerate(_off_sections):
+            if _max_frames and analyzed >= _max_frames:
+                break
             n_frames = sec_end - sec_start
+            if _max_frames:
+                n_frames = min(n_frames, _max_frames - analyzed)
             start_s  = sec_start / fps
             ff_cmd = [
                 'ffmpeg', '-ss', f'{start_s:.6f}', '-i', str(video_path),
@@ -536,8 +596,16 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                 sec_face_counts.append(reactions['face_count'])
                 local   += 1
                 analyzed += 1
+                if preview_path and local % max(1, int(fps * 5)) == 0:
+                    _write_preview_frame(frame, detector, reactions,
+                                         Path(video_path).stem, preview_path)
                 if analyzed % 25 == 0 or analyzed == total_off_frames:
                     _progress(analyzed, total_off_frames)
+                    _by = {}
+                    for r in all_reactions:
+                        _by[r['type']] = _by.get(r['type'], 0) + 1
+                    if _by:
+                        print(f"__REACTIONS__ {' '.join(f'{k}:{v}' for k,v in _by.items())}", flush=True)
             ff_proc.stdout.close()
             ff_proc.wait()
             all_face_counts.extend(sec_face_counts)
@@ -550,11 +618,14 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
 
     else:
         # ── Vollständige Analyse: ein ffmpeg-Aufruf für das gesamte Video ────
-        ff_cmd = ['ffmpeg', '-i', str(video_path)] + vf_arg + \
+        _frames_v = ['-frames:v', str(total_frames)] if _debug_limit and _max_frames else []
+        ff_cmd = ['ffmpeg', '-i', str(video_path)] + vf_arg + _frames_v + \
                  ['-f', 'rawvideo', '-pix_fmt', 'bgr24', '-an', 'pipe:1']
         ff_proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
         frame_number = 0
         while True:
+            if _max_frames and frame_number >= _max_frames:
+                break
             raw = ff_proc.stdout.read(frame_bytes)
             if len(raw) < frame_bytes:
                 break
@@ -573,9 +644,18 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                 if cv2.waitKey(1) & 0xFF == ord('q'):
                     break
 
+            if preview_path and frame_number % max(1, int(fps * 5)) == 0:
+                _write_preview_frame(frame, detector, reactions,
+                                     Path(video_path).stem, preview_path)
+
             frame_number += 1
             if frame_number % 25 == 0 or frame_number == total_frames:
                 _progress(frame_number, total_frames)
+                _by = {}
+                for r in all_reactions:
+                    _by[r['type']] = _by.get(r['type'], 0) + 1
+                if _by:
+                    print(f"__REACTIONS__ {' '.join(f'{k}:{v}' for k,v in _by.items())}", flush=True)
         ff_proc.stdout.close()
         ff_proc.wait()
 
@@ -634,6 +714,10 @@ def main():
                         help='Pfad zur Config-Datei (default: config.ini)')
     parser.add_argument('--off-sections', default=None,
                         help='JSON-Datei mit [[start_frame, end_frame], ...] — nur diese Bereiche werden analysiert')
+    parser.add_argument('--preview-path', default=None,
+                        help='Pfad für Live-Preview-JPEG (wird jede Sekunde überschrieben)')
+    parser.add_argument('--auto-accuracy', action='store_true',
+                        help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
 
     args = parser.parse_args()
     
@@ -675,6 +759,8 @@ def main():
         show_preview=args.preview,
         config=config,
         off_sections=off_sections,
+        preview_path=args.preview_path,
+        auto_accuracy=args.auto_accuracy,
     )
     
     if reactions is not None:

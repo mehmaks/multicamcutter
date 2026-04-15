@@ -6,6 +6,7 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+import re
 import streamlit as st
 import subprocess
 import threading
@@ -179,6 +180,187 @@ def _poll_workflow_ui(prefix, steps):
         _render()  # static post-completion state
 
 
+# ── Fortschritts-Modal ────────────────────────────────────────────────────────
+
+@st.dialog("Analyse-Fortschritt", width="large")
+def _workflow_dialog(prefix: str, steps: list, preview_paths: list[str]) -> None:
+    """Modaler Dialog: Live-Fortschrittsbalken + Face-Mesh-Previews + Daten-Panel + Log."""
+    running_key         = f"{prefix}_running"
+    queue_key           = f"{prefix}_queue"
+    progress_key        = f"{prefix}_progress"
+    label_key           = f"{prefix}_label"
+    eta_key             = f"{prefix}_eta"
+    step_key            = f"{prefix}_step"
+    total_key           = f"{prefix}_total"
+    log_key             = f"{prefix}_log"
+    sync_key            = f"{prefix}_sync_ok"
+    face_stats_key      = f"{prefix}_face_stats"
+    reactions_key       = f"{prefix}_reactions"
+    current_cam_key     = f"{prefix}_current_cam"
+    after_analysis_key  = f"{prefix}_after_analysis"
+    total_steps = steps[-1][4]
+
+    # ── Layout ───────────────────────────────────────────────────────────────
+    _left_col, _right_col = st.columns([3, 2])
+
+    _prev_slots: list = []
+    with _left_col:
+        if preview_paths:
+            _prev_sub_cols = st.columns(len(preview_paths))
+            for _pc in _prev_sub_cols:
+                _prev_slots.append(_pc.empty())
+
+    with _right_col:
+        _data_ph = st.empty()
+
+    _bar_ph = st.empty()
+    _cap_ph = st.empty()
+    with st.expander("Log", expanded=False):
+        _log_ph = st.empty()
+
+    # ── Log-Zeilen-Parser für Datenpanel ─────────────────────────────────────
+    def _parse_log_line(line: str) -> None:
+        if "Sync-Offsets" in line:
+            st.session_state[sync_key] = True
+        elif "FEHLER" in line and "Sync" in line:
+            st.session_state[sync_key] = False
+
+        m_cam = re.search(r'Nodding-Analyse (CAM\d+)', line)
+        if m_cam:
+            st.session_state[current_cam_key] = m_cam.group(1)
+
+        if "erkannte Gesichter" in line and "∅" in line:
+            _cam = st.session_state.get(current_cam_key, "CAM")
+            m_b  = re.search(r'\[(.+?)\]', line)
+            if m_b:
+                st.session_state.setdefault(face_stats_key, {})[_cam] = m_b.group(1).strip()
+
+        if "ANALYSE ABGESCHLOSSEN" in line:
+            st.session_state[after_analysis_key] = True
+
+        if st.session_state.get(after_analysis_key):
+            m_r = re.match(r'^\s+(\w+):\s+(\d+)\s*$', line)
+            if m_r:
+                st.session_state.setdefault(reactions_key, {})[m_r.group(1)] = int(m_r.group(2))
+
+        if "__REACTIONS__" in line:
+            idx = line.find("__REACTIONS__")
+            for part in line[idx + len("__REACTIONS__"):].strip().split():
+                if ":" in part:
+                    k, v = part.split(":", 1)
+                    try:
+                        st.session_state.setdefault(reactions_key, {})[k] = int(v)
+                    except ValueError:
+                        pass
+
+    # ── Render-Funktionen ────────────────────────────────────────────────────
+    def _render_previews() -> None:
+        for _slot, _pp in zip(_prev_slots, preview_paths):
+            if Path(_pp).exists():
+                try:
+                    _slot.image(str(_pp), use_container_width=True)
+                except Exception:
+                    pass
+
+    def _render_data() -> None:
+        with _data_ph.container():
+            _sync = st.session_state.get(sync_key)
+            if _sync is True:
+                st.success("Sync erfolgreich")
+            elif _sync is False:
+                st.error("Sync fehlgeschlagen")
+            else:
+                st.caption("⏳ Sync ausstehend...")
+
+            _fstats = st.session_state.get(face_stats_key, {})
+            if _fstats:
+                st.markdown("**Gesichtserkennung**")
+                for _cam, _stat in _fstats.items():
+                    st.caption(f"**{_cam}:** {_stat}")
+
+            _react = st.session_state.get(reactions_key, {})
+            if _react:
+                st.markdown("**Reaktionen**")
+                for _rtype, _rcount in _react.items():
+                    st.caption(f"{_rtype}: **{_rcount}**")
+
+    def _render() -> None:
+        _p    = st.session_state.get(progress_key, 0.0)
+        _lbl  = st.session_state.get(label_key, "")
+        _eta  = st.session_state.get(eta_key, "")
+        _step = st.session_state.get(step_key, 0)
+        _tot  = st.session_state.get(total_key, total_steps)
+        _log  = st.session_state.get(log_key, [])
+        _bar_ph.progress(min(1.0, max(0.0, _p)))
+        _parts = []
+        if _step:
+            _parts.append(f"**{_step} von {_tot}**")
+        if _lbl:
+            _parts.append(_lbl)
+        if _eta:
+            _parts.append(f"ETA {_eta}")
+        _cap_ph.caption("  ·  ".join(_parts) if _parts else "")
+        _log_ph.code("\n".join(_log[-30:]), language=None)
+
+    # ── Poll-Schleife ────────────────────────────────────────────────────────
+    if st.session_state.get(running_key) and queue_key in st.session_state:
+        while st.session_state.get(running_key):
+            try:
+                _line = st.session_state[queue_key].get(timeout=0.1)
+                if _line.startswith("__EXIT__"):
+                    _code = int(_line.replace("__EXIT__", ""))
+                    st.session_state[running_key]  = False
+                    st.session_state[progress_key] = 1.0
+                    st.session_state[label_key]    = "Fertig!" if _code == 0 else f"Fehler (Exit {_code})"
+                    st.session_state[eta_key]      = ""
+                    st.session_state[step_key]     = total_steps
+                    st.session_state[total_key]    = total_steps
+                    break
+                _cur = st.session_state.get(progress_key, 0.0)
+                _sp, _sl, _eta_v = _parse_subprogress(_line, _cur)
+                if _sp is not None:
+                    st.session_state[progress_key] = _sp
+                    st.session_state[label_key]    = _sl
+                    st.session_state[eta_key]      = _eta_v
+                else:
+                    _np, _nl, _sn, _st = _advance_progress_step(_line, _cur, steps)
+                    st.session_state[progress_key] = _np
+                    if _nl:
+                        st.session_state[label_key] = _nl
+                        st.session_state[eta_key]   = ""
+                    if _sn is not None:
+                        st.session_state[step_key]  = _sn
+                        st.session_state[total_key] = _st
+                    # Nur sichtbare, nicht-interne Zeilen ins Log
+                    if _line.strip() and "__PROGRESS__" not in _line and "__REACTIONS__" not in _line:
+                        st.session_state[log_key].append(_line)
+                _parse_log_line(_line)
+            except queue.Empty:
+                pass
+            _render_previews()
+            _render_data()
+            _render()
+            time.sleep(0.05)
+        _render_data()
+        _render()
+
+    elif st.session_state.get(progress_key, 0.0) > 0:
+        _render_previews()
+        _render_data()
+        _render()
+
+    # ── Schließen (nach Abschluss) ───────────────────────────────────────────
+    if not st.session_state.get(running_key, False):
+        if st.button("Schließen", type="primary", use_container_width=True):
+            for _pp in preview_paths:
+                try:
+                    Path(_pp).unlink(missing_ok=True)
+                except Exception:
+                    pass
+            st.session_state[f"show_{prefix}_dialog"] = False
+            st.rerun()
+
+
 # ── Shared helpers ────────────────────────────────────────────────────────────
 
 def _run_script(cmd, log_queue):
@@ -304,19 +486,25 @@ def _render_settings_panel(prefix):
                 help="Sekunden die ein neuer Sprecher konstant dominieren muss bevor der Wechsel akzeptiert wird")
 
     with st.expander("Nodding-Erkennung"):
-        c1, c2, c3 = st.columns(3)
+        c1, c2, c3, c4 = st.columns(4)
         with c1:
-            st.checkbox("Aktiviert", value=_bv(cfg,'Nodding','enabled',True),
+            st.toggle("Aktiviert", value=_bv(cfg,'Nodding','enabled',True),
                 key=f"{prefix}_nodding_enabled",
                 help="Nicken als Cutaway-Auslöser verwenden")
-            st.number_input("Min. Konfidenz", value=_fv(cfg,'Detection','min_confidence',0.88),
-                min_value=0.0, max_value=1.0, step=0.01, format="%.2f", key=f"{prefix}_min_conf",
-                help="Minimale Erkennungs-Konfidenz eines Nods für Cutaway-Verwendung (0–1) — höher = weniger FPs, mehr FNs")
+            st.toggle(f"Auto Accuracy", value=False, key=f"{prefix}_auto_accuracy",
+                help="Nodding-Threshold wird dynamisch an die erkannte Gesichtsgröße angepasst — nützlich bei Totalen mit mehreren Personen")
+            st.number_input("Min. Konfidenz (%)", value=round(_fv(cfg,'Detection','min_confidence',0.88) * 100),
+                min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_min_conf",
+                help="Minimale Erkennungs-Konfidenz eines Nods für Cutaway-Verwendung — höher = weniger FPs, mehr FNs")
         with c2:
+            st.number_input("Nod-Threshold (px)", value=_fv(cfg,'Nodding','threshold',80.0),
+                min_value=1.0, step=1.0, format="%.0f", key=f"{prefix}_nod_threshold",
+                help="Mindest-Y-Bewegung der Nase in Pixeln (kalibriert für 2160px Framehöhe) — kleiner = sensitiver")
+        with c3:
             st.number_input("Min. Nod-Dauer (s)", value=_fv(cfg,'Nodding','min_nod_duration',0.65),
                 min_value=0.1, step=0.05, format="%.2f", key=f"{prefix}_min_nod_dur",
                 help="Mindestdauer der Kopfbewegung damit ein Nod als gültig gilt — höher filtert kurze Zuckungen heraus")
-        with c3:
+        with c4:
             st.number_input("Pre-Roll (Frames)", value=_iv(cfg,'CutawayTiming','pre_roll_frames',15),
                 min_value=0, step=1, key=f"{prefix}_pre_roll",
                 help="Frames vor dem ersten erkannten Nod-Event, um den Cutaway-Startpunkt nach vorne zu verschieben")
@@ -324,15 +512,17 @@ def _render_settings_panel(prefix):
     with st.expander("Speaking Reactions"):
         c1, c2 = st.columns(2)
         with c1:
-            st.checkbox("Aktiviert", value=_bv(cfg,'SpeakingReaction','enabled',True),
+            st.toggle("Aktiviert", value=_bv(cfg,'SpeakingReaction','enabled',True),
                 key=f"{prefix}_speaking_enabled",
                 help="Kurze Einwürfe und Reaktionen der Off-Kamera als Cutaway verwenden")
+            st.toggle("Peak-Detektion (statt RMS)", key=f"{prefix}_speaking_peak",
+                help="Misst Peak-Pegel statt RMS pro Fenster — sensitiver für kurze Transients wie 'Mhm'")
             st.number_input("Rise (dB über Baseline)", value=_fv(cfg,'SpeakingReaction','rise_db',10.0),
                 min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_rise_db",
                 help="Mindest-Pegelanstieg über die rollierende Baseline für einen Speaking-Burst — höher = nur deutliche Einwürfe")
-            st.number_input("Min. Konfidenz", value=_fv(cfg,'SpeakingReaction','min_confidence',0.90),
-                min_value=0.0, max_value=1.0, step=0.01, format="%.2f", key=f"{prefix}_speaking_min_conf",
-                help="Minimale Konfidenz für Speaking-Reaction-Cutaways (0–1)")
+            st.number_input("Min. Konfidenz (%)", value=round(_fv(cfg,'SpeakingReaction','min_confidence',0.90) * 100),
+                min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_speaking_min_conf",
+                help="Minimale Konfidenz für Speaking-Reaction-Cutaways")
         with c2:
             st.number_input("Min. Burst-Dauer (s)", value=_fv(cfg,'SpeakingReaction','min_duration',0.20),
                 min_value=0.05, step=0.05, format="%.2f", key=f"{prefix}_speaking_min_dur",
@@ -354,15 +544,16 @@ def _collect_settings(prefix):
         'threshold_db':      st.session_state.get(f"{p}threshold_db", 6.0),
         'min_edit':          st.session_state.get(f"{p}min_edit", 1.0),
         'change_delay':      st.session_state.get(f"{p}change_delay", 0.3),
-        'min_conf':          st.session_state.get(f"{p}min_conf", 0.88),
+        'min_conf':          st.session_state.get(f"{p}min_conf", 88) / 100,
         'nodding_enabled':   st.session_state.get(f"{p}nodding_enabled", True),
+        'nod_threshold':     st.session_state.get(f"{p}nod_threshold", 80.0),
         'min_nod_dur':       st.session_state.get(f"{p}min_nod_dur", 0.65),
         'pre_roll':          st.session_state.get(f"{p}pre_roll", 15),
         'speaking_enabled':  st.session_state.get(f"{p}speaking_enabled", True),
         'rise_db':           st.session_state.get(f"{p}rise_db", 10.0),
         'speaking_min_dur':  st.session_state.get(f"{p}speaking_min_dur", 0.20),
         'speaking_max_dur':  st.session_state.get(f"{p}speaking_max_dur", 1.5),
-        'speaking_min_conf': st.session_state.get(f"{p}speaking_min_conf", 0.90),
+        'speaking_min_conf': st.session_state.get(f"{p}speaking_min_conf", 90) / 100,
     }
 
 
@@ -380,6 +571,7 @@ def _save_settings_to_config(v):
         ('RMSDiarization',   'min_edit_duration',    v['min_edit']),
         ('RMSDiarization',   'change_delay',         v['change_delay']),
         ('Detection',        'min_confidence',       v['min_conf']),
+        ('Nodding',          'threshold',             v['nod_threshold']),
         ('Nodding',          'min_nod_duration',     v['min_nod_dur']),
         ('CutawayTiming',    'pre_roll_frames',      v['pre_roll']),
         ('SpeakingReaction', 'rise_db',              v['rise_db']),
@@ -507,10 +699,8 @@ if tab_bin is not None:
     col_a, col_b = st.columns(2)
     with col_a:
         fps_bin               = st.number_input("FPS", value=25.0, step=1.0, format="%.1f")
-        skip_analysis_b       = st.checkbox("Nodding-Analyse überspringen (JSONs existieren)")
-        skip_base_edl_b       = st.checkbox("Base-EDL überspringen (base.edl existiert)")
-        speaking_peak_mode_b  = st.checkbox("Speaking: Peak-Detektion (statt RMS)",
-            help="Misst Peak-Pegel statt RMS pro Fenster — sensitiver für kurze Transients wie 'Mhm'")
+        skip_analysis_b       = st.toggle("Nodding-Analyse überspringen (JSONs existieren)")
+        skip_base_edl_b       = st.toggle("Base-EDL überspringen (base.edl existiert)")
     with col_b:
         sync_tl_name = st.text_input(
             "Sync-Timeline Name (optional)",
@@ -574,18 +764,112 @@ if tab_bin is not None:
         if sync_tl_name.strip():
             cmd += ["--sync-timeline", sync_tl_name.strip()]
         cmd += ["--mic-cam1", str(mic_cam1_idx), "--mic-cam2", str(mic_cam2_idx)]
-        if speaking_peak_mode_b:
+        if st.session_state.get("s_speaking_peak", False):
             cmd += ["--speaking-mode", "peak"]
+        if st.session_state.get("s_auto_accuracy", False):
+            cmd.append("--auto-accuracy")
 
+        n_bin_cams = len(_scanned_cams) if '_scanned_cams' in dir() else 2
+        st.session_state.bin_preview_paths = [
+            f"/tmp/multicam_preview_cam{i + 1}.jpg" for i in range(n_bin_cams)
+        ]
+        st.session_state.show_bin_dialog = True
         q = queue.Queue()
         threading.Thread(target=_run_script, args=(cmd, q), daemon=True).start()
         st.session_state.bin_queue = q
         st.rerun()
 
-    # ── Fortschrittsanzeige ───────────────────────────────────────────────────
-    if st.session_state.bin_running or st.session_state.get('bin_progress', 0.0) > 0:
-        st.divider()
-        _poll_workflow_ui('bin', BIN_WORKFLOW_STEPS)
+    if st.session_state.get("show_bin_dialog"):
+        _workflow_dialog("bin", BIN_WORKFLOW_STEPS,
+                         st.session_state.get("bin_preview_paths", []))
+
+
+# ══════════════════════════════════════════════════════════════════════════════
+# TAB 2 — Ordner-Workflow  (Hilfs-Funktionen)
+# ══════════════════════════════════════════════════════════════════════════════
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _get_video_thumbnail(video_path_str: str, lut_path_str: str = "") -> bytes | None:
+    """Extrahiert den ersten Frame eines Videos als JPEG-Bytes via ffmpeg.
+    Wenn lut_path_str gesetzt ist, wird die CUBE-LUT per lut3d-Filter angewendet."""
+    try:
+        import subprocess as _sp
+        _vf = ["-vf", f"lut3d='{lut_path_str}'"] if (lut_path_str and Path(lut_path_str).is_file()) else []
+        r = _sp.run(
+            ["ffmpeg", "-i", video_path_str] + _vf + ["-vframes", "1",
+             "-f", "image2", "-vcodec", "mjpeg", "pipe:1", "-loglevel", "quiet"],
+            capture_output=True, timeout=15,
+        )
+        if r.returncode == 0 and r.stdout:
+            return r.stdout
+    except Exception:
+        pass
+    return None
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _get_video_fps(video_path_str: str) -> float | None:
+    """Liest die Framerate eines Videos via ffprobe aus."""
+    try:
+        import subprocess as _sp, json as _json
+        r = _sp.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json",
+             "-show_streams", "-select_streams", "v:0", video_path_str],
+            capture_output=True, text=True, timeout=10,
+        )
+        if r.returncode == 0:
+            streams = _json.loads(r.stdout).get("streams", [])
+            if streams:
+                rfr = streams[0].get("r_frame_rate", "")
+                if rfr and "/" in rfr:
+                    num, den = rfr.split("/")
+                    return round(int(num) / int(den), 6)
+    except Exception:
+        pass
+    return None
+
+
+def _fmt_fps(fps: float) -> str:
+    """Formatiert eine Framerate leserlich: 25.0 → '25', 29.97002 → '29.97'."""
+    if fps % 1 == 0:
+        return f"{fps:.0f}"
+    return f"{fps:.3f}".rstrip("0").rstrip(".")
+
+
+@st.cache_data(show_spinner=False, ttl=300)
+def _get_audio_waveform(audio_path_str: str) -> bytes | None:
+    """Rendert die Waveform einer Audiodatei als PNG-Bytes via matplotlib."""
+    try:
+        import io
+        import numpy as np
+        import soundfile as sf
+        import matplotlib
+        matplotlib.use('Agg')
+        import matplotlib.pyplot as plt
+
+        data, _sr = sf.read(audio_path_str, always_2d=True)
+        mono = data.mean(axis=1)
+        step = max(1, len(mono) // 1000)
+        mono = mono[::step]
+
+        fig, ax = plt.subplots(figsize=(3, 0.9))
+        fig.patch.set_facecolor('#3d4052')
+        ax.set_facecolor('#3d4052')
+        ax.fill_between(range(len(mono)), mono, color='#4CAF50', alpha=0.85, linewidth=0)
+        ax.axhline(0, color='#4CAF50', linewidth=0.4, alpha=0.5)
+        ax.set_xlim(0, max(len(mono) - 1, 1))
+        ax.axis('off')
+        plt.tight_layout(pad=0.1)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format='png', dpi=72, bbox_inches='tight',
+                    facecolor='#3d4052')
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
+    except Exception:
+        pass
+    return None
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -642,58 +926,95 @@ with tab_folder:
         _f_cams = [f for f in _all if f.suffix.lower() in _VIDEO_EXT_F]
         _f_mics = [f for f in _all if f.suffix.lower() in _AUDIO_EXT_F]
 
-        if len(_f_cams) >= 2 and _f_mics:
-            col1, col2 = st.columns(2)
-            with col1:
-                st.caption(f"CAM1: `{_f_cams[0].name}`")
-                st.caption(f"CAM2: `{_f_cams[1].name}`")
-            with col2:
-                for i, m in enumerate(_f_mics):
-                    st.caption(f"MIC{i+1}: `{m.name}`")
-            if len(_f_cams) > 2:
-                st.warning(f"{len(_f_cams) - 2} weitere Videodatei(en) werden ignoriert.")
-        elif len(_f_cams) < 2:
+        if len(_f_cams) < 2:
             st.error(f"Mindestens 2 Videodateien erwartet, {len(_f_cams)} gefunden.")
-        else:
+        elif not _f_mics:
             st.error("Keine Audiodateien (.wav/.aif) gefunden.")
+        else:
+            _default_roles = (
+                ["Cam 1", "Cam 2"] + ["Totale"] * max(0, len(_f_cams) - 2)
+            )
+
+            _cam_role_options = [f"Cam {i + 1}" for i in range(len(_f_cams))] + ["Totale"]
+
+            st.markdown("**Kamera-Clips**")
+            _n_cam_cols = min(len(_f_cams), 4)
+            _cam_tile_cols = st.columns(_n_cam_cols)
+            _detected_fps: list[float | None] = []
+            for _ci, _cf in enumerate(_f_cams):
+                with _cam_tile_cols[_ci % _n_cam_cols]:
+                    _thumb_slot = st.empty()
+                    with st.spinner(""):
+                        _lut_path = st.session_state.get("f_lut_path", "")
+                        _thumb = _get_video_thumbnail(str(_cf), _lut_path)
+                        _fps_val = _get_video_fps(str(_cf))
+                    _detected_fps.append(_fps_val)
+                    if _thumb:
+                        _thumb_slot.image(_thumb, use_container_width=True)
+                    else:
+                        _thumb_slot.markdown("🎬")
+                    _fps_label = f" · {_fmt_fps(_fps_val)} fps" if _fps_val else ""
+                    st.caption(f"{_cf.name}{_fps_label}")
+                    if f"f_cam_role_{_ci}" not in st.session_state:
+                        st.session_state[f"f_cam_role_{_ci}"] = _default_roles[_ci]
+                    # Validate stored value is still in current options (e.g. after folder change)
+                    if st.session_state.get(f"f_cam_role_{_ci}") not in _cam_role_options:
+                        st.session_state[f"f_cam_role_{_ci}"] = _default_roles[_ci]
+                    st.selectbox(
+                        "Rolle",
+                        options=_cam_role_options,
+                        key=f"f_cam_role_{_ci}",
+                        label_visibility="collapsed",
+                    )
+
+            # ── FPS-Konsistenzcheck + Auto-Fill ──────────────────────────────
+            _valid_fps = [f for f in _detected_fps if f is not None]
+            _unique_fps = sorted(set(round(f, 3) for f in _valid_fps))
+            if len(_unique_fps) > 1:
+                st.warning(
+                    f"Clips haben unterschiedliche Frameraten: "
+                    + ", ".join(_fmt_fps(f) for f in _unique_fps)
+                    + " — bitte FPS-Einstellung manuell überprüfen."
+                )
+            # Nur bei Ordnerwechsel automatisch befüllen (User-Override bleibt erhalten)
+            if _valid_fps and st.session_state.get("_f_fps_last_folder") != folder_path:
+                st.session_state["f_fps"] = _valid_fps[0]
+                st.session_state["_f_fps_last_folder"] = folder_path
+
+            st.markdown("**Mikrofon-Clips**")
+            _close_cam_labels = [
+                st.session_state.get(f"f_cam_role_{_ci}", _default_roles[_ci])
+                for _ci in range(len(_f_cams))
+                if st.session_state.get(f"f_cam_role_{_ci}", _default_roles[_ci]) != "Totale"
+            ]
+            if not _close_cam_labels:
+                _close_cam_labels = ["Cam 1"]
+
+            _n_mic_cols = min(len(_f_mics), 4)
+            _mic_tile_cols = st.columns(_n_mic_cols)
+            for _mi, _mf in enumerate(_f_mics):
+                with _mic_tile_cols[_mi % _n_mic_cols]:
+                    _wf_slot = st.empty()
+                    with st.spinner(""):
+                        _wf = _get_audio_waveform(str(_mf))
+                    if _wf:
+                        _wf_slot.image(_wf, use_container_width=True)
+                    else:
+                        _wf_slot.markdown("🎙️")
+                    st.caption(_mf.name)
+                    _mic_default = _close_cam_labels[min(_mi, len(_close_cam_labels) - 1)]
+                    if f"f_mic_assign_{_mi}" not in st.session_state:
+                        st.session_state[f"f_mic_assign_{_mi}"] = _mic_default
+                    if st.session_state.get(f"f_mic_assign_{_mi}") not in _close_cam_labels:
+                        st.session_state[f"f_mic_assign_{_mi}"] = _mic_default
+                    st.selectbox(
+                        "Zuordnung",
+                        options=_close_cam_labels,
+                        key=f"f_mic_assign_{_mi}",
+                        label_visibility="collapsed",
+                    )
     elif folder_path:
         st.error("Ordner nicht gefunden.")
-
-    st.divider()
-    st.subheader("Optionen")
-
-    _f_n_mics = max(2, len(_f_mics) if _folder_valid else 2)
-    _f_mic_options = list(range(_f_n_mics))
-
-    def _f_mic_name(idx):
-        if _folder_valid and idx < len(_f_mics):
-            return Path(_f_mics[idx]).stem
-        return f"MIC{idx + 1}"
-
-    col_a, col_b = st.columns(2)
-    with col_a:
-        fps_folder            = st.number_input("FPS", value=25.0, step=1.0, format="%.1f", key="f_fps")
-        skip_analysis_f       = st.checkbox("Nodding-Analyse überspringen (JSONs existieren)", key="f_skip_analysis")
-        skip_base_edl_f       = st.checkbox("Base-EDL überspringen (base.edl existiert)", key="f_skip_base_edl")
-        speaking_peak_mode_f  = st.checkbox("Speaking: Peak-Detektion (statt RMS)", key="f_speaking_peak",
-            help="Misst Peak-Pegel statt RMS pro Fenster — sensitiver für kurze Transients wie 'Mhm'")
-    with col_b:
-        mic_cam1_f = st.selectbox(
-            "MIC für CAM1",
-            options=_f_mic_options,
-            format_func=_f_mic_name,
-            index=min(1, _f_n_mics - 1),
-            key="f_mic_cam1",
-            help="Welches Mikrofon gehört zu Kamera 1?",
-        )
-        mic_cam2_f = st.selectbox(
-            "MIC für CAM2",
-            options=_f_mic_options,
-            format_func=_f_mic_name,
-            index=0,
-            key="f_mic_cam2",
-            help="Welches Mikrofon gehört zu Kamera 2?",
-        )
 
     # ── Analyse-Einstellungen ─────────────────────────────────────────────────
     st.divider()
@@ -701,6 +1022,44 @@ with tab_folder:
 
     _render_preset_panel('f')
     st.divider()
+    with st.expander("Optionen"):
+        fps_folder           = st.number_input("FPS", value=25.0, step=1.0, format="%.1f", key="f_fps")
+        skip_analysis_f      = st.toggle("Nodding-Analyse überspringen (JSONs existieren)", key="f_skip_analysis")
+        skip_base_edl_f      = st.toggle("Base-EDL überspringen (base.edl existiert)", key="f_skip_base_edl")
+
+        st.divider()
+        # Pending-Key-Pattern für LUT-Pfad (identisch zum Ordner-Dialog)
+        if "_lut_path_pending" in st.session_state:
+            st.session_state["f_lut_path"] = st.session_state.pop("_lut_path_pending")
+        if "f_lut_path" not in st.session_state:
+            st.session_state["f_lut_path"] = ""
+
+        _lut_col_path, _lut_col_btn = st.columns([5, 1])
+        with _lut_col_path:
+            st.text_input(
+                "LUT (.cube)",
+                placeholder="/Pfad/zur/LUT.cube",
+                help="Optionale CUBE-LUT für Thumbnail-Vorschau und Videoanalyse (z.B. S-Log2→Rec.709)",
+                key="f_lut_path",
+            )
+        with _lut_col_btn:
+            st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
+            if st.button("📂", key="lut_picker_btn", use_container_width=True, help="LUT auswählen"):
+                _picked_lut = None
+                try:
+                    import subprocess as _subp_lut
+                    _r_lut = _subp_lut.run(
+                        ["osascript", "-e",
+                         'POSIX path of (choose file with prompt "LUT-Datei auswählen (.cube)")'],
+                        capture_output=True, text=True, timeout=60,
+                    )
+                    if _r_lut.returncode == 0 and _r_lut.stdout.strip():
+                        _picked_lut = _r_lut.stdout.strip()
+                except Exception:
+                    st.warning("Datei-Dialog nicht verfügbar — Pfad bitte manuell eingeben.")
+                if _picked_lut:
+                    st.session_state["_lut_path_pending"] = _picked_lut
+                    st.rerun()
     _render_settings_panel('f')
 
     st.divider()
@@ -724,28 +1083,61 @@ with tab_folder:
         st.session_state.folder_label    = "Starte..."
         st.session_state.folder_step     = 0
         st.session_state.folder_total    = FOLDER_WORKFLOW_STEPS[-1][4]
+        # Cam-Types und Mic-Zuordnung aus Kachel-Dropdowns ableiten
+        _fd_default_roles = (
+            ["Cam 1", "Cam 2"] + ["Totale"] * max(0, len(_f_cams) - 2)
+        )
+        _fd_cam_types = [
+            "wide" if st.session_state.get(f"f_cam_role_{_ci}", _fd_default_roles[_ci]) == "Totale"
+            else "close"
+            for _ci in range(len(_f_cams))
+        ]
+        _fd_close_labels = [
+            st.session_state.get(f"f_cam_role_{_ci}", _fd_default_roles[_ci])
+            for _ci in range(len(_f_cams))
+            if st.session_state.get(f"f_cam_role_{_ci}", _fd_default_roles[_ci]) != "Totale"
+        ] or ["Cam 1"]
+        _fd_cam_mics: dict[int, list[int]] = {_ci: [] for _ci in range(len(_f_cams))}
+        for _mi in range(len(_f_mics)):
+            _lbl = st.session_state.get(
+                f"f_mic_assign_{_mi}",
+                _fd_close_labels[min(_mi, len(_fd_close_labels) - 1)],
+            )
+            for _ci in range(len(_f_cams)):
+                if st.session_state.get(f"f_cam_role_{_ci}", _fd_default_roles[_ci]) == _lbl:
+                    _fd_cam_mics[_ci].append(_mi)
+                    break
+        _fd_cam_mics_args = [
+            ",".join(str(m) for m in _fd_cam_mics[_ci]) or "0"
+            for _ci in range(len(_f_cams))
+        ]
         cmd = [
             sys.executable,
             str(SCRIPT_DIR / "run_from_folder.py"),
             "--folder", folder_path,
             "--fps",    str(fps_folder),
             "--config", str(SCRIPT_DIR / "config.ini"),
-            "--mic-cam1", str(mic_cam1_f),
-            "--mic-cam2", str(mic_cam2_f),
+            "--cam-types", *_fd_cam_types,
+            "--cam-mics",  *_fd_cam_mics_args,
         ]
         if skip_analysis_f:
             cmd.append("--skip-analysis")
         if skip_base_edl_f:
             cmd.append("--skip-base-edl")
-        if speaking_peak_mode_f:
+        if st.session_state.get("f_speaking_peak", False):
             cmd += ["--speaking-mode", "peak"]
+        if st.session_state.get("f_auto_accuracy", False):
+            cmd.append("--auto-accuracy")
 
+        st.session_state.folder_preview_paths = [
+            f"/tmp/multicam_preview_cam{i + 1}.jpg" for i in range(len(_f_cams))
+        ]
+        st.session_state.show_folder_dialog = True
         q = queue.Queue()
         threading.Thread(target=_run_script, args=(cmd, q), daemon=True).start()
         st.session_state.folder_queue = q
         st.rerun()
 
-    # ── Fortschrittsanzeige ───────────────────────────────────────────────────
-    if st.session_state.folder_running or st.session_state.get('folder_progress', 0.0) > 0:
-        st.divider()
-        _poll_workflow_ui('folder', FOLDER_WORKFLOW_STEPS)
+    if st.session_state.get("show_folder_dialog"):
+        _workflow_dialog("folder", FOLDER_WORKFLOW_STEPS,
+                         st.session_state.get("folder_preview_paths", []))

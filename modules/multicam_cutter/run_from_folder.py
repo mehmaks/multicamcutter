@@ -68,6 +68,8 @@ def main():
                              'Beispiel: "true true false"')
     parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
                         help='Überschreibt speaking_mode aus config.ini')
+    parser.add_argument('--auto-accuracy', action='store_true',
+                        help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
     args = parser.parse_args()
 
     folder = Path(args.folder).resolve()
@@ -137,6 +139,7 @@ def main():
             cam_types=cam_types,
             cam_nodding=cam_nodding,
             speaking_mode_override=args.speaking_mode,
+            auto_accuracy=args.auto_accuracy,
         )
     except RuntimeError as e:
         print(f"\nFEHLER in Analyse-Pipeline: {e}")

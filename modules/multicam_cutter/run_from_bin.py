@@ -440,7 +440,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                  cam_mic_map: list = None,
                  cam_types: list = None,
                  cam_nodding: list = None,
-                 speaking_mode_override: str = None):
+                 speaking_mode_override: str = None,
+                 auto_accuracy: bool = False):
     """
     Runs nodding + RMS analysis for N cameras, returns path to final EDL.
 
@@ -546,6 +547,9 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             off_sec = off_sections_map.get(cp)
             if off_sec and off_sec.exists():
                 args_list += ['--off-sections', str(off_sec)]
+            args_list += ['--preview-path', f'/tmp/multicam_preview_cam{i + 1}.jpg']
+            if auto_accuracy:
+                args_list += ['--auto-accuracy']
             run(args_list, f"Nodding-Analyse CAM{i + 1} ({Path(cp).name})")
 
     # ── Schritt 3: Cameras-JSON bauen und Cutaways einfügen ──────────────────

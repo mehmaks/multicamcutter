@@ -435,12 +435,23 @@ def main():
         print("✗ Konnte embedded TC nicht lesen. Abbruch.")
         return 1
 
+    # Früheste Kamera bestimmt den Timeline-Ursprung.
+    # Wenn eine Kamera einen negativen edl_frame hat (sie startete vor der Referenz-Kamera),
+    # werden alle Offsets verschoben, sodass die früheste Kamera bei EDL-Frame 0 beginnt.
+    _cam_shift = max(0, -min(args.cam1_edl_frame, args.cam2_edl_frame))
+    if _cam_shift > 0:
+        args.cam1_edl_frame += _cam_shift
+        args.cam2_edl_frame += _cam_shift
+        args.wav_edl_frame  += _cam_shift
+        print(f"\n  ℹ️  Früheste Kamera als Timeline-Ursprung: Offsets um +{_cam_shift} Frames "
+              f"(+{_cam_shift / args.fps:.2f}s) verschoben.")
+
     # TC-Umrechnung identisch zu add_reactions_to_edl.py:
     #   timeline_zero_video = 0 - cam_edl_frame
     #   video_frame         = timeline_zero_video + edl_frame
     #   source_tc_frame     = reference_frame + video_frame
-    cam1_timeline_zero_video = 0 - args.cam1_edl_frame   # = -535
-    cam2_timeline_zero_video = 0 - args.cam2_edl_frame   # =    0
+    cam1_timeline_zero_video = 0 - args.cam1_edl_frame
+    cam2_timeline_zero_video = 0 - args.cam2_edl_frame
 
     print(f"  CAM1 ({args.cam1_clip}): embedded TC {cam1_tc} = {cam1_ref} frames")
     print(f"        EDL Frame 0 liegt bei Video Frame {cam1_timeline_zero_video}")
