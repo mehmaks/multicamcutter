@@ -355,6 +355,114 @@ def detect_speaking_reactions(
     return cam1_reactions, cam2_reactions
 
 
+# ─── Totale-Cam Simultansprechen-Erkennung ────────────────────────────────────
+
+def detect_simultaneous_speech(audio1: np.ndarray, audio2: np.ndarray, sr: int,
+                                window_s: float, threshold_db: float,
+                                min_duration_s: float) -> list:
+    """
+    Erkennt Zeiträume wo beide Mics gleichzeitig aktiv sind (kein klarer Dominanzunterschied).
+    Returns: Liste von (start_s, end_s) Tupeln.
+    """
+    NOISE_FLOOR_DB = -50.0  # unter diesem Pegel gilt ein Mic als "still"
+
+    rms1 = compute_rms_db(audio1, sr, window_s)
+    rms2 = compute_rms_db(audio2, sr, window_s)
+    n = min(len(rms1), len(rms2))
+    rms1, rms2 = rms1[:n], rms2[:n]
+
+    diff         = np.abs(rms1 - rms2)
+    both_active  = (rms1 > NOISE_FLOOR_DB) & (rms2 > NOISE_FLOOR_DB)
+    simultaneous = both_active & (diff < threshold_db)
+
+    min_wins = max(1, int(min_duration_s / window_s))
+    segments, in_seg, start_i = [], False, 0
+    for i in range(n):
+        if simultaneous[i] and not in_seg:
+            in_seg, start_i = True, i
+        elif not simultaneous[i] and in_seg:
+            in_seg = False
+            if (i - start_i) >= min_wins:
+                segments.append((start_i * window_s, i * window_s))
+    if in_seg and (n - start_i) >= min_wins:
+        segments.append((start_i * window_s, n * window_s))
+
+    return segments
+
+
+def _slice_event(event: dict, start_frame: int, end_frame: int, fps: float) -> dict:
+    """Schneidet einen Teilbereich aus einem bestehenden EDL-Event heraus."""
+    orig_rec_start = timecode_to_frames(event['record_in'],  fps)
+    orig_src_start = timecode_to_frames(event['source_in'],  fps)
+    offset = start_frame - orig_rec_start
+    dur    = end_frame   - start_frame
+    return {
+        'clip_name':  event['clip_name'],
+        'source_in':  frames_to_timecode(orig_src_start + offset,         fps),
+        'source_out': frames_to_timecode(orig_src_start + offset + dur,   fps),
+        'record_in':  frames_to_timecode(start_frame,   fps),
+        'record_out': frames_to_timecode(end_frame,     fps),
+    }
+
+
+def insert_totale_events(events: list, simul_segments: list, fps: float,
+                          totale_clip: str, totale_ref: int,
+                          totale_timeline_zero_video: int,
+                          wav_edl_frame: int) -> list:
+    """
+    Teilt bestehende EDL-Events an Simultansprechen-Phasen auf und
+    fügt an deren Stelle einen Totale-Clip ein.
+    """
+    if not simul_segments or not totale_clip or totale_ref is None:
+        return events
+
+    # Simultansprechen-Segmente in EDL-Frames umrechnen
+    simul_edl = []
+    for start_s, end_s in simul_segments:
+        s = max(0, round(start_s * fps) + wav_edl_frame)
+        e = round(end_s * fps) + wav_edl_frame
+        if e > s:
+            simul_edl.append((s, e))
+
+    result = []
+    for event in events:
+        ev_start = timecode_to_frames(event['record_in'],  fps)
+        ev_end   = timecode_to_frames(event['record_out'], fps)
+
+        # Überlappende Simultansegmente finden und auf diesen Event clippen
+        overlaps = [
+            (max(s, ev_start), min(e, ev_end))
+            for s, e in simul_edl
+            if e > ev_start and s < ev_end
+        ]
+
+        if not overlaps:
+            result.append(event)
+            continue
+
+        cursor = ev_start
+        for simul_start, simul_end in sorted(overlaps):
+            if cursor < simul_start:
+                result.append(_slice_event(event, cursor, simul_start, fps))
+
+            tot_video_start = totale_timeline_zero_video + simul_start
+            tot_video_end   = totale_timeline_zero_video + simul_end
+            if tot_video_start >= 0:
+                result.append({
+                    'clip_name':  totale_clip,
+                    'source_in':  frames_to_timecode(totale_ref + tot_video_start, fps),
+                    'source_out': frames_to_timecode(totale_ref + tot_video_end,   fps),
+                    'record_in':  frames_to_timecode(simul_start, fps),
+                    'record_out': frames_to_timecode(simul_end,   fps),
+                })
+            cursor = simul_end
+
+        if cursor < ev_end:
+            result.append(_slice_event(event, cursor, ev_end, fps))
+
+    return result
+
+
 # ─── EDL schreiben ─────────────────────────────────────────────────────────────
 
 def write_edl(events: list, output_path: str, title: str = "Audio Base Timeline"):
@@ -420,6 +528,15 @@ def main():
                         help='JSON-Ausgabe: Video-Frame-Ranges in denen CAM1 die Off-Kamera ist')
     parser.add_argument('--cam2-off-sections-out', default=None,
                         help='JSON-Ausgabe: Video-Frame-Ranges in denen CAM2 die Off-Kamera ist')
+    # Totale-Cam Simultansprechen-Logik
+    parser.add_argument('--totale-video',          default=None,
+                        help='Totale-Cam Video-Datei (für embedded TC via ffprobe)')
+    parser.add_argument('--totale-clip',           default=None,
+                        help='Totale-Cam Clip-Name in der EDL')
+    parser.add_argument('--totale-edl-frame',      type=int, default=0,
+                        help='EDL-Frame bei dem die Totale-Cam Frame 0 liegt (Standard: 0 = wie CAM1)')
+    parser.add_argument('--totale-simul-min-duration', type=float, default=3.0,
+                        help='Mindestdauer Simultansprechen bevor auf Totale geschnitten wird (s)')
     args = parser.parse_args()
 
     print("=" * 70)
@@ -592,7 +709,33 @@ def main():
             print(f"       → WAV startete {pre_podcast_s:.1f}s vor den Kameras."
                   f" Diese {pre_podcast_s:.1f}s Podcast fehlen im Cut.")
 
-    # ── 4. Statistik ──────────────────────────────────────────────────────────
+    # ── 4. Totale-Cam Simultansprechen-Logik ─────────────────────────────────
+    if args.totale_clip and args.totale_video:
+        print(f"\n🎬 Totale-Cam Simultansprechen-Erkennung (min. {args.totale_simul_min_duration}s)...")
+        totale_ref, totale_tc = get_reference_frame(args.totale_video, args.fps)
+        if totale_ref is not None:
+            totale_edl_frame         = args.totale_edl_frame + _cam_shift
+            totale_timeline_zero_vid = 0 - totale_edl_frame
+            simul_segs = detect_simultaneous_speech(
+                audio_cam1, audio_cam2, sr1,
+                args.analysis_window, args.threshold_db,
+                args.totale_simul_min_duration,
+            )
+            print(f"  {len(simul_segs)} Simultansprechen-Segment(e) erkannt")
+            for s, e in simul_segs:
+                print(f"    {s:.1f}s – {e:.1f}s  ({e - s:.1f}s)")
+            if simul_segs:
+                events = insert_totale_events(
+                    events, simul_segs, args.fps,
+                    args.totale_clip, totale_ref,
+                    totale_timeline_zero_vid,
+                    args.wav_edl_frame,
+                )
+                print(f"  ✓ Totale-Events eingefügt — EDL hat jetzt {len(events)} Events")
+        else:
+            print(f"  ⚠️  Konnte embedded TC der Totale nicht lesen — Logik übersprungen.")
+
+    # ── 5. Statistik ──────────────────────────────────────────────────────────
     cam1_evts = [e for e in events if e['clip_name'] == args.cam1_clip]
     cam2_evts = [e for e in events if e['clip_name'] == args.cam2_clip]
 
@@ -609,7 +752,7 @@ def main():
     print(f"  {args.cam1_clip}: {cam1_s/60:.1f} min ({cam1_s/total*100:.0f}%)")
     print(f"  {args.cam2_clip}: {cam2_s/60:.1f} min ({cam2_s/total*100:.0f}%)")
 
-    # ── 5. Off-Sektionen schreiben (für Nodding-Analyse) ─────────────────────
+    # ── 6. Off-Sektionen schreiben (für Nodding-Analyse) ─────────────────────
     if args.cam1_off_sections_out or args.cam2_off_sections_out:
         cam1_off, cam2_off = [], []
         for seg in segments:
@@ -636,10 +779,10 @@ def main():
             total_off_s = sum(e - s for s, e in cam2_off) / args.fps
             print(f"  CAM2 Off-Sektionen: {len(cam2_off)} Segmente ({total_off_s/60:.1f} min)")
 
-    # ── 6. EDL schreiben ──────────────────────────────────────────────────────
+    # ── 7. EDL schreiben ──────────────────────────────────────────────────────
     write_edl(events, args.output)
 
-    # ── 7. Speaking Reactions (optional) ─────────────────────────────────────
+    # ── 8. Speaking Reactions (optional) ─────────────────────────────────────
     if args.speaking_reactions_cam1_out or args.speaking_reactions_cam2_out:
         print(f"\n🗣️  Erkenne Speaking Reactions (mode={args.speaking_mode})...")
         cam1_sr, cam2_sr = detect_speaking_reactions(

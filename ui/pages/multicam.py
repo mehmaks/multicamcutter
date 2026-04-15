@@ -29,6 +29,7 @@ _PARAM_NAMES = [
     'threshold_db', 'min_edit', 'change_delay',
     'min_conf', 'nodding_enabled', 'min_nod_dur', 'pre_roll',
     'speaking_enabled', 'rise_db', 'speaking_min_dur', 'speaking_max_dur', 'speaking_min_conf',
+    'totale_simul_dur',
 ]
 
 _resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"
@@ -509,6 +510,24 @@ def _render_settings_panel(prefix):
                 min_value=0, step=1, key=f"{prefix}_pre_roll",
                 help="Frames vor dem ersten erkannten Nod-Event, um den Cutaway-Startpunkt nach vorne zu verschieben")
 
+    with st.expander("Totale-Cam Schnittlogik"):
+        cfg_tl = _load_cfg()
+        c1, c2 = st.columns(2)
+        with c1:
+            st.number_input(
+                "Min. Simultandauer (s)",
+                value=_fv(cfg_tl, 'TotaleLogic', 'simul_min_duration', 3.0),
+                min_value=0.5, step=0.5, format="%.1f",
+                key=f"{prefix}_totale_simul_dur",
+                help="Mindestdauer, die beide Sprecher gleichzeitig aktiv sein müssen, bevor auf die Totale geschnitten wird",
+            )
+        with c2:
+            st.caption(
+                "Greift nur wenn ein Clip als **Totale** markiert ist. "
+                "Erkennt Phasen wo beide Mics gleichzeitig aktiv sind "
+                "(kein klarer Dominanzunterschied) und schneidet auf die Totale."
+            )
+
     with st.expander("Speaking Reactions"):
         c1, c2 = st.columns(2)
         with c1:
@@ -554,6 +573,7 @@ def _collect_settings(prefix):
         'speaking_min_dur':  st.session_state.get(f"{p}speaking_min_dur", 0.20),
         'speaking_max_dur':  st.session_state.get(f"{p}speaking_max_dur", 1.5),
         'speaking_min_conf': st.session_state.get(f"{p}speaking_min_conf", 90) / 100,
+        'totale_simul_dur':  st.session_state.get(f"{p}totale_simul_dur", 3.0),
     }
 
 
@@ -578,6 +598,7 @@ def _save_settings_to_config(v):
         ('SpeakingReaction', 'min_duration',         v['speaking_min_dur']),
         ('SpeakingReaction', 'max_duration',         v['speaking_max_dur']),
         ('SpeakingReaction', 'min_confidence',       v['speaking_min_conf']),
+        ('TotaleLogic',      'simul_min_duration',   v['totale_simul_dur']),
     ]:
         if sec not in save:
             save[sec] = {}

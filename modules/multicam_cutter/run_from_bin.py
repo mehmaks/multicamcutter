@@ -487,6 +487,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     cfg.read(str(config), encoding='utf-8')
     rms    = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
     sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
+    tl_cfg = cfg['TotaleLogic']     if 'TotaleLogic'     in cfg else {}
     speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
 
     # ── Schritt 1: Base-EDL aus Audio (binäre Diarisierung CAM1/CAM2) ────────
@@ -525,6 +526,18 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--speaking-warmup',         sr_cfg.get('warmup',         '3.0'),
                 '--speaking-hold',           sr_cfg.get('hold',           '0.0'),
                 '--speaking-mode',           mode,
+            ]
+        # Totale-Cam: erste Kamera mit type='wide' (falls vorhanden)
+        totale_idx = next(
+            (i for i, t in enumerate(cam_types) if t == 'wide'), None
+        )
+        if totale_idx is not None:
+            totale_path = cam_paths[totale_idx]
+            builder_args += [
+                '--totale-video',               totale_path,
+                '--totale-clip',                Path(totale_path).name,
+                '--totale-edl-frame',           str(offsets.get(f'CAM{totale_idx + 1}', 0)),
+                '--totale-simul-min-duration',  tl_cfg.get('simul_min_duration', '3.0'),
             ]
         run(builder_args, "Base-EDL aus Audio")
 
