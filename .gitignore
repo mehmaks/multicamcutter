@@ -39,6 +39,9 @@ venv/
 # Config mit persönlichen Tokens — Template liegt im Repo, nicht die echte config.ini
 modules/multicam_cutter/config.ini
 
-# Lizenz-Schlüssel (lokal, nie ins Repo)
+# Lizenz-Schlüssel und Signing-Tools (lokal, nie ins Repo)
 *.key
 license_cache.json
+keygen.py
+keysign.py
+license_*.json

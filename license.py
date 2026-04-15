@@ -3,15 +3,17 @@ resolve-toolkit — License validation
 =====================================
 Modes (set via env var TOOLKIT_LICENSE_MODE):
   dummy   — Dev/testing: always valid, all modules unlocked (default)
-  local   — Beta: reads ~/.resolve-toolkit/license.json directly
+  local   — Beta: reads ~/.resolve-toolkit/license.json, verifies Ed25519 signature
   remote  — Production: validates key against server, caches with grace period
 """
 
+import base64
 import json
 import os
 import time
 import uuid
 from dataclasses import dataclass, field
+from datetime import date
 from typing import List, Optional
 
 
@@ -39,6 +41,9 @@ GRACE_DAYS   = 7
 # Remote endpoint — replace with real URL before going to production
 _VALIDATE_URL = "https://api.resolve-toolkit.com/v1/license/validate"
 
+# Ed25519 Public Key — generated via keygen.py (private key never in repo)
+_PUBLIC_KEY_B64 = "S2CGURNQQPlj2HUCo6hB+kZ/8eRU9VBkQ46TVhcTgcY="
+
 
 # ── Data ──────────────────────────────────────────────────────────────────────
 
@@ -61,6 +66,54 @@ class LicenseInfo:
 def _device_id() -> str:
     """Stable, anonymous hardware identifier based on MAC address."""
     return str(uuid.UUID(int=uuid.getnode()))
+
+
+def _canonical(data: dict) -> str:
+    """Kanonische Darstellung des Payloads zum Signieren/Prüfen."""
+    parts = []
+    for k in sorted(data.keys()):
+        v = data[k]
+        if isinstance(v, list):
+            v = ",".join(sorted(v))
+        parts.append(f"{k}={v}")
+    return "|".join(parts)
+
+
+def _verify_signature(data: dict) -> bool:
+    """Prüft die Ed25519-Signatur der Lizenzdaten. Gibt False bei ungültiger Signatur."""
+    try:
+        from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
+        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
+        from cryptography.exceptions import InvalidSignature
+    except ImportError:
+        return False  # cryptography-Paket fehlt
+
+    sig_b64 = data.get("sig", "")
+    if not sig_b64:
+        return False
+
+    payload = {k: v for k, v in data.items() if k != "sig"}
+    msg = _canonical(payload)
+
+    try:
+        pub_key = Ed25519PublicKey.from_public_bytes(base64.b64decode(_PUBLIC_KEY_B64))
+        pub_key.verify(base64.b64decode(sig_b64), msg.encode())
+        return True
+    except (InvalidSignature, Exception):
+        return False
+
+
+def _check_expiry(expires: Optional[str]) -> Optional[str]:
+    """Gibt eine Fehlermeldung zurück wenn die Lizenz abgelaufen ist, sonst None."""
+    if not expires:
+        return None
+    try:
+        exp_date = date.fromisoformat(expires)
+        if date.today() > exp_date:
+            return f"Lizenz abgelaufen am {expires}."
+    except ValueError:
+        return "Ungültiges Ablaufdatum in Lizenzdatei."
+    return None
 
 
 def _write_cache(info: LicenseInfo) -> None:
@@ -112,24 +165,12 @@ def _validate_dummy() -> LicenseInfo:
 
 def _validate_local() -> LicenseInfo:
     """
-    Beta mode — reads ~/.resolve-toolkit/license.json directly.
-    Example file:
-      {
-        "valid": true,
-        "modules": ["multicam", "enhance"],
-        "expires": "2026-12-31",
-        "email": "beta@example.com"
-      }
+    Beta mode — reads ~/.resolve-toolkit/license.json und prüft Ed25519-Signatur.
+    Die JSON muss mit keysign.py erstellt worden sein.
     """
     try:
         with open(_LOCAL_FILE) as f:
             data = json.load(f)
-        return LicenseInfo(
-            valid=bool(data.get("valid", False)),
-            modules=data.get("modules", []),
-            expires=data.get("expires"),
-            email=data.get("email"),
-        )
     except FileNotFoundError:
         return LicenseInfo(
             valid=False,
@@ -139,6 +180,25 @@ def _validate_local() -> LicenseInfo:
         return LicenseInfo(valid=False, error="Lizenzdatei ist kein gültiges JSON.")
     except Exception as e:
         return LicenseInfo(valid=False, error=f"Lizenzfehler: {e}")
+
+    # Signatur prüfen — schlägt fehl wenn Datei manipuliert wurde
+    if not _verify_signature(data):
+        return LicenseInfo(
+            valid=False,
+            error="Lizenzdatei ungültig oder manipuliert.",
+        )
+
+    # Ablaufdatum prüfen
+    expiry_error = _check_expiry(data.get("expires"))
+    if expiry_error:
+        return LicenseInfo(valid=False, error=expiry_error)
+
+    return LicenseInfo(
+        valid=True,
+        modules=data.get("modules", []),
+        expires=data.get("expires"),
+        email=data.get("email"),
+    )
 
 
 def _validate_remote() -> LicenseInfo:
