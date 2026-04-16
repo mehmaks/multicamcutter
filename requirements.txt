@@ -25,6 +25,9 @@ tqdm>=4.65.0
 # UI — Feedback / GitHub Issues
 requests>=2.31.0
 
+# Take Selector — Transkription
+openai-whisper>=20231117
+
 # Lizenz-Signaturprüfung (Ed25519)
 cryptography>=42.0.0
 GitPython>=3.1.0
