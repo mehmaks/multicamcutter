@@ -15,7 +15,7 @@ import logging
 import time
 from pathlib import Path
 
-st.title("🎙️ Audio Enhance")
+st.title(":material/mic: Audio Enhance")
 st.caption("De-Noise · De-Reverb · MaxxVolume Dynamics · Whisper-Analyse")
 
 # ── Library availability ───────────────────────────────────────────────────────

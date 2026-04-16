@@ -246,13 +246,13 @@ with st.sidebar:
         return cfg_on and lic_on
 
     _MOD_PAGE_DEFS = {
-        "show_multicam":   ("pages/multicam.py",     "Multicam Cutter", "✂️",  "multicam"),
-        "show_enhance":    ("pages/enhance.py",       "Audio Enhance",   "🎙️", "enhance"),
-        "show_auphonic":   ("pages/auphonic.py",      "Auphonic",        "☁️", "auphonic"),
-        "show_maxxvolume": ("pages/voice_leveler.py", "Voice Leveler",   "📢", "maxxvolume"),
-        "show_silence":    ("pages/silence.py",       "Silence Cutter",  "🔇", "silence"),
-        "show_resolve":    ("pages/resolve.py",       "Resolve Bridge",  "🔗", "resolve"),
-        "show_takes":      ("pages/takes.py",         "Take Selector",   "🎬", "takes"),
+        "show_multicam":   ("pages/multicam.py",     "Multicam Cutter", ":material/content_cut:",  "multicam"),
+        "show_enhance":    ("pages/enhance.py",       "Audio Enhance",   ":material/mic:",          "enhance"),
+        "show_auphonic":   ("pages/auphonic.py",      "Auphonic",        ":material/cloud:",        "auphonic"),
+        "show_maxxvolume": ("pages/voice_leveler.py", "Voice Leveler",   ":material/graphic_eq:",   "maxxvolume"),
+        "show_silence":    ("pages/silence.py",       "Silence Cutter",  ":material/volume_off:",   "silence"),
+        "show_resolve":    ("pages/resolve.py",       "Resolve Bridge",  ":material/link:",         "resolve"),
+        "show_takes":      ("pages/takes.py",         "Take Selector",   ":material/movie_clapper:","takes"),
     }
     _mod_order_raw = _ui_cfg.get("UI", "module_order", fallback="")
     _mod_order = ([k.strip() for k in _mod_order_raw.split(",") if k.strip() in _MOD_PAGE_DEFS]
@@ -261,16 +261,16 @@ with st.sidebar:
         if _k not in _mod_order:
             _mod_order.append(_k)
 
-    _license_page = st.Page("pages/license.py", title="Lizenz", icon="🔑")
+    _license_page = st.Page("pages/license.py", title="Lizenz", icon=":material/key:")
     _pages = [] if _license.valid else [_license_page]
     for _cfg_key in _mod_order:
         _pg_file, _pg_title, _pg_icon, _pg_lic = _MOD_PAGE_DEFS[_cfg_key]
         if _tab_visible(_cfg_key, _pg_lic):
             _pages.append(st.Page(_pg_file, title=_pg_title, icon=_pg_icon))
-    _pages.append(st.Page("pages/docs.py",           title="Dokumentation",   icon="📖"))
+    _pages.append(st.Page("pages/docs.py",    title="Dokumentation", icon=":material/menu_book:"))
     if _license.valid:
         _pages.append(_license_page)
-    _pages.append(st.Page("pages/config.py",         title="Config",          icon="⚙️"))
+    _pages.append(st.Page("pages/config.py", title="Config",        icon=":material/settings:"))
 
     # ── Berechnete Werte ──────────────────────────────────────────────────────
 

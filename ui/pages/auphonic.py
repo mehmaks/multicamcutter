@@ -19,7 +19,7 @@ import urllib.request
 import json
 from pathlib import Path
 
-st.title("☁️ Auphonic")
+st.title(":material/cloud: Auphonic")
 st.caption("Cloud-Processing via Auphonic API · Voice Isolation · Leveling · De-Noise · De-Reverb")
 
 # ── Config ────────────────────────────────────────────────────────────────────

@@ -9,7 +9,7 @@ from streamlit_sortables import sort_items
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter" / "config.ini"
 
-st.title("⚙️ Config")
+st.title(":material/settings: Config")
 
 if not CONFIG_PATH.exists():
     st.error(f"config.ini nicht gefunden: {CONFIG_PATH}")

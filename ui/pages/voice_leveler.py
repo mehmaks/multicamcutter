@@ -18,7 +18,7 @@ import time
 import json
 from pathlib import Path
 
-st.title("📢 Voice Leveler")
+st.title(":material/graphic_eq: Voice Leveler")
 st.caption("Voice Dynamics · Gate → Upward Compressor → Leveler (AGC) → Limiter · nur für Sprachspuren")
 
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".aif", ".aiff"}

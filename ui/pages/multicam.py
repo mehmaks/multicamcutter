@@ -16,7 +16,7 @@ import json
 import configparser as _cp
 from pathlib import Path
 
-st.title("✂️ Multicam Cutter")
+st.title(":material/content_cut: Multicam Cutter")
 
 SCRIPT_DIR   = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter"
 _cfg_path    = SCRIPT_DIR / "config.ini"

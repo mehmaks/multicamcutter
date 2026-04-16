@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 from pathlib import Path
 import streamlit as st
 
-st.title("📖 Dokumentation")
+st.title(":material/menu_book: Dokumentation")
 
 _DOCS_DIR   = Path(__file__).parent.parent / "docs"
 _ASSETS_DIR = _DOCS_DIR / "assets"

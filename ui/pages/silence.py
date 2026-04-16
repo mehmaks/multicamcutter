@@ -14,7 +14,7 @@ from types import SimpleNamespace
 
 import streamlit as st
 
-st.title("🔇 Silence Cutter")
+st.title(":material/volume_off: Silence Cutter")
 st.caption("Composite Silence Detection · Duration-Marker Preview · Ripple Cut")
 
 # ── Resolve connection (optional) ─────────────────────────────────────────────

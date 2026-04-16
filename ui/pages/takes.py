@@ -15,7 +15,7 @@ import time
 import math
 from pathlib import Path
 
-st.title("🎬 Take Selector")
+st.title(":material/movie_clapper: Take Selector")
 st.caption("Erkennt Absätze und Wiederholungen in geskripteten Aufnahmen — wählt automatisch den besten Take.")
 
 _resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"

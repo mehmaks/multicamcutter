@@ -8,7 +8,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import streamlit as st
 
-st.title("🔗 Resolve Bridge")
+st.title(":material/link: Resolve Bridge")
 st.caption("Verbindungsstatus und Projektübersicht")
 
 try:
