@@ -25,7 +25,7 @@ def _section(md_file: str, img_file: str | None = None) -> None:
     st.markdown(md_path.read_text(encoding="utf-8") if md_path.exists() else "_Datei nicht gefunden._")
 
 
-tab_multicam, tab_takes, tab_silence = st.tabs(["Multicam Cutter", "Take Selector", "Silence Cutter"])
+tab_multicam, tab_takes, tab_silence, tab_vl = st.tabs(["Multicam Cutter", "Take Selector", "Silence Cutter", "Voice Leveler"])
 
 with tab_multicam:
     st.header("Multicam Cutter")
@@ -56,10 +56,17 @@ with tab_takes:
         "wie Takes und Sektionen erkannt werden und welche Filter es gibt."
     )
     with st.expander("Whisper-Modell", expanded=True):
-        _section("takes.md")
+        _section("takes.md", "takeselector_erkennung.png")
 
     with st.expander("Inhaltlicher Vergleich"):
         _section("takes_vergleich.md")
+
+with tab_vl:
+    st.header("Voice Leveler")
+    st.caption("Erklärt die Einstellungen des Voice Levelers.")
+
+    with st.expander("Einstellungen", expanded=True):
+        _section("voice_leveler.md", "voiceleveler_settings.png")
 
 with tab_silence:
     st.header("Silence Cutter")
@@ -69,4 +76,4 @@ with tab_silence:
     )
 
     with st.expander("Funktionsweise & Einstellungen", expanded=True):
-        _section("silence.md")
+        _section("silence.md", "silencecutter_settings.png")
