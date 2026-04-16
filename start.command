@@ -4,8 +4,8 @@
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 VENV="$SCRIPT_DIR/venv"
+PORT=8501
 
-# Terminal-Fenster im Repo-Verzeichnis öffnen
 cd "$SCRIPT_DIR"
 
 if [ ! -f "$VENV/bin/activate" ]; then
@@ -17,16 +17,38 @@ if [ ! -f "$VENV/bin/activate" ]; then
     exit 1
 fi
 
+# Bereits gestartet? Dann nur Browser öffnen.
+if lsof -i ":$PORT" &>/dev/null; then
+    echo "resolve-toolkit läuft bereits."
+    open "http://localhost:$PORT"
+    echo "Browser geöffnet — dieses Fenster kann geschlossen werden."
+    exit 0
+fi
+
 source "$VENV/bin/activate"
 
 # Lizenz-Modus: "local" für Betatester, "dummy" für Entwicklung
 export TOOLKIT_LICENSE_MODE="${TOOLKIT_LICENSE_MODE:-local}"
 
 echo "resolve-toolkit wird gestartet..."
-echo "Browser öffnet sich automatisch."
-echo "(Dieses Fenster offen lassen — Schließen beendet das Tool)"
-echo ""
 
-exec python3 -m streamlit run "$SCRIPT_DIR/ui/app.py" \
-    --server.headless false \
-    --browser.gatherUsageStats false
+nohup python3 -m streamlit run "$SCRIPT_DIR/ui/app.py" \
+    --server.headless true \
+    --browser.gatherUsageStats false \
+    > "$SCRIPT_DIR/toolkit.log" 2>&1 &
+
+# Warten bis der Server bereit ist (max. 15s)
+for i in {1..15}; do
+    if lsof -i ":$PORT" &>/dev/null; then
+        break
+    fi
+    sleep 1
+done
+
+open "http://localhost:$PORT"
+
+echo ""
+echo "✓ resolve-toolkit läuft im Hintergrund."
+echo "  Browser geöffnet: http://localhost:$PORT"
+echo ""
+echo "  Dieses Fenster kann jetzt geschlossen werden."

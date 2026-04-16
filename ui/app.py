@@ -43,6 +43,66 @@ if "license_info" not in st.session_state:
     st.session_state.license_info = _lic.validate()
 _license: _lic.LicenseInfo = st.session_state.license_info
 
+# ── Update-Dialog ──────────────────────────────────────────────────────────────
+
+@st.dialog("Update-Prüfung")
+def _update_dialog():
+    if st.session_state.get("update_installed"):
+        _inst_tag = st.session_state.get("update_tag", "")
+        st.success(f"**{_inst_tag}** installiert — bitte neu starten.")
+        st.code("bash ~/resolve-toolkit/start.command")
+        if st.button("Schließen", type="primary", use_container_width=True):
+            st.session_state.show_update_dialog = False
+            st.session_state.update_installed   = False
+            st.rerun()
+        return
+
+    if not st.session_state.get("update_check_done"):
+        st.caption("Prüfe auf Updates...")
+        with st.spinner(""):
+            _up2, _tag2, _notes2 = _check_for_update()
+        st.session_state.update_available  = _up2
+        st.session_state.update_tag        = _tag2
+        st.session_state.update_notes      = _notes2
+        st.session_state.update_check_done = True
+        st.rerun()
+        return
+
+    _up    = st.session_state.get("update_available", False)
+    _tag   = st.session_state.get("update_tag", "")
+    _notes = st.session_state.get("update_notes", "")
+
+    if _up:
+        st.success(f"Neue Version verfügbar: **{_tag}**")
+        if _notes:
+            with st.expander("Release Notes", expanded=True):
+                st.markdown(_notes)
+        c1, c2 = st.columns(2)
+        with c1:
+            if st.button("Abbrechen", use_container_width=True):
+                st.session_state.show_update_dialog = False
+                st.rerun()
+        with c2:
+            if st.button("Jetzt updaten", type="primary", use_container_width=True):
+                with st.spinner("Aktualisiere..."):
+                    import subprocess as _sup2, sys as _sys2
+                    _req_before = _git("show", "HEAD:requirements.txt")
+                    _git("pull", "origin", "main")
+                    _req_after  = _git("show", "HEAD:requirements.txt")
+                    if _req_before != _req_after:
+                        _sup2.run([_sys2.executable, "-m", "pip", "install", "-q",
+                                   "-r", os.path.join(_REPO_ROOT, "requirements.txt")],
+                                  check=False)
+                st.session_state.update_available = False
+                st.session_state.update_installed = True
+                st.rerun()
+    else:
+        st.info("Kein Update verfügbar — du hast die neueste Version.")
+        if st.button("Schließen", type="primary", use_container_width=True):
+            st.session_state.show_update_dialog = False
+            st.rerun()
+
+
 # ── Sidebar ────────────────────────────────────────────────────────────────────
 
 with st.sidebar:
@@ -100,9 +160,10 @@ with st.sidebar:
 
     if "update_available" not in st.session_state:
         (_up, _tag, _notes) = _check_for_update()
-        st.session_state.update_available = _up
-        st.session_state.update_tag       = _tag
-        st.session_state.update_notes     = _notes
+        st.session_state.update_available  = _up
+        st.session_state.update_tag        = _tag
+        st.session_state.update_notes      = _notes
+        st.session_state.update_check_done = True
 
     # ── Resolve check (still, for status bar) ─────────────────────────────────
 
@@ -159,6 +220,7 @@ with st.sidebar:
         _pages.append(st.Page("pages/resolve.py",   title="Resolve Bridge",  icon="🔗"))
     if _tab_visible("show_takes",      "takes"):
         _pages.append(st.Page("pages/takes.py",     title="Take Selector",   icon="🎬"))
+    _pages.append(st.Page("pages/docs.py",           title="Dokumentation",   icon="📖"))
     _pages.append(st.Page("pages/config.py",        title="Config",          icon="⚙️"))
 
     # ── Berechnete Werte ──────────────────────────────────────────────────────
@@ -188,7 +250,7 @@ with st.sidebar:
 
     # 3. Feedback-Button
     if _token and _repo:
-        with st.popover("💬 Feedback", use_container_width=True):
+        with st.popover("💬 Bugs & Feedback", use_container_width=True):
             with st.form("fb_form", clear_on_submit=True):
                 _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
                                      label_visibility="collapsed")
@@ -197,6 +259,9 @@ with st.sidebar:
                 _fb_body  = st.text_area("Beschreibung",
                                          placeholder="Was ist passiert? Was wurde erwartet?",
                                          height=100)
+                _fb_email = st.text_input("E-Mail (optional)",
+                                          value=_license.email or "",
+                                          placeholder="fuer Rückfragen")
                 _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
                 _submitted = st.form_submit_button("Senden", use_container_width=True)
             if _submitted:
@@ -211,6 +276,8 @@ with st.sidebar:
                         _git_hash = "?"
                     _label = "bug" if "Bug" in _fb_type else "enhancement"
                     _body_parts = [_fb_body.strip()]
+                    if _fb_email.strip():
+                        _body_parts.append(f"**Kontakt:** {_fb_email.strip()}")
                     if _fb_log:
                         _all_logs = (st.session_state.get("bin_log", []) +
                                      st.session_state.get("folder_log", []))
@@ -233,27 +300,16 @@ with st.sidebar:
                         st.error(f"Fehler ({_resp.status_code})")
 
     # 4. Update-Button
-    if _upd:
-        if st.button(f"⬆ {_upd_tag} verfügbar", use_container_width=True, type="primary"):
-            with st.spinner("Aktualisiere..."):
-                import subprocess as _sup, sys as _sys
-                _req_before = _git("show", "HEAD:requirements.txt")
-                _git("pull", "origin", "main")
-                _req_after  = _git("show", "HEAD:requirements.txt")
-                if _req_before != _req_after:
-                    _sup.run([_sys.executable, "-m", "pip", "install", "-q",
-                              "-r", os.path.join(_REPO_ROOT, "requirements.txt")],
-                             check=False)
-            st.session_state.update_available = False
-            st.success(f"{_upd_tag} installiert — bitte neu starten.")
-            st.code("bash ~/resolve-toolkit/start.command")
-    else:
-        if st.button("↻ Updates prüfen", use_container_width=True):
-            (_up2, _tag2, _notes2) = _check_for_update()
-            st.session_state.update_available = _up2
-            st.session_state.update_tag       = _tag2
-            st.session_state.update_notes     = _notes2
-            st.rerun()
+    _btn_label = f"⬆ {_upd_tag} verfügbar" if _upd else "↻ Updates prüfen"
+    _btn_type  = "primary" if _upd else "secondary"
+    if st.button(_btn_label, use_container_width=True, type=_btn_type):
+        st.session_state.update_check_done  = False  # force fresh check
+        st.session_state.update_installed   = False
+        st.session_state.show_update_dialog = True
+        st.rerun()
+
+    if st.session_state.get("show_update_dialog"):
+        _update_dialog()
 
     # 4. Workflow Log (nur wenn aktiv oder letzter Log vorhanden)
     if st.session_state.bin_running:

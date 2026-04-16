@@ -403,112 +403,149 @@ def _bv(cfg, section, key, default):
     except: return bool(default)
 
 
-def _render_preset_panel(prefix):
-    """Render preset save/load/delete UI. Presets store param names without prefix."""
+def _render_preset_dropdown(prefix):
+    """Nur das Preset-Dropdown unter der Abschnittsüberschrift."""
     preset_names = sorted(p.stem for p in _presets_dir.glob("*.json"))
+    if preset_names:
+        st.selectbox("Preset", preset_names, key=f"{prefix}_preset_select")
+    else:
+        st.caption("Noch keine Presets gespeichert")
 
-    pc1, pc2 = st.columns([2, 3])
-    with pc1:
-        new_name = st.text_input(
-            "Preset-Name", placeholder="z.B. Standard Podcast",
-            key=f"{prefix}_preset_name_input", label_visibility="collapsed",
-        )
-        if st.button("💾 Speichern", key=f"{prefix}_btn_save_preset",
-                     disabled=not (new_name or '').strip()):
-            pdata = {name: st.session_state[f"{prefix}_{name}"]
-                     for name in _PARAM_NAMES if f"{prefix}_{name}" in st.session_state}
-            safe = new_name.strip().replace('/', '_').replace('\\', '_')
-            (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
-            st.toast(f"Preset '{safe}' gespeichert")
-            st.rerun()
 
-    with pc2:
-        if preset_names:
-            ps1, ps2, ps3 = st.columns([3, 1, 1])
-            with ps1:
-                sel_preset = st.selectbox(
-                    "Preset", preset_names,
-                    key=f"{prefix}_preset_select", label_visibility="collapsed",
-                )
-            with ps2:
-                if st.button("Laden", key=f"{prefix}_btn_load_preset", use_container_width=True):
-                    pdata = json.loads((_presets_dir / f"{sel_preset}.json").read_text())
+def _render_preset_expander(prefix):
+    """Preset-Verwaltung (Laden, Speichern, Löschen) im aufklappbaren Expander."""
+    preset_names = sorted(p.stem for p in _presets_dir.glob("*.json"))
+    with st.expander("Presets"):
+        sel = st.session_state.get(f"{prefix}_preset_select",
+                                   preset_names[0] if preset_names else None)
+        if preset_names and sel:
+            c1, c2 = st.columns(2)
+            with c1:
+                if st.button("⬇ Laden", key=f"{prefix}_btn_load_preset",
+                             use_container_width=True, help=f"Preset '{sel}' anwenden"):
+                    pdata = json.loads((_presets_dir / f"{sel}.json").read_text())
                     for name, val in pdata.items():
-                        # Support old presets that stored keys with s_ prefix
                         bare = name[2:] if (name.startswith('s_') or name.startswith('f_')) else name
                         if bare in _PARAM_NAMES:
                             st.session_state[f"{prefix}_{bare}"] = val
                     st.rerun()
-            with ps3:
-                if st.button("🗑", key=f"{prefix}_btn_del_preset", use_container_width=True):
-                    (_presets_dir / f"{sel_preset}.json").unlink(missing_ok=True)
+            with c2:
+                if st.button("🗑 Löschen", key=f"{prefix}_btn_del_preset",
+                             use_container_width=True, help=f"Preset '{sel}' löschen"):
+                    (_presets_dir / f"{sel}.json").unlink(missing_ok=True)
                     st.rerun()
-        else:
-            st.caption("Noch keine Presets gespeichert")
+            st.divider()
+
+        ni1, ni2 = st.columns([3, 1])
+        with ni1:
+            new_name = st.text_input(
+                "Name", placeholder="z.B. Standard Podcast",
+                key=f"{prefix}_preset_name_input",
+            )
+        with ni2:
+            st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
+            if st.button("💾", key=f"{prefix}_btn_save_preset",
+                         disabled=not (new_name or '').strip(),
+                         use_container_width=True, help="Aktuelle Einstellungen als Preset speichern"):
+                pdata = {name: st.session_state[f"{prefix}_{name}"]
+                         for name in _PARAM_NAMES if f"{prefix}_{name}" in st.session_state}
+                safe = new_name.strip().replace('/', '_').replace('\\', '_')
+                (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
+                st.toast(f"Preset '{safe}' gespeichert")
+                st.rerun()
 
 
 def _render_settings_panel(prefix):
     """Render 4 settings expanders with widget keys prefixed by `prefix`."""
     cfg = _load_cfg()
 
-    with st.expander("Schnitt & Cutaways"):
+    with st.expander("Generelle Schnittregeln", expanded=True):
         c1, c2 = st.columns(2)
         with c1:
             st.number_input("Min. Shotlänge (s)", value=_fv(cfg,'General','min_shot_duration',3.0),
                 min_value=0.5, step=0.1, format="%.1f", key=f"{prefix}_min_shot",
-                help="Minimale ON-Camera Shotlänge bevor ein Cutaway gesetzt werden darf")
+                help="Wie lange eine Kamera mindestens zu sehen ist, bevor zu einer Reaktion geschnitten werden darf.")
             st.number_input("Max. Shotlänge (s)", value=_fv(cfg,'General','max_shot_duration',14.0),
                 min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_max_shot",
-                help="Wird eine Kamera länger nicht geschnitten, erzwingt der Workflow einen Pflicht-Cutaway")
+                help="Bleibt eine Kamera länger als dieser Wert ohne Schnitt, wird automatisch zu einer Reaktion gewechselt.")
         with c2:
             st.number_input("Cutaway-Länge (s)", value=_fv(cfg,'General','reaction_min_duration',1.8),
                 min_value=0.5, step=0.1, format="%.1f", key=f"{prefix}_reaction_dur",
-                help="Basislänge eines Reaction-Cutaways — tatsächliche Länge variiert um den Zufallsfaktor nach oben")
+                help="Wie lange eine Reaktionsaufnahme mindestens gezeigt wird. Mit Zufallsfaktor kann sie etwas länger ausfallen.")
             st.number_input("Cleanup-Mindestlänge (s)", value=_fv(cfg,'General','cleanup_min_duration',1.8),
                 min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_cleanup_dur",
-                help="Events kürzer als dieser Wert werden nach dem Zusammenbau der Timeline entfernt")
+                help="Schnitte kürzer als dieser Wert werden am Ende automatisch entfernt.")
         st.slider("Cutaway-Zufallsfaktor", 0.0, 0.5, _fv(cfg,'General','cutaway_randomness',0.2),
             step=0.05, key=f"{prefix}_randomness",
-            help="Zufälliger Aufschlag auf die Cutaway-Länge: 0 = immer exakt, 0.2 = bis zu 20 % länger — macht den Schnitt organischer")
+            help="Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell.")
 
-    with st.expander("Sprecher-Erkennung (RMS)"):
+    with st.expander("Sprecher-Erkennung"):
         c1, c2, c3 = st.columns(3)
         with c1:
             st.number_input("Schwelle (dB)", value=_fv(cfg,'RMSDiarization','threshold_db',6.0),
                 min_value=0.5, step=0.5, format="%.1f", key=f"{prefix}_threshold_db",
-                help="dB-Unterschied zwischen beiden Mics nötig um einen Sprecherwechsel zu erkennen — höher = weniger empfindlich")
+                help="Wie deutlich lauter jemand sein muss als der andere, damit ein Sprecherwechsel erkannt wird. Höhere Werte schneiden nur bei klarer Dominanz.")
         with c2:
             st.number_input("Min. Segmentlänge (s)", value=_fv(cfg,'RMSDiarization','min_edit_duration',1.0),
                 min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_min_edit",
-                help="Sprechabschnitte kürzer als dieser Wert werden mit dem Nachbarn zusammengeführt")
+                help="Sehr kurze Sprechabschnitte werden mit dem nächsten zusammengelegt. Verhindert zu häufiges Hin- und Herschneiden.")
         with c3:
             st.number_input("Wechsel-Verzögerung (s)", value=_fv(cfg,'RMSDiarization','change_delay',0.3),
                 min_value=0.0, step=0.05, format="%.2f", key=f"{prefix}_change_delay",
-                help="Sekunden die ein neuer Sprecher konstant dominieren muss bevor der Wechsel akzeptiert wird")
+                help="Wie lange jemand durchgehend lauter sein muss, bevor auf ihn geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.")
 
-    with st.expander("Nodding-Erkennung"):
-        c1, c2, c3, c4 = st.columns(4)
+    with st.expander("Cutaway Regeln"):
+        # ── Kopfnicken ────────────────────────────────────────────────────────
+        st.toggle("Kopfnicken", value=_bv(cfg,'Nodding','enabled',True),
+            key=f"{prefix}_nodding_enabled",
+            help="Erkennt Kopfnicken der zuhörenden Person und schneidet in diesem Moment auf sie.")
+        c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
-            st.toggle("Aktiviert", value=_bv(cfg,'Nodding','enabled',True),
-                key=f"{prefix}_nodding_enabled",
-                help="Nicken als Cutaway-Auslöser verwenden")
-            st.toggle(f"Auto Accuracy", value=False, key=f"{prefix}_auto_accuracy",
-                help="Nodding-Threshold wird dynamisch an die erkannte Gesichtsgröße angepasst — nützlich bei Totalen mit mehreren Personen")
             st.number_input("Min. Konfidenz (%)", value=round(_fv(cfg,'Detection','min_confidence',0.88) * 100),
                 min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_min_conf",
-                help="Minimale Erkennungs-Konfidenz eines Nods für Cutaway-Verwendung — höher = weniger FPs, mehr FNs")
+                help="Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird. Höhere Werte vermeiden Fehlschnitte, erkennen dafür weniger Nicken.")
         with c2:
             st.number_input("Nod-Threshold (px)", value=_fv(cfg,'Nodding','threshold',80.0),
                 min_value=1.0, step=1.0, format="%.0f", key=f"{prefix}_nod_threshold",
-                help="Mindest-Y-Bewegung der Nase in Pixeln (kalibriert für 2160px Framehöhe) — kleiner = sensitiver")
+                help="Wie weit sich der Kopf bewegen muss, damit es als Nicken zählt. Kleinere Werte erkennen auch dezentes Nicken.")
         with c3:
             st.number_input("Min. Nod-Dauer (s)", value=_fv(cfg,'Nodding','min_nod_duration',0.65),
                 min_value=0.1, step=0.05, format="%.2f", key=f"{prefix}_min_nod_dur",
-                help="Mindestdauer der Kopfbewegung damit ein Nod als gültig gilt — höher filtert kurze Zuckungen heraus")
+                help="Wie lang die Kopfbewegung andauern muss, um als echtes Nicken zu gelten. Höhere Werte ignorieren kurze zufällige Bewegungen.")
         with c4:
             st.number_input("Pre-Roll (Frames)", value=_iv(cfg,'CutawayTiming','pre_roll_frames',15),
                 min_value=0, step=1, key=f"{prefix}_pre_roll",
-                help="Frames vor dem ersten erkannten Nod-Event, um den Cutaway-Startpunkt nach vorne zu verschieben")
+                help="Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt.")
+        with c5:
+            st.toggle("Auto Accuracy", value=True, key=f"{prefix}_auto_accuracy",
+                help="Passt die Empfindlichkeit automatisch an, je nachdem wie groß das Gesicht im Bild ist. Sinnvoll wenn Personen unterschiedlich nah an der Kamera sitzen.")
+
+        st.divider()
+
+        # ── Sprachreaktionen ──────────────────────────────────────────────────
+        st.toggle("Sprachreaktionen", value=_bv(cfg,'SpeakingReaction','enabled',True),
+            key=f"{prefix}_speaking_enabled",
+            help="Erkennt kurze Einwürfe oder Laute der nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie.")
+        c1, c2, c3, c4, c5 = st.columns(5)
+        with c1:
+            st.number_input("Rise (dB über Baseline)", value=_fv(cfg,'SpeakingReaction','rise_db',10.0),
+                min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_rise_db",
+                help="Wie deutlich lauter jemand kurz werden muss, um als Reaktion erkannt zu werden. Höhere Werte reagieren nur auf klare Einwürfe wie 'Genau!' oder Lachen.")
+        with c2:
+            st.number_input("Min. Burst-Dauer (s)", value=_fv(cfg,'SpeakingReaction','min_duration',0.20),
+                min_value=0.05, step=0.05, format="%.2f", key=f"{prefix}_speaking_min_dur",
+                help="Wie kurz ein Einwurf mindestens sein muss, um erkannt zu werden. Kleinere Werte erfassen auch sehr kurze Laute wie 'Mhm'.")
+        with c3:
+            st.number_input("Max. Burst-Dauer (s)", value=_fv(cfg,'SpeakingReaction','max_duration',1.5),
+                min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_speaking_max_dur",
+                help="Wie lang ein Einwurf maximal sein darf. Längere Töne werden als normales Sprechen gewertet, nicht als Reaktion.")
+        with c4:
+            st.number_input("Min. Konfidenz (%)", value=round(_fv(cfg,'SpeakingReaction','min_confidence',0.90) * 100),
+                min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_speaking_min_conf",
+                help="Wie sicher die Erkennung sein muss, bevor ein Einwurf als Schnitt verwendet wird.")
+        with c5:
+            st.toggle("Peak-Detektion", key=f"{prefix}_speaking_peak",
+                help="Reagiert auf den lautesten Moment statt auf den Durchschnittspegel. Empfehlenswert für sehr kurze, knackige Einwürfe.")
 
     with st.expander("Totale-Cam Schnittlogik"):
         cfg_tl = _load_cfg()
@@ -519,7 +556,7 @@ def _render_settings_panel(prefix):
                 value=_fv(cfg_tl, 'TotaleLogic', 'simul_min_duration', 3.0),
                 min_value=0.5, step=0.5, format="%.1f",
                 key=f"{prefix}_totale_simul_dur",
-                help="Mindestdauer, die beide Sprecher gleichzeitig aktiv sein müssen, bevor auf die Totale geschnitten wird",
+                help="Wie lange beide gleichzeitig sprechen müssen, bevor auf die Totale geschnitten wird.",
             )
         with c2:
             st.caption(
@@ -527,28 +564,6 @@ def _render_settings_panel(prefix):
                 "Erkennt Phasen wo beide Mics gleichzeitig aktiv sind "
                 "(kein klarer Dominanzunterschied) und schneidet auf die Totale."
             )
-
-    with st.expander("Speaking Reactions"):
-        c1, c2 = st.columns(2)
-        with c1:
-            st.toggle("Aktiviert", value=_bv(cfg,'SpeakingReaction','enabled',True),
-                key=f"{prefix}_speaking_enabled",
-                help="Kurze Einwürfe und Reaktionen der Off-Kamera als Cutaway verwenden")
-            st.toggle("Peak-Detektion (statt RMS)", key=f"{prefix}_speaking_peak",
-                help="Misst Peak-Pegel statt RMS pro Fenster — sensitiver für kurze Transients wie 'Mhm'")
-            st.number_input("Rise (dB über Baseline)", value=_fv(cfg,'SpeakingReaction','rise_db',10.0),
-                min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_rise_db",
-                help="Mindest-Pegelanstieg über die rollierende Baseline für einen Speaking-Burst — höher = nur deutliche Einwürfe")
-            st.number_input("Min. Konfidenz (%)", value=round(_fv(cfg,'SpeakingReaction','min_confidence',0.90) * 100),
-                min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_speaking_min_conf",
-                help="Minimale Konfidenz für Speaking-Reaction-Cutaways")
-        with c2:
-            st.number_input("Min. Burst-Dauer (s)", value=_fv(cfg,'SpeakingReaction','min_duration',0.20),
-                min_value=0.05, step=0.05, format="%.2f", key=f"{prefix}_speaking_min_dur",
-                help="Kürzeste Lautstärke-Spitze die als Speaking-Reaction zählt — kleiner = auch kurze 'Mhm'-Laute")
-            st.number_input("Max. Burst-Dauer (s)", value=_fv(cfg,'SpeakingReaction','max_duration',1.5),
-                min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_speaking_max_dur",
-                help="Längste Lautstärke-Spitze die noch als Speaking-Reaction gilt — größer = auch längere Einwürfe")
 
 
 def _collect_settings(prefix):
@@ -746,9 +761,10 @@ if tab_bin is not None:
     st.divider()
     st.subheader("Analyse-Einstellungen")
 
-    _render_preset_panel('s')
+    _render_preset_dropdown('s')
     st.divider()
     _render_settings_panel('s')
+    _render_preset_expander('s')
 
     st.divider()
     st.subheader("Workflow")
@@ -1041,9 +1057,10 @@ with tab_folder:
     st.divider()
     st.subheader("Analyse-Einstellungen")
 
-    _render_preset_panel('f')
+    _render_preset_dropdown('f')
     st.divider()
-    with st.expander("Optionen"):
+    _render_settings_panel('f')
+    with st.expander("Andere Einstellungen"):
         fps_folder           = st.number_input("FPS", value=25.0, step=1.0, format="%.1f", key="f_fps")
         skip_analysis_f      = st.toggle("Nodding-Analyse überspringen (JSONs existieren)", key="f_skip_analysis")
         skip_base_edl_f      = st.toggle("Base-EDL überspringen (base.edl existiert)", key="f_skip_base_edl")
@@ -1081,7 +1098,8 @@ with tab_folder:
                 if _picked_lut:
                     st.session_state["_lut_path_pending"] = _picked_lut
                     st.rerun()
-    _render_settings_panel('f')
+
+    _render_preset_expander('f')
 
     st.divider()
     st.subheader("Workflow")
