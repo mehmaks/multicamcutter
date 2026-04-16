@@ -242,6 +242,47 @@ def _validate_remote() -> LicenseInfo:
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+def install_license(src_path: str) -> LicenseInfo:
+    """
+    Kopiert die Lizenzdatei von src_path nach ~/.resolve-toolkit/license.json
+    und validiert sie sofort. Gibt LicenseInfo mit valid=True bei Erfolg zurück,
+    sonst LicenseInfo mit error-Beschreibung (Datei wird NICHT kopiert wenn ungültig).
+    """
+    import shutil
+
+    # Datei lesen und prüfen bevor sie kopiert wird
+    try:
+        with open(src_path) as f:
+            data = json.load(f)
+    except FileNotFoundError:
+        return LicenseInfo(valid=False, error="Ausgewählte Datei nicht gefunden.")
+    except json.JSONDecodeError:
+        return LicenseInfo(valid=False, error="Ausgewählte Datei ist kein gültiges JSON.")
+    except Exception as e:
+        return LicenseInfo(valid=False, error=f"Datei konnte nicht gelesen werden: {e}")
+
+    if not _verify_signature(data):
+        return LicenseInfo(valid=False, error="Lizenzdatei ungültig oder manipuliert.")
+
+    expiry_error = _check_expiry(data.get("expires"))
+    if expiry_error:
+        return LicenseInfo(valid=False, error=expiry_error)
+
+    # Erst jetzt kopieren — nur gültige Dateien landen im Zielordner
+    try:
+        os.makedirs(_DATA_DIR, exist_ok=True)
+        shutil.copy2(src_path, _LOCAL_FILE)
+    except Exception as e:
+        return LicenseInfo(valid=False, error=f"Lizenzdatei konnte nicht installiert werden: {e}")
+
+    return LicenseInfo(
+        valid=True,
+        modules=data.get("modules", []),
+        expires=data.get("expires"),
+        email=data.get("email"),
+    )
+
+
 def validate() -> LicenseInfo:
     """
     Validate the current license and return a LicenseInfo.

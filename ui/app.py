@@ -21,6 +21,46 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
+# ── Config-Migration ───────────────────────────────────────────────────────────
+
+def _migrate_config() -> int:
+    """
+    Vergleicht config.ini mit config.template.ini und ergänzt fehlende
+    Sections/Keys mit den Template-Defaults. Vorhandene Werte werden nie
+    überschrieben. Gibt die Anzahl neu hinzugefügter Keys zurück.
+    """
+    import configparser as _cp
+    _root     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    _cfg_dir  = os.path.join(_root, "modules", "multicam_cutter")
+    _cfg_path = os.path.join(_cfg_dir, "config.ini")
+    _tpl_path = os.path.join(_cfg_dir, "config.template.ini")
+
+    if not os.path.exists(_tpl_path) or not os.path.exists(_cfg_path):
+        return 0
+
+    tmpl = _cp.ConfigParser()
+    tmpl.read(_tpl_path, encoding="utf-8")
+
+    cfg = _cp.ConfigParser()
+    cfg.read(_cfg_path, encoding="utf-8")
+
+    added = 0
+    for section in tmpl.sections():
+        if not cfg.has_section(section):
+            cfg.add_section(section)
+        for key, value in tmpl.items(section):
+            if not cfg.has_option(section, key):
+                cfg.set(section, key, value)
+                added += 1
+
+    if added:
+        with open(_cfg_path, "w", encoding="utf-8") as f:
+            cfg.write(f)
+
+    return added
+
+_migrated = _migrate_config()
+
 # ── Session state ──────────────────────────────────────────────────────────────
 
 _DEFAULTS = {
@@ -205,7 +245,8 @@ with st.sidebar:
         lic_on = _license.has_module(module)
         return cfg_on and lic_on
 
-    _pages = []
+    _license_page = st.Page("pages/license.py", title="Lizenz", icon="🔑")
+    _pages = [] if _license.valid else [_license_page]
     if _tab_visible("show_multicam",   "multicam"):
         _pages.append(st.Page("pages/multicam.py",  title="Multicam Cutter", icon="✂️"))
     if _tab_visible("show_enhance",    "enhance"):
@@ -221,7 +262,9 @@ with st.sidebar:
     if _tab_visible("show_takes",      "takes"):
         _pages.append(st.Page("pages/takes.py",     title="Take Selector",   icon="🎬"))
     _pages.append(st.Page("pages/docs.py",           title="Dokumentation",   icon="📖"))
-    _pages.append(st.Page("pages/config.py",        title="Config",          icon="⚙️"))
+    if _license.valid:
+        _pages.append(_license_page)
+    _pages.append(st.Page("pages/config.py",         title="Config",          icon="⚙️"))
 
     # ── Berechnete Werte ──────────────────────────────────────────────────────
 
@@ -242,9 +285,28 @@ with st.sidebar:
 
     st.divider()
 
-    # 2. Modul-Liste
+    # 2. Modul-Liste mit Sections
+    _tool_pages    = []
+    _setting_pages = []
+    _tool_titles   = {"Multicam Cutter", "Audio Enhance", "Auphonic",
+                      "MaxxVolume", "Silence Cutter", "Resolve Bridge", "Take Selector"}
+    _setting_titles = {"Dokumentation", "Lizenz", "Config"}
+
     for _p in _pages:
-        st.page_link(_p, use_container_width=True)
+        if _p.title in _tool_titles:
+            _tool_pages.append(_p)
+        elif _p.title in _setting_titles:
+            _setting_pages.append(_p)
+
+    if _tool_pages:
+        st.caption("TOOLS")
+        for _p in _tool_pages:
+            st.page_link(_p, use_container_width=True)
+
+    if _setting_pages:
+        st.caption("SETTINGS")
+        for _p in _setting_pages:
+            st.page_link(_p, use_container_width=True)
 
     st.divider()
 
@@ -262,7 +324,6 @@ with st.sidebar:
                 _fb_email = st.text_input("E-Mail (optional)",
                                           value=_license.email or "",
                                           placeholder="fuer Rückfragen")
-                _fb_log   = st.checkbox("Letzten Log anhängen", value=True)
                 _submitted = st.form_submit_button("Senden", use_container_width=True)
             if _submitted:
                 if not _fb_title.strip():
@@ -278,13 +339,6 @@ with st.sidebar:
                     _body_parts = [_fb_body.strip()]
                     if _fb_email.strip():
                         _body_parts.append(f"**Kontakt:** {_fb_email.strip()}")
-                    if _fb_log:
-                        _all_logs = (st.session_state.get("bin_log", []) +
-                                     st.session_state.get("folder_log", []))
-                        if _all_logs:
-                            _body_parts.append(
-                                "**Log (letzte 30 Zeilen):**\n```\n" +
-                                "\n".join(_all_logs[-30:]) + "\n```")
                     _body_parts.append(f"*Version: `{_git_hash}`*")
                     _resp = _rq.post(
                         f"https://api.github.com/repos/{_repo}/issues",

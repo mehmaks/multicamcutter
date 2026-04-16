@@ -25,7 +25,7 @@ def _section(md_file: str, img_file: str | None = None) -> None:
     st.markdown(md_path.read_text(encoding="utf-8") if md_path.exists() else "_Datei nicht gefunden._")
 
 
-tab_multicam, = st.tabs(["Multicam Cutter"])
+tab_multicam, tab_takes = st.tabs(["Multicam Cutter", "Take Selector"])
 
 with tab_multicam:
     st.caption(
@@ -47,3 +47,14 @@ with tab_multicam:
 
     with st.expander("Andere Einstellungen"):
         _section("multicam_andere.md", "andere-einstellungen.png")
+
+with tab_takes:
+    st.caption(
+        "Erklärt die Erkennungsparameter des Take Selectors — "
+        "wie Takes und Sektionen erkannt werden und welche Filter es gibt."
+    )
+    with st.expander("Whisper-Modell", expanded=True):
+        _section("takes.md")
+
+    with st.expander("Inhaltlicher Vergleich"):
+        _section("takes_vergleich.md")
