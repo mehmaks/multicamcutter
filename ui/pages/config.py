@@ -32,7 +32,7 @@ _TABS = [
     ("show_multicam", "✂️  Multicam Cutter"),
     ("show_enhance",  "🎙️  Audio Enhance"),
     ("show_auphonic",    "☁️  Auphonic"),
-    ("show_maxxvolume", "📢  MaxxVolume"),
+    ("show_maxxvolume", "📢  Voice Leveler"),
     ("show_silence",    "🔇  Silence Cutter"),
     ("show_resolve",  "🔗  Resolve Bridge"),
     ("show_takes",    "🎬  Take Selector"),
