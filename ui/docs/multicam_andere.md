@@ -1,6 +1,4 @@
-# Multicam Cutter
-
-## Andere Einstellungen
+# Andere Einstellungen
 
 ## FPS
 

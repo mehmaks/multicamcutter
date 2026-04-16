@@ -1,6 +1,4 @@
-# Take Selector
-
-## Inhaltlicher Vergleich
+# Inhaltlicher Vergleich
 
 Der **Inhalt vergleichen**-Dialog zeigt auf einen Blick, wie sich die Takes einer Sektion inhaltlich voneinander unterscheiden — nicht nur wann sie beginnen und enden, sondern was genau gesagt wurde und wo es abweicht.
 

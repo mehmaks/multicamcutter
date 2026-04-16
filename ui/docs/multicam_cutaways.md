@@ -1,6 +1,4 @@
-# Multicam Cutter
-
-## Cutaway-Regeln
+# Cutaway-Regeln
 
 Cutaways sind Schnitte auf die zuhörende Person — Reaktionsaufnahmen, die dem Gespräch Tiefe geben und das Bild lebendig halten. Der Multicam Cutter erkennt zwei Arten von Ereignissen, die einen Cutaway auslösen: **Kopfnicken** und **Sprachreaktionen**.
 

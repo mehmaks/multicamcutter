@@ -28,6 +28,7 @@ def _section(md_file: str, img_file: str | None = None) -> None:
 tab_multicam, tab_takes = st.tabs(["Multicam Cutter", "Take Selector"])
 
 with tab_multicam:
+    st.header("Multicam Cutter")
     st.caption(
         "Erklärt die Logik hinter den Einstellungen des Multicam Cutters — "
         "warum es die Parameter gibt und welches Problem sie lösen."
@@ -49,6 +50,7 @@ with tab_multicam:
         _section("multicam_andere.md", "andere-einstellungen.png")
 
 with tab_takes:
+    st.header("Take Selector")
     st.caption(
         "Erklärt die Erkennungsparameter des Take Selectors — "
         "wie Takes und Sektionen erkannt werden und welche Filter es gibt."

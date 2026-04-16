@@ -1,6 +1,4 @@
-# Multicam Cutter
-
-## Generelle Schnittregeln
+# Generelle Schnittregeln
 
 ## Min. Shotlänge (s)
 
