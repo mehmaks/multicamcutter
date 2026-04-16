@@ -69,6 +69,7 @@ def _show_compare_dialog():
     import html as _html_mod
 
     sec_i = st.session_state.get("takes_compare_sec")
+    st.session_state.takes_compare_sec = None  # sofort clearen — X-Button triggert sonst Reopen
     if sec_i is None:
         return
 
@@ -704,7 +705,8 @@ for i, section in enumerate(sections):
                 )
             with col_tr:
                 if st.button(
-                    "📄",
+                    "",
+                    icon=":material/description:",
                     key=f"takes_tr_{i}_{j}",
                     use_container_width=True,
                     help="Vollständiges Transkript anzeigen",
