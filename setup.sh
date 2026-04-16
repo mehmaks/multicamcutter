@@ -54,6 +54,20 @@ if [ "$PY_MAJOR" -eq 3 ] && [ "$PY_MINOR" -gt 12 ]; then
 fi
 ok "Python $PY_VERSION"
 
+# ── ffmpeg prüfen / installieren ─────────────────────────────────────────────
+
+if command -v ffmpeg &>/dev/null; then
+    ok "ffmpeg bereits vorhanden ($(ffmpeg -version 2>&1 | head -1 | awk '{print $3}'))"
+else
+    info "ffmpeg nicht gefunden — installiere via Homebrew..."
+    if command -v brew &>/dev/null; then
+        brew install ffmpeg
+        ok "ffmpeg installiert"
+    else
+        err "Homebrew nicht gefunden. Bitte ffmpeg manuell installieren: https://ffmpeg.org/download.html"
+    fi
+fi
+
 # ── Virtuelles Environment ────────────────────────────────────────────────────
 
 if [ ! -f "$VENV/bin/activate" ]; then
@@ -149,6 +163,18 @@ if [ ! -f "$LANDMARK_MODEL" ]; then
         -o "$LANDMARK_MODEL" && ok "face_landmarker.task" || echo "  (Download fehlgeschlagen — wird beim ersten Start nachgeladen)"
 else
     ok "face_landmarker.task bereits vorhanden"
+fi
+
+# Whisper small (~461 MB) — Standard-Modell für den Take Selector
+if python -c "import whisper; whisper._MODELS" 2>/dev/null; then
+    WHISPER_CACHE="$HOME/.cache/whisper/small.pt"
+    if [ ! -f "$WHISPER_CACHE" ]; then
+        info "Whisper-Modell 'small' herunterladen (~461 MB)..."
+        python -c "import whisper; whisper.load_model('small')" && \
+            ok "Whisper small geladen" || echo "  (Download fehlgeschlagen — wird beim ersten Take-Selector-Start nachgeladen)"
+    else
+        ok "Whisper small bereits vorhanden"
+    fi
 fi
 
 # ── start.command ausführbar machen ───────────────────────────────────────────
