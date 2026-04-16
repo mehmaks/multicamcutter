@@ -254,7 +254,7 @@ with st.sidebar:
     if _tab_visible("show_auphonic",   "auphonic"):
         _pages.append(st.Page("pages/auphonic.py",  title="Auphonic",        icon="☁️"))
     if _tab_visible("show_maxxvolume", "maxxvolume"):
-        _pages.append(st.Page("pages/maxxvolume.py",title="MaxxVolume",      icon="📢"))
+        _pages.append(st.Page("pages/voice_leveler.py", title="Voice Leveler", icon="📢"))
     if _tab_visible("show_silence",    "silence"):
         _pages.append(st.Page("pages/silence.py",   title="Silence Cutter",  icon="🔇"))
     if _tab_visible("show_resolve",    "resolve"):
@@ -289,7 +289,7 @@ with st.sidebar:
     _tool_pages    = []
     _setting_pages = []
     _tool_titles   = {"Multicam Cutter", "Audio Enhance", "Auphonic",
-                      "MaxxVolume", "Silence Cutter", "Resolve Bridge", "Take Selector"}
+                      "Voice Leveler", "Silence Cutter", "Resolve Bridge", "Take Selector"}
     _setting_titles = {"Dokumentation", "Lizenz", "Config"}
 
     for _p in _pages:

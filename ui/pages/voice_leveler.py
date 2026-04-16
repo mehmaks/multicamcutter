@@ -1,9 +1,8 @@
 """
-MaxxVolume — Voice Dynamics Processing via ffmpeg
-Repliziert die Waves MaxxVolume Speech-Preset-Kette:
-  Gate → Upward Compressor → Leveler (AGC) → Limiter
+Voice Leveler — Voice Dynamics Processing via ffmpeg
+Gate → Upward Compressor → Leveler (AGC) → Limiter
 
-Quellen: Clip aus Media Pool Bin · Aktive Timeline (In/Out oder gesamt) · Ordner
+Quellen: Clip aus Media Pool Bin · Aktive Timeline (In/Out oder gesamt) · Einzeldatei · Ordner
 """
 
 import sys
@@ -19,7 +18,7 @@ import time
 import json
 from pathlib import Path
 
-st.title("📢 MaxxVolume")
+st.title("📢 Voice Leveler")
 st.caption("Voice Dynamics · Gate → Upward Compressor → Leveler (AGC) → Limiter · nur für Sprachspuren")
 
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".aif", ".aiff"}
@@ -298,15 +297,30 @@ elif source_mode == "Einzeldatei":
 # ── Mode: Ordner abarbeiten ───────────────────────────────────────────────────
 
 elif source_mode == "Ordner abarbeiten":
-    col_path, col_btn = st.columns([4, 1])
+    col_path, col_browse, col_scan = st.columns([4, 1, 1])
     with col_path:
         folder_path_str = st.text_input(
             "Ordner-Pfad", placeholder="/Volumes/Media/Recording", key="mv_folder_path"
         )
-    with col_btn:
+    with col_browse:
+        st.write("")
+        if st.button("📁 Wählen", use_container_width=True, key="mv_folder_browse"):
+            import subprocess as _sp_dlg
+            try:
+                _r = _sp_dlg.run(
+                    ["osascript", "-e",
+                     'POSIX path of (choose folder with prompt "Ordner auswählen")'],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if _r.returncode == 0 and _r.stdout.strip():
+                    st.session_state["mv_folder_path"] = _r.stdout.strip()
+                    st.rerun()
+            except Exception:
+                pass
+    with col_scan:
         st.write("")
         if st.button("Scannen", use_container_width=True, key="mv_scan"):
-            p = Path(folder_path_str) if folder_path_str else None
+            p = Path(st.session_state.get("mv_folder_path", "")) if st.session_state.get("mv_folder_path") else None
             if p and p.is_dir():
                 found = sorted(
                     (f for f in p.iterdir()
@@ -314,9 +328,11 @@ elif source_mode == "Ordner abarbeiten":
                     key=lambda f: f.name,
                 )
                 st.session_state.mv_scanned = [(f.name, str(f)) for f in found]
-            else:
+            elif p:
                 st.error("Ordner nicht gefunden.")
                 st.session_state.mv_scanned = []
+            else:
+                st.warning("Bitte zuerst einen Ordner auswählen.")
 
     if "mv_scanned" not in st.session_state:
         st.session_state.mv_scanned = []

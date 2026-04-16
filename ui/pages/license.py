@@ -33,7 +33,7 @@ if _license.valid:
         "multicam":   "✂️  Multicam Cutter",
         "enhance":    "🎙️  Audio Enhance",
         "auphonic":   "☁️  Auphonic",
-        "maxxvolume": "📢  MaxxVolume",
+        "maxxvolume": "📢  Voice Leveler",
         "silence":    "🔇  Silence Cutter",
         "resolve":    "🔗  Resolve Bridge",
         "takes":      "🎬  Take Selector",
