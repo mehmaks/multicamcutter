@@ -2,9 +2,15 @@ import streamlit as st
 import sys
 import os
 import subprocess
+import importlib.util as _ilu
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", ".."))
-import license as _lic
+# Explizit nach Pfad laden — vermeidet Namenskonflikt mit dieser Datei (license.py)
+_spec = _ilu.spec_from_file_location(
+    "_root_license",
+    os.path.join(os.path.dirname(__file__), "..", "..", "license.py"),
+)
+_lic = _ilu.module_from_spec(_spec)
+_spec.loader.exec_module(_lic)
 
 _license: _lic.LicenseInfo = st.session_state.get("license_info") or _lic.validate()
 
