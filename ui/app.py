@@ -252,7 +252,7 @@ with st.sidebar:
         "show_maxxvolume": ("pages/voice_leveler.py", "Voice Leveler",   ":material/graphic_eq:",   "maxxvolume"),
         "show_silence":    ("pages/silence.py",       "Silence Cutter",  ":material/volume_off:",   "silence"),
         "show_resolve":    ("pages/resolve.py",       "Resolve Bridge",  ":material/link:",         "resolve"),
-        "show_takes":      ("pages/takes.py",         "Take Selector",   ":material/movie_clapper:","takes"),
+        "show_takes":      ("pages/takes.py",         "Take Selector",   ":material/theaters:","takes"),
     }
     _mod_order_raw = _ui_cfg.get("UI", "module_order", fallback="")
     _mod_order = ([k.strip() for k in _mod_order_raw.split(",") if k.strip() in _MOD_PAGE_DEFS]
