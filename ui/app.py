@@ -245,22 +245,28 @@ with st.sidebar:
         lic_on = _license.has_module(module)
         return cfg_on and lic_on
 
+    _MOD_PAGE_DEFS = {
+        "show_multicam":   ("pages/multicam.py",     "Multicam Cutter", "✂️",  "multicam"),
+        "show_enhance":    ("pages/enhance.py",       "Audio Enhance",   "🎙️", "enhance"),
+        "show_auphonic":   ("pages/auphonic.py",      "Auphonic",        "☁️", "auphonic"),
+        "show_maxxvolume": ("pages/voice_leveler.py", "Voice Leveler",   "📢", "maxxvolume"),
+        "show_silence":    ("pages/silence.py",       "Silence Cutter",  "🔇", "silence"),
+        "show_resolve":    ("pages/resolve.py",       "Resolve Bridge",  "🔗", "resolve"),
+        "show_takes":      ("pages/takes.py",         "Take Selector",   "🎬", "takes"),
+    }
+    _mod_order_raw = _ui_cfg.get("UI", "module_order", fallback="")
+    _mod_order = ([k.strip() for k in _mod_order_raw.split(",") if k.strip() in _MOD_PAGE_DEFS]
+                  if _mod_order_raw else list(_MOD_PAGE_DEFS))
+    for _k in _MOD_PAGE_DEFS:
+        if _k not in _mod_order:
+            _mod_order.append(_k)
+
     _license_page = st.Page("pages/license.py", title="Lizenz", icon="🔑")
     _pages = [] if _license.valid else [_license_page]
-    if _tab_visible("show_multicam",   "multicam"):
-        _pages.append(st.Page("pages/multicam.py",  title="Multicam Cutter", icon="✂️"))
-    if _tab_visible("show_enhance",    "enhance"):
-        _pages.append(st.Page("pages/enhance.py",   title="Audio Enhance",   icon="🎙️"))
-    if _tab_visible("show_auphonic",   "auphonic"):
-        _pages.append(st.Page("pages/auphonic.py",  title="Auphonic",        icon="☁️"))
-    if _tab_visible("show_maxxvolume", "maxxvolume"):
-        _pages.append(st.Page("pages/voice_leveler.py", title="Voice Leveler", icon="📢"))
-    if _tab_visible("show_silence",    "silence"):
-        _pages.append(st.Page("pages/silence.py",   title="Silence Cutter",  icon="🔇"))
-    if _tab_visible("show_resolve",    "resolve"):
-        _pages.append(st.Page("pages/resolve.py",   title="Resolve Bridge",  icon="🔗"))
-    if _tab_visible("show_takes",      "takes"):
-        _pages.append(st.Page("pages/takes.py",     title="Take Selector",   icon="🎬"))
+    for _cfg_key in _mod_order:
+        _pg_file, _pg_title, _pg_icon, _pg_lic = _MOD_PAGE_DEFS[_cfg_key]
+        if _tab_visible(_cfg_key, _pg_lic):
+            _pages.append(st.Page(_pg_file, title=_pg_title, icon=_pg_icon))
     _pages.append(st.Page("pages/docs.py",           title="Dokumentation",   icon="📖"))
     if _license.valid:
         _pages.append(_license_page)

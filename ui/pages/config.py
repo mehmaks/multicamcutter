@@ -5,6 +5,7 @@ Config — Tab-Sichtbarkeit und config.ini Editor.
 import streamlit as st
 import configparser
 from pathlib import Path
+from streamlit_sortables import sort_items
 
 CONFIG_PATH = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter" / "config.ini"
 
@@ -26,31 +27,67 @@ def _save_cfg(cfg: configparser.ConfigParser):
 # ── Tab-Sichtbarkeit ──────────────────────────────────────────────────────────
 
 st.subheader("Tabs")
-st.caption("Deaktivierte Tabs werden in der Sidebar nicht angezeigt.")
+st.caption("Reihenfolge per Drag & Drop ändern. In **Aktiviert** = in der Sidebar sichtbar.")
 
-_TABS = [
-    ("show_multicam", "✂️  Multicam Cutter"),
-    ("show_enhance",  "🎙️  Audio Enhance"),
-    ("show_auphonic",    "☁️  Auphonic"),
+_ALL_MODULES = [
+    ("show_multicam",   "✂️  Multicam Cutter"),
+    ("show_enhance",    "🎙️  Audio Enhance"),
+    ("show_auphonic",   "☁️  Auphonic"),
     ("show_maxxvolume", "📢  Voice Leveler"),
     ("show_silence",    "🔇  Silence Cutter"),
-    ("show_resolve",  "🔗  Resolve Bridge"),
-    ("show_takes",    "🎬  Take Selector"),
+    ("show_resolve",    "🔗  Resolve Bridge"),
+    ("show_takes",      "🎬  Take Selector"),
 ]
+_KEY_TO_LABEL = dict(_ALL_MODULES)
+_LABEL_TO_KEY = {v: k for k, v in _ALL_MODULES}
+_DEFAULT_ORDER = [k for k, _ in _ALL_MODULES]
 
 cfg = _load_cfg()
 if not cfg.has_section("UI"):
     cfg.add_section("UI")
 
-changed = False
-for key, label in _TABS:
-    current = cfg.getboolean("UI", key, fallback=True)
-    new_val = st.checkbox(label, value=current, key=f"tabvis_{key}")
-    if new_val != current:
-        cfg.set("UI", key, "true" if new_val else "false")
-        changed = True
+# Gespeicherte Reihenfolge laden (alle Module, aktiv + inaktiv)
+_order_raw = cfg.get("UI", "module_order", fallback="")
+if _order_raw:
+    _saved_order = [k.strip() for k in _order_raw.split(",") if k.strip() in _KEY_TO_LABEL]
+    for k in _DEFAULT_ORDER:
+        if k not in _saved_order:
+            _saved_order.append(k)
+else:
+    _saved_order = list(_DEFAULT_ORDER)
 
-if changed:
+_enabled_labels  = [_KEY_TO_LABEL[k] for k in _saved_order
+                    if cfg.getboolean("UI", k, fallback=True)]
+_disabled_labels = [_KEY_TO_LABEL[k] for k in _saved_order
+                    if not cfg.getboolean("UI", k, fallback=True)]
+
+_result = sort_items(
+    [
+        {"header": "Aktiviert",   "items": _enabled_labels},
+        {"header": "Deaktiviert", "items": _disabled_labels},
+    ],
+    multi_containers=True,
+)
+
+_new_enabled_labels  = _result[0]["items"]
+_new_disabled_labels = _result[1]["items"]
+_new_enabled_keys    = {_LABEL_TO_KEY[l] for l in _new_enabled_labels}
+_new_order           = [_LABEL_TO_KEY[l] for l in _new_enabled_labels + _new_disabled_labels]
+
+_changed = False
+
+if _new_order != _saved_order:
+    cfg.set("UI", "module_order", ",".join(_new_order))
+    _changed = True
+
+for k in _DEFAULT_ORDER:
+    _old = cfg.getboolean("UI", k, fallback=True)
+    _new = k in _new_enabled_keys
+    if _old != _new:
+        cfg.set("UI", k, "true" if _new else "false")
+        _changed = True
+
+if _changed:
     _save_cfg(cfg)
     st.rerun()
 
