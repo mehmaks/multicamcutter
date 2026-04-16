@@ -1,8 +1,8 @@
-# Inhaltlicher Vergleich
+## Inhaltlicher Vergleich
 
 Der **Inhalt vergleichen**-Dialog zeigt auf einen Blick, wie sich die Takes einer Sektion inhaltlich voneinander unterscheiden — nicht nur wann sie beginnen und enden, sondern was genau gesagt wurde und wo es abweicht.
 
-## Funktionsweise
+### Funktionsweise
 
 Als Referenz dient automatisch der längste Take der Sektion. Alle anderen Takes werden Wort für Wort mit dieser Referenz verglichen:
 
@@ -12,7 +12,7 @@ Als Referenz dient automatisch der längste Take der Sektion. Alle anderen Takes
 
 Jeder Take bekommt eine eigene Farbe, erkennbar an der farbigen linken Kante des Blocks.
 
-## Fragment-Filter
+### Fragment-Filter
 
 Kleine Abweichungen entstehen oft nicht durch bewusste Umformulierung, sondern durch Versprecher, Füllwörter oder Erkennungsungenauigkeiten von Whisper. Der Fragment-Filter blendet solche kurzen Unterschiede aus.
 
@@ -20,7 +20,7 @@ Kleine Abweichungen entstehen oft nicht durch bewusste Umformulierung, sondern d
 
 Der Filter lässt sich direkt im geöffneten Dialog verschieben — die Ansicht aktualisiert sich sofort, ohne dass die Analyse neu gestartet werden muss.
 
-## Wann ist das nützlich?
+### Wann ist das nützlich?
 
 - Du willst wissen, ob ein Take inhaltlich vollständig ist oder ob der Sprecher einen Satz ausgelassen hat
 - Du vergleichst zwei scheinbar ähnliche Takes und suchst die genaue Stelle, an der sie voneinander abweichen

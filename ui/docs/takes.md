@@ -1,4 +1,4 @@
-# Whisper-Modell
+## Whisper-Modell
 
 Der Take Selector nutzt [OpenAI Whisper](https://github.com/openai/whisper) zur Spracherkennung. Whisper transkribiert den Clip und liefert für jedes erkannte Wort einen genauen Zeitstempel — auf dieser Basis funktioniert die gesamte Take- und Sektionserkennung.
 
@@ -18,7 +18,7 @@ Das Modell wird beim ersten Einsatz automatisch heruntergeladen und lokal zwisch
 
 ---
 
-# Take Selector
+## Take Selector
 
 Der Take Selector analysiert geskriptete Aufnahmen — Clips, in denen ein Text mehrfach aufgenommen wurde — und wählt automatisch den besten Take pro Abschnitt aus.
 
@@ -26,27 +26,27 @@ Er erkennt, wo neue Versuche beginnen, gruppiert zusammengehörige Takes und sch
 
 ---
 
-## Erkennungs-Parameter
+### Erkennungs-Parameter
 
-### Pause-Schwelle (s)
+#### Pause-Schwelle (s)
 
 Der Sprecher hält inne — entweder um neu anzusetzen oder weil ein Abschnitt zu Ende ist. Ab welcher Länge eine Pause als Trennung gilt, legt dieser Wert fest. Kurze Atempausen innerhalb eines Takes bleiben so zusammen, längere Unterbrechungen trennen die Aufnahme in einzelne Segmente.
 
 > **Standardwert 1,5 Sekunden bedeutet:** Pausen kürzer als 1,5 Sekunden gelten als normale Sprechpausen innerhalb eines Takes. Erst ab 1,5 Sekunden Stille beginnt ein neues Segment.
 
-### Ähnlichkeits-Schwelle
+#### Ähnlichkeits-Schwelle
 
 Wenn ein neues Segment beginnt, vergleicht das Tool dessen erste Wörter mit dem Anfang des aktuellen Abschnitts. Klingen sie ähnlich, ist es ein neuer Versuch des gleichen Textes — also ein neuer Take. Klingen sie anders, beginnt ein neuer Abschnitt.
 
 > **Standardwert 0,5 bedeutet:** Ein Segment muss zu mindestens 50 % mit dem Anfang des aktuellen Abschnitts übereinstimmen, um als neuer Take zu zählen. Niedrigere Werte fassen mehr Varianten zusammen, höhere Werte trennen strenger.
 
-### Min. Take-Vollständigkeit
+#### Min. Take-Vollständigkeit
 
 Nicht jeder Take ist vollständig — manchmal bricht der Sprecher mittendrin ab. Dieser Wert legt fest, wie viel von einem Take vorhanden sein muss, damit er als gültiger Kandidat gilt. Unvollständige Takes werden übersprungen, der letzte vollständige Take wird ausgewählt.
 
 > **Standardwert 0,7 bedeutet:** Ein Take muss mindestens 70 % der Wörter des längsten Takes in diesem Abschnitt enthalten, um als vollständig zu gelten. Kürzere Takes — z.B. weil der Sprecher abgebrochen hat — werden ignoriert.
 
-### Min. Sektion-Länge (%)
+#### Min. Sektion-Länge (%)
 
 Zwischen echten Takes passiert immer etwas: ein Mikrofontest am Anfang, ein kurzes „Warte" während der Sprecher sich neu einliest, ein „Noch eins?" an den Kameramann. All das wird zwar erkannt, soll aber nicht als eigener Abschnitt behandelt werden.
 
