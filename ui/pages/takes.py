@@ -46,6 +46,7 @@ for _k, _v in {
     "takes_transcript_text":   "",
     "takes_file_path_sel":     "",
     "takes_compare_sec":       None,
+    "takes_compare_active":    None,
 }.items():
     if _k not in st.session_state:
         st.session_state[_k] = _v
@@ -68,8 +69,13 @@ def _show_compare_dialog():
     import difflib as _dl
     import html as _html_mod
 
-    sec_i = st.session_state.get("takes_compare_sec")
-    st.session_state.takes_compare_sec = None  # sofort clearen — X-Button triggert sonst Reopen
+    # Trigger konsumieren → in _active überführen (überlebt dialog-lokale Reruns)
+    _trigger = st.session_state.get("takes_compare_sec")
+    if _trigger is not None:
+        st.session_state.takes_compare_active = _trigger
+        st.session_state.takes_compare_sec = None
+
+    sec_i = st.session_state.get("takes_compare_active")
     if sec_i is None:
         return
 
@@ -155,7 +161,7 @@ def _show_compare_dialog():
 
     st.divider()
     if st.button("Schließen", use_container_width=True):
-        st.session_state.takes_compare_sec = None
+        st.session_state.takes_compare_active = None
         st.rerun()
 
 
