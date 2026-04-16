@@ -565,7 +565,7 @@ can_start    = (_tl_ready or _files_ready) and not st.session_state.mv_running
 
 st.divider()
 
-if st.button("▶ MaxxVolume starten", type="primary", disabled=not can_start,
+if st.button("▶ Voice Leveler starten", type="primary", disabled=not can_start,
              use_container_width=True, key="mv_start"):
     filterchain = _build_filterchain(gate_threshold, leveler_target, output_ceiling,
                                      low_level_gain, high_level_gain)
