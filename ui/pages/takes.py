@@ -91,10 +91,10 @@ def _show_compare_dialog():
     # Reference block
     _ref_text = _html_mod.escape(" ".join(_ref_w))
     st.markdown(
-        f"<div style='background:#1a1d27;padding:10px 14px;border-radius:6px;"
-        f"border-left:4px solid #555;margin:6px 0;line-height:1.75'>"
-        f"<span style='color:#888;font-size:0.75rem'>Take {_ref_i + 1} · Referenz</span><br>"
-        f"<span style='color:#e0e0e0'>{_ref_text}</span>"
+        f"<div style='background:#ecebe3;padding:10px 14px;border-radius:6px;"
+        f"border-left:4px solid #d3d2ca;margin:6px 0;line-height:1.75'>"
+        f"<span style='color:#6b7280;font-size:0.75rem'>Take {_ref_i + 1} · Referenz</span><br>"
+        f"<span style='color:#3d3a2a'>{_ref_text}</span>"
         f"</div>",
         unsafe_allow_html=True,
     )
@@ -116,13 +116,13 @@ def _show_compare_dialog():
                     if tag in ("replace", "delete") and i1 < i2:
                         deleted = _html_mod.escape(" ".join(ref_words[i1:i2]))
                         parts.append(
-                            f"<del style='color:#666;text-decoration-color:#666'>{deleted}</del>"
+                            f"<del style='color:#9ca3af;text-decoration-color:#9ca3af'>{deleted}</del>"
                         )
                     if tag in ("replace", "insert") and j1 < j2:
                         inserted = _html_mod.escape(" ".join(take_words[j1:j2]))
                         parts.append(
                             f"<mark style='background:{color}28;border-bottom:2px solid {color};"
-                            f"padding:0 2px;border-radius:2px;color:#e0e0e0'>{inserted}</mark>"
+                            f"padding:0 2px;border-radius:2px;color:#3d3a2a'>{inserted}</mark>"
                         )
         return " ".join(parts)
 
@@ -134,20 +134,20 @@ def _show_compare_dialog():
         take_words = take["text"].split()
         diff_html  = _build_diff_html(_ref_w, take_words, color, min_diff)
         st.markdown(
-            f"<div style='background:#1a1d27;padding:10px 14px;border-radius:6px;"
+            f"<div style='background:#ecebe3;padding:10px 14px;border-radius:6px;"
             f"border-left:4px solid {color};margin:6px 0;line-height:1.75'>"
             f"<span style='color:{color};font-size:0.75rem'>Take {j + 1}"
             f" · {take['n_words']} Wörter</span><br>"
-            f"<span style='color:#e0e0e0'>{diff_html}</span>"
+            f"<span style='color:#3d3a2a'>{diff_html}</span>"
             f"</div>",
             unsafe_allow_html=True,
         )
 
     st.markdown(
-        "<small style='color:#555'>"
-        "<del style='color:#666'>durchgestrichen</del> = in Referenz, im Take weggefallen &nbsp;·&nbsp; "
+        "<small style='color:#6b7280'>"
+        "<del style='color:#9ca3af'>durchgestrichen</del> = in Referenz, im Take weggefallen &nbsp;·&nbsp; "
         "<mark style='background:#4d96ff28;border-bottom:2px solid #4d96ff;"
-        "padding:0 2px;border-radius:2px;color:#aaa'>markiert</mark> = verändert oder neu"
+        "padding:0 2px;border-radius:2px;color:#3d3a2a'>markiert</mark> = verändert oder neu"
         "</small>",
         unsafe_allow_html=True,
     )
@@ -667,7 +667,8 @@ for i, section in enumerate(sections):
     ):
         if n_t > 1:
             if st.button(
-                "📊 Inhalt vergleichen",
+                "Inhalt vergleichen",
+                icon=":material/bar_chart:",
                 key=f"takes_cmp_{i}",
                 help="Zeigt welche Informationen in welchen Takes vorhanden oder abweichend sind.",
             ):
@@ -682,7 +683,8 @@ for i, section in enumerate(sections):
             col_btn, col_info, col_tr = st.columns([1, 8, 1])
             with col_btn:
                 if st.button(
-                    "✓" if is_sel else "○",
+                    "",
+                    icon=":material/check_circle:" if is_sel else ":material/radio_button_unchecked:",
                     key=f"takes_btn_{i}_{j}",
                     type="primary" if is_sel else "secondary",
                     use_container_width=True,
