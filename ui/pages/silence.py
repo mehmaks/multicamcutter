@@ -472,8 +472,8 @@ else:
             q.put(f"\n{len(silence_segs)} Stille-Bereiche erkannt  ({total_silence_s:.1f}s)")
             q.put(f"{len(keep_segs)} Keep-Segmente  ({total_keep_s:.1f}s)")
 
-            q.put(("__RESULT__", {"silence": silence_segs, "keep": keep_segs,
-                                   "fps": fps, "file_path": path}))
+            q.put(("__FILE_RESULT__", {"silence": silence_segs, "keep": keep_segs,
+                                       "fps": fps, "file_path": path}))
             q.put("__DONE__0")
 
         except Exception as e:
@@ -526,7 +526,7 @@ else:
         while True:
             try:
                 _msg = _fq.get_nowait()
-                if isinstance(_msg, tuple) and _msg[0] == "__RESULT__":
+                if isinstance(_msg, tuple) and _msg[0] == "__FILE_RESULT__":
                     st.session_state.sc_file_results = _msg[1]
                     _file_res = _msg[1]
                 elif isinstance(_msg, str) and _msg.startswith("__DONE__"):

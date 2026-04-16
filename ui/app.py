@@ -403,7 +403,9 @@ with st.sidebar:
                 _line = st.session_state.silence_queue.get(timeout=0.1)
                 if isinstance(_line, tuple) and _line[0] == "__RESULT__":
                     st.session_state.silence_results = _line[1]
-                elif _line.startswith("__DONE__"):
+                elif isinstance(_line, tuple) and _line[0] == "__FILE_RESULT__":
+                    st.session_state.sc_file_results = _line[1]
+                elif isinstance(_line, str) and _line.startswith("__DONE__"):
                     st.session_state.silence_running = False
                     break
                 else:
