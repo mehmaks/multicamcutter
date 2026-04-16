@@ -45,3 +45,6 @@ license_cache.json
 keygen.py
 keysign.py
 license_*.json
+
+# UI-Fonts (werden via setup.sh geladen, nicht versioniert)
+ui/static/*.ttf

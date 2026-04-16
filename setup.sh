@@ -97,6 +97,31 @@ else
     ok "Resemble Enhance bereits vorhanden"
 fi
 
+# ── UI-Fonts herunterladen ────────────────────────────────────────────────────
+
+_FONT_DIR="$SCRIPT_DIR/ui/static"
+_FONT_BASE="https://raw.githubusercontent.com/streamlit/docs/main/python/concept-source/theming-overview-anthropic-light-inspried/static"
+_FONTS=(
+    "SpaceGrotesk-VariableFont_wght.ttf"
+    "SpaceMono-Regular.ttf"
+    "SpaceMono-Bold.ttf"
+    "SpaceMono-BoldItalic.ttf"
+    "SpaceMono-Italic.ttf"
+)
+
+mkdir -p "$_FONT_DIR"
+_fonts_ok=true
+for _font in "${_FONTS[@]}"; do
+    if [ ! -f "$_FONT_DIR/$_font" ]; then
+        curl -fsSL "$_FONT_BASE/$_font" -o "$_FONT_DIR/$_font" || _fonts_ok=false
+    fi
+done
+if $_fonts_ok; then
+    ok "UI-Fonts bereit"
+else
+    info "Einige Fonts konnten nicht geladen werden — App läuft mit System-Fonts weiter"
+fi
+
 # ── Patches anwenden ──────────────────────────────────────────────────────────
 
 SITE="$VENV/lib/$(python -c 'import sys; print(f"python{sys.version_info.major}.{sys.version_info.minor}")')/site-packages"
