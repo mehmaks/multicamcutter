@@ -25,7 +25,7 @@ def _section(md_file: str, img_file: str | None = None) -> None:
     st.markdown(md_path.read_text(encoding="utf-8") if md_path.exists() else "_Datei nicht gefunden._")
 
 
-tab_multicam, tab_takes = st.tabs(["Multicam Cutter", "Take Selector"])
+tab_multicam, tab_takes, tab_silence = st.tabs(["Multicam Cutter", "Take Selector", "Silence Cutter"])
 
 with tab_multicam:
     st.header("Multicam Cutter")
@@ -60,3 +60,13 @@ with tab_takes:
 
     with st.expander("Inhaltlicher Vergleich"):
         _section("takes_vergleich.md")
+
+with tab_silence:
+    st.header("Silence Cutter")
+    st.caption(
+        "Erklärt wie die Stille-Erkennung funktioniert und was die einzelnen "
+        "Parameter bewirken."
+    )
+
+    with st.expander("Funktionsweise & Einstellungen", expanded=True):
+        _section("silence.md")
