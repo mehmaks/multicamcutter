@@ -114,7 +114,7 @@ st.divider()
 st.subheader("Quelle")
 
 source_mode = st.radio(
-    "Quelle", ["Resolve Media Pool", "Aktive Timeline", "Ordner / Dateien"],
+    "Quelle", ["Resolve Media Pool", "Aktive Timeline", "Einzeldatei", "Ordner abarbeiten"],
     horizontal=True, key="mv_source_mode", label_visibility="collapsed",
 )
 
@@ -126,7 +126,7 @@ resolve_ctx: dict = {}           # holds resolve objects for all modes
 _resolve_obj = None
 _resolve_error = None
 
-if source_mode in ("Resolve Media Pool", "Aktive Timeline"):
+if source_mode in ("Resolve Media Pool", "Aktive Timeline", "Ordner abarbeiten"):
     try:
         from resolve_bridge.connection import get_resolve
         _resolve_obj = get_resolve()
@@ -261,9 +261,9 @@ elif source_mode == "Aktive Timeline":
                 "tl_mode":         True,
             })
 
-# ── Mode: Ordner / Dateien ────────────────────────────────────────────────────
+# ── Mode: Einzeldatei ────────────────────────────────────────────────────────
 
-elif source_mode == "Ordner / Dateien":
+elif source_mode == "Einzeldatei":
     col_fp1, col_fp2 = st.columns([4, 1])
     with col_fp2:
         st.write("")
@@ -294,6 +294,41 @@ elif source_mode == "Ordner / Dateien":
         else:
             selected_path_files = [(_fp_path.name, str(_fp_path))]
             st.caption(f"1 Datei ausgewählt: `{_fp_path.name}`")
+
+# ── Mode: Ordner abarbeiten ───────────────────────────────────────────────────
+
+elif source_mode == "Ordner abarbeiten":
+    col_path, col_btn = st.columns([4, 1])
+    with col_path:
+        folder_path_str = st.text_input(
+            "Ordner-Pfad", placeholder="/Volumes/Media/Recording", key="mv_folder_path"
+        )
+    with col_btn:
+        st.write("")
+        if st.button("Scannen", use_container_width=True, key="mv_scan"):
+            p = Path(folder_path_str) if folder_path_str else None
+            if p and p.is_dir():
+                found = sorted(
+                    (f for f in p.iterdir()
+                     if f.suffix.lower() in AUDIO_EXTENSIONS | VIDEO_EXTENSIONS),
+                    key=lambda f: f.name,
+                )
+                st.session_state.mv_scanned = [(f.name, str(f)) for f in found]
+            else:
+                st.error("Ordner nicht gefunden.")
+                st.session_state.mv_scanned = []
+
+    if "mv_scanned" not in st.session_state:
+        st.session_state.mv_scanned = []
+    if st.session_state.mv_scanned:
+        chosen = st.multiselect(
+            "Dateien auswählen",
+            options=[n for n, _ in st.session_state.mv_scanned],
+            default=[n for n, _ in st.session_state.mv_scanned],
+            key="mv_folder_select",
+        )
+        selected_path_files = [(n, p) for n, p in st.session_state.mv_scanned if n in chosen]
+        st.caption(f"{len(selected_path_files)} Datei(en) ausgewählt")
 
 # ── Processing functions ──────────────────────────────────────────────────────
 
@@ -507,7 +542,7 @@ def _run_all(source_mode, selected_path_files, ctx, filterchain, q):
 # ── Can we start? ─────────────────────────────────────────────────────────────
 
 _tl_ready    = source_mode == "Aktive Timeline" and resolve_ctx.get("tl_mode")
-_files_ready = source_mode != "Aktive Timeline" and bool(selected_path_files)
+_files_ready = source_mode not in ("Aktive Timeline",) and bool(selected_path_files)
 can_start    = (_tl_ready or _files_ready) and not st.session_state.mv_running
 
 # ── Run ───────────────────────────────────────────────────────────────────────
