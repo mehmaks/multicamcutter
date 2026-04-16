@@ -107,13 +107,6 @@ def _build_filterchain(gate_db, leveler_lufs, ceiling_dbfs, ll_gain, hl_gain):
         f"alimiter=level_in=1:level_out=1:limit={limit_linear}:attack=5:release=50:level=disabled",
     ])
 
-with st.expander("ffmpeg Filter-Chain (Vorschau)"):
-    st.code(
-        _build_filterchain(gate_threshold, leveler_target, output_ceiling,
-                           low_level_gain, high_level_gain),
-        language=None,
-    )
-
 st.divider()
 
 # ── Source selection ──────────────────────────────────────────────────────────
