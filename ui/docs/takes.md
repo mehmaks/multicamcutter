@@ -1,4 +1,6 @@
-# Take Selector — Whisper-Modell
+# Take Selector
+
+## Whisper-Modell
 
 Der Take Selector nutzt [OpenAI Whisper](https://github.com/openai/whisper) zur Spracherkennung. Whisper transkribiert den Clip und liefert für jedes erkannte Wort einen genauen Zeitstempel — auf dieser Basis funktioniert die gesamte Take- und Sektionserkennung.
 

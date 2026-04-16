@@ -1,4 +1,6 @@
-# Sprecher-Erkennung
+# Multicam Cutter
+
+## Sprecher-Erkennung
 
 Die Audiodatei jedes Mikrofons wird in kurze Zeitfenster von 50 ms aufgeteilt und für jedes Fenster der durchschnittliche Lautstärkepegel berechnet. Wer in einem Fenster deutlich lauter ist als der andere, gilt als aktiver Sprecher. Das Ergebnis ist eine Abfolge von Segmenten — „CAM1 spricht", „CAM2 spricht" usw. — die das Grundgerüst der Timeline bilden. Alle Cutaway-Regeln werden erst danach darüber gelegt.
 
