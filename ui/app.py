@@ -287,7 +287,11 @@ with st.sidebar:
 
     # 1. Titel + Version
     st.title("RESOLVE TOOLKIT")
-    st.caption(f"`{_ver}`")
+    st.markdown(
+        f"<span style='background:#6b7280; color:#fff; padding:2px 10px; "
+        f"border-radius:4px; font-size:0.75rem; font-weight:500;'>{_ver}</span>",
+        unsafe_allow_html=True,
+    )
 
     st.divider()
 
