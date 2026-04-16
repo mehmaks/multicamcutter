@@ -266,7 +266,7 @@ elif source_mode == "Einzeldatei":
     col_fp1, col_fp2 = st.columns([4, 1])
     with col_fp2:
         st.write("")
-        if st.button("📁 Durchsuchen", use_container_width=True, key="mv_browse"):
+        if st.button("Durchsuchen", icon=":material/folder_open:", use_container_width=True, key="mv_browse"):
             import subprocess as _sp_dlg
             try:
                 _r = _sp_dlg.run(
@@ -304,7 +304,7 @@ elif source_mode == "Ordner abarbeiten":
         )
     with col_browse:
         st.write("")
-        if st.button("📁 Wählen", use_container_width=True, key="mv_folder_browse"):
+        if st.button("Wählen", icon=":material/folder_open:", use_container_width=True, key="mv_folder_browse"):
             import subprocess as _sp_dlg
             try:
                 _r = _sp_dlg.run(
@@ -565,7 +565,7 @@ can_start    = (_tl_ready or _files_ready) and not st.session_state.mv_running
 
 st.divider()
 
-if st.button("▶ Voice Leveler starten", type="primary", disabled=not can_start,
+if st.button("Voice Leveler starten", icon=":material/play_arrow:", type="primary", disabled=not can_start,
              use_container_width=True, key="mv_start"):
     filterchain = _build_filterchain(gate_threshold, leveler_target, output_ceiling,
                                      low_level_gain, high_level_gain)

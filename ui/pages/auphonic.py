@@ -131,7 +131,7 @@ with col_credits:
             f"Monatlich: {c['recurring']:.2f} h · Einmalig: {c['onetime']:.2f} h  \n"
             f"Erneuerung: {c['recharge']}"
         )
-    if st.button("↻", help="Credits neu laden", key="refresh_credits"):
+    if st.button("", icon=":material/refresh:", help="Credits neu laden", key="refresh_credits"):
         st.session_state.auphonic_credits = None
         st.rerun()
 
@@ -158,7 +158,7 @@ with col_preset:
     )
 with col_preset_refresh:
     st.markdown("<br>", unsafe_allow_html=True)
-    if st.button("↻", help="Presets neu laden", key="refresh_presets"):
+    if st.button("", icon=":material/refresh:", help="Presets neu laden", key="refresh_presets"):
         st.session_state.auphonic_presets = None
         st.session_state.auphonic_preset_details = {}
         st.rerun()

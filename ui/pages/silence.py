@@ -216,7 +216,7 @@ if source_mode == "Resolve Timeline":
             q.put("__DONE__1")
 
     analyse_btn = st.button(
-        "🔍 Analysieren & Marker setzen", type="primary",
+        "Analysieren & Marker setzen", icon=":material/search:", type="primary",
         disabled=st.session_state.get("silence_running", False),
         use_container_width=True,
     )
@@ -267,7 +267,7 @@ if source_mode == "Resolve Timeline":
         )
         confirmed = st.checkbox("Ich habe die Marker geprüft und möchte schneiden.")
         cut_btn   = st.button(
-            "✂️ Cut now", type="primary",
+            "Cut now", icon=":material/content_cut:", type="primary",
             disabled=not confirmed or st.session_state.get("silence_running", False),
             use_container_width=True,
         )
@@ -328,7 +328,7 @@ else:
     col_fp1, col_fp2 = st.columns([3, 1])
     with col_fp2:
         st.write("")
-        if st.button("📁 Durchsuchen", use_container_width=True, key="sc_browse"):
+        if st.button("", icon=":material/folder_open:", use_container_width=True, key="sc_browse"):
             import subprocess as _sp_dlg
             try:
                 _r = _sp_dlg.run(
@@ -482,7 +482,7 @@ else:
             q.put("__DONE__1")
 
     analyse_btn = st.button(
-        "🔍 Analysieren",
+        "Analysieren", icon=":material/search:",
         type="primary",
         disabled=not _src or st.session_state.get("silence_running", False),
         use_container_width=True,

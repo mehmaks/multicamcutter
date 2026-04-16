@@ -352,7 +352,7 @@ else:
         )
     with _col_btn:
         st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
-        if st.button("📂", use_container_width=True, help="Datei auswählen"):
+        if st.button("", icon=":material/folder_open:", use_container_width=True, help="Datei auswählen"):
             _picked = None
             try:
                 _r = _subp_pick.run(
@@ -798,8 +798,8 @@ with col_tl2:
 
 if _use_resolve_export:
     _rcol1, _rcol2 = st.columns(2)
-    cut_clicked       = _rcol1.button("✂️ Best Takes",          type="primary", use_container_width=True)
-    cut_multi_clicked = _rcol2.button("✂️ Alle Takes (V1/V2)", type="secondary", use_container_width=True)
+    cut_clicked       = _rcol1.button("Best Takes",    icon=":material/content_cut:", type="primary", use_container_width=True)
+    cut_multi_clicked = _rcol2.button("Alle Takes (V1/V2)", icon=":material/content_cut:", type="secondary", use_container_width=True)
 
     def _resolve_connect():
         from resolve_bridge.connection import get_resolve

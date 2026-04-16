@@ -318,9 +318,9 @@ with st.sidebar:
 
     # 3. Feedback-Button
     if _token and _repo:
-        with st.popover("💬 Bugs & Feedback", use_container_width=True):
+        with st.popover(":material/feedback: Bugs & Feedback", use_container_width=True):
             with st.form("fb_form", clear_on_submit=True):
-                _fb_type  = st.radio("Typ", ["🐛 Bug", "💡 Verbesserung"], horizontal=True,
+                _fb_type  = st.radio("Typ", [":material/bug_report: Bug", ":material/lightbulb: Verbesserung"], horizontal=True,
                                      label_visibility="collapsed")
                 _fb_title = st.text_input("Kurztitel",
                                           placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
@@ -360,9 +360,10 @@ with st.sidebar:
                         st.error(f"Fehler ({_resp.status_code})")
 
     # 4. Update-Button
-    _btn_label = f"⬆ {_upd_tag} verfügbar" if _upd else "↻ Updates prüfen"
+    _btn_label = f"{_upd_tag} verfügbar" if _upd else "Updates prüfen"
+    _btn_icon  = ":material/upgrade:" if _upd else ":material/refresh:"
     _btn_type  = "primary" if _upd else "secondary"
-    if st.button(_btn_label, use_container_width=True, type=_btn_type):
+    if st.button(_btn_label, icon=_btn_icon, use_container_width=True, type=_btn_type):
         st.session_state.update_check_done  = False  # force fresh check
         st.session_state.update_installed   = False
         st.session_state.show_update_dialog = True
@@ -400,7 +401,7 @@ with st.sidebar:
         st.subheader("Workflow Log")
 
     if _active in ("bin", "folder"):
-        st.info("⏳ Multicam Workflow läuft...  \n→ Fortschritt im **Multicam Cutter** Tab")
+        st.info(":material/hourglass_empty: Multicam Workflow läuft...  \n→ Fortschritt im **Multicam Cutter** Tab")
 
     elif _active == "silence" and "silence_queue" in st.session_state:
         _log_ph = st.empty()
@@ -487,9 +488,9 @@ page.run()
 _bar_parts = []
 
 if _license.valid:
-    _bar_dot = "🟡" if _license.grace else "🟢"
+    _bar_dot = "<span style='color:#f59e0b'>●</span>" if _license.grace else "<span style='color:#22c55e'>●</span>"
 else:
-    _bar_dot = "🔴"
+    _bar_dot = "<span style='color:#ef4444'>●</span>"
 _bar_lic = {
     "dummy": "Dev",
     "local": f"Betatester · {_license.email or ''}",
@@ -498,7 +499,7 @@ _bar_lic = {
 _bar_parts.append(f"{_bar_dot}&nbsp;{_bar_lic}")
 
 if _rs_status == "ok" and _rs_project:
-    _bar_resolve = f"🎬&nbsp;{_rs_project}"
+    _bar_resolve = f"{_rs_project}"
     if _rs_tl:
         _bar_resolve += f"&nbsp;·&nbsp;{_rs_tl}"
     _bar_parts.append(_bar_resolve)

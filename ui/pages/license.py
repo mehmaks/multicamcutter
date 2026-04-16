@@ -30,13 +30,13 @@ if _license.valid:
 
     st.subheader("Freigeschaltete Module")
     module_labels = {
-        "multicam":   "✂️  Multicam Cutter",
-        "enhance":    "🎙️  Audio Enhance",
-        "auphonic":   "☁️  Auphonic",
-        "maxxvolume": "📢  Voice Leveler",
-        "silence":    "🔇  Silence Cutter",
-        "resolve":    "🔗  Resolve Bridge",
-        "takes":      "🎬  Take Selector",
+        "multicam":   "Multicam Cutter",
+        "enhance":    "Audio Enhance",
+        "auphonic":   "Auphonic",
+        "maxxvolume": "Voice Leveler",
+        "silence":    "Silence Cutter",
+        "resolve":    "Resolve Bridge",
+        "takes":      "Take Selector",
     }
     for mod, label in module_labels.items():
         if mod in _license.modules:

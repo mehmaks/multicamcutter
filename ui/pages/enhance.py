@@ -1081,7 +1081,7 @@ pipeline_ok    = use_denoise or use_dereverb or use_maxxvolume
 can_start      = (has_path_files or has_uploads) and pipeline_ok and not st.session_state.enhance_running
 
 start = st.button(
-    "▶ Enhance starten", type="primary",
+    "Enhance starten", icon=":material/play_arrow:", type="primary",
     disabled=not can_start, use_container_width=True,
 )
 

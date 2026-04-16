@@ -271,7 +271,7 @@ def _workflow_dialog(prefix: str, steps: list, preview_paths: list[str]) -> None
             elif _sync is False:
                 st.error("Sync fehlgeschlagen")
             else:
-                st.caption("⏳ Sync ausstehend...")
+                st.caption(":material/hourglass_empty: Sync ausstehend...")
 
             _fstats = st.session_state.get(face_stats_key, {})
             if _fstats:
@@ -444,7 +444,7 @@ def _render_preset_expander(prefix):
             )
         with ni2:
             st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
-            if st.button("💾", key=f"{prefix}_btn_save_preset",
+            if st.button("", icon=":material/save:", key=f"{prefix}_btn_save_preset",
                          disabled=not (new_name or '').strip(),
                          use_container_width=True, help="Aktuelle Einstellungen als Preset speichern"):
                 pdata = {name: st.session_state[f"{prefix}_{name}"]
@@ -770,7 +770,7 @@ if tab_bin is not None:
     st.subheader("Workflow")
 
     start_bin = st.button(
-        "▶ Bin-Workflow starten",
+        "Bin-Workflow starten", icon=":material/play_arrow:",
         type="primary",
         disabled=st.session_state.bin_running or not bin_name,
         use_container_width=True,
@@ -936,7 +936,7 @@ with tab_folder:
         )
     with _col_btn:
         st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
-        if st.button("📂", use_container_width=True, help="Ordner auswählen"):
+        if st.button("", icon=":material/folder_open:", use_container_width=True, help="Ordner auswählen"):
             _picked = None
             try:
                 import subprocess as _subp
@@ -989,7 +989,7 @@ with tab_folder:
                     if _thumb:
                         _thumb_slot.image(_thumb, use_container_width=True)
                     else:
-                        _thumb_slot.markdown("🎬")
+                        _thumb_slot.markdown("▷")
                     _fps_label = f" · {_fmt_fps(_fps_val)} fps" if _fps_val else ""
                     st.caption(f"{_cf.name}{_fps_label}")
                     if f"f_cam_role_{_ci}" not in st.session_state:
@@ -1082,7 +1082,7 @@ with tab_folder:
             )
         with _lut_col_btn:
             st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
-            if st.button("📂", key="lut_picker_btn", use_container_width=True, help="LUT auswählen"):
+            if st.button("", icon=":material/folder_open:", key="lut_picker_btn", use_container_width=True, help="LUT auswählen"):
                 _picked_lut = None
                 try:
                     import subprocess as _subp_lut
@@ -1105,7 +1105,7 @@ with tab_folder:
     st.subheader("Workflow")
 
     start_folder = st.button(
-        "▶ Ordner-Workflow starten",
+        "Ordner-Workflow starten", icon=":material/play_arrow:",
         type="primary",
         disabled=st.session_state.folder_running or not _folder_valid,
         use_container_width=True,

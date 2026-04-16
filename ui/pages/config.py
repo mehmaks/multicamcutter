@@ -30,13 +30,13 @@ st.subheader("Tabs")
 st.caption("Reihenfolge per Drag & Drop ändern. In **Aktiviert** = in der Sidebar sichtbar.")
 
 _ALL_MODULES = [
-    ("show_multicam",   "✂️  Multicam Cutter"),
-    ("show_enhance",    "🎙️  Audio Enhance"),
-    ("show_auphonic",   "☁️  Auphonic"),
-    ("show_maxxvolume", "📢  Voice Leveler"),
-    ("show_silence",    "🔇  Silence Cutter"),
-    ("show_resolve",    "🔗  Resolve Bridge"),
-    ("show_takes",      "🎬  Take Selector"),
+    ("show_multicam",   "Multicam Cutter"),
+    ("show_enhance",    "Audio Enhance"),
+    ("show_auphonic",   "Auphonic"),
+    ("show_maxxvolume", "Voice Leveler"),
+    ("show_silence",    "Silence Cutter"),
+    ("show_resolve",    "Resolve Bridge"),
+    ("show_takes",      "Take Selector"),
 ]
 _KEY_TO_LABEL = dict(_ALL_MODULES)
 _LABEL_TO_KEY = {v: k for k, v in _ALL_MODULES}
@@ -104,9 +104,9 @@ if "config_text" not in st.session_state:
 col_save, col_reload = st.columns([1, 5])
 
 with col_save:
-    save = st.button("💾 Speichern", type="primary", use_container_width=True)
+    save = st.button("Speichern", icon=":material/save:", type="primary", use_container_width=True)
 with col_reload:
-    if st.button("↺ Neu laden", use_container_width=True):
+    if st.button("Neu laden", icon=":material/refresh:", use_container_width=True):
         st.session_state.config_text = CONFIG_PATH.read_text(encoding="utf-8")
         st.rerun()
 
