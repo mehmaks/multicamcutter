@@ -112,32 +112,40 @@ st.divider()
 
 st.subheader("Quelle")
 
-source_mode = st.radio(
-    "Quelle", ["Resolve Media Pool", "Aktive Timeline", "Einzeldatei", "Ordner abarbeiten"],
-    horizontal=True, key="mv_source_mode", label_visibility="collapsed",
-)
-
 selected_path_files: list = []   # [(name, path), ...]
 resolve_ctx: dict = {}           # holds resolve objects for all modes
 
-# ── Resolve helper: shared connection ─────────────────────────────────────────
+# ── Resolve-Verbindung prüfen ─────────────────────────────────────────────────
 
 _resolve_obj = None
 _resolve_error = None
 
-if source_mode in ("Resolve Media Pool", "Aktive Timeline", "Ordner abarbeiten"):
-    try:
-        from resolve_bridge.connection import get_resolve
-        _resolve_obj = get_resolve()
-        _project   = _resolve_obj.GetProjectManager().GetCurrentProject()
-        _mp        = _project.GetMediaPool()
-        _root      = _mp.GetRootFolder()
-        resolve_ctx["resolve"]  = _resolve_obj
-        resolve_ctx["project"]  = _project
-        resolve_ctx["mp"]       = _mp
-        resolve_ctx["root"]     = _root
-    except Exception as e:
-        _resolve_error = str(e)
+try:
+    from resolve_bridge.connection import get_resolve
+    _resolve_obj = get_resolve()
+    _project   = _resolve_obj.GetProjectManager().GetCurrentProject()
+    _mp        = _project.GetMediaPool()
+    _root      = _mp.GetRootFolder()
+    resolve_ctx["resolve"]  = _resolve_obj
+    resolve_ctx["project"]  = _project
+    resolve_ctx["mp"]       = _mp
+    resolve_ctx["root"]     = _root
+except Exception as e:
+    _resolve_error = str(e)
+
+_resolve_ok = _resolve_obj is not None
+
+# ── Quelle auswählen ──────────────────────────────────────────────────────────
+
+_source_opts = (["Resolve Media Pool", "Aktive Timeline"] if _resolve_ok else []) + ["Einzeldatei", "Ordner abarbeiten"]
+
+if st.session_state.get("mv_source_mode") not in _source_opts:
+    st.session_state["mv_source_mode"] = _source_opts[0]
+
+source_mode = st.radio(
+    "Quelle", _source_opts,
+    horizontal=True, key="mv_source_mode", label_visibility="collapsed",
+)
 
 def _collect_bins(folder, depth=0):
     bins = []
@@ -159,106 +167,98 @@ def _find_folder(folder, name):
 # ── Mode: Resolve Media Pool ──────────────────────────────────────────────────
 
 if source_mode == "Resolve Media Pool":
-    if _resolve_error:
-        st.error("Resolve nicht verbunden")
-        st.caption(_resolve_error)
+    all_bins = _collect_bins(resolve_ctx["root"])
+    if not all_bins:
+        st.warning("Keine Bins im Media Pool gefunden.")
     else:
-        all_bins = _collect_bins(resolve_ctx["root"])
-        if not all_bins:
-            st.warning("Keine Bins im Media Pool gefunden.")
-        else:
-            selected_display = st.selectbox("Media Pool Bin", options=all_bins, key="mv_bin")
-            bin_name = selected_display.strip() if selected_display else None
-            if bin_name:
-                folder = _find_folder(resolve_ctx["root"], bin_name)
-                if folder:
-                    clips = folder.GetClipList() or []
-                    _all_ext = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS
-                    audio_clips = [
-                        (c.GetName(), c.GetClipProperty("File Path"))
-                        for c in clips
-                        if c.GetClipProperty("File Path")
-                        and Path(c.GetClipProperty("File Path")).suffix.lower() in _all_ext
-                    ]
-                    if audio_clips:
-                        chosen = st.multiselect(
-                            f"Clips in '{bin_name}'",
-                            options=[n for n, _ in audio_clips],
-                            default=[n for n, _ in audio_clips],
-                            key="mv_clip_select",
-                        )
-                        selected_path_files = [(n, p) for n, p in audio_clips if n in chosen]
-                        resolve_ctx["import_folder"] = folder
-                        _n_video = sum(
-                            1 for _, p in selected_path_files
-                            if Path(p).suffix.lower() in VIDEO_EXTENSIONS
-                        )
-                        if _n_video:
-                            st.caption(f"ℹ {_n_video} Videodatei(en) — Audio (Spur 1) wird via ffmpeg extrahiert.")
-                    else:
-                        st.info("Keine Audio- oder Videodateien in diesem Bin.")
+        selected_display = st.selectbox("Media Pool Bin", options=all_bins, key="mv_bin")
+        bin_name = selected_display.strip() if selected_display else None
+        if bin_name:
+            folder = _find_folder(resolve_ctx["root"], bin_name)
+            if folder:
+                clips = folder.GetClipList() or []
+                _all_ext = AUDIO_EXTENSIONS | VIDEO_EXTENSIONS
+                audio_clips = [
+                    (c.GetName(), c.GetClipProperty("File Path"))
+                    for c in clips
+                    if c.GetClipProperty("File Path")
+                    and Path(c.GetClipProperty("File Path")).suffix.lower() in _all_ext
+                ]
+                if audio_clips:
+                    chosen = st.multiselect(
+                        f"Clips in '{bin_name}'",
+                        options=[n for n, _ in audio_clips],
+                        default=[n for n, _ in audio_clips],
+                        key="mv_clip_select",
+                    )
+                    selected_path_files = [(n, p) for n, p in audio_clips if n in chosen]
+                    resolve_ctx["import_folder"] = folder
+                    _n_video = sum(
+                        1 for _, p in selected_path_files
+                        if Path(p).suffix.lower() in VIDEO_EXTENSIONS
+                    )
+                    if _n_video:
+                        st.caption(f"ℹ {_n_video} Videodatei(en) — Audio (Spur 1) wird via ffmpeg extrahiert.")
+                else:
+                    st.info("Keine Audio- oder Videodateien in diesem Bin.")
 
 # ── Mode: Aktive Timeline ─────────────────────────────────────────────────────
 
 elif source_mode == "Aktive Timeline":
-    if _resolve_error:
-        st.error("Resolve nicht verbunden")
-        st.caption(_resolve_error)
+    _timeline = _project.GetCurrentTimeline() if resolve_ctx.get("project") else None
+    if not _timeline:
+        st.warning("Keine aktive Timeline in Resolve gefunden.")
     else:
-        _timeline = _project.GetCurrentTimeline() if resolve_ctx.get("project") else None
-        if not _timeline:
-            st.warning("Keine aktive Timeline in Resolve gefunden.")
-        else:
-            _tl_name      = _timeline.GetName()
-            _tl_start     = _timeline.GetStartFrame()
-            _tl_end       = _timeline.GetEndFrame()
-            _tl_dur_frames = _tl_end - _tl_start
+        _tl_name      = _timeline.GetName()
+        _tl_start     = _timeline.GetStartFrame()
+        _tl_end       = _timeline.GetEndFrame()
+        _tl_dur_frames = _tl_end - _tl_start
 
-            # Try to read in/out points
-            try:
-                _in_pt  = _timeline.GetCurrentInPoint()
-                _out_pt = _timeline.GetCurrentOutPoint()
-                _has_inout = (
-                    isinstance(_in_pt, int) and isinstance(_out_pt, int)
-                    and _out_pt > _in_pt
-                )
-            except AttributeError:
-                _in_pt = _out_pt = None
-                _has_inout = False
-
-            col_tl1, col_tl2 = st.columns(2)
-            with col_tl1:
-                st.info(f"**{_tl_name}**  \n{_tl_dur_frames} Frames total")
-            with col_tl2:
-                if _has_inout:
-                    st.success(
-                        f"In/Out gesetzt  \n"
-                        f"Frame {_in_pt} → {_out_pt}  \n"
-                        f"({_out_pt - _in_pt} Frames)"
-                    )
-                else:
-                    st.caption("Kein In/Out gesetzt — gesamte Timeline wird gerendert.")
-
-            # Target bin for the processed file
-            all_bins = _collect_bins(resolve_ctx["root"])
-            _bin_sel = st.selectbox(
-                "Ziel-Bin (für Import des Ergebnisses)",
-                options=all_bins,
-                key="mv_tl_bin",
+        # Try to read in/out points
+        try:
+            _in_pt  = _timeline.GetCurrentInPoint()
+            _out_pt = _timeline.GetCurrentOutPoint()
+            _has_inout = (
+                isinstance(_in_pt, int) and isinstance(_out_pt, int)
+                and _out_pt > _in_pt
             )
-            _tl_target_folder = _find_folder(resolve_ctx["root"], _bin_sel.strip()) if _bin_sel else None
+        except AttributeError:
+            _in_pt = _out_pt = None
+            _has_inout = False
 
-            resolve_ctx.update({
-                "timeline":        _timeline,
-                "tl_name":         _tl_name,
-                "tl_start":        _tl_start,
-                "tl_end":          _tl_end,
-                "has_inout":       _has_inout,
-                "in_pt":           _in_pt,
-                "out_pt":          _out_pt,
-                "import_folder":   _tl_target_folder,
-                "tl_mode":         True,
-            })
+        col_tl1, col_tl2 = st.columns(2)
+        with col_tl1:
+            st.info(f"**{_tl_name}**  \n{_tl_dur_frames} Frames total")
+        with col_tl2:
+            if _has_inout:
+                st.success(
+                    f"In/Out gesetzt  \n"
+                    f"Frame {_in_pt} → {_out_pt}  \n"
+                    f"({_out_pt - _in_pt} Frames)"
+                )
+            else:
+                st.caption("Kein In/Out gesetzt — gesamte Timeline wird gerendert.")
+
+        # Target bin for the processed file
+        all_bins = _collect_bins(resolve_ctx["root"])
+        _bin_sel = st.selectbox(
+            "Ziel-Bin (für Import des Ergebnisses)",
+            options=all_bins,
+            key="mv_tl_bin",
+        )
+        _tl_target_folder = _find_folder(resolve_ctx["root"], _bin_sel.strip()) if _bin_sel else None
+
+        resolve_ctx.update({
+            "timeline":        _timeline,
+            "tl_name":         _tl_name,
+            "tl_start":        _tl_start,
+            "tl_end":          _tl_end,
+            "has_inout":       _has_inout,
+            "in_pt":           _in_pt,
+            "out_pt":          _out_pt,
+            "import_folder":   _tl_target_folder,
+            "tl_mode":         True,
+        })
 
 # ── Mode: Einzeldatei ────────────────────────────────────────────────────────
 
