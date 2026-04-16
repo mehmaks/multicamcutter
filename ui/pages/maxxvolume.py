@@ -264,36 +264,36 @@ elif source_mode == "Aktive Timeline":
 # ── Mode: Ordner / Dateien ────────────────────────────────────────────────────
 
 elif source_mode == "Ordner / Dateien":
-    col_path, col_btn = st.columns([4, 1])
-    with col_path:
-        folder_path_str = st.text_input(
-            "Ordner-Pfad", placeholder="/Volumes/Media/Recording", key="mv_folder_path"
-        )
-    with col_btn:
-        st.markdown("<br>", unsafe_allow_html=True)
-        if st.button("Scannen", use_container_width=True, key="mv_scan"):
-            p = Path(folder_path_str) if folder_path_str else None
-            if p and p.is_dir():
-                found = sorted(
-                    (f for f in p.iterdir()
-                     if f.suffix.lower() in AUDIO_EXTENSIONS | VIDEO_EXTENSIONS),
-                    key=lambda f: f.name,
+    col_fp1, col_fp2 = st.columns([4, 1])
+    with col_fp2:
+        st.write("")
+        if st.button("📁 Durchsuchen", use_container_width=True, key="mv_browse"):
+            import subprocess as _sp_dlg
+            try:
+                _r = _sp_dlg.run(
+                    ["osascript", "-e",
+                     'POSIX path of (choose file with prompt "Audio- oder Videodatei auswählen")'],
+                    capture_output=True, text=True, timeout=60,
                 )
-                st.session_state.mv_scanned = [(f.name, str(f)) for f in found]
-            else:
-                st.error("Ordner nicht gefunden.")
-                st.session_state.mv_scanned = []
-
-    if "mv_scanned" not in st.session_state:
-        st.session_state.mv_scanned = []
-    if st.session_state.mv_scanned:
-        chosen = st.multiselect(
-            "Dateien auswählen",
-            options=[n for n, _ in st.session_state.mv_scanned],
-            default=[n for n, _ in st.session_state.mv_scanned],
-            key="mv_folder_select",
+                if _r.returncode == 0 and _r.stdout.strip():
+                    st.session_state["mv_file_path"] = _r.stdout.strip()
+            except Exception:
+                pass
+    with col_fp1:
+        _fp = st.text_input(
+            "Dateipfad", key="mv_file_path",
+            placeholder="/Volumes/Media/Interview.mp4",
         )
-        selected_path_files = [(n, p) for n, p in st.session_state.mv_scanned if n in chosen]
+
+    if _fp:
+        _fp_path = Path(_fp)
+        if not _fp_path.exists():
+            st.error("Datei nicht gefunden.")
+        elif _fp_path.suffix.lower() not in AUDIO_EXTENSIONS | VIDEO_EXTENSIONS:
+            st.error(f"Nicht unterstütztes Format: {_fp_path.suffix}")
+        else:
+            selected_path_files = [(_fp_path.name, str(_fp_path))]
+            st.caption(f"1 Datei ausgewählt: `{_fp_path.name}`")
 
 # ── Processing functions ──────────────────────────────────────────────────────
 
