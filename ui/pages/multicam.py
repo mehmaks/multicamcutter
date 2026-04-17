@@ -468,6 +468,30 @@ def _on_preset_change(prefix: str) -> None:
     st.session_state[f"_preset_pending_{prefix}"] = pending
 
 
+@st.dialog("Preset überschreiben?")
+def _confirm_overwrite_preset_dialog() -> None:
+    prefix = st.session_state.get("_overwrite_preset_prefix", "")
+    name   = st.session_state.get("_overwrite_preset_name", "")
+    safe   = st.session_state.get("_overwrite_preset_safe", "")
+    st.write(f"Ein Preset mit dem Namen **{name}** existiert bereits. Überschreiben?")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Überschreiben", type="primary", icon=":material/save:",
+                     use_container_width=True):
+            pdata = {n: st.session_state[f"{prefix}_{n}"]
+                     for n in _PARAM_NAMES if f"{prefix}_{n}" in st.session_state}
+            (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
+            for k in ("_overwrite_preset_prefix", "_overwrite_preset_name", "_overwrite_preset_safe"):
+                st.session_state.pop(k, None)
+            st.toast(f"Preset '{safe}' aktualisiert")
+            st.rerun()
+    with c2:
+        if st.button("Abbrechen", use_container_width=True):
+            for k in ("_overwrite_preset_prefix", "_overwrite_preset_name", "_overwrite_preset_safe"):
+                st.session_state.pop(k, None)
+            st.rerun()
+
+
 @st.dialog("Preset löschen")
 def _confirm_delete_preset_dialog() -> None:
     prefix = st.session_state.get("_del_preset_prefix", "")
@@ -538,12 +562,21 @@ def _render_preset_expander(prefix: str) -> None:
             if st.button("", icon=":material/save:", key=f"{prefix}_btn_save_preset",
                          disabled=not (new_name or '').strip(),
                          use_container_width=True, help="Aktuelle Einstellungen als Preset speichern"):
-                pdata = {name: st.session_state[f"{prefix}_{name}"]
-                         for name in _PARAM_NAMES if f"{prefix}_{name}" in st.session_state}
-                safe = new_name.strip().replace('/', '_').replace('\\', '_')
-                (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
-                st.toast(f"Preset '{safe}' gespeichert")
-                st.rerun()
+                safe  = new_name.strip().replace('/', '_').replace('\\', '_')
+                _name_lower = safe.lower()
+                # Case-insensitive Duplikatprüfung über alle bekannten Presets
+                _existing = {p.stem.lower(): p.stem for p in _presets_dir.glob("*.json")}
+                _existing.update({p.stem.lower(): p.stem for p in _builtin_presets_dir.glob("*.json")})
+                if _name_lower in _existing:
+                    st.session_state["_overwrite_preset_prefix"] = prefix
+                    st.session_state["_overwrite_preset_name"]   = _existing[_name_lower]
+                    st.session_state["_overwrite_preset_safe"]   = safe
+                else:
+                    pdata = {n: st.session_state[f"{prefix}_{n}"]
+                             for n in _PARAM_NAMES if f"{prefix}_{n}" in st.session_state}
+                    (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
+                    st.toast(f"Preset '{safe}' gespeichert")
+                    st.rerun()
 
 
 def _render_settings_panel(prefix):
@@ -859,6 +892,8 @@ if tab_bin is not None:
             st.session_state[f"s_{_bare}"] = _val
     _render_settings_panel('s')
     _render_preset_expander('s')
+    if st.session_state.get("_overwrite_preset_prefix") == 's':
+        _confirm_overwrite_preset_dialog()
 
     st.divider()
     st.subheader("Workflow")
@@ -1206,6 +1241,8 @@ with tab_folder:
         st.session_state["f_lut_path"] = "" if _lut_chosen == "(kein LUT)" else _lut_chosen
 
     _render_preset_expander('f')
+    if st.session_state.get("_overwrite_preset_prefix") == 'f':
+        _confirm_overwrite_preset_dialog()
 
     st.divider()
     st.subheader("Workflow")
