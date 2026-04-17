@@ -11,6 +11,19 @@ import streamlit as st
 
 st.title(":material/menu_book: Dokumentation")
 
+st.markdown(
+    """
+    <style>
+    @media (prefers-color-scheme: dark) {
+        [data-testid="stImage"] img {
+            filter: invert(1) hue-rotate(180deg);
+        }
+    }
+    </style>
+    """,
+    unsafe_allow_html=True,
+)
+
 _DOCS_DIR   = Path(__file__).parent.parent / "docs"
 _ASSETS_DIR = _DOCS_DIR / "assets"
 
