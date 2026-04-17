@@ -22,10 +22,8 @@ Das Bootstrap-Script installiert automatisch alle Voraussetzungen (Homebrew, Pyt
 Diesen Befehl ins Terminal kopieren und mit **Enter** bestätigen:
 
 ```
-bash <(curl -fsSL "https://raw.githubusercontent.com/mehmaks/resolve-toolkit/main/bootstrap.sh?token=GHSAT0AAAAAACXY...")
+bash <(curl -fsSL "https://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@raw.githubusercontent.com/mehmaks/resolve-toolkit/main/bootstrap.sh")
 ```
-
-> **Hinweis:** Den genauen Befehl mit deinem persönlichen Token erhältst du von uns per E-Mail.
 
 Was während des Scripts passiert:
 
