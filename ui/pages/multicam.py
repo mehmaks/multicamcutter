@@ -503,11 +503,13 @@ def _render_preset_row(prefix: str) -> None:
         st.selectbox(
             "Preset",
             preset_names,
-            format_func=lambda n: f"{n}  ·  Standard" if n in builtin_names else n,
+            format_func=lambda n: f"{n}  ◆" if n in builtin_names else n,
             key=f"{prefix}_preset_select",
             on_change=_on_preset_change,
             args=(prefix,),
         )
+        if builtin_names:
+            st.caption("◆ Mitgelieferte Vorlage — kann nicht gelöscht werden")
     with col_del:
         st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
         sel        = st.session_state.get(f"{prefix}_preset_select")
