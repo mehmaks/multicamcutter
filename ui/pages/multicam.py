@@ -30,8 +30,15 @@ _LUT_HISTORY_FILE = Path.home() / ".resolve-toolkit" / "lut_history.json"
 def _load_lut_history() -> list[str]:
     try:
         if _LUT_HISTORY_FILE.exists():
-            return [p for p in json.loads(_LUT_HISTORY_FILE.read_text())
-                    if Path(p).is_file()][:10]
+            seen: set[str] = set()
+            result: list[str] = []
+            for p in json.loads(_LUT_HISTORY_FILE.read_text()):
+                if p not in seen and Path(p).is_file():
+                    seen.add(p)
+                    result.append(p)
+                    if len(result) == 10:
+                        break
+            return result
     except Exception:
         pass
     return []
