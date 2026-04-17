@@ -240,47 +240,48 @@ if st.session_state.get("takes_show_analysis_dialog"):
 
 # ── Settings ──────────────────────────────────────────────────────────────────
 
-with st.expander("Erkennungs-Parameter", expanded=True):
-    _col_model, _ = st.columns([1, 3])
-    with _col_model:
-        whisper_model = st.selectbox(
-            "Whisper-Modell",
-            options=["tiny", "base", "small", "medium", "large"],
-            index=2,
-            help="Größere Modelle erkennen Text genauer, brauchen aber länger und mehr RAM. "
-                 "small/medium empfohlen für genauen Inhaltsvergleich.",
-        )
-    col_s1, col_s2, col_s3, col_s4 = st.columns(4)
-    with col_s1:
-        pause_threshold = st.slider(
-            "Pause-Schwelle (s)",
-            min_value=0.3, max_value=5.0, value=1.5, step=0.1,
-            help="Stille länger als dieser Wert trennt Takes oder Sektionen voneinander.",
-        )
-    with col_s2:
-        similarity_threshold = st.slider(
-            "Ähnlichkeits-Schwelle",
-            min_value=0.2, max_value=0.9, value=0.5, step=0.05,
-            help="Wie ähnlich muss der Anfang eines Segments dem Anfang der aktuellen Sektion sein, "
-                 "um als Wiederholung (neuer Take) gewertet zu werden? "
-                 "Höher = strenger (weniger Sektionen, mehr Takes pro Sektion).",
-        )
-    with col_s3:
-        min_coverage = st.slider(
-            "Min. Take-Vollständigkeit",
-            min_value=0.3, max_value=1.0, value=0.7, step=0.05,
-            help="Ein Take gilt als vollständig, wenn er mindestens diesen Anteil "
-                 "der Wörter des längsten Takes dieser Sektion enthält. "
-                 "Unvollständige Takes am Ende werden übersprungen.",
-        )
-    with col_s4:
-        min_section_length = st.slider(
-            "Min. Sektion-Länge (%)",
-            min_value=0, max_value=80, value=30, step=5,
-            help="Sektionen, deren längster Take kürzer als dieser Prozentsatz des längsten "
-                 "Takes überhaupt ist, werden ignoriert. Filtert Mikrofontests, kurze Einwürfe "
-                 "und Zwischenbemerkungen heraus.",
-        )
+st.subheader("Erkennungs-Parameter")
+
+_col_model, _ = st.columns([1, 3])
+with _col_model:
+    whisper_model = st.selectbox(
+        "Whisper-Modell",
+        options=["tiny", "base", "small", "medium", "large"],
+        index=2,
+        help="Größere Modelle erkennen Text genauer, brauchen aber länger und mehr RAM. "
+             "small/medium empfohlen für genauen Inhaltsvergleich.",
+    )
+col_s1, col_s2, col_s3, col_s4 = st.columns(4)
+with col_s1:
+    pause_threshold = st.slider(
+        "Pause-Schwelle (s)",
+        min_value=0.3, max_value=5.0, value=1.5, step=0.1,
+        help="Stille länger als dieser Wert trennt Takes oder Sektionen voneinander.",
+    )
+with col_s2:
+    similarity_threshold = st.slider(
+        "Ähnlichkeits-Schwelle",
+        min_value=0.2, max_value=0.9, value=0.5, step=0.05,
+        help="Wie ähnlich muss der Anfang eines Segments dem Anfang der aktuellen Sektion sein, "
+             "um als Wiederholung (neuer Take) gewertet zu werden? "
+             "Höher = strenger (weniger Sektionen, mehr Takes pro Sektion).",
+    )
+with col_s3:
+    min_coverage = st.slider(
+        "Min. Take-Vollständigkeit",
+        min_value=0.3, max_value=1.0, value=0.7, step=0.05,
+        help="Ein Take gilt als vollständig, wenn er mindestens diesen Anteil "
+             "der Wörter des längsten Takes dieser Sektion enthält. "
+             "Unvollständige Takes am Ende werden übersprungen.",
+    )
+with col_s4:
+    min_section_length = st.slider(
+        "Min. Sektion-Länge (%)",
+        min_value=0, max_value=80, value=30, step=5,
+        help="Sektionen, deren längster Take kürzer als dieser Prozentsatz des längsten "
+             "Takes überhaupt ist, werden ignoriert. Filtert Mikrofontests, kurze Einwürfe "
+             "und Zwischenbemerkungen heraus.",
+    )
 
 st.divider()
 
