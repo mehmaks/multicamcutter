@@ -435,41 +435,74 @@ def _bv(cfg, section, key, default):
     except: return bool(default)
 
 
-def _render_preset_dropdown(prefix):
-    """Nur das Preset-Dropdown unter der Abschnittsüberschrift."""
+def _on_preset_change(prefix: str) -> None:
+    """on_change-Callback: ausgewähltes Preset als Pending laden."""
+    sel = st.session_state.get(f"{prefix}_preset_select")
+    if not sel:
+        return
+    preset_file = _presets_dir / f"{sel}.json"
+    if not preset_file.exists():
+        return
+    pdata = json.loads(preset_file.read_text())
+    pending = {}
+    for name, val in pdata.items():
+        bare = name[2:] if (name.startswith('s_') or name.startswith('f_')) else name
+        if bare in _PARAM_NAMES:
+            pending[bare] = val
+    st.session_state[f"_preset_pending_{prefix}"] = pending
+
+
+@st.dialog("Preset löschen")
+def _confirm_delete_preset_dialog() -> None:
+    prefix = st.session_state.get("_del_preset_prefix", "")
+    name   = st.session_state.get("_del_preset_name", "")
+    st.write(f"Preset **{name}** wirklich löschen?")
+    c1, c2 = st.columns(2)
+    with c1:
+        if st.button("Löschen", type="primary", icon=":material/delete:",
+                     use_container_width=True):
+            (_presets_dir / f"{name}.json").unlink(missing_ok=True)
+            st.session_state.pop(f"{prefix}_preset_select", None)
+            st.session_state.pop("_del_preset_prefix", None)
+            st.session_state.pop("_del_preset_name", None)
+            st.rerun()
+    with c2:
+        if st.button("Abbrechen", use_container_width=True):
+            st.session_state.pop("_del_preset_prefix", None)
+            st.session_state.pop("_del_preset_name", None)
+            st.rerun()
+
+
+def _render_preset_row(prefix: str) -> None:
+    """Preset-Selectbox (auto-load bei Auswahl) + Delete-Button in einer Zeile."""
     preset_names = sorted(p.stem for p in _presets_dir.glob("*.json"))
-    if preset_names:
-        st.selectbox("Preset", preset_names, key=f"{prefix}_preset_select")
-    else:
+    if not preset_names:
         st.caption("Noch keine Presets gespeichert")
+        return
+    col_sel, col_del = st.columns([5, 1])
+    with col_sel:
+        st.selectbox(
+            "Preset",
+            preset_names,
+            key=f"{prefix}_preset_select",
+            on_change=_on_preset_change,
+            args=(prefix,),
+        )
+    with col_del:
+        st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
+        sel = st.session_state.get(f"{prefix}_preset_select")
+        if st.button("", icon=":material/delete:", key=f"{prefix}_btn_del_preset",
+                     use_container_width=True, help="Preset löschen", disabled=not sel):
+            st.session_state["_del_preset_prefix"] = prefix
+            st.session_state["_del_preset_name"]   = sel
+
+    if st.session_state.get("_del_preset_prefix") == prefix:
+        _confirm_delete_preset_dialog()
 
 
-def _render_preset_expander(prefix):
-    """Preset-Verwaltung (Laden, Speichern, Löschen) im aufklappbaren Expander."""
-    preset_names = sorted(p.stem for p in _presets_dir.glob("*.json"))
-    with st.expander("Presets"):
-        sel = st.session_state.get(f"{prefix}_preset_select",
-                                   preset_names[0] if preset_names else None)
-        if preset_names and sel:
-            c1, c2 = st.columns(2)
-            with c1:
-                if st.button("Laden", icon=":material/download:", key=f"{prefix}_btn_load_preset",
-                             use_container_width=True, help=f"Preset '{sel}' anwenden"):
-                    pdata = json.loads((_presets_dir / f"{sel}.json").read_text())
-                    pending = {}
-                    for name, val in pdata.items():
-                        bare = name[2:] if (name.startswith('s_') or name.startswith('f_')) else name
-                        if bare in _PARAM_NAMES:
-                            pending[bare] = val
-                    st.session_state[f"_preset_pending_{prefix}"] = pending
-                    st.rerun()
-            with c2:
-                if st.button("Löschen", icon=":material/delete:", key=f"{prefix}_btn_del_preset",
-                             use_container_width=True, help=f"Preset '{sel}' löschen"):
-                    (_presets_dir / f"{sel}.json").unlink(missing_ok=True)
-                    st.rerun()
-            st.divider()
-
+def _render_preset_expander(prefix: str) -> None:
+    """Preset speichern."""
+    with st.expander("Preset speichern"):
         ni1, ni2 = st.columns([3, 1])
         with ni1:
             new_name = st.text_input(
@@ -795,7 +828,7 @@ if tab_bin is not None:
     st.divider()
     st.subheader("Analyse-Einstellungen")
 
-    _render_preset_dropdown('s')
+    _render_preset_row('s')
     st.divider()
     if "_preset_pending_s" in st.session_state:
         for _bare, _val in st.session_state.pop("_preset_pending_s").items():
@@ -1094,7 +1127,7 @@ with tab_folder:
     st.divider()
     st.subheader("Analyse-Einstellungen")
 
-    _render_preset_dropdown('f')
+    _render_preset_row('f')
     st.divider()
     if "_preset_pending_f" in st.session_state:
         for _bare, _val in st.session_state.pop("_preset_pending_f").items():
