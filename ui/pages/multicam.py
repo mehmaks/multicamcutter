@@ -456,10 +456,12 @@ def _render_preset_expander(prefix):
                 if st.button("Laden", icon=":material/download:", key=f"{prefix}_btn_load_preset",
                              use_container_width=True, help=f"Preset '{sel}' anwenden"):
                     pdata = json.loads((_presets_dir / f"{sel}.json").read_text())
+                    pending = {}
                     for name, val in pdata.items():
                         bare = name[2:] if (name.startswith('s_') or name.startswith('f_')) else name
                         if bare in _PARAM_NAMES:
-                            st.session_state[f"{prefix}_{bare}"] = val
+                            pending[bare] = val
+                    st.session_state[f"_preset_pending_{prefix}"] = pending
                     st.rerun()
             with c2:
                 if st.button("Löschen", icon=":material/delete:", key=f"{prefix}_btn_del_preset",
@@ -795,6 +797,9 @@ if tab_bin is not None:
 
     _render_preset_dropdown('s')
     st.divider()
+    if "_preset_pending_s" in st.session_state:
+        for _bare, _val in st.session_state.pop("_preset_pending_s").items():
+            st.session_state[f"s_{_bare}"] = _val
     _render_settings_panel('s')
     _render_preset_expander('s')
 
@@ -1091,6 +1096,9 @@ with tab_folder:
 
     _render_preset_dropdown('f')
     st.divider()
+    if "_preset_pending_f" in st.session_state:
+        for _bare, _val in st.session_state.pop("_preset_pending_f").items():
+            st.session_state[f"f_{_bare}"] = _val
     _render_settings_panel('f')
     with st.expander("Andere Einstellungen"):
         fps_folder           = st.number_input("FPS", value=25.0, step=1.0, format="%.1f", key="f_fps")
