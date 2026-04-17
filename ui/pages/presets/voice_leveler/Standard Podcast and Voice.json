@@ -1,0 +1,16 @@
+{
+  "builtin": true,
+  "description": "Ausgewogene Einstellung für Nahbesprechungsmikrofone in ruhiger Umgebung. Geeignet für Podcast, Voice-Over und Interview.",
+  "gate_threshold": -39.1,
+  "gate_enabled": true,
+  "llt": -31.5,
+  "low_level_gain": 17.0,
+  "ll_enabled": true,
+  "hlt": -20.0,
+  "high_level_gain": -4.5,
+  "hl_enabled": true,
+  "leveler_target": -16.0,
+  "leveler_enabled": true,
+  "loud_soft": false,
+  "output_ceiling": -1.5
+}
