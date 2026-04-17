@@ -488,7 +488,8 @@ def _confirm_overwrite_preset_dialog() -> None:
             (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
             for k in ("_overwrite_preset_prefix", "_overwrite_preset_name", "_overwrite_preset_safe"):
                 st.session_state.pop(k, None)
-            st.toast(f"Preset '{safe}' aktualisiert")
+            st.session_state["_clear_preset_name"] = prefix
+            st.session_state["_pending_toast"] = f"Preset '{safe}' aktualisiert"
             st.rerun()
     with c2:
         if st.button("Abbrechen", use_container_width=True):
