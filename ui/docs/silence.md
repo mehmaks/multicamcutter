@@ -39,3 +39,31 @@ Symmetrisch zum Pre-Pad: Auch am Ende einer Stille — kurz bevor jemand wieder 
 Im Resolve-Modus kann eine Audio-Spur Lücken zwischen Clips haben — Bereiche, auf denen kein Clip liegt. Mit dieser Option gelten diese Lücken automatisch als Stille, ohne dass Audio analysiert werden muss.
 
 Wenn deaktiviert, fließen nur tatsächlich analysierte Audiobereiche in die Composite-Detection ein. Lücken werden dann weder als Stille noch als Sprache gewertet — die anderen Spuren entscheiden allein.
+
+---
+
+## Schwellwert automatisch ermitteln
+
+Der richtige Schwellwert hängt von der Aufnahmesituation ab und lässt sich ohne Hörkontrolle schwer einschätzen. Der Silence Cutter bietet zwei Methoden zur automatischen Analyse der Audioquelle, die einen passenden Startwert vorschlagen.
+
+### Schnelle Analyse
+
+Die schnelle Analyse lädt bis zu 5 Minuten der Audiodatei und berechnet für kleine Zeitfenster (20 ms) den RMS-Pegel. Alle Messwerte werden in zwei Cluster aufgeteilt — einen für ruhige Bereiche (Rauschen, Atmen, Pausen) und einen für aktive Bereiche (Sprache, Töne). Der vorgeschlagene Schwellwert liegt genau in der Mitte zwischen dem typischen Rauschboden und der leisesten erkannten Sprache.
+
+**Konfidenz:** Die Analyse bewertet anhand des Fisher-Scores, wie gut die beiden Cluster voneinander getrennt sind. Bei stark überlappenden Verteilungen (z.B. sehr leiser Sprache oder lautem Grundrauschen) wird die Konfidenz als *niedrig* eingestuft und Whisper empfohlen.
+
+> Geeignet für klare Aufnahmen mit erkennbarem Unterschied zwischen Stille und Sprache. Sehr schnell, kein Modell-Download nötig.
+
+### Genauer (Whisper)
+
+Die Whisper-Analyse nutzt das Spracherkennungsmodell *Whisper tiny* von OpenAI, um Sprachsegmente im Audio zu identifizieren. Aus den erkannten Segmenten wird der typische Pegel gesprochener Passagen gemessen; aus den Lücken *zwischen* zwei Segmenten wird der Rauschboden bestimmt. Der vorgeschlagene Schwellwert liegt auch hier in der Mitte.
+
+Da Whisper echte Sprache erkennt statt nur Pegel zu clustern, ist diese Methode robuster bei schwierigen Aufnahmen — etwa wenn Grundrauschen und Sprache nah beieinanderliegen.
+
+**Wichtig:** Beim ersten Aufruf lädt Whisper das Modell (~75 MB) herunter. Ein Fortschrittsdialog zeigt den Status. Anschließend startet die Transkription, die je nach Dateilänge einige Sekunden bis Minuten dauern kann.
+
+> Geeignet für alle Aufnahmen, besonders bei schlechten Aufnahmebedingungen, lautem Hintergrundgeräusch oder leiser Sprache.
+
+### Ergebnis übernehmen
+
+Nach Abschluss der Analyse erscheint der Vorschlag mit Rauschboden, leisester erkannter Sprache und dem empfohlenen Schwellwert. Über **Übernehmen** wird der Wert direkt in den Schwellwert-Regler übertragen. Der Wert kann danach manuell nachjustiert werden.

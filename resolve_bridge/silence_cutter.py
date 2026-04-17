@@ -11,6 +11,26 @@ from pathlib import Path
 _VIDEO_EXT = {".mp4", ".mov", ".mxf", ".r3d", ".braw", ".avi", ".mkv", ".mts", ".m2ts"}
 
 
+# ── Helpers ───────────────────────────────────────────────────────────────────
+
+def _tc_start_frames(path: str, fps: float) -> int:
+    """Returns embedded start timecode as frame count, or 0 if not found."""
+    import json as _json
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", path],
+            capture_output=True, text=True,
+        )
+        for stream in _json.loads(r.stdout).get("streams", []):
+            tc = stream.get("tags", {}).get("timecode", "")
+            if tc and tc.count(":") == 3:
+                h, m, s, f = (int(x) for x in tc.split(":"))
+                return (h * 3600 + m * 60 + s) * int(round(fps)) + f
+    except Exception:
+        pass
+    return 0
+
+
 # ── Analysis ──────────────────────────────────────────────────────────────────
 
 def analyze_composite_silence(
@@ -67,13 +87,37 @@ def analyze_composite_silence(
 
             tmp_wav = None
             try:
-                read_path = path
+                read_path    = path
+                start_sample = 0
+                end_sample   = None  # None → read to EOF
+
                 if path.suffix.lower() in _VIDEO_EXT:
+                    # Extract only the clip's portion with -ss/-t so that
+                    # start_sample=0 always maps to the clip's in-point.
+                    # This avoids end_sample > total_samp bugs and handles
+                    # audio/video PTS offsets transparently via ffmpeg.
+                    #
+                    # IMPORTANT: GetSourceEndFrame() is in SOURCE fps, which may
+                    # differ from the timeline fps (e.g. 25fps source on 50fps TL).
+                    # Use the *timeline* duration for clip_dur_s so we extract the
+                    # correct amount of audio regardless of the fps difference.
+                    # For clip_start_s, derive source time via the fps ratio so that
+                    # clips starting mid-file seek to the right position.
+                    clip_tl_dur_s    = (clip.timeline_end - clip.timeline_start) / fps
+                    source_dur_fr    = clip.source_end_frame - clip.source_start_frame
+                    clip_start_s = (
+                        clip.source_start_frame * clip_tl_dur_s / source_dur_fr
+                        if source_dur_fr > 0 else 0.0
+                    )
+                    clip_dur_s = clip_tl_dur_s
                     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
                     tmp.close()
                     tmp_wav = Path(tmp.name)
                     subprocess.run(
-                        ["ffmpeg", "-y", "-i", str(path),
+                        ["ffmpeg", "-y",
+                         "-ss", f"{clip_start_s:.6f}",
+                         "-i", str(path),
+                         "-t",  f"{clip_dur_s:.6f}",
                          "-map", "0:a:0", "-acodec", "pcm_s16le",
                          "-ar", "16000", "-ac", "1", str(tmp_wav)],
                         check=True,
@@ -81,27 +125,68 @@ def analyze_composite_silence(
                         stderr=subprocess.DEVNULL,
                     )
                     read_path = tmp_wav
+                else:
+                    # Native audio file: use source_start/end frames directly.
+                    # (Computed after sf.info() below once spf is known.)
+                    pass
 
-                info = sf.info(str(read_path))
-                sr = info.samplerate
-                spf = sr / fps  # samples per frame
+                info       = sf.info(str(read_path))
+                sr         = info.samplerate
+                total_samp = info.frames
+                spf        = sr / fps  # samples per frame
+                block_size = max(1, int(spf))
+                tl_offset  = clip.timeline_start - tl_start
 
-                start_sample = int(clip.source_start_frame * spf)
-                end_sample   = int(clip.source_end_frame   * spf)
-                block_size   = max(1, int(spf))
-                tl_offset    = clip.timeline_start - tl_start
+                if path.suffix.lower() not in _VIDEO_EXT:
+                    # Audio file: position by source frames
+                    start_sample = int(clip.source_start_frame * spf)
+                    end_sample   = int(clip.source_end_frame   * spf)
 
-                frame_idx = 0
+                    # TC-offset guard: if source frames exceed file length,
+                    # try to subtract the embedded start timecode.
+                    if start_sample >= total_samp and total_samp > 0:
+                        tc_off = _tc_start_frames(str(path), fps)
+                        if tc_off > 0:
+                            start_sample = max(0, int((clip.source_start_frame - tc_off) * spf))
+                            end_sample   = max(start_sample,
+                                               int((clip.source_end_frame - tc_off) * spf))
+                            if progress_cb:
+                                progress_cb(
+                                    f"  ℹ TC-Offset {tc_off} Fr. erkannt ({path.name})"
+                                )
+                        else:
+                            if progress_cb:
+                                progress_cb(
+                                    f"  ⚠ {path.name}: source_start={clip.source_start_frame} "
+                                    f"liegt außerhalb der Dateilänge "
+                                    f"({total_samp/sr:.1f}s) — Clip wird übersprungen"
+                                )
+                            continue
+
+                    # Clamp end_sample to file length
+                    if end_sample is not None:
+                        end_sample = min(end_sample, total_samp)
+
+                frame_idx   = 0
+                active_cnt  = 0
                 for block in sf.blocks(str(read_path), blocksize=block_size,
-                                        start=start_sample, stop=end_sample,
-                                        dtype="float32"):
+                                       start=start_sample, stop=end_sample,
+                                       dtype="float32"):
                     tl_frame = tl_offset + frame_idx
                     if 0 <= tl_frame < tl_length:
                         mono = block.mean(axis=1) if block.ndim > 1 else block
-                        rms = float(np.sqrt(np.mean(mono ** 2))) if len(mono) else 0.0
+                        rms  = float(np.sqrt(np.mean(mono ** 2))) if len(mono) else 0.0
                         if rms > threshold_linear:
                             silence_mask[tl_frame] = False
+                            active_cnt += 1
                     frame_idx += 1
+
+                if progress_cb and frame_idx == 0:
+                    progress_cb(
+                        f"  ⚠ {path.name}: keine Frames gelesen "
+                        f"(src {clip.source_start_frame}–{clip.source_end_frame}, "
+                        f"tl_off {tl_offset}) — Dateilänge {total_samp/sr:.1f}s"
+                    )
 
             except Exception as e:
                 if progress_cb:

@@ -18,6 +18,310 @@ from types import SimpleNamespace
 import streamlit as st
 
 
+# ── Schwellwert-Analyse ────────────────────────────────────────────────────────
+
+def _sc_load_audio_numpy(src_path: str, max_sec: int = 0) -> tuple:
+    """Lädt Audio via ffmpeg als numpy float32 mono 16 kHz. Gibt (data, sr) zurück."""
+    import subprocess, numpy as np
+    args = ["ffmpeg", "-y", "-i", src_path, "-ac", "1", "-ar", "16000"]
+    if max_sec:
+        args += ["-t", str(max_sec)]
+    args += ["-f", "f32le", "-"]
+    r = subprocess.run(args, capture_output=True)
+    if r.returncode != 0:
+        raise RuntimeError(f"ffmpeg: {r.stderr[-200:].decode(errors='replace')}")
+    data = __import__("numpy").frombuffer(r.stdout, dtype=__import__("numpy").float32).copy()
+    return data, 16000
+
+
+def _sc_rms_frames(data, sr: int, frame_ms: int = 20) -> "np.ndarray":
+    import numpy as np
+    fs = int(sr * frame_ms / 1000)
+    n  = len(data) // fs
+    frames = data[:n * fs].reshape(n, fs)
+    rms = np.sqrt(np.mean(frames ** 2, axis=1))
+    with np.errstate(divide="ignore"):
+        db = 20 * np.log10(np.where(rms > 1e-7, rms, 1e-7))
+    return db[db > -75]  # digitale Stille rausfiltern
+
+
+def _sc_suggest_fast(src_path: str, progress_cb=None) -> dict:
+    """Schwellwert-Vorschlag via k-means 2-Cluster auf RMS-Werten."""
+    import numpy as np
+
+    if progress_cb: progress_cb(0.1, "Audio laden …")
+    data, sr = _sc_load_audio_numpy(src_path, max_sec=300)
+
+    if progress_cb: progress_cb(0.5, "RMS-Analyse …")
+    db = _sc_rms_frames(data, sr)
+    if len(db) < 30:
+        raise RuntimeError("Zu wenig auswertbare Frames")
+
+    if progress_cb: progress_cb(0.8, "Cluster-Analyse …")
+
+    # ── k-means 2-Cluster (kein scipy nötig) ──────────────────────────────────
+    # Init: 25. und 75. Perzentil als Startzentroide
+    c0, c1 = float(np.percentile(db, 25)), float(np.percentile(db, 75))
+    for _ in range(40):
+        mid    = (c0 + c1) / 2
+        lo     = db[db <  mid]
+        hi     = db[db >= mid]
+        new_c0 = float(lo.mean()) if len(lo) > 0 else c0
+        new_c1 = float(hi.mean()) if len(hi) > 0 else c1
+        if abs(new_c0 - c0) < 0.05 and abs(new_c1 - c1) < 0.05:
+            break
+        c0, c1 = new_c0, new_c1
+
+    boundary     = (c0 + c1) / 2
+    noise_frames  = db[db <  boundary]
+    speech_frames = db[db >= boundary]
+
+    noise_floor  = float(np.median(noise_frames))  if len(noise_frames)  > 0 else c0
+    quiet_speech = float(np.percentile(speech_frames, 10)) if len(speech_frames) > 0 else c1
+    threshold    = int(round((noise_floor + quiet_speech) / 2))
+    threshold    = max(-60, min(-10, threshold))
+
+    # ── Konfidenz ──────────────────────────────────────────────────────────────
+    # Fisher-ähnliches Maß: Zentroid-Abstand / mittlere Cluster-Streuung
+    # Hoher Wert = Cluster gut getrennt, niedriger Wert = Cluster überlappen stark
+    separation   = c1 - c0
+    std0 = float(noise_frames.std())  if len(noise_frames)  > 1 else 1.0
+    std1 = float(speech_frames.std()) if len(speech_frames) > 1 else 1.0
+    fisher_score = separation / max((std0 + std1) / 2, 0.1)
+
+    if fisher_score >= 2.5:
+        confidence      = "hoch"
+        confidence_note = f"Cluster-Abstand: {separation:.0f} dB, Fisher-Score: {fisher_score:.1f}"
+    elif fisher_score >= 1.5:
+        confidence      = "mittel"
+        confidence_note = (
+            f"Cluster-Abstand: {separation:.0f} dB, Fisher-Score: {fisher_score:.1f} — "
+            "Ergebnis prüfen, Whisper für mehr Genauigkeit"
+        )
+    else:
+        confidence      = "niedrig"
+        confidence_note = (
+            f"Cluster-Abstand: {separation:.0f} dB, Fisher-Score: {fisher_score:.1f} — "
+            "Verteilung unimodal oder stark überlappend, Whisper empfohlen"
+        )
+
+    return {"threshold": threshold,
+            "noise_floor": round(noise_floor, 1),
+            "quiet_speech": round(quiet_speech, 1),
+            "confidence": confidence,
+            "confidence_note": confidence_note}
+
+
+def _sc_suggest_whisper(src_path: str, progress_cb=None) -> dict:
+    """Schwellwert-Vorschlag via Whisper-Segmentgrenzen + RMS-Messung."""
+    import numpy as np
+
+    if progress_cb: progress_cb(0.05, "Audio laden …")
+    data, sr = _sc_load_audio_numpy(src_path)
+
+    if progress_cb: progress_cb(0.15, "Whisper-Modell laden …")
+    import whisper as _whisper
+    model = _whisper.load_model("tiny")
+
+    if progress_cb: progress_cb(0.3, "Transkription läuft …")
+    result   = model.transcribe(src_path, task="transcribe",
+                                word_timestamps=False, verbose=False)
+    segments = result.get("segments", [])
+
+    if progress_cb: progress_cb(0.85, "Pegel messen …")
+
+    def _seg_db(t0, t1):
+        chunk = data[int(t0 * sr): int(t1 * sr)]
+        if len(chunk) < sr * 0.05:
+            return None
+        rms = float(np.sqrt(np.mean(chunk ** 2)))
+        return 20 * np.log10(rms) if rms > 1e-7 else None
+
+    duration     = len(data) / sr
+    speech_rms, gap_rms = [], []
+    prev = 0.0
+    for i, seg in enumerate(segments):
+        # Nur interne Lücken (zwischen zwei Segmenten) für Noise Floor nutzen —
+        # nie die Lücke nach dem letzten Segment, da Whisper dort oft früh stoppt
+        if seg["start"] - prev > 0.25 and i > 0:
+            v = _seg_db(prev + 0.05, seg["start"] - 0.05)
+            if v is not None:
+                gap_rms.append(v)
+        v = _seg_db(seg["start"], seg["end"])
+        if v is not None:
+            speech_rms.append(v)
+        prev = seg["end"]
+    # Trailing gap bewusst weggelassen
+
+    if not speech_rms:
+        raise RuntimeError("Whisper erkannte keine Sprache")
+
+    # Coverage-Warnung wenn Whisper < 30 % der Datei abgedeckt hat
+    covered_s  = sum(seg["end"] - seg["start"] for seg in segments)
+    coverage   = covered_s / duration if duration > 0 else 0.0
+    low_coverage = coverage < 0.30
+
+    noise_floor  = float(np.median(gap_rms))     if gap_rms    else float(np.percentile(speech_rms, 5))
+    quiet_speech = float(np.percentile(speech_rms, 10))
+    threshold    = int(round((noise_floor + quiet_speech) / 2))
+    threshold    = max(-60, min(-10, threshold))
+
+    result = {"threshold": threshold,
+              "noise_floor": round(noise_floor, 1),
+              "quiet_speech": round(quiet_speech, 1),
+              "coverage": round(coverage * 100, 0)}
+    if low_coverage:
+        result["coverage_warning"] = (
+            f"Whisper hat nur {coverage*100:.0f} % der Datei als Sprache erkannt — "
+            "möglicherweise unvollständige Transkription (lange Pausen, Fremdsprache). "
+            "Schwellwert manuell prüfen."
+        )
+    return result
+
+
+@st.dialog("Schwellwert analysieren")
+def _sc_thresh_dialog():
+    """Progress-Dialog für die Schwellwert-Analyse."""
+    if "sc_thresh_queue" in st.session_state:
+        _tq = st.session_state["sc_thresh_queue"]
+        while True:
+            try:
+                _msg = _tq.get_nowait()
+                if isinstance(_msg, tuple) and _msg[0] == "__THRESH_RESULT__":
+                    st.session_state["sc_thresh_result"]   = _msg[1]
+                elif isinstance(_msg, tuple) and len(_msg) == 3 and _msg[0] == "progress":
+                    st.session_state["sc_thresh_progress"] = _msg[1]
+                    st.session_state["sc_thresh_status"]   = _msg[2]
+                elif isinstance(_msg, str) and _msg.startswith("__DONE__"):
+                    st.session_state["sc_thresh_running"]  = False
+                elif isinstance(_msg, str) and _msg.startswith("Fehler"):
+                    st.session_state["sc_thresh_error"]    = _msg
+                    st.session_state["sc_thresh_running"]  = False
+            except Exception:
+                break
+
+    running = st.session_state.get("sc_thresh_running", False)
+    result  = st.session_state.get("sc_thresh_result")
+    error   = st.session_state.get("sc_thresh_error")
+
+    if running:
+        progress = st.session_state.get("sc_thresh_progress", 0.0)
+        status   = st.session_state.get("sc_thresh_status", "Starte …")
+        st.progress(progress, text=status)
+        st.rerun()
+    elif error:
+        st.error(error)
+        if st.button("Schließen", use_container_width=True):
+            st.session_state["sc_thresh_dialog_open"] = False
+            st.session_state.pop("sc_thresh_error", None)
+            st.rerun()
+    elif result:
+        st.success(
+            f"**Vorschlag: {result['threshold']} dB**\n\n"
+            f"Rauschboden: **{result['noise_floor']} dB** · "
+            f"Leise Sprache: **{result['quiet_speech']} dB**"
+        )
+        if result.get("coverage_warning"):
+            st.warning(
+                f":material/warning: {result['coverage_warning']}",
+                icon=None,
+            )
+        _conf = result.get("confidence")
+        if _conf == "niedrig":
+            st.warning(
+                f":material/warning: Konfidenz **niedrig** — {result.get('confidence_note', '')}",
+                icon=None,
+            )
+        elif _conf == "mittel":
+            st.info(
+                f":material/info: Konfidenz **mittel** — {result.get('confidence_note', '')}",
+                icon=None,
+            )
+        elif _conf == "hoch":
+            st.caption(f":material/check_circle: Konfidenz hoch — {result.get('confidence_note', '')}")
+        col1, col2 = st.columns(2)
+        with col1:
+            if st.button("Übernehmen", icon=":material/check:", type="primary",
+                         use_container_width=True, key="sc_thresh_apply"):
+                st.session_state["_sc_thresh_pending"]    = result["threshold"]
+                st.session_state["sc_thresh_result"]      = None
+                st.session_state["sc_thresh_dialog_open"] = False
+                st.rerun()
+        with col2:
+            if st.button("Schließen", use_container_width=True, key="sc_thresh_close"):
+                st.session_state["sc_thresh_dialog_open"] = False
+                st.session_state["sc_thresh_result"]      = None
+                st.rerun()
+
+
+def _render_threshold_suggest(sample_path: str | None) -> None:
+    """
+    UI-Expander: Schwellwert automatisch ermitteln.
+    sample_path = Audiodatei die analysiert wird (None → deaktiviert).
+    Schreibt _sc_thresh_pending wenn User „Übernehmen" klickt.
+    """
+    with st.expander(":material/auto_fix_high: Schwellwert automatisch ermitteln"):
+        if not sample_path or not Path(sample_path).exists():
+            st.caption("Bitte zuerst eine Datei auswählen.")
+            return
+
+        st.caption(f"Datei: `{Path(sample_path).name}`")
+
+        _whisper_ok = True
+        try:
+            import whisper as _w  # noqa: F401
+        except ImportError:
+            _whisper_ok = False
+
+        _busy = st.session_state.get("sc_thresh_running", False)
+        col_a, col_b = st.columns(2)
+        with col_a:
+            fast_btn = st.button(
+                "Schnell analysieren", icon=":material/bolt:",
+                use_container_width=True, key="sc_thresh_fast_btn",
+                disabled=_busy,
+            )
+        with col_b:
+            whisper_btn = st.button(
+                "Genauer (Whisper)", icon=":material/mic:",
+                use_container_width=True, key="sc_thresh_whisper_btn",
+                disabled=not _whisper_ok or _busy,
+                help=None if _whisper_ok else "Whisper ist nicht installiert",
+            )
+
+        if fast_btn or whisper_btn:
+            mode = "whisper" if whisper_btn else "fast"
+            _q   = queue.Queue()
+            st.session_state["sc_thresh_running"]     = True
+            st.session_state["sc_thresh_result"]      = None
+            st.session_state["sc_thresh_error"]       = None
+            st.session_state["sc_thresh_progress"]    = 0.0
+            st.session_state["sc_thresh_status"]      = "Starte …"
+            st.session_state["sc_thresh_queue"]       = _q
+            st.session_state["sc_thresh_dialog_open"] = True
+
+            def _worker(path, m, q):
+                def _cb(frac, text):
+                    q.put(("progress", frac, text))
+                try:
+                    fn  = _sc_suggest_whisper if m == "whisper" else _sc_suggest_fast
+                    res = fn(path, progress_cb=_cb)
+                    q.put(("__THRESH_RESULT__", res))
+                    q.put("__DONE__0")
+                except Exception as _e:
+                    q.put(f"Fehler: {_e}")
+                    q.put("__DONE__1")
+
+            threading.Thread(
+                target=_worker, args=(sample_path, mode, _q), daemon=True
+            ).start()
+            st.rerun()
+
+    # Dialog außerhalb des Expanders öffnen
+    if st.session_state.get("sc_thresh_dialog_open"):
+        _sc_thresh_dialog()
+
+
 # ── Marker-Ergebnis-Dialog (Resolve-Modus) ─────────────────────────────────────
 
 @st.dialog("Analyse abgeschlossen")
@@ -107,6 +411,11 @@ else:
         if _k not in st.session_state:
             st.session_state[_k] = _default
 
+# Pending-Schwellwert vor dem ersten Slider-Render eintragen
+if "_sc_thresh_pending" in st.session_state:
+    st.session_state.pop("sc_threshold_db", None)
+    st.session_state["sc_threshold_db"] = st.session_state.pop("_sc_thresh_pending")
+
 # ══════════════════════════════════════════════════════════════════════════════
 # RESOLVE TIMELINE MODE
 # ══════════════════════════════════════════════════════════════════════════════
@@ -173,19 +482,23 @@ if source_mode == "Aktive Timeline":
     with col_s1:
         threshold_db = st.slider(
             "Schwellwert (dB)", -60, -10, key="sc_threshold_db",
+            value=int(st.session_state.get("sc_threshold_db", _DEFAULTS["sc_threshold_db"])),
             help="Signale unterhalb dieses Pegels gelten als Stille",
         )
         min_silence_s = st.slider(
             "Mindestdauer Stille (s)", 0.1, 3.0, step=0.1, key="sc_min_silence_s",
+            value=float(st.session_state.get("sc_min_silence_s", _DEFAULTS["sc_min_silence_s"])),
             help="Kürzere Pausen werden ignoriert",
         )
     with col_s2:
         pre_pad_ms = st.slider(
             "Pre-Pad (ms)", 0, 500, step=25, key="sc_pre_pad_ms",
+            value=int(st.session_state.get("sc_pre_pad_ms", _DEFAULTS["sc_pre_pad_ms"])),
             help="Puffer am Anfang jeder Stille — wird NICHT geschnitten",
         )
         post_pad_ms = st.slider(
             "Post-Pad (ms)", 0, 500, step=25, key="sc_post_pad_ms",
+            value=int(st.session_state.get("sc_post_pad_ms", _DEFAULTS["sc_post_pad_ms"])),
             help="Puffer am Ende jeder Stille — wird NICHT geschnitten",
         )
 
@@ -193,6 +506,15 @@ if source_mode == "Aktive Timeline":
     marker_color = st.selectbox("Marker-Farbe", MARKER_COLOR_OPTIONS, key="sc_marker_color")
 
     save_page(_project_name, _PAGE, {k: st.session_state[k] for k in _DEFAULTS})
+
+    # Repräsentativen Clip für Threshold-Analyse ermitteln
+    _tl_sample_path = None
+    if selected_tracks:
+        _first_clips = audio_tracks_with_clips.get(selected_tracks[0], [])
+        if _first_clips and _first_clips[0].file_path:
+            _tl_sample_path = _first_clips[0].file_path
+
+    _render_threshold_suggest(_tl_sample_path)
 
     # ── Analyse ────────────────────────────────────────────────────────────────
 
@@ -423,21 +745,27 @@ else:
     with col_s1:
         threshold_db = st.slider(
             "Schwellwert (dB)", -60, -10, key="sc_threshold_db",
+            value=int(st.session_state.get("sc_threshold_db", _DEFAULTS["sc_threshold_db"])),
             help="Signale unterhalb dieses Pegels gelten als Stille",
         )
         min_silence_s = st.slider(
             "Mindestdauer Stille (s)", 0.1, 3.0, step=0.1, key="sc_min_silence_s",
+            value=float(st.session_state.get("sc_min_silence_s", _DEFAULTS["sc_min_silence_s"])),
             help="Kürzere Pausen werden ignoriert",
         )
     with col_s2:
         pre_pad_ms = st.slider(
             "Pre-Pad (ms)", 0, 500, step=25, key="sc_pre_pad_ms",
+            value=int(st.session_state.get("sc_pre_pad_ms", _DEFAULTS["sc_pre_pad_ms"])),
             help="Puffer am Anfang jeder Stille — wird NICHT geschnitten",
         )
         post_pad_ms = st.slider(
             "Post-Pad (ms)", 0, 500, step=25, key="sc_post_pad_ms",
+            value=int(st.session_state.get("sc_post_pad_ms", _DEFAULTS["sc_post_pad_ms"])),
             help="Puffer am Ende jeder Stille — wird NICHT geschnitten",
         )
+
+    _render_threshold_suggest(str(_src) if _src else None)
 
     # ── Analyse ────────────────────────────────────────────────────────────────
 
@@ -472,6 +800,66 @@ else:
             return float(r.stdout.strip())
         except ValueError:
             return 0.0
+
+    def _render_waveform_png(src_path: str, dur_s: float,
+                             silence_segs: list, fps: float) -> bytes | None:
+        """Rendert Waveform + rote Stille-Bereiche als PNG-Bytes."""
+        import subprocess as _sp, io
+        import numpy as np
+        import matplotlib
+        matplotlib.use("Agg")
+        import matplotlib.pyplot as plt
+
+        # Audio sehr niedrig samplen — nur für Anzeige, keine Analyse
+        r = _sp.run(
+            ["ffmpeg", "-y", "-i", src_path, "-ac", "1", "-ar", "200",
+             "-f", "f32le", "-"],
+            capture_output=True,
+        )
+        data = np.frombuffer(r.stdout, dtype=np.float32).copy()
+        if len(data) < 10:
+            return None
+
+        # Min/Max-Envelope auf ~1200 Pixel herunterrechnen
+        DISPLAY_W = 1200
+        n    = len(data)
+        step = max(1, n // DISPLAY_W)
+        clipped = data[: (n // step) * step].reshape(-1, step)
+        lo = clipped.min(axis=1)
+        hi = clipped.max(axis=1)
+        t  = np.linspace(0, dur_s, len(lo))
+
+        # Peak-Normalisierung damit die Waveform immer den vollen Raum füllt
+        peak = max(abs(lo.min()), abs(hi.max()))
+        if peak > 0:
+            lo /= peak
+            hi /= peak
+
+        fig, ax = plt.subplots(figsize=(12, 1.8), facecolor="#111111")
+        ax.set_facecolor("#111111")
+        ax.fill_between(t, lo, hi, color="#5b9bd5", alpha=0.9, linewidth=0)
+        ax.axhline(0, color="#333333", linewidth=0.5)
+
+        for s_start, s_dur in silence_segs:
+            t0 = s_start / fps
+            t1 = (s_start + s_dur) / fps
+            ax.axvspan(t0, t1, color="#e03131", alpha=0.45, linewidth=0)
+
+        ax.set_xlim(0, dur_s)
+        ax.set_ylim(-1, 1)
+        ax.tick_params(axis="x", colors="#888888", labelsize=7)
+        ax.tick_params(axis="y", left=False, labelleft=False)
+        for spine in ax.spines.values():
+            spine.set_visible(False)
+        ax.set_xlabel("Zeit (s)", color="#888888", fontsize=7)
+        plt.tight_layout(pad=0.3)
+
+        buf = io.BytesIO()
+        fig.savefig(buf, format="png", dpi=130, bbox_inches="tight",
+                    facecolor=fig.get_facecolor())
+        plt.close(fig)
+        buf.seek(0)
+        return buf.read()
 
     def _run_file_analysis(params: dict, q: queue.Queue):
         try:
@@ -532,7 +920,7 @@ else:
             q.put(f"{len(keep_segs)} Keep-Segmente  ({total_keep_s:.1f}s)")
 
             q.put(("__FILE_RESULT__", {"silence": silence_segs, "keep": keep_segs,
-                                       "fps": fps, "file_path": path}))
+                                       "fps": fps, "file_path": path, "dur_s": dur_s}))
             q.put("__DONE__0")
 
         except Exception as e:
@@ -555,9 +943,11 @@ else:
             st.error("Dauer konnte nicht ermittelt werden.")
             st.stop()
 
-        st.session_state.silence_running     = True
-        st.session_state.silence_log         = []
-        st.session_state.sc_file_results     = None
+        st.session_state.silence_running      = True
+        st.session_state.silence_log          = []
+        st.session_state.sc_file_results      = None
+        st.session_state.sc_waveform_accepted = False
+        st.session_state.pop("_sc_wf_cache_key", None)
         q = queue.Queue()
         st.session_state.silence_queue = q
 
@@ -600,10 +990,11 @@ else:
         st.divider()
         st.subheader("Ergebnis")
 
-        _keep = _file_res["keep"]
-        _sil  = _file_res["silence"]
-        _fps  = _file_res["fps"]
+        _keep  = _file_res["keep"]
+        _sil   = _file_res["silence"]
+        _fps   = _file_res["fps"]
         _fpath = _file_res["file_path"]
+        _dur_s = _file_res.get("dur_s", 0.0)
 
         total_keep_s = sum(s["end"] - s["start"] for s in _keep)
         total_sil_s  = sum(d for _, d in _sil) / _fps
@@ -612,6 +1003,38 @@ else:
         col_res1.metric("Keep-Segmente",    len(_keep))
         col_res2.metric("Behalten",         f"{total_keep_s:.1f}s")
         col_res3.metric("Herausgeschnitten", f"{total_sil_s:.1f}s")
+
+        # ── Waveform-Vorschau ─────────────────────────────────────────────────
+
+        _wf_key = f"{_fpath}|{len(_sil)}|{_fps:.4f}"
+        if st.session_state.get("_sc_wf_cache_key") != _wf_key:
+            with st.spinner("Waveform rendern …"):
+                _png = _render_waveform_png(_fpath, _dur_s, _sil, _fps)
+            st.session_state["_sc_wf_cache_key"] = _wf_key
+            st.session_state["_sc_wf_png"]       = _png
+
+        _png = st.session_state.get("_sc_wf_png")
+        if _png:
+            st.image(_png, use_container_width=True)
+            st.caption(
+                ":material/radio_button_checked: Blau = wird behalten  ·  "
+                ":material/cancel: Rot = wird entfernt"
+            )
+
+        # Accept-Gate — AAF-Export erst nach Bestätigung
+        if not st.session_state.get("sc_waveform_accepted"):
+            if st.button(
+                "Ergebnis übernehmen", icon=":material/check_circle:",
+                type="primary", use_container_width=True,
+                key="sc_accept_btn",
+            ):
+                st.session_state["sc_waveform_accepted"] = True
+                st.rerun()
+        else:
+            st.success("Ergebnis übernommen — AAF-Export bereit.")
+
+        if not st.session_state.get("sc_waveform_accepted"):
+            st.stop()
 
         # ── AAF exportieren ───────────────────────────────────────────────────
 
