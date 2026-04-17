@@ -60,9 +60,9 @@ def _save_lut_to_history(new_path: str) -> None:
 _PARAM_NAMES = [
     'min_shot', 'max_shot', 'reaction_dur', 'cleanup_dur', 'randomness',
     'threshold_db', 'min_edit', 'change_delay',
-    'min_conf', 'nodding_enabled', 'min_nod_dur', 'pre_roll',
+    'min_conf', 'nodding_enabled', 'nod_threshold', 'min_nod_dur', 'pre_roll',
     'speaking_enabled', 'rise_db', 'speaking_min_dur', 'speaking_max_dur', 'speaking_min_conf',
-    'totale_simul_dur',
+    'speaking_peak', 'totale_simul_dur',
 ]
 
 _resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"
