@@ -57,7 +57,7 @@ Der Browser öffnet sich automatisch mit der Oberfläche des Tools.
 Alternativ: **Doppelklick** auf `start.command` im Ordner `~/resolve-toolkit`.  
 Falls ein Sicherheitshinweis erscheint: **Rechtsklick → „Öffnen" → „Öffnen"**.
 
-> Das Terminal-Fenster offen lassen — es läuft im Hintergrund. Schließen beendet das Tool.
+> Das Terminal-Fenster kann nach dem Start geschlossen werden — das Tool läuft im Hintergrund weiter.
 
 ---
 
@@ -75,7 +75,7 @@ Nach dem ersten Start öffnet sich die **Lizenz-Seite** automatisch, da noch kei
 
 **Tool erneut starten:** Immer über `bash ~/resolve-toolkit/start.command` oder Doppelklick auf `start.command`.
 
-**Tool beenden:** Terminal-Fenster schließen oder `Ctrl + C` im Terminal drücken.
+**Tool beenden:** Das Tool läuft im Hintergrund. Zum Beenden im Terminal `kill $(lsof -ti :8501)` ausführen oder den Mac neu starten.
 
 ---
 
