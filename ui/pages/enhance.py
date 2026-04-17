@@ -1,5 +1,5 @@
 """
-Audio Enhance — DeepFilterNet (De-Noise) + audio-separator (De-Reverb) + MaxxVolume (Dynamics)
+Audio Enhance — DeepFilterNet (De-Noise) + audio-separator (De-Reverb) + Voice Leveler (Dynamics)
 Optionale Whisper-Analyse ermittelt Gate-Threshold, Leveler-Target und Low-Level-Gain automatisch.
 """
 
@@ -15,8 +15,10 @@ import logging
 import time
 from pathlib import Path
 
+_log = logging.getLogger("rtk")
+
 st.title(":material/mic: Audio Enhance")
-st.caption("De-Noise · De-Reverb · MaxxVolume Dynamics · Whisper-Analyse")
+st.caption("Entfernt Raumhall und Hintergrundgeräusche aus Sprachaufnahmen. Optional wird die Lautstärke danach automatisch angeglichen.")
 
 # ── Library availability ───────────────────────────────────────────────────────
 
@@ -89,7 +91,7 @@ if st.session_state.enhance_analysis_running and st.session_state.enhance_analys
             st.session_state.mv_gate    = _result["gate_threshold"]
             st.session_state.mv_llt     = _result["quiet_speech"]
             st.session_state.mv_ll_gain = _result["ll_gain_suggestion"]
-            # Re-open MaxxVolume expanders to show updated values
+            # Re-open Voice Leveler expanders to show updated values
             st.session_state.pop("mv_expander_open", None)
             st.session_state.pop("mv_adv_expander_open", None)
             st.rerun()
@@ -122,7 +124,7 @@ with col_p2:
 
 with col_p3:
     use_maxxvolume = st.checkbox(
-        "MaxxVolume (Dynamics)",
+        "Voice Leveler (Dynamics)",
         value=False,
         help="Gate → Upward Compressor → Leveler (AGC) → Limiter via ffmpeg. Nur für Sprachspuren.",
     )
@@ -214,7 +216,7 @@ if use_dereverb and DR_AVAILABLE:
 if use_maxxvolume:
     _mv_expand = "mv_expander_open" not in st.session_state
     st.session_state.mv_expander_open = True
-    with st.expander("MaxxVolume Einstellungen", expanded=_mv_expand):
+    with st.expander("Voice Leveler Einstellungen", expanded=_mv_expand):
         _ana = st.session_state.enhance_analysis_result
 
         col_mv1, col_mv2, col_mv3 = st.columns(3)
@@ -410,17 +412,34 @@ if source_mode == "Resolve Media Pool":
                     else:
                         st.info("Keine Audio- oder Videodateien in diesem Bin.")
     except Exception as e:
+        _log.exception("Audio Enhance: Resolve-Verbindungsfehler beim Laden der Bins")
         st.error("Resolve nicht verbunden")
         st.caption(str(e))
 
 else:
-    col_path, col_btn = st.columns([4, 1])
+    # ── Ordner scannen ────────────────────────────────────────────────────────
+    col_path, col_browse, col_scan = st.columns([4, 1, 1])
     with col_path:
         folder_path_str = st.text_input("Ordner-Pfad",
             placeholder="/Volumes/Media/Recording", key="enhance_folder_path")
-    with col_btn:
+    with col_browse:
         st.markdown("<br>", unsafe_allow_html=True)
-        scan_clicked = st.button("Scannen", use_container_width=True)
+        if st.button("", icon=":material/folder_open:", use_container_width=True, key="enhance_folder_browse"):
+            import subprocess as _sp_dlg
+            try:
+                _r = _sp_dlg.run(
+                    ["osascript", "-e",
+                     'POSIX path of (choose folder with prompt "Ordner auswählen")'],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if _r.returncode == 0 and _r.stdout.strip():
+                    st.session_state["enhance_folder_path"] = _r.stdout.strip()
+                    st.rerun()
+            except Exception:
+                pass
+    with col_scan:
+        st.markdown("<br>", unsafe_allow_html=True)
+        scan_clicked = st.button("Scannen", use_container_width=True, key="enhance_scan")
 
     if "enhance_scanned_files" not in st.session_state:
         st.session_state.enhance_scanned_files = []
@@ -429,15 +448,50 @@ else:
         p = Path(folder_path_str)
         if p.is_dir():
             found = sorted(
-                (f for f in p.iterdir() if f.suffix.lower() in AUDIO_EXTENSIONS),
+                (f for f in p.iterdir()
+                 if f.suffix.lower() in AUDIO_EXTENSIONS | VIDEO_EXTENSIONS),
                 key=lambda f: f.name,
             )
             st.session_state.enhance_scanned_files = [(f.name, str(f)) for f in found]
             if not found:
-                st.warning("Keine Audio-Dateien gefunden.")
+                st.warning("Keine Audio- oder Videodateien gefunden.")
         else:
             st.error("Ordner nicht gefunden.")
             st.session_state.enhance_scanned_files = []
+
+    # ── Einzelne Dateien auswählen ─────────────────────────────────────────────
+    st.caption("Oder einzelne Dateien auswählen:")
+    col_fp1, col_fp2 = st.columns([4, 1])
+    with col_fp2:
+        if st.button("", icon=":material/audio_file:", use_container_width=True, key="enhance_file_browse"):
+            import subprocess as _sp_dlg
+            try:
+                _r = _sp_dlg.run(
+                    ["osascript", "-e",
+                     'set fs to choose file with prompt "Audio- oder Videodateien auswählen" '
+                     'of type {"wav","mp3","aif","aiff","mp4","mov","mxf","avi","mkv"} '
+                     'with multiple selections allowed\n'
+                     'set out to ""\n'
+                     'repeat with f in fs\n'
+                     'set out to out & POSIX path of f & "\n"\n'
+                     'end repeat\n'
+                     'return out'],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if _r.returncode == 0 and _r.stdout.strip():
+                    _paths = [p.strip() for p in _r.stdout.strip().splitlines() if p.strip()]
+                    _valid = [(Path(p).name, p) for p in _paths
+                              if Path(p).suffix.lower() in AUDIO_EXTENSIONS | VIDEO_EXTENSIONS]
+                    if _valid:
+                        st.session_state.enhance_scanned_files = _valid
+                        st.rerun()
+            except Exception:
+                pass
+    with col_fp1:
+        _picked_names = ", ".join(n for n, _ in st.session_state.get("enhance_scanned_files", []))
+        st.text_input("Ausgewählte Dateien", value=_picked_names, disabled=True,
+                      placeholder="Noch keine Dateien ausgewählt",
+                      label_visibility="collapsed")
 
     if st.session_state.enhance_scanned_files:
         _fsel_key = "enhance_folder_select"
@@ -452,19 +506,11 @@ else:
             (n, p) for n, p in st.session_state.enhance_scanned_files if n in chosen
         ]
 
-    st.markdown("**Oder Dateien per Drag & Drop:**")
-    uploaded_files = st.file_uploader(
-        "WAV / MP3 / AIF", type=["wav", "mp3", "aif", "aiff"],
-        accept_multiple_files=True, label_visibility="collapsed",
-    ) or []
+    uploaded_files = []
 
 # ── Whisper-Analyse ───────────────────────────────────────────────────────────
 
-_analysis_src = None
-if selected_path_files:
-    _analysis_src = selected_path_files[0][1]
-elif uploaded_files:
-    _analysis_src = uploaded_files[0].name   # display only, bytes handled separately
+_analysis_src = selected_path_files[0][1] if selected_path_files else None
 
 if use_maxxvolume:
     st.divider()
@@ -485,7 +531,7 @@ if use_maxxvolume:
                 "Analysieren",
                 disabled=st.session_state.enhance_analysis_running,
                 use_container_width=True,
-                help="Erkennt Stille und Sprache · leitet MaxxVolume-Parameter ab",
+                help="Erkennt Stille und Sprache · leitet Voice Leveler-Parameter ab",
             )
 
         # Show running indicator (polling happens at page top, before widgets)
@@ -580,7 +626,7 @@ if use_maxxvolume:
                     quiet_speech  = float(_np.percentile(speech_levels, 10))
                     median_speech = float(_np.percentile(speech_levels, 50))
 
-                    # Derive MaxxVolume parameters from analysis
+                    # Derive Voice Leveler parameters from analysis
                     # Gate: 5 dB above noise floor (static curve point, not time-domain gate)
                     gate_threshold    = round(min(noise_floor + 5.0, -15.0), 1)
                     # LLT: where full upward compression begins = quiet speech (10th pct)
@@ -622,6 +668,7 @@ if use_maxxvolume:
                     })
 
                 except Exception as exc:
+                    _log.exception("Audio Enhance: Analyse-Fehler")
                     q.put({"error": str(exc)})
                 finally:
                     if _analysis_tmp and Path(_analysis_tmp).exists():
@@ -686,7 +733,7 @@ if use_maxxvolume:
                 fig.add_trace(_lvl("Leise Sprache (RMS)",    _ana["quiet_speech"],  "#CDDC39"))
                 fig.add_trace(_lvl("Mittlere Sprache (RMS)", _ana["median_speech"], "#FF9800"))
 
-                # MaxxVolume parameters (solid)
+                # Voice Leveler parameters (solid)
                 fig.add_trace(_lvl("Gate",            mv_gate,    "#F44336", "solid"))
                 fig.add_trace(_lvl("Low Level Thresh", mv_llt,    "#FFC107", "solid"))
                 fig.add_trace(_lvl("High Level Thresh", mv_hlt,   "#9C27B0", "solid"))
@@ -728,7 +775,7 @@ if use_maxxvolume:
 def _build_mv_filterchain(gate_db, llt_db, ll_gain_db, leveler_lufs, ceiling_dbfs,
                            hlt_db, hl_gain_db, soft_mode):
     """
-    MaxxVolume-style dynamics chain via ffmpeg compand + loudnorm + alimiter.
+    Voice Leveler-style dynamics chain via ffmpeg compand + loudnorm + alimiter.
 
     Compand transfer curve (input → output, all in dBFS):
       -90  → -90             floor (below Gate: 1:1)
@@ -928,9 +975,9 @@ def _run_pipeline(in_path: str, out_path: str,
             q.put("  ⚠ De-Reverb übersprungen — kein kompatibles Modul verfügbar")
             return src
 
-    # ── MaxxVolume helper ──────────────────────────────────────────────────────
+    # ── Voice Leveler helper ──────────────────────────────────────────────────────
     def _do_maxxvolume(src):
-        q.put("  MaxxVolume …")
+        q.put("  Voice Leveler …")
         filterchain = _build_mv_filterchain(
             mv_params["gate"],    mv_params["llt"],     mv_params["ll_gain"],
             mv_params["leveler"], mv_params["ceiling"],
@@ -943,7 +990,7 @@ def _run_pipeline(in_path: str, out_path: str,
             capture_output=True, encoding="utf-8", errors="replace",
         )
         if r.returncode != 0:
-            raise RuntimeError(f"MaxxVolume (ffmpeg) fehlgeschlagen:\n{r.stderr[-300:]}")
+            raise RuntimeError(f"Voice Leveler (ffmpeg) fehlgeschlagen:\n{r.stderr[-300:]}")
         return tmp
 
     # ── Pipeline-Reihenfolge ──────────────────────────────────────────────────
@@ -960,12 +1007,12 @@ def _run_pipeline(in_path: str, out_path: str,
         if use_dr:
             _n = _do_dereverb(current); _intermediates.append(_n); current = _n
 
-    # MaxxVolume is always last; it also sets 48kHz sample rate
+    # Voice Leveler is always last; it also sets 48kHz sample rate
     if use_mv:
         _n = _do_maxxvolume(current)
         _intermediates.append(_n)
         current = _n
-        # MaxxVolume output is already PCM_24 @ 48kHz — copy directly
+        # Voice Leveler output is already PCM_24 @ 48kHz — copy directly
         import shutil
         shutil.copy2(current, out_path)
     else:
@@ -1067,6 +1114,7 @@ def _process_files(files: list,
 
         q.put("__DONE__0")
     except Exception as e:
+        _log.exception("Audio Enhance: Verarbeitungsfehler")
         q.put(f"Fehler: {e}")
         q.put("__DONE__1")
 
@@ -1076,9 +1124,8 @@ def _process_files(files: list,
 st.divider()
 
 has_path_files = len(selected_path_files) > 0
-has_uploads    = len(uploaded_files) > 0
 pipeline_ok    = use_denoise or use_dereverb or use_maxxvolume
-can_start      = (has_path_files or has_uploads) and pipeline_ok and not st.session_state.enhance_running
+can_start      = has_path_files and pipeline_ok and not st.session_state.enhance_running
 
 start = st.button(
     "Enhance starten", icon=":material/play_arrow:", type="primary",
@@ -1103,8 +1150,7 @@ if start:
         "soft":    mv_soft,
     }
 
-    file_list = ([(n, p, True) for n, p in selected_path_files] if has_path_files
-                 else [(uf.name, uf.read(), False) for uf in uploaded_files])
+    file_list = [(n, p, True) for n, p in selected_path_files]
 
     st.session_state.enhance_running          = True
     st.session_state.enhance_log              = []
@@ -1123,12 +1169,3 @@ if start:
     ).start()
     st.rerun()
 
-# ── Download (upload mode) ─────────────────────────────────────────────────────
-
-if st.session_state.enhance_download_results:
-    st.subheader("Download")
-    for fname, data in st.session_state.enhance_download_results.items():
-        st.download_button(
-            label=f"⬇ {fname}", data=data, file_name=fname, mime="audio/wav",
-            key=f"dl_{fname}",
-        )

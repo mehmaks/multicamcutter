@@ -2,8 +2,13 @@
 Config — Tab-Sichtbarkeit und config.ini Editor.
 """
 
+import sys
+import os
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+
 import streamlit as st
 import configparser
+import license as _lic
 from pathlib import Path
 from streamlit_sortables import sort_items
 
@@ -24,20 +29,23 @@ def _save_cfg(cfg: configparser.ConfigParser):
     with open(CONFIG_PATH, "w", encoding="utf-8") as f:
         cfg.write(f)
 
+_license: _lic.LicenseInfo = st.session_state.get("license_info") or _lic.validate()
+
 # ── Tab-Sichtbarkeit ──────────────────────────────────────────────────────────
 
 st.subheader("Tabs")
 st.caption("Reihenfolge per Drag & Drop ändern. In **Aktiviert** = in der Sidebar sichtbar.")
 
-_ALL_MODULES = [
-    ("show_multicam",   "Multicam Cutter"),
-    ("show_enhance",    "Audio Enhance"),
-    ("show_auphonic",   "Auphonic"),
-    ("show_maxxvolume", "Voice Leveler"),
-    ("show_silence",    "Silence Cutter"),
-    ("show_resolve",    "Resolve Bridge"),
-    ("show_takes",      "Take Selector"),
+# Nur lizenzierte Module anzeigen
+_ALL_MODULES_DEFS = [
+    ("show_multicam",   "Multicam Cutter", "multicam"),
+    ("show_enhance",    "Audio Enhance",   "enhance"),
+    ("show_auphonic",   "Auphonic",        "auphonic"),
+    ("show_maxxvolume", "Voice Leveler",   "maxxvolume"),
+    ("show_silence",    "Silence Cutter",  "silence"),
+    ("show_takes",      "Take Selector",   "takes"),
 ]
+_ALL_MODULES = [(k, label) for k, label, mod in _ALL_MODULES_DEFS if _license.has_module(mod)]
 _KEY_TO_LABEL = dict(_ALL_MODULES)
 _LABEL_TO_KEY = {v: k for k, v in _ALL_MODULES}
 _DEFAULT_ORDER = [k for k, _ in _ALL_MODULES]

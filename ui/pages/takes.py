@@ -11,12 +11,15 @@ import streamlit as st
 import threading
 import queue
 import tempfile
+import logging
 import time
 import math
 from pathlib import Path
 
+_log = logging.getLogger("rtk")
+
 st.title(":material/theaters: Take Selector")
-st.caption("Erkennt Absätze und Wiederholungen in geskripteten Aufnahmen — wählt automatisch den besten Take.")
+st.caption("Erkennt in Sprachaufnahmen automatisch Wiederholungen und wählt den besten Take je Abschnitt aus.")
 
 _resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"
 
@@ -320,7 +323,7 @@ if source_mode == "Resolve Media Pool":
         project  = resolve.GetProjectManager().GetCurrentProject()
         mp       = project.GetMediaPool()
         root     = mp.GetRootFolder()
-        all_bins = _collect_bins(root)
+        all_bins = sorted(_collect_bins(root), key=lambda s: s.strip().lower())
         if all_bins:
             sel_bin  = st.selectbox("Media Pool Bin", options=all_bins, key="takes_mp_bin")
             bin_name = sel_bin.strip() if sel_bin else None
@@ -336,6 +339,7 @@ if source_mode == "Resolve Media Pool":
                         and Path(c.GetClipProperty("File Path")).suffix.lower() in _all_ext
                     ]
                     if file_clips:
+                        file_clips    = sorted(file_clips, key=lambda x: x[0].lower())
                         clip_names    = [n for n, _ in file_clips]
                         chosen_name   = st.selectbox("Clip", options=clip_names, key="takes_mp_clip")
                         chosen_path   = next((p for n, p in file_clips if n == chosen_name), None)
@@ -601,6 +605,7 @@ if selected_file:
 
             except Exception as exc:
                 import traceback
+                _log.exception("Take Selector: Analyse-Fehler")
                 q.put({"error": f"{exc}\n\n{traceback.format_exc()[-800:]}"})
                 progress_q.put(("__DONE__", 1.0))
             finally:

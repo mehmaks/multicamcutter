@@ -17,6 +17,7 @@ import configparser as _cp
 from pathlib import Path
 
 st.title(":material/content_cut: Multicam Cutter")
+st.caption("Schneidet automatisch zwischen mehreren Kameras, basierend darauf wer gerade spricht. Das Ergebnis ist eine fertige Schnitt-Timeline.")
 
 SCRIPT_DIR   = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter"
 _cfg_path    = SCRIPT_DIR / "config.ini"

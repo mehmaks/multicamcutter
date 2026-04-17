@@ -13,6 +13,18 @@ from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeou
 
 import streamlit as st
 import license as _lic
+import ui.app_logger as _rtk_log
+
+# ── Logging-Setup (einmalig beim Start) ────────────────────────────────────────
+_log = _rtk_log.setup()
+
+def _excepthook(exc_type, exc_value, exc_tb):
+    if issubclass(exc_type, KeyboardInterrupt):
+        sys.__excepthook__(exc_type, exc_value, exc_tb)
+        return
+    _log.error("Uncaught exception", exc_info=(exc_type, exc_value, exc_tb))
+
+sys.excepthook = _excepthook
 
 st.set_page_config(
     page_title="resolve-toolkit",
@@ -82,6 +94,83 @@ for _k, _v in _DEFAULTS.items():
 if "license_info" not in st.session_state:
     st.session_state.license_info = _lic.validate()
 _license: _lic.LicenseInfo = st.session_state.license_info
+
+# ── Feedback-Dialog ────────────────────────────────────────────────────────────
+
+@st.dialog("Bugs & Feedback", width="large")
+def _feedback_dialog():
+    import subprocess as _sp_fb, requests as _rq_fb, configparser as _fcp_fb
+    _fcfg_fb = _fcp_fb.ConfigParser()
+    _fcfg_fb.read(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                               "modules", "multicam_cutter", "config.ini"))
+    _token_fb = _fcfg_fb.get("Feedback", "github_token", fallback="").strip()
+    _repo_fb  = _fcfg_fb.get("Feedback", "github_repo",  fallback="").strip()
+
+    with st.form("fb_form", clear_on_submit=True):
+        _fb_type = st.radio(
+            "Typ",
+            [":material/bug_report: Bug", ":material/lightbulb: Verbesserung"],
+            horizontal=True,
+            label_visibility="collapsed",
+        )
+        _fb_title = st.text_input("Kurztitel", placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
+        _fb_body  = st.text_area(
+            "Beschreibung",
+            placeholder="Was ist passiert? Was wurde erwartet?",
+            height=200,
+        )
+        _fb_email = st.text_input(
+            "E-Mail (optional)",
+            value=_license.email or "",
+            placeholder="für Rückfragen",
+        )
+        _log_tail = _rtk_log.tail(50)
+        _fb_attach_log = st.checkbox(
+            "Letzte 50 Log-Einträge mitschicken",
+            value=bool(_log_tail),
+            disabled=not bool(_log_tail),
+            help=f"Log-Datei: `{_rtk_log.log_path()}`",
+        )
+        if _log_tail:
+            with st.expander("Log-Vorschau"):
+                st.code(_log_tail, language=None)
+        else:
+            st.caption(":material/info: Noch keine Fehler im Log — Checkbox nicht verfügbar.")
+
+        _submitted = st.form_submit_button("Senden", use_container_width=True, type="primary")
+
+    if _submitted:
+        if not _fb_title.strip():
+            st.warning("Bitte einen Kurztitel eingeben.")
+        else:
+            try:
+                _git_hash_fb = _sp_fb.run(
+                    ["git", "-C", os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
+                     "rev-parse", "--short", "HEAD"],
+                    capture_output=True, text=True).stdout.strip()
+            except Exception:
+                _git_hash_fb = "?"
+            _label_fb = "bug" if "Bug" in _fb_type else "enhancement"
+            _body_parts_fb = [_fb_body.strip()]
+            if _fb_email.strip():
+                _body_parts_fb.append(f"**Kontakt:** {_fb_email.strip()}")
+            _body_parts_fb.append(f"*Version: `{_git_hash_fb}`*")
+            if _fb_attach_log and _log_tail:
+                _body_parts_fb.append(f"**App-Log (letzte 50 Zeilen):**\n```\n{_log_tail}\n```")
+            _resp_fb = _rq_fb.post(
+                f"https://api.github.com/repos/{_repo_fb}/issues",
+                headers={"Authorization": f"Bearer {_token_fb}",
+                         "Accept": "application/vnd.github+json"},
+                json={"title": _fb_title.strip(),
+                      "body":  "\n\n".join(_body_parts_fb),
+                      "labels": [_label_fb]},
+                timeout=10,
+            )
+            if _resp_fb.status_code == 201:
+                st.success("Gesendet! Danke.")
+            else:
+                st.error(f"Fehler ({_resp_fb.status_code})")
+
 
 # ── Update-Dialog ──────────────────────────────────────────────────────────────
 
@@ -251,7 +340,6 @@ with st.sidebar:
         "show_auphonic":   ("pages/auphonic.py",      "Auphonic",        ":material/cloud:",        "auphonic"),
         "show_maxxvolume": ("pages/voice_leveler.py", "Voice Leveler",   ":material/graphic_eq:",   "maxxvolume"),
         "show_silence":    ("pages/silence.py",       "Silence Cutter",  ":material/volume_off:",   "silence"),
-        "show_resolve":    ("pages/resolve.py",       "Resolve Bridge",  ":material/link:",         "resolve"),
         "show_takes":      ("pages/takes.py",         "Take Selector",   ":material/theaters:","takes"),
     }
     _mod_order_raw = _ui_cfg.get("UI", "module_order", fallback="")
@@ -299,7 +387,7 @@ with st.sidebar:
     _tool_pages    = []
     _setting_pages = []
     _tool_titles   = {"Multicam Cutter", "Audio Enhance", "Auphonic",
-                      "Voice Leveler", "Silence Cutter", "Resolve Bridge", "Take Selector"}
+                      "Voice Leveler", "Silence Cutter", "Take Selector"}
     _setting_titles = {"Dokumentation", "Lizenz", "Config"}
 
     for _p in _pages:
@@ -322,46 +410,8 @@ with st.sidebar:
 
     # 3. Feedback-Button
     if _token and _repo:
-        with st.popover(":material/feedback: Bugs & Feedback", use_container_width=True):
-            with st.form("fb_form", clear_on_submit=True):
-                _fb_type  = st.radio("Typ", [":material/bug_report: Bug", ":material/lightbulb: Verbesserung"], horizontal=True,
-                                     label_visibility="collapsed")
-                _fb_title = st.text_input("Kurztitel",
-                                          placeholder="z.B. 'Sync-Fehler bei MXF-Clips'")
-                _fb_body  = st.text_area("Beschreibung",
-                                         placeholder="Was ist passiert? Was wurde erwartet?",
-                                         height=100)
-                _fb_email = st.text_input("E-Mail (optional)",
-                                          value=_license.email or "",
-                                          placeholder="fuer Rückfragen")
-                _submitted = st.form_submit_button("Senden", use_container_width=True)
-            if _submitted:
-                if not _fb_title.strip():
-                    st.warning("Bitte einen Kurztitel eingeben.")
-                else:
-                    try:
-                        _git_hash = _sp.run(
-                            ["git", "-C", _REPO_ROOT, "rev-parse", "--short", "HEAD"],
-                            capture_output=True, text=True).stdout.strip()
-                    except Exception:
-                        _git_hash = "?"
-                    _label = "bug" if "Bug" in _fb_type else "enhancement"
-                    _body_parts = [_fb_body.strip()]
-                    if _fb_email.strip():
-                        _body_parts.append(f"**Kontakt:** {_fb_email.strip()}")
-                    _body_parts.append(f"*Version: `{_git_hash}`*")
-                    _resp = _rq.post(
-                        f"https://api.github.com/repos/{_repo}/issues",
-                        headers={"Authorization": f"Bearer {_token}",
-                                 "Accept": "application/vnd.github+json"},
-                        json={"title": _fb_title.strip(),
-                              "body":  "\n\n".join(_body_parts),
-                              "labels": [_label]},
-                        timeout=10)
-                    if _resp.status_code == 201:
-                        st.success("Gesendet! Danke.")
-                    else:
-                        st.error(f"Fehler ({_resp.status_code})")
+        if st.button(":material/feedback: Bugs & Feedback", use_container_width=True):
+            _feedback_dialog()
 
     # 4. Update-Button
     _btn_label = f"{_upd_tag} verfügbar" if _upd else "Updates prüfen"

@@ -9,17 +9,20 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+import logging
 import streamlit as st
 import threading
 import queue
 import tempfile
 import subprocess
+
+_log = logging.getLogger("rtk")
 import time
 import json
 from pathlib import Path
 
 st.title(":material/graphic_eq: Voice Leveler")
-st.caption("Voice Dynamics · Gate → Upward Compressor → Leveler (AGC) → Limiter · nur für Sprachspuren")
+st.caption("Macht Sprachaufnahmen gleichmäßig laut — leise Passagen werden angehoben, laute begrenzt.")
 
 AUDIO_EXTENSIONS = {".wav", ".mp3", ".aif", ".aiff"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mxf", ".r3d", ".braw", ".avi", ".mkv"}
@@ -131,13 +134,14 @@ try:
     resolve_ctx["mp"]       = _mp
     resolve_ctx["root"]     = _root
 except Exception as e:
+    _log.exception("Voice Leveler: Resolve-Initialisierung fehlgeschlagen")
     _resolve_error = str(e)
 
 _resolve_ok = _resolve_obj is not None
 
 # ── Quelle auswählen ──────────────────────────────────────────────────────────
 
-_source_opts = (["Resolve Media Pool", "Aktive Timeline"] if _resolve_ok else []) + ["Einzeldatei", "Ordner abarbeiten"]
+_source_opts = (["Resolve Media Pool"] if _resolve_ok else []) + ["Einzeldatei", "Ordner abarbeiten"]
 
 if st.session_state.get("mv_source_mode") not in _source_opts:
     st.session_state["mv_source_mode"] = _source_opts[0]
@@ -201,64 +205,6 @@ if source_mode == "Resolve Media Pool":
                         st.caption(f"ℹ {_n_video} Videodatei(en) — Audio (Spur 1) wird via ffmpeg extrahiert.")
                 else:
                     st.info("Keine Audio- oder Videodateien in diesem Bin.")
-
-# ── Mode: Aktive Timeline ─────────────────────────────────────────────────────
-
-elif source_mode == "Aktive Timeline":
-    _timeline = _project.GetCurrentTimeline() if resolve_ctx.get("project") else None
-    if not _timeline:
-        st.warning("Keine aktive Timeline in Resolve gefunden.")
-    else:
-        _tl_name      = _timeline.GetName()
-        _tl_start     = _timeline.GetStartFrame()
-        _tl_end       = _timeline.GetEndFrame()
-        _tl_dur_frames = _tl_end - _tl_start
-
-        # Try to read in/out points
-        try:
-            _in_pt  = _timeline.GetCurrentInPoint()
-            _out_pt = _timeline.GetCurrentOutPoint()
-            _has_inout = (
-                isinstance(_in_pt, int) and isinstance(_out_pt, int)
-                and _out_pt > _in_pt
-            )
-        except AttributeError:
-            _in_pt = _out_pt = None
-            _has_inout = False
-
-        col_tl1, col_tl2 = st.columns(2)
-        with col_tl1:
-            st.info(f"**{_tl_name}**  \n{_tl_dur_frames} Frames total")
-        with col_tl2:
-            if _has_inout:
-                st.success(
-                    f"In/Out gesetzt  \n"
-                    f"Frame {_in_pt} → {_out_pt}  \n"
-                    f"({_out_pt - _in_pt} Frames)"
-                )
-            else:
-                st.caption("Kein In/Out gesetzt — gesamte Timeline wird gerendert.")
-
-        # Target bin for the processed file
-        all_bins = _collect_bins(resolve_ctx["root"])
-        _bin_sel = st.selectbox(
-            "Ziel-Bin (für Import des Ergebnisses)",
-            options=all_bins,
-            key="mv_tl_bin",
-        )
-        _tl_target_folder = _find_folder(resolve_ctx["root"], _bin_sel.strip()) if _bin_sel else None
-
-        resolve_ctx.update({
-            "timeline":        _timeline,
-            "tl_name":         _tl_name,
-            "tl_start":        _tl_start,
-            "tl_end":          _tl_end,
-            "has_inout":       _has_inout,
-            "in_pt":           _in_pt,
-            "out_pt":          _out_pt,
-            "import_folder":   _tl_target_folder,
-            "tl_mode":         True,
-        })
 
 # ── Mode: Einzeldatei ────────────────────────────────────────────────────────
 
@@ -486,6 +432,7 @@ def _process_timeline(ctx: dict, filterchain: str, q: queue.Queue):
             q.put("  ⚠ Automatisches Platzieren nicht möglich — Clip ist im Bin, bitte manuell auf neuen Track ziehen.\n")
 
     except Exception as e:
+        _log.exception("Voice Leveler: Verarbeitungsfehler")
         q.put(f"  Fehler: {e}\n")
     finally:
         # Clean up temp dir (rendered source already unlinked; keep output for safety)
@@ -545,21 +492,17 @@ def _process_files(files: list, filterchain: str, q: queue.Queue,
 def _run_all(source_mode, selected_path_files, ctx, filterchain, q):
     try:
         q.put("Starte MaxxVolume-Verarbeitung …\n")
-        if source_mode == "Aktive Timeline" and ctx.get("tl_mode"):
-            _process_timeline(ctx, filterchain, q)
-        else:
-            imp = (ctx["mp"], ctx.get("import_folder")) if ctx.get("import_folder") else None
-            _process_files(selected_path_files, filterchain, q, resolve_import=imp)
+        imp = (ctx["mp"], ctx.get("import_folder")) if ctx.get("import_folder") else None
+        _process_files(selected_path_files, filterchain, q, resolve_import=imp)
         q.put("__DONE__0")
     except Exception as e:
+        _log.exception("Voice Leveler: Worker-Fehler")
         q.put(f"Fehler: {e}")
         q.put("__DONE__1")
 
 # ── Can we start? ─────────────────────────────────────────────────────────────
 
-_tl_ready    = source_mode == "Aktive Timeline" and resolve_ctx.get("tl_mode")
-_files_ready = source_mode not in ("Aktive Timeline",) and bool(selected_path_files)
-can_start    = (_tl_ready or _files_ready) and not st.session_state.mv_running
+can_start = bool(selected_path_files) and not st.session_state.mv_running
 
 # ── Run ───────────────────────────────────────────────────────────────────────
 

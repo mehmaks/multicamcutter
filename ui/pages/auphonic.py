@@ -11,16 +11,19 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 import streamlit as st
 import threading
 import queue
+import logging
 import tempfile
 import subprocess
 import configparser
 import shutil
 import urllib.request
+
+_log = logging.getLogger("rtk")
 import json
 from pathlib import Path
 
 st.title(":material/cloud: Auphonic")
-st.caption("Cloud-Processing via Auphonic API · Voice Isolation · Leveling · De-Noise · De-Reverb")
+st.caption("Schickt Audiodateien zur Verarbeitung an den Cloud-Dienst Auphonic und holt das Ergebnis zurück. Auphonic bereinigt Rauschen, Hall und gleicht Lautstärken an.")
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
@@ -95,6 +98,7 @@ if api_key:
                 "recharge":  data.get("recharge_date", "")[:10],
             }
         except Exception as e:
+            _log.exception("Auphonic: Credits laden fehlgeschlagen")
             st.session_state.auphonic_credits = {"error": str(e)}
 
     if st.session_state.auphonic_presets is None:
@@ -107,6 +111,7 @@ if api_key:
                 for p in (items if isinstance(items, list) else [])
             ]
         except Exception as e:
+            _log.exception("Auphonic: Presets laden fehlgeschlagen")
             st.session_state.auphonic_presets = {"error": str(e)}
 
 # ── Credits display ───────────────────────────────────────────────────────────
@@ -183,6 +188,7 @@ if preset_active:
                 detail = _api_get(f"preset/{preset_uuid}.json", api_key)
                 st.session_state.auphonic_preset_details[preset_uuid] = detail.get("data", detail)
             except Exception as e:
+                _log.exception("Auphonic: Preset-Details laden fehlgeschlagen")
                 st.session_state.auphonic_preset_details[preset_uuid] = {"_error": str(e)}
         preset_vals = st.session_state.auphonic_preset_details.get(preset_uuid, {})
 
@@ -511,6 +517,7 @@ if source_mode == "Resolve Media Pool":
                     else:
                         st.info("Keine Audio- oder Videodateien in diesem Bin gefunden.")
     except Exception as e:
+        _log.exception("Auphonic: Resolve-Verbindungsfehler beim Laden der Bins")
         st.error("Resolve nicht verbunden")
         st.caption(str(e))
 
@@ -652,6 +659,7 @@ def _run_auphonic(files: list, settings: dict, q: queue.Queue,
 
         q.put("__DONE__0")
     except Exception as e:
+        _log.exception("Auphonic: Verarbeitungsfehler")
         q.put(f"Fehler: {e}")
         q.put("__DONE__1")
 

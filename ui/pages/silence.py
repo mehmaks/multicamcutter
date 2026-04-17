@@ -6,16 +6,51 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
 
+import logging
 import math
 import threading
 import queue
 from pathlib import Path
+
+_log = logging.getLogger("rtk")
 from types import SimpleNamespace
 
 import streamlit as st
 
+
+# ── Marker-Ergebnis-Dialog (Resolve-Modus) ─────────────────────────────────────
+
+@st.dialog("Analyse abgeschlossen")
+def _marker_result_dialog():
+    n       = st.session_state.get("sc_marker_dialog_count", 0)
+    col     = st.session_state.get("sc_marker_color", "red")
+    total_s = st.session_state.get("sc_marker_dialog_total_s", 0.0)
+
+    if n > 0:
+        st.success(f"**{n} Stille-Bereiche** wurden in der Timeline markiert.")
+        st.caption(f"Gesamtdauer markierter Stille: **{total_s:.1f}s**")
+    else:
+        st.info("Keine Stille gefunden — Schwellwert oder Mindestdauer anpassen.")
+
+    st.divider()
+    col1, col2 = st.columns(2)
+    with col1:
+        if st.button("Einstellungen ändern", use_container_width=True):
+            st.session_state.sc_marker_dialog_open = False
+            st.rerun()
+    with col2:
+        if n > 0:
+            if st.button(
+                "Stille löschen", icon=":material/delete:",
+                use_container_width=True, type="primary",
+            ):
+                st.session_state.sc_cut_triggered      = True
+                st.session_state.sc_marker_dialog_open = False
+                st.rerun()
+
+
 st.title(":material/volume_off: Silence Cutter")
-st.caption("Composite Silence Detection · Duration-Marker Preview · Ripple Cut")
+st.caption("Erkennt Stille-Pausen in Audioaufnahmen und markiert sie. Das Ergebnis kann direkt als neue Timeline exportiert oder als AAF-Datei gespeichert werden.")
 
 # ── Resolve connection (optional) ─────────────────────────────────────────────
 
@@ -39,7 +74,7 @@ except Exception:
 
 if _resolve_ok:
     source_mode = st.radio(
-        "Quelle", ["Resolve Timeline", "Datei-Pfad"], horizontal=True,
+        "Quelle", ["Aktive Timeline", "Datei-Pfad"], horizontal=True,
         key="sc_source_mode",
     )
 else:
@@ -58,7 +93,11 @@ _DEFAULTS = {
 }
 
 if _resolve_ok:
-    if st.session_state.get("_sc_loaded_project") != _project_name:
+    _need_load = (
+        st.session_state.get("_sc_loaded_project") != _project_name
+        or any(_k not in st.session_state for _k in _DEFAULTS)
+    )
+    if _need_load:
         _saved = load_page(_project_name, _PAGE)
         for _k, _default in _DEFAULTS.items():
             st.session_state[_k] = _saved.get(_k, _default)
@@ -72,7 +111,7 @@ else:
 # RESOLVE TIMELINE MODE
 # ══════════════════════════════════════════════════════════════════════════════
 
-if source_mode == "Resolve Timeline":
+if source_mode == "Aktive Timeline":
 
     # ── Timeline info ──────────────────────────────────────────────────────────
 
@@ -81,8 +120,6 @@ if source_mode == "Resolve Timeline":
     col2.metric("FPS", int(tl.fps))
     col3.metric("Dauer", f"{(tl.timeline_end - tl.timeline_start) / tl.fps / 60:.1f} min")
 
-    for w in (tl.warnings or []):
-        st.warning(w)
 
     # ── Track selection ────────────────────────────────────────────────────────
 
@@ -172,6 +209,7 @@ if source_mode == "Resolve Timeline":
                 delete_markers_by_color(params["marker_color"])
                 q.put(f"  Alte {params['marker_color']}-Marker gelöscht.")
             except Exception as e:
+                _log.exception("Silence Cutter: Marker löschen fehlgeschlagen")
                 q.put(f"  ⚠ Marker löschen: {e}")
 
             segments = analyze_composite_silence(
@@ -212,6 +250,7 @@ if source_mode == "Resolve Timeline":
             q.put(("__RESULT__", segments))
             q.put("__DONE__0")
         except Exception as e:
+            _log.exception("Silence Cutter: Analyse fehlgeschlagen")
             q.put(f"Fehler: {e}")
             q.put("__DONE__1")
 
@@ -222,9 +261,12 @@ if source_mode == "Resolve Timeline":
     )
 
     if analyse_btn:
-        st.session_state.silence_running = True
-        st.session_state.silence_log     = []
-        st.session_state.silence_results = []
+        st.session_state.silence_running          = True
+        st.session_state.silence_log              = []
+        st.session_state.silence_results          = []
+        st.session_state.sc_pending_marker_dialog = True
+        st.session_state.sc_analysis_fps          = tl.fps
+        st.session_state.sc_marker_dialog_open    = False
         q = queue.Queue()
         st.session_state.silence_queue = q
         threading.Thread(
@@ -246,6 +288,21 @@ if source_mode == "Resolve Timeline":
         ).start()
         st.rerun()
 
+    # Analyse fertig → Dialog einmalig öffnen
+    if (not st.session_state.get("silence_running")
+            and st.session_state.get("sc_pending_marker_dialog")):
+        _done_results = st.session_state.get("silence_results", [])
+        _done_fps     = st.session_state.get("sc_analysis_fps", 25.0)
+        st.session_state.sc_marker_dialog_count   = len(_done_results)
+        st.session_state.sc_marker_dialog_total_s = (
+            sum(d for _, d in _done_results) / _done_fps if _done_results else 0.0
+        )
+        st.session_state.sc_pending_marker_dialog = False
+        st.session_state.sc_marker_dialog_open    = True
+
+    if st.session_state.get("sc_marker_dialog_open"):
+        _marker_result_dialog()
+
     # ── Cut section ────────────────────────────────────────────────────────────
 
     results = st.session_state.get("silence_results", [])
@@ -258,23 +315,24 @@ if source_mode == "Resolve Timeline":
         col_r1.metric("Erkannte Pausen", len(results))
         col_r2.metric("Einsparung", f"{total_s:.1f}s")
 
+        _default_tl_name = f"{tl.timeline_name} (cut)"
         new_tl_name = st.text_input(
-            "Name der neuen Timeline", value=f"{tl.timeline_name} (cut)",
+            "Name der neuen Timeline", value=_default_tl_name,
         )
         st.warning(
             "**Cut now** erstellt eine neue Timeline ohne die erkannten Pausen. "
             "Die originale Timeline bleibt erhalten."
         )
-        confirmed = st.checkbox("Ich habe die Marker geprüft und möchte schneiden.")
-        cut_btn   = st.button(
+        cut_btn = st.button(
             "Cut now", icon=":material/content_cut:", type="primary",
-            disabled=not confirmed or st.session_state.get("silence_running", False),
+            disabled=st.session_state.get("silence_running", False),
             use_container_width=True,
         )
 
-        if cut_btn:
-            st.session_state.silence_running = True
-            st.session_state.silence_log     = []
+        if cut_btn or st.session_state.get("sc_cut_triggered"):
+            st.session_state.sc_cut_triggered = False
+            st.session_state.silence_running  = True
+            st.session_state.silence_log      = []
             q = queue.Queue()
             st.session_state.silence_queue = q
 
@@ -293,6 +351,7 @@ if source_mode == "Resolve Timeline":
                     q.put(f"\n✓ Timeline '{params['new_tl_name']}' erstellt und aktiviert.")
                     q.put("__DONE__0")
                 except Exception as e:
+                    _log.exception("Silence Cutter: Timeline-Erstellung fehlgeschlagen")
                     q.put(f"Fehler: {e}")
                     q.put("__DONE__1")
 
@@ -478,6 +537,7 @@ else:
 
         except Exception as e:
             import traceback
+            _log.exception("Silence Cutter: Datei-Verarbeitung fehlgeschlagen")
             q.put(f"Fehler: {e}\n{traceback.format_exc()[-400:]}")
             q.put("__DONE__1")
 
@@ -556,7 +616,7 @@ else:
         # ── AAF exportieren ───────────────────────────────────────────────────
 
         st.divider()
-        _use_resolve_export = _resolve_ok and source_mode == "Resolve Timeline"
+        _use_resolve_export = _resolve_ok and source_mode == "Aktive Timeline"
 
         tl_name_input = st.text_input(
             "Timeline-Name", value=f"{Path(_fpath).stem} (cut)", key="sc_tl_name",
