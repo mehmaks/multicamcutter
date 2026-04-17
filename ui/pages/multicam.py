@@ -568,7 +568,7 @@ def _render_preset_expander(prefix: str) -> None:
                 _builtin_names = {p.stem.lower() for p in _builtin_presets_dir.glob("*.json")}
                 _user_names    = {p.stem.lower(): p.stem for p in _presets_dir.glob("*.json")}
                 if _name_lower in _builtin_names:
-                    st.toast(f"'{safe}' ist eine mitgelieferte Vorlage und kann nicht überschrieben werden.", icon="🚫")
+                    st.toast(f"'{safe}' ist eine mitgelieferte Vorlage und kann nicht überschrieben werden.")
                 elif _name_lower in _user_names:
                     st.session_state["_overwrite_preset_prefix"] = prefix
                     st.session_state["_overwrite_preset_name"]   = _user_names[_name_lower]
