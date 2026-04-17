@@ -65,6 +65,29 @@ _PARAM_NAMES = [
     'speaking_peak', 'totale_simul_dur',
 ]
 
+_DEFAULTS: dict = {
+    'min_shot':          3.0,
+    'max_shot':          14.0,
+    'reaction_dur':      1.8,
+    'cleanup_dur':       1.8,
+    'randomness':        0.2,
+    'threshold_db':      6.0,
+    'min_edit':          1.0,
+    'change_delay':      0.3,
+    'min_conf':          88,
+    'nodding_enabled':   True,
+    'nod_threshold':     80.0,
+    'min_nod_dur':       0.65,
+    'pre_roll':          15,
+    'speaking_enabled':  True,
+    'rise_db':           10.0,
+    'speaking_min_dur':  0.20,
+    'speaking_max_dur':  1.5,
+    'speaking_min_conf': 90,
+    'speaking_peak':     False,
+    'totale_simul_dur':  3.0,
+}
+
 _resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"
 
 if _resolve_ok:
@@ -415,27 +438,6 @@ def _run_script(cmd, log_queue):
     log_queue.put(f"__EXIT__{process.returncode}")
 
 
-def _load_cfg():
-    cfg = _cp.ConfigParser()
-    cfg.read(str(_cfg_path))
-    return cfg
-
-
-def _fv(cfg, section, key, default):
-    try: return cfg.getfloat(section, key)
-    except: return float(default)
-
-
-def _iv(cfg, section, key, default):
-    try: return cfg.getint(section, key)
-    except: return int(default)
-
-
-def _bv(cfg, section, key, default):
-    try: return cfg.getboolean(section, key)
-    except: return bool(default)
-
-
 def _all_presets() -> list[tuple[str, Path, bool]]:
     """Gibt alle Presets zurück als (name, path, is_builtin), alphabetisch sortiert.
     Built-ins zuerst, dann User-Presets. Namenskonflikte: User-Preset gewinnt."""
@@ -583,63 +585,63 @@ def _render_preset_expander(prefix: str) -> None:
 
 def _render_settings_panel(prefix):
     """Render 4 settings expanders with widget keys prefixed by `prefix`."""
-    cfg = _load_cfg()
+    D = _DEFAULTS
 
     with st.expander("Generelle Schnittregeln", expanded=True):
         c1, c2 = st.columns(2)
         with c1:
-            st.number_input("Min. Shotlänge (s)", value=_fv(cfg,'General','min_shot_duration',3.0),
+            st.number_input("Min. Shotlänge (s)", value=D['min_shot'],
                 min_value=0.5, step=0.1, format="%.1f", key=f"{prefix}_min_shot",
                 help="Wie lange eine Kamera mindestens zu sehen ist, bevor zu einer Reaktion geschnitten werden darf.")
-            st.number_input("Max. Shotlänge (s)", value=_fv(cfg,'General','max_shot_duration',14.0),
+            st.number_input("Max. Shotlänge (s)", value=D['max_shot'],
                 min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_max_shot",
                 help="Bleibt eine Kamera länger als dieser Wert ohne Schnitt, wird automatisch zu einer Reaktion gewechselt.")
         with c2:
-            st.number_input("Cutaway-Länge (s)", value=_fv(cfg,'General','reaction_min_duration',1.8),
+            st.number_input("Cutaway-Länge (s)", value=D['reaction_dur'],
                 min_value=0.5, step=0.1, format="%.1f", key=f"{prefix}_reaction_dur",
                 help="Wie lange eine Reaktionsaufnahme mindestens gezeigt wird. Mit Zufallsfaktor kann sie etwas länger ausfallen.")
-            st.number_input("Cleanup-Mindestlänge (s)", value=_fv(cfg,'General','cleanup_min_duration',1.8),
+            st.number_input("Cleanup-Mindestlänge (s)", value=D['cleanup_dur'],
                 min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_cleanup_dur",
                 help="Schnitte kürzer als dieser Wert werden am Ende automatisch entfernt.")
-        st.slider("Cutaway-Zufallsfaktor", 0.0, 0.5, _fv(cfg,'General','cutaway_randomness',0.2),
+        st.slider("Cutaway-Zufallsfaktor", 0.0, 0.5, D['randomness'],
             step=0.05, key=f"{prefix}_randomness",
             help="Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell.")
 
     with st.expander("Sprecher-Erkennung"):
         c1, c2, c3 = st.columns(3)
         with c1:
-            st.number_input("Schwelle (dB)", value=_fv(cfg,'RMSDiarization','threshold_db',6.0),
+            st.number_input("Schwelle (dB)", value=D['threshold_db'],
                 min_value=0.5, step=0.5, format="%.1f", key=f"{prefix}_threshold_db",
                 help="Wie deutlich lauter jemand sein muss als der andere, damit ein Sprecherwechsel erkannt wird. Höhere Werte schneiden nur bei klarer Dominanz.")
         with c2:
-            st.number_input("Min. Segmentlänge (s)", value=_fv(cfg,'RMSDiarization','min_edit_duration',1.0),
+            st.number_input("Min. Segmentlänge (s)", value=D['min_edit'],
                 min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_min_edit",
                 help="Sehr kurze Sprechabschnitte werden mit dem nächsten zusammengelegt. Verhindert zu häufiges Hin- und Herschneiden.")
         with c3:
-            st.number_input("Wechsel-Verzögerung (s)", value=_fv(cfg,'RMSDiarization','change_delay',0.3),
+            st.number_input("Wechsel-Verzögerung (s)", value=D['change_delay'],
                 min_value=0.0, step=0.05, format="%.2f", key=f"{prefix}_change_delay",
                 help="Wie lange jemand durchgehend lauter sein muss, bevor auf ihn geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.")
 
     with st.expander("Cutaway Regeln"):
         # ── Kopfnicken ────────────────────────────────────────────────────────
-        st.toggle("Kopfnicken", value=_bv(cfg,'Nodding','enabled',True),
+        st.toggle("Kopfnicken", value=D['nodding_enabled'],
             key=f"{prefix}_nodding_enabled",
             help="Erkennt Kopfnicken der zuhörenden Person und schneidet in diesem Moment auf sie.")
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
-            st.number_input("Min. Konfidenz (%)", value=round(_fv(cfg,'Detection','min_confidence',0.88) * 100),
+            st.number_input("Min. Konfidenz (%)", value=D['min_conf'],
                 min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_min_conf",
                 help="Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird. Höhere Werte vermeiden Fehlschnitte, erkennen dafür weniger Nicken.")
         with c2:
-            st.number_input("Nod-Threshold (px)", value=_fv(cfg,'Nodding','threshold',80.0),
+            st.number_input("Nod-Threshold (px)", value=D['nod_threshold'],
                 min_value=1.0, step=1.0, format="%.0f", key=f"{prefix}_nod_threshold",
                 help="Wie weit sich der Kopf bewegen muss, damit es als Nicken zählt. Kleinere Werte erkennen auch dezentes Nicken.")
         with c3:
-            st.number_input("Min. Nod-Dauer (s)", value=_fv(cfg,'Nodding','min_nod_duration',0.65),
+            st.number_input("Min. Nod-Dauer (s)", value=D['min_nod_dur'],
                 min_value=0.1, step=0.05, format="%.2f", key=f"{prefix}_min_nod_dur",
                 help="Wie lang die Kopfbewegung andauern muss, um als echtes Nicken zu gelten. Höhere Werte ignorieren kurze zufällige Bewegungen.")
         with c4:
-            st.number_input("Pre-Roll (Frames)", value=_iv(cfg,'CutawayTiming','pre_roll_frames',15),
+            st.number_input("Pre-Roll (Frames)", value=D['pre_roll'],
                 min_value=0, step=1, key=f"{prefix}_pre_roll",
                 help="Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt.")
         with c5:
@@ -649,37 +651,36 @@ def _render_settings_panel(prefix):
         st.divider()
 
         # ── Sprachreaktionen ──────────────────────────────────────────────────
-        st.toggle("Sprachreaktionen", value=_bv(cfg,'SpeakingReaction','enabled',True),
+        st.toggle("Sprachreaktionen", value=D['speaking_enabled'],
             key=f"{prefix}_speaking_enabled",
             help="Erkennt kurze Einwürfe oder Laute der nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie.")
         c1, c2, c3, c4, c5 = st.columns(5)
         with c1:
-            st.number_input("Rise (dB über Baseline)", value=_fv(cfg,'SpeakingReaction','rise_db',10.0),
+            st.number_input("Rise (dB über Baseline)", value=D['rise_db'],
                 min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_rise_db",
                 help="Wie deutlich lauter jemand kurz werden muss, um als Reaktion erkannt zu werden. Höhere Werte reagieren nur auf klare Einwürfe wie 'Genau!' oder Lachen.")
         with c2:
-            st.number_input("Min. Burst-Dauer (s)", value=_fv(cfg,'SpeakingReaction','min_duration',0.20),
+            st.number_input("Min. Burst-Dauer (s)", value=D['speaking_min_dur'],
                 min_value=0.05, step=0.05, format="%.2f", key=f"{prefix}_speaking_min_dur",
                 help="Wie kurz ein Einwurf mindestens sein muss, um erkannt zu werden. Kleinere Werte erfassen auch sehr kurze Laute wie 'Mhm'.")
         with c3:
-            st.number_input("Max. Burst-Dauer (s)", value=_fv(cfg,'SpeakingReaction','max_duration',1.5),
+            st.number_input("Max. Burst-Dauer (s)", value=D['speaking_max_dur'],
                 min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_speaking_max_dur",
                 help="Wie lang ein Einwurf maximal sein darf. Längere Töne werden als normales Sprechen gewertet, nicht als Reaktion.")
         with c4:
-            st.number_input("Min. Konfidenz (%)", value=round(_fv(cfg,'SpeakingReaction','min_confidence',0.90) * 100),
+            st.number_input("Min. Konfidenz (%)", value=D['speaking_min_conf'],
                 min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_speaking_min_conf",
                 help="Wie sicher die Erkennung sein muss, bevor ein Einwurf als Schnitt verwendet wird.")
         with c5:
-            st.toggle("Peak-Detektion", key=f"{prefix}_speaking_peak",
+            st.toggle("Peak-Detektion", value=D['speaking_peak'], key=f"{prefix}_speaking_peak",
                 help="Reagiert auf den lautesten Moment statt auf den Durchschnittspegel. Empfehlenswert für sehr kurze, knackige Einwürfe.")
 
     with st.expander("Totale-Cam Schnittlogik"):
-        cfg_tl = _load_cfg()
         c1, c2 = st.columns(2)
         with c1:
             st.number_input(
                 "Min. Simultandauer (s)",
-                value=_fv(cfg_tl, 'TotaleLogic', 'simul_min_duration', 3.0),
+                value=D['totale_simul_dur'],
                 min_value=0.5, step=0.5, format="%.1f",
                 key=f"{prefix}_totale_simul_dur",
                 help="Wie lange beide gleichzeitig sprechen müssen, bevor auf die Totale geschnitten wird.",
@@ -889,6 +890,8 @@ if tab_bin is not None:
 
     _render_preset_row('s')
     st.divider()
+    if "s_min_shot" not in st.session_state and "_preset_pending_s" not in st.session_state:
+        _on_preset_change('s')
     if "_preset_pending_s" in st.session_state:
         for _bare, _val in st.session_state.pop("_preset_pending_s").items():
             st.session_state[f"s_{_bare}"] = _val
@@ -1190,6 +1193,8 @@ with tab_folder:
 
     _render_preset_row('f')
     st.divider()
+    if "f_min_shot" not in st.session_state and "_preset_pending_f" not in st.session_state:
+        _on_preset_change('f')
     if "_preset_pending_f" in st.session_state:
         for _bare, _val in st.session_state.pop("_preset_pending_f").items():
             st.session_state[f"f_{_bare}"] = _val
