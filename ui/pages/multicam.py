@@ -19,6 +19,9 @@ from pathlib import Path
 st.title(":material/content_cut: Multicam Cutter")
 st.caption("Schneidet automatisch zwischen mehreren Kameras, basierend darauf wer gerade spricht. Das Ergebnis ist eine fertige Schnitt-Timeline.")
 
+if "_pending_toast" in st.session_state:
+    st.toast(st.session_state.pop("_pending_toast"))
+
 SCRIPT_DIR   = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter"
 _cfg_path    = SCRIPT_DIR / "config.ini"
 _builtin_presets_dir = SCRIPT_DIR / "presets"
@@ -580,7 +583,7 @@ def _render_preset_expander(prefix: str) -> None:
                              for n in _PARAM_NAMES if f"{prefix}_{n}" in st.session_state}
                     (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
                     st.session_state[f"{prefix}_preset_name_input"] = ""
-                    st.toast(f"Preset '{safe}' gespeichert")
+                    st.session_state["_pending_toast"] = f"Preset '{safe}' gespeichert"
                     st.rerun()
 
 
