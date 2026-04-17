@@ -21,8 +21,9 @@ st.caption("Schneidet automatisch zwischen mehreren Kameras, basierend darauf we
 
 SCRIPT_DIR   = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter"
 _cfg_path    = SCRIPT_DIR / "config.ini"
-_presets_dir = SCRIPT_DIR / "presets"
-_presets_dir.mkdir(exist_ok=True)
+_builtin_presets_dir = SCRIPT_DIR / "presets"
+_presets_dir = Path.home() / ".resolve-toolkit" / "multicam_presets"
+_presets_dir.mkdir(parents=True, exist_ok=True)
 
 _LUT_HISTORY_FILE = Path.home() / ".resolve-toolkit" / "lut_history.json"
 
@@ -435,12 +436,27 @@ def _bv(cfg, section, key, default):
     except: return bool(default)
 
 
+def _all_presets() -> list[tuple[str, Path, bool]]:
+    """Gibt alle Presets zurück als (name, path, is_builtin), alphabetisch sortiert.
+    Built-ins zuerst, dann User-Presets. Namenskonflikte: User-Preset gewinnt."""
+    entries: dict[str, tuple[Path, bool]] = {}
+    for p in sorted(_builtin_presets_dir.glob("*.json")):
+        entries[p.stem] = (p, True)
+    for p in sorted(_presets_dir.glob("*.json")):
+        entries[p.stem] = (p, False)
+    builtin = [(n, p, bi) for n, (p, bi) in entries.items() if bi]
+    user    = [(n, p, bi) for n, (p, bi) in entries.items() if not bi]
+    return sorted(builtin, key=lambda x: x[0].lower()) + sorted(user, key=lambda x: x[0].lower())
+
+
 def _on_preset_change(prefix: str) -> None:
     """on_change-Callback: ausgewähltes Preset als Pending laden."""
     sel = st.session_state.get(f"{prefix}_preset_select")
     if not sel:
         return
     preset_file = _presets_dir / f"{sel}.json"
+    if not preset_file.exists():
+        preset_file = _builtin_presets_dir / f"{sel}.json"
     if not preset_file.exists():
         return
     pdata = json.loads(preset_file.read_text())
@@ -475,24 +491,30 @@ def _confirm_delete_preset_dialog() -> None:
 
 def _render_preset_row(prefix: str) -> None:
     """Preset-Selectbox (auto-load bei Auswahl) + Delete-Button in einer Zeile."""
-    preset_names = sorted(p.stem for p in _presets_dir.glob("*.json"))
-    if not preset_names:
+    presets = _all_presets()
+    if not presets:
         st.caption("Noch keine Presets gespeichert")
         return
+    preset_names  = [name for name, _, _ in presets]
+    builtin_names = {name for name, _, bi in presets if bi}
+
     col_sel, col_del = st.columns([5, 1])
     with col_sel:
         st.selectbox(
             "Preset",
             preset_names,
+            format_func=lambda n: f"{n}  ·  Standard" if n in builtin_names else n,
             key=f"{prefix}_preset_select",
             on_change=_on_preset_change,
             args=(prefix,),
         )
     with col_del:
         st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
-        sel = st.session_state.get(f"{prefix}_preset_select")
+        sel        = st.session_state.get(f"{prefix}_preset_select")
+        is_builtin = sel in builtin_names
         if st.button("", icon=":material/delete:", key=f"{prefix}_btn_del_preset",
-                     use_container_width=True, help="Preset löschen", disabled=not sel):
+                     use_container_width=True, help="Preset löschen",
+                     disabled=not sel or is_builtin):
             st.session_state["_del_preset_prefix"] = prefix
             st.session_state["_del_preset_name"]   = sel
 

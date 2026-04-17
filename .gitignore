@@ -20,6 +20,7 @@ venv/
 # Output files (generated, not source)
 *.edl
 *.json
+!modules/multicam_cutter/presets/*.json
 *.html
 *.csv
 
