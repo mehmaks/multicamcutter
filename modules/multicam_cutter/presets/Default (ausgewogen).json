@@ -1,5 +1,6 @@
 {
   "builtin": true,
+  "description": "Ausgewogenes Preset zwischen Dynamisch und Statischem Schnittstil",
   "min_shot": 2.3,
   "max_shot": 11.0,
   "reaction_dur": 1.5,

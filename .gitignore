@@ -21,6 +21,7 @@ venv/
 *.edl
 *.json
 !modules/multicam_cutter/presets/*.json
+!ui/pages/presets/**/*.json
 *.html
 *.csv
 
