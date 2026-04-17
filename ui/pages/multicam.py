@@ -565,11 +565,13 @@ def _render_preset_expander(prefix: str) -> None:
                 safe  = new_name.strip().replace('/', '_').replace('\\', '_')
                 _name_lower = safe.lower()
                 # Case-insensitive Duplikatprüfung über alle bekannten Presets
-                _existing = {p.stem.lower(): p.stem for p in _presets_dir.glob("*.json")}
-                _existing.update({p.stem.lower(): p.stem for p in _builtin_presets_dir.glob("*.json")})
-                if _name_lower in _existing:
+                _builtin_names = {p.stem.lower() for p in _builtin_presets_dir.glob("*.json")}
+                _user_names    = {p.stem.lower(): p.stem for p in _presets_dir.glob("*.json")}
+                if _name_lower in _builtin_names:
+                    st.toast(f"'{safe}' ist eine mitgelieferte Vorlage und kann nicht überschrieben werden.", icon="🚫")
+                elif _name_lower in _user_names:
                     st.session_state["_overwrite_preset_prefix"] = prefix
-                    st.session_state["_overwrite_preset_name"]   = _existing[_name_lower]
+                    st.session_state["_overwrite_preset_name"]   = _user_names[_name_lower]
                     st.session_state["_overwrite_preset_safe"]   = safe
                 else:
                     pdata = {n: st.session_state[f"{prefix}_{n}"]
