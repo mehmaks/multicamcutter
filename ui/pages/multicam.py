@@ -24,6 +24,30 @@ _cfg_path    = SCRIPT_DIR / "config.ini"
 _presets_dir = SCRIPT_DIR / "presets"
 _presets_dir.mkdir(exist_ok=True)
 
+_LUT_HISTORY_FILE = Path.home() / ".resolve-toolkit" / "lut_history.json"
+
+
+def _load_lut_history() -> list[str]:
+    try:
+        if _LUT_HISTORY_FILE.exists():
+            return [p for p in json.loads(_LUT_HISTORY_FILE.read_text())
+                    if Path(p).is_file()][:10]
+    except Exception:
+        pass
+    return []
+
+
+def _save_lut_to_history(new_path: str) -> None:
+    history = _load_lut_history()
+    if new_path in history:
+        history.remove(new_path)
+    history.insert(0, new_path)
+    try:
+        _LUT_HISTORY_FILE.parent.mkdir(exist_ok=True)
+        _LUT_HISTORY_FILE.write_text(json.dumps(history[:10]))
+    except Exception:
+        pass
+
 # Canonical parameter names (no prefix) — used by preset save/load
 _PARAM_NAMES = [
     'min_shot', 'max_shot', 'reaction_dur', 'cleanup_dur', 'randomness',
@@ -1067,23 +1091,30 @@ with tab_folder:
         skip_base_edl_f      = st.toggle("Base-EDL überspringen (base.edl existiert)", key="f_skip_base_edl")
 
         st.divider()
-        # Pending-Key-Pattern für LUT-Pfad (identisch zum Ordner-Dialog)
+        # Pending pick → History aktualisieren + f_lut_path setzen
         if "_lut_path_pending" in st.session_state:
-            st.session_state["f_lut_path"] = st.session_state.pop("_lut_path_pending")
-        if "f_lut_path" not in st.session_state:
-            st.session_state["f_lut_path"] = ""
+            _pending_lut = st.session_state.pop("_lut_path_pending")
+            _save_lut_to_history(_pending_lut)
+            st.session_state["f_lut_path"] = _pending_lut
 
-        _lut_col_path, _lut_col_btn = st.columns([5, 1])
-        with _lut_col_path:
-            st.text_input(
+        _lut_history = _load_lut_history()
+        _lut_options = ["(kein LUT)"] + _lut_history
+        _cur_lut     = st.session_state.get("f_lut_path", "")
+        _lut_idx     = (_lut_history.index(_cur_lut) + 1) if _cur_lut in _lut_history else 0
+
+        _lut_col_sel, _lut_col_btn = st.columns([5, 1])
+        with _lut_col_sel:
+            _lut_chosen = st.selectbox(
                 "LUT (.cube)",
-                placeholder="/Pfad/zur/LUT.cube",
-                help="Optionale CUBE-LUT für Thumbnail-Vorschau und Videoanalyse (z.B. S-Log2→Rec.709)",
-                key="f_lut_path",
+                options=_lut_options,
+                index=_lut_idx,
+                format_func=lambda p: "(kein LUT)" if p == "(kein LUT)" else Path(p).name,
+                help="Optionale CUBE-LUT für Thumbnail-Vorschau (z.B. S-Log2→Rec.709). Zeigt die letzten 10 verwendeten LUTs.",
+                key="f_lut_selectbox",
             )
         with _lut_col_btn:
             st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
-            if st.button("", icon=":material/folder_open:", key="lut_picker_btn", use_container_width=True, help="LUT auswählen"):
+            if st.button("", icon=":material/folder_open:", key="lut_picker_btn", use_container_width=True, help="Neue LUT-Datei auswählen"):
                 _picked_lut = None
                 try:
                     import subprocess as _subp_lut
@@ -1095,10 +1126,12 @@ with tab_folder:
                     if _r_lut.returncode == 0 and _r_lut.stdout.strip():
                         _picked_lut = _r_lut.stdout.strip()
                 except Exception:
-                    st.warning("Datei-Dialog nicht verfügbar — Pfad bitte manuell eingeben.")
+                    st.warning("Datei-Dialog nicht verfügbar.")
                 if _picked_lut:
                     st.session_state["_lut_path_pending"] = _picked_lut
                     st.rerun()
+        # f_lut_path für Thumbnail-Rendering beim nächsten Rerun aktualisieren
+        st.session_state["f_lut_path"] = "" if _lut_chosen == "(kein LUT)" else _lut_chosen
 
     _render_preset_expander('f')
 
