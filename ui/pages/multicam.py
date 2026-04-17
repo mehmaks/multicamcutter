@@ -579,6 +579,7 @@ def _render_preset_expander(prefix: str) -> None:
                     pdata = {n: st.session_state[f"{prefix}_{n}"]
                              for n in _PARAM_NAMES if f"{prefix}_{n}" in st.session_state}
                     (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
+                    st.session_state[f"{prefix}_preset_name_input"] = ""
                     st.toast(f"Preset '{safe}' gespeichert")
                     st.rerun()
 
