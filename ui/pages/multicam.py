@@ -444,9 +444,9 @@ def _all_presets() -> list[tuple[str, Path, bool]]:
         entries[p.stem] = (p, True)
     for p in sorted(_presets_dir.glob("*.json")):
         entries[p.stem] = (p, False)
-    builtin = [(n, p, bi) for n, (p, bi) in entries.items() if bi]
-    user    = [(n, p, bi) for n, (p, bi) in entries.items() if not bi]
-    return sorted(builtin, key=lambda x: x[0].lower()) + sorted(user, key=lambda x: x[0].lower())
+    user    = sorted([(n, p, bi) for n, (p, bi) in entries.items() if not bi], key=lambda x: x[0].lower())
+    builtin = sorted([(n, p, bi) for n, (p, bi) in entries.items() if bi],     key=lambda x: x[0].lower())
+    return user + builtin
 
 
 def _on_preset_change(prefix: str) -> None:
