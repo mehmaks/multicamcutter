@@ -345,7 +345,19 @@ AUDIO_EXTENSIONS = {".wav", ".mp3", ".aif", ".aiff"}
 VIDEO_EXTENSIONS = {".mp4", ".mov", ".mxf", ".r3d", ".braw", ".avi", ".mkv"}
 
 st.subheader("Dateien auswählen")
-source_mode = st.radio("Quelle", ["Resolve Media Pool", "Ordner / Dateien"], horizontal=True)
+
+try:
+    from resolve_bridge.connection import get_resolve as _get_resolve_enh
+    _get_resolve_enh()
+    _resolve_ok_enh = True
+except Exception:
+    _resolve_ok_enh = False
+
+_source_opts_enh = (["Resolve Media Pool"] if _resolve_ok_enh else []) + ["Ordner / Dateien"]
+if st.session_state.get("enh_source_mode") not in _source_opts_enh:
+    st.session_state["enh_source_mode"] = _source_opts_enh[0]
+
+source_mode = st.radio("Quelle", _source_opts_enh, horizontal=True, key="enh_source_mode")
 
 selected_path_files: list = []
 uploaded_files = []

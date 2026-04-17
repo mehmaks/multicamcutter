@@ -540,6 +540,16 @@ def _render_preset_row(prefix: str) -> None:
         )
         if builtin_names:
             st.caption("◆ Mitgelieferte Vorlage — kann nicht gelöscht werden")
+        sel_name = st.session_state.get(f"{prefix}_preset_select")
+        if sel_name in builtin_names:
+            _preset_path = next((p for n, p, bi in presets if n == sel_name and bi), None)
+            if _preset_path:
+                try:
+                    _desc = json.loads(_preset_path.read_text()).get("description", "")
+                    if _desc:
+                        st.caption(_desc)
+                except Exception:
+                    pass
     with col_del:
         st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
         sel        = st.session_state.get(f"{prefix}_preset_select")

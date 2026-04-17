@@ -10,6 +10,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import time
 import queue as _queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
+from pathlib import Path
 
 import streamlit as st
 import license as _lic
@@ -358,6 +359,7 @@ with st.sidebar:
     _pages.append(st.Page("pages/docs.py",    title="Dokumentation", icon=":material/menu_book:"))
     if _license.valid:
         _pages.append(_license_page)
+    _pages.append(st.Page("pages/roadmap.py", title="Roadmap",      icon=":material/checklist:"))
     _pages.append(st.Page("pages/config.py", title="Config",        icon=":material/settings:"))
 
     # ── Berechnete Werte ──────────────────────────────────────────────────────
@@ -388,7 +390,7 @@ with st.sidebar:
     _setting_pages = []
     _tool_titles   = {"Multicam Cutter", "Audio Enhance", "Auphonic",
                       "Voice Leveler", "Silence Cutter", "Take Selector"}
-    _setting_titles = {"Dokumentation", "Lizenz", "Config"}
+    _setting_titles = {"Dokumentation", "Lizenz", "Roadmap", "Config"}
 
     for _p in _pages:
         if _p.title in _tool_titles:
@@ -426,7 +428,52 @@ with st.sidebar:
     if st.session_state.get("show_update_dialog"):
         _update_dialog()
 
-    # 4. Workflow Log (nur wenn aktiv oder letzter Log vorhanden)
+    # 5. Theme-Umschalter
+    st.divider()
+
+    _TOML_PATH  = Path(_REPO_ROOT) / ".streamlit" / "config.toml"
+    _THEMES_DIR = Path(_REPO_ROOT) / ".streamlit" / "themes"
+    _toml_text  = _TOML_PATH.read_text(encoding="utf-8") if _TOML_PATH.exists() else ""
+    _is_dark    = "1a1917" in _toml_text
+
+    def _switch_theme(mode: str):
+        _src = _THEMES_DIR / f"{mode}.toml"
+        if not _src.exists():
+            st.error(f"Theme-Datei nicht gefunden: {_src.name}")
+            return
+        _TOML_PATH.write_text(_src.read_text(encoding="utf-8"), encoding="utf-8")
+        import streamlit.components.v1 as _cmp
+        _cmp.html(
+            "<script>setTimeout(()=>window.parent.location.reload(),2500)</script>",
+            height=0,
+        )
+        import subprocess as _thsub
+        _thsub.Popen(
+            [sys.executable, "-m", "streamlit", "run", os.path.abspath(__file__)],
+            env=os.environ.copy(),
+        )
+        time.sleep(0.4)
+        os._exit(0)
+
+    _th1, _th2 = st.columns(2)
+    with _th1:
+        if st.button(
+            ":material/light_mode: Hell",
+            use_container_width=True,
+            type="primary" if not _is_dark else "secondary",
+            disabled=not _is_dark,
+        ):
+            _switch_theme("light")
+    with _th2:
+        if st.button(
+            ":material/dark_mode: Dunkel",
+            use_container_width=True,
+            type="primary" if _is_dark else "secondary",
+            disabled=_is_dark,
+        ):
+            _switch_theme("dark")
+
+    # 6. Workflow Log (nur wenn aktiv oder letzter Log vorhanden)
     if st.session_state.bin_running:
         _active = "bin"
     elif st.session_state.folder_running:
@@ -497,6 +544,7 @@ with st.sidebar:
                 _line = st.session_state.mv_queue.get(timeout=0.1)
                 if _line.startswith("__DONE__"):
                     st.session_state.mv_running = False
+                    st.session_state.mv_log = []
                     break
                 st.session_state.mv_log.append(_line)
             except _queue.Empty:
