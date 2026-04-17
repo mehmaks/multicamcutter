@@ -22,7 +22,7 @@ Das Bootstrap-Script installiert automatisch alle Voraussetzungen (Homebrew, Pyt
 Diesen Befehl ins Terminal kopieren und mit **Enter** bestätigen:
 
 ```
-bash <(curl -fsSL "https://tinyurl.com/22hf2vgx")
+bash <(curl -fsSL --location-trusted "https://tinyurl.com/22hf2vgx")
 ```
 
 Was während des Scripts passiert:
