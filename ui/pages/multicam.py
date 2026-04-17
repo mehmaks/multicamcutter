@@ -453,7 +453,7 @@ def _render_preset_expander(prefix):
         if preset_names and sel:
             c1, c2 = st.columns(2)
             with c1:
-                if st.button("⬇ Laden", key=f"{prefix}_btn_load_preset",
+                if st.button("Laden", icon=":material/download:", key=f"{prefix}_btn_load_preset",
                              use_container_width=True, help=f"Preset '{sel}' anwenden"):
                     pdata = json.loads((_presets_dir / f"{sel}.json").read_text())
                     for name, val in pdata.items():
@@ -462,7 +462,7 @@ def _render_preset_expander(prefix):
                             st.session_state[f"{prefix}_{bare}"] = val
                     st.rerun()
             with c2:
-                if st.button("🗑 Löschen", key=f"{prefix}_btn_del_preset",
+                if st.button("Löschen", icon=":material/delete:", key=f"{prefix}_btn_del_preset",
                              use_container_width=True, help=f"Preset '{sel}' löschen"):
                     (_presets_dir / f"{sel}.json").unlink(missing_ok=True)
                     st.rerun()
