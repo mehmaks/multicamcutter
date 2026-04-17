@@ -555,6 +555,9 @@ def _render_preset_row(prefix: str) -> None:
 
 def _render_preset_expander(prefix: str) -> None:
     """Preset speichern."""
+    if st.session_state.get("_clear_preset_name") == prefix:
+        st.session_state.pop("_clear_preset_name")
+        st.session_state[f"{prefix}_preset_name_input"] = ""
     with st.expander("Preset speichern"):
         ni1, ni2 = st.columns([3, 1])
         with ni1:
@@ -582,7 +585,7 @@ def _render_preset_expander(prefix: str) -> None:
                     pdata = {n: st.session_state[f"{prefix}_{n}"]
                              for n in _PARAM_NAMES if f"{prefix}_{n}" in st.session_state}
                     (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
-                    st.session_state[f"{prefix}_preset_name_input"] = ""
+                    st.session_state["_clear_preset_name"] = prefix
                     st.session_state["_pending_toast"] = f"Preset '{safe}' gespeichert"
                     st.rerun()
 
