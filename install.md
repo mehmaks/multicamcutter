@@ -15,75 +15,40 @@ Alle Schritte laufen im **Terminal**. Du findest das Terminal über Spotlight: *
 
 ---
 
-## Schritt 1 — Homebrew installieren
+## Schritt 1 — Bootstrap ausführen
 
-Homebrew ist ein Programm, das andere Programme für den Mac installiert. Falls du es bereits hast, kannst du diesen Schritt überspringen.
+Das Bootstrap-Script installiert automatisch alle Voraussetzungen (Homebrew, Python 3.12, Git) und lädt das resolve-toolkit herunter.
 
 Diesen Befehl ins Terminal kopieren und mit **Enter** bestätigen:
 
 ```
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+bash <(curl -fsSL "https://raw.githubusercontent.com/mehmaks/resolve-toolkit/main/bootstrap.sh?token=GHSAT0AAAAAACXY...")
 ```
 
-Das Passwort deines Macs wird abgefragt (die Eingabe ist unsichtbar — einfach tippen und Enter drücken). Die Installation dauert einige Minuten.
+> **Hinweis:** Den genauen Befehl mit deinem persönlichen Token erhältst du von uns per E-Mail.
 
-> **Apple Silicon (M1/M2/M3/M4):** Nach der Installation erscheint ein Hinweis, zwei weitere Befehle auszuführen (`eval "$(/opt/homebrew/bin/brew shellenv)"`). Diese bitte ausführen, bevor du weitermachst.
+Was während des Scripts passiert:
+
+1. **Homebrew** wird installiert — dein Mac-Passwort wird abgefragt (Eingabe unsichtbar)
+2. Falls ein Systemdialog **„Xcode Command Line Tools installieren"** erscheint: auf „Installieren" klicken und warten — das Script läuft danach automatisch weiter
+3. **Python 3.12** und **Git** werden installiert
+4. Das **resolve-toolkit** wird heruntergeladen
+
+Am Ende erscheint eine Zusammenfassung mit dem nächsten Schritt.
 
 ---
 
-## Schritt 2 — Python 3.12 und Git installieren
-
-Das Tool benötigt **Python 3.12** — neuere Versionen werden von einzelnen Abhängigkeiten noch nicht unterstützt.
-
-```
-brew install python@3.12 git
-```
-
-Danach Python 3.12 als Standard setzen:
-
-```
-echo 'export PATH="/opt/homebrew/opt/python@3.12/bin:$PATH"' >> ~/.zprofile && source ~/.zprofile
-```
-
-Prüfen ob es geklappt hat (sollte `Python 3.12.x` ausgeben):
-
-```
-python3 --version
-```
-
----
-
-## Schritt 3 — Projekt herunterladen
-
-```
-git clone https://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@github.com/mehmaks/resolve-toolkit.git ~/resolve-toolkit
-```
-
-Der Projektordner landet in deinem Benutzerordner unter `resolve-toolkit`.
-
----
-
-## Schritt 4 — Setup ausführen
+## Schritt 2 — Setup ausführen
 
 ```
 bash ~/resolve-toolkit/setup.sh
 ```
 
-Das Script läuft automatisch durch und installiert alles Nötige. Es dauert **10–20 Minuten**. Am Ende erscheint: `Setup abgeschlossen!`
+Das Script läuft automatisch durch und installiert alle weiteren Abhängigkeiten (KI-Modelle, Python-Pakete, Fonts). Es dauert **10–20 Minuten**. Am Ende erscheint: `Setup abgeschlossen!`
 
 ---
 
-## Schritt 5 — Lizenz eintragen
-
-Du hast von uns eine Datei namens `license.json` erhalten.
-
-1. Öffne den Finder
-2. Drücke **Cmd + Shift + G** und gib ein: `~/.resolve-toolkit`
-3. Lege die `license.json` in diesen Ordner (vorhandene Datei ersetzen)
-
----
-
-## Schritt 6 — Tool starten
+## Schritt 3 — Tool starten
 
 ```
 bash ~/resolve-toolkit/start.command
@@ -91,10 +56,20 @@ bash ~/resolve-toolkit/start.command
 
 Der Browser öffnet sich automatisch mit der Oberfläche des Tools.
 
-Alternativ: **Doppelklick** auf `start.command` im Ordner `~/resolve-toolkit`.
+Alternativ: **Doppelklick** auf `start.command` im Ordner `~/resolve-toolkit`.  
 Falls ein Sicherheitshinweis erscheint: **Rechtsklick → „Öffnen" → „Öffnen"**.
 
 > Das Terminal-Fenster offen lassen — es läuft im Hintergrund. Schließen beendet das Tool.
+
+---
+
+## Schritt 4 — Lizenz aktivieren
+
+Nach dem ersten Start öffnet sich die **Lizenz-Seite** automatisch, da noch keine Lizenz vorhanden ist.
+
+1. Klicke auf **„Lizenzdatei auswählen …"**
+2. Wähle die `license.json` aus, die du von uns erhalten hast
+3. Die Lizenz wird sofort aktiviert und das Tool ist einsatzbereit
 
 ---
 
