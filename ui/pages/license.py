@@ -14,6 +14,18 @@ _spec.loader.exec_module(_lic)
 
 _license: _lic.LicenseInfo = st.session_state.get("license_info") or _lic.validate()
 
+
+def _fmt_date(iso: str | None) -> str:
+    """'2026-12-31' → '31.12.2026', None → 'unbegrenzt'."""
+    if not iso:
+        return "unbegrenzt"
+    try:
+        y, m, d = iso.split("-")
+        return f"{d}.{m}.{y}"
+    except Exception:
+        return iso
+
+
 st.title("Lizenz")
 
 if _license.valid:
@@ -26,7 +38,7 @@ if _license.valid:
     with col1:
         st.metric("E-Mail", _license.email or "—")
     with col2:
-        st.metric("Gültig bis", _license.expires or "unbegrenzt")
+        st.metric("Gültig bis", _fmt_date(_license.expires))
 
     st.subheader("Freigeschaltete Module")
     module_labels = {
@@ -62,7 +74,7 @@ elif _license.error and "Keine Lizenzdatei" in _license.error:
                     st.session_state["license_info"] = _result
                     st.success(
                         f"Lizenz aktiviert für **{_result.email}** "
-                        f"(gültig bis {_result.expires or 'unbegrenzt'})."
+                        f"(gültig bis {_fmt_date(_result.expires)})."
                     )
                     st.rerun()
                 else:
@@ -88,7 +100,40 @@ Bitte eine neue Lizenzdatei anfordern.
 
 elif _license.error and "abgelaufen" in _license.error:
     st.error("Lizenz abgelaufen")
-    st.markdown(f"**{_license.error}**\n\nBitte eine verlängerte Lizenz anfordern.")
+    st.markdown(f"**{_license.error}**")
+    st.markdown("Wähle eine neue Lizenzdatei (`license.json`) aus, um sie zu aktivieren.")
+
+    if st.button("Neue Lizenzdatei auswählen …", type="primary"):
+        try:
+            _r = subprocess.run(
+                ["osascript", "-e",
+                 'POSIX path of (choose file with prompt "Lizenzdatei auswählen"'
+                 ' of type {"public.json", "json"})',
+                ],
+                capture_output=True, text=True, timeout=60,
+            )
+            if _r.returncode == 0 and _r.stdout.strip():
+                _chosen = _r.stdout.strip()
+                _result = _lic.install_license(_chosen)
+                if _result.valid:
+                    st.session_state["license_info"] = _result
+                    st.session_state["license_checked_at"] = __import__("time").time()
+                    st.success(
+                        f"Lizenz aktiviert für **{_result.email}** "
+                        f"(gültig bis {_fmt_date(_result.expires)})."
+                    )
+                    st.rerun()
+                else:
+                    st.error(f"Aktivierung fehlgeschlagen: {_result.error}")
+        except subprocess.TimeoutExpired:
+            pass
+        except Exception as _e:
+            st.error(f"Dateidialog nicht verfügbar: {_e}")
+
+    st.caption(
+        "Alternativ: Datei manuell nach `~/.resolve-toolkit/license.json` kopieren "
+        "und Seite neu laden."
+    )
 
 else:
     st.error("Lizenzproblem")
