@@ -347,6 +347,8 @@ with st.sidebar:
                  encoding="utf-8")
 
     def _tab_visible(config_key: str, module: str) -> bool:
+        if module in _lic.BETA_BLOCKED:
+            return False
         cfg_on = _ui_cfg.getboolean("UI", config_key, fallback=True)
         lic_on = _license.has_module(module)
         return cfg_on and lic_on
