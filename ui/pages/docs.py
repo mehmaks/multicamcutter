@@ -28,6 +28,7 @@ if _is_dark_docs:
         unsafe_allow_html=True,
     )
 
+_REPO_ROOT  = Path(__file__).parent.parent.parent
 _DOCS_DIR   = Path(__file__).parent.parent / "docs"
 _ASSETS_DIR = _DOCS_DIR / "assets"
 
@@ -51,7 +52,11 @@ with tab_multicam:
         "warum es die Parameter gibt und welches Problem sie lösen."
     )
 
-    with st.expander("Sprecher-Erkennung", expanded=True):
+    _anleitung = _REPO_ROOT / "modules" / "multicam_cutter" / "Multicam_Cutter_Anleitung.md"
+    with st.expander("Kurzanleitung", expanded=True):
+        st.markdown(_anleitung.read_text(encoding="utf-8") if _anleitung.exists() else "_Datei nicht gefunden._")
+
+    with st.expander("Sprecher-Erkennung"):
         _section("multicam_sprecher.md", "sprecher-erkennung.png")
 
     with st.expander("Generelle Schnittregeln"):
