@@ -25,6 +25,9 @@ venv/
 *.html
 *.csv
 
+# Streamlit-Config (wird beim Start aus config.template.toml erzeugt)
+.streamlit/config.toml
+
 # macOS
 .DS_Store
 .AppleDouble

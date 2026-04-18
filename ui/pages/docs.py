@@ -11,18 +11,22 @@ import streamlit as st
 
 st.title(":material/menu_book: Dokumentation")
 
-st.markdown(
-    """
-    <style>
-    @media (prefers-color-scheme: dark) {
+_TOML_PATH_DOCS = Path(__file__).parent.parent.parent / ".streamlit" / "config.toml"
+_is_dark_docs = "1a1917" in (
+    _TOML_PATH_DOCS.read_text(encoding="utf-8") if _TOML_PATH_DOCS.exists() else ""
+)
+
+if _is_dark_docs:
+    st.markdown(
+        """
+        <style>
         [data-testid="stImage"] img {
             filter: invert(1) hue-rotate(180deg);
         }
-    }
-    </style>
-    """,
-    unsafe_allow_html=True,
-)
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
 
 _DOCS_DIR   = Path(__file__).parent.parent / "docs"
 _ASSETS_DIR = _DOCS_DIR / "assets"

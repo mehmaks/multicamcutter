@@ -12,9 +12,19 @@ import queue as _queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
 from pathlib import Path
 
+import shutil
+
 import streamlit as st
 import license as _lic
 import ui.app_logger as _rtk_log
+
+# ── Streamlit config.toml Bootstrap ──────────────────────────────────────────
+# Beim ersten Start: config.template.toml → config.toml kopieren (Light-Theme)
+_ST_DIR      = Path(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))) / ".streamlit"
+_ST_CFG      = _ST_DIR / "config.toml"
+_ST_TEMPLATE = _ST_DIR / "config.template.toml"
+if not _ST_CFG.exists() and _ST_TEMPLATE.exists():
+    shutil.copy2(_ST_TEMPLATE, _ST_CFG)
 
 # ── Logging-Setup (einmalig beim Start) ────────────────────────────────────────
 _log = _rtk_log.setup()
@@ -92,8 +102,14 @@ for _k, _v in _DEFAULTS.items():
 
 # ── License ────────────────────────────────────────────────────────────────────
 
+_LIC_RECHECK_INTERVAL = 3600  # Re-Validierung alle 60 Minuten
+
 if "license_info" not in st.session_state:
     st.session_state.license_info = _lic.validate()
+    st.session_state.license_checked_at = time.time()
+elif time.time() - st.session_state.get("license_checked_at", 0) > _LIC_RECHECK_INTERVAL:
+    st.session_state.license_info = _lic.validate()
+    st.session_state.license_checked_at = time.time()
 _license: _lic.LicenseInfo = st.session_state.license_info
 
 # ── Feedback-Dialog ────────────────────────────────────────────────────────────
