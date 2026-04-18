@@ -1,3 +1,6 @@
+[resolve-toolkit]
+mode = "light"
+
 [client]
 toolbarMode = "minimal"
 

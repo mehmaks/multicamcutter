@@ -450,7 +450,7 @@ with st.sidebar:
     _TOML_PATH  = Path(_REPO_ROOT) / ".streamlit" / "config.toml"
     _THEMES_DIR = Path(_REPO_ROOT) / ".streamlit" / "themes"
     _toml_text  = _TOML_PATH.read_text(encoding="utf-8") if _TOML_PATH.exists() else ""
-    _is_dark    = "1a1917" in _toml_text
+    _is_dark    = 'mode = "dark"' in _toml_text
 
     def _switch_theme(mode: str):
         _src = _THEMES_DIR / f"{mode}.toml"

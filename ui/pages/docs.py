@@ -12,7 +12,7 @@ import streamlit as st
 st.title(":material/menu_book: Dokumentation")
 
 _TOML_PATH_DOCS = Path(__file__).parent.parent.parent / ".streamlit" / "config.toml"
-_is_dark_docs = "1a1917" in (
+_is_dark_docs = 'mode = "dark"' in (
     _TOML_PATH_DOCS.read_text(encoding="utf-8") if _TOML_PATH_DOCS.exists() else ""
 )
 
