@@ -50,7 +50,7 @@ if _license.valid:
         "takes":      "Take Selector",
     }
     for mod, label in module_labels.items():
-        if mod in _license.modules:
+        if mod in _license.modules and mod not in _lic.BETA_BLOCKED:
             st.markdown(f"- {label}")
 
 elif _license.error and "Keine Lizenzdatei" in _license.error:

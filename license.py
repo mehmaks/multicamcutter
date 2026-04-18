@@ -31,6 +31,12 @@ ALL_MODULES = [
     "takes",
 ]
 
+# Module, die noch nicht für Beta freigegeben sind.
+# Hier gelistete Module werden in der UI ausgeblendet,
+# auch wenn die Lizenz sie enthält.
+BETA_BLOCKED: set[str] = {"auphonic"}
+# Beispiel: BETA_BLOCKED = {"takes", "silence"}
+
 _DATA_DIR    = os.path.expanduser("~/.resolve-toolkit")
 _KEY_FILE    = os.path.join(_DATA_DIR, "license.key")
 _CACHE_FILE  = os.path.join(_DATA_DIR, "license_cache.json")
@@ -57,7 +63,7 @@ class LicenseInfo:
 
     def has_module(self, module: str) -> bool:
         """Return True if this license grants access to the given module."""
-        return self.valid and module in self.modules
+        return self.valid and module in self.modules and module not in BETA_BLOCKED
 
 
 # ── Internal helpers ──────────────────────────────────────────────────────────
