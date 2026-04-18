@@ -28,7 +28,6 @@ ALL_MODULES = [
     "auphonic",
     "maxxvolume",
     "silence",
-    "resolve",
     "takes",
 ]
 

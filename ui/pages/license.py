@@ -47,7 +47,6 @@ if _license.valid:
         "auphonic":   "Auphonic",
         "maxxvolume": "Voice Leveler",
         "silence":    "Silence Cutter",
-        "resolve":    "Resolve Bridge",
         "takes":      "Take Selector",
     }
     for mod, label in module_labels.items():
