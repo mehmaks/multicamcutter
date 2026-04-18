@@ -17,12 +17,11 @@ if [ ! -f "$VENV/bin/activate" ]; then
     exit 1
 fi
 
-# Bereits gestartet? Dann nur Browser öffnen.
-if lsof -i ":$PORT" &>/dev/null; then
-    echo "resolve-toolkit läuft bereits."
-    open "http://localhost:$PORT"
-    echo "Browser geöffnet — dieses Fenster kann geschlossen werden."
-    exit 0
+# Alten Prozess beenden, damit neuer Code geladen wird.
+if lsof -ti ":$PORT" &>/dev/null; then
+    echo "Alte Instanz wird beendet..."
+    kill $(lsof -ti ":$PORT") 2>/dev/null
+    sleep 1
 fi
 
 source "$VENV/bin/activate"
