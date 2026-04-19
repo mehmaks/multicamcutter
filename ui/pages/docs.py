@@ -121,7 +121,10 @@ with tab_vl:
             st.image(str(_vl_img), use_container_width=True)
         st.markdown("</div>", unsafe_allow_html=True)
 
-    with st.expander("Einstellungen", expanded=True):
+    with st.expander("Einstellungen (Einfachmodus)", expanded=True):
+        _section("voice_leveler_easy.md")
+
+    with st.expander("Einstellungen (Expertenmodus)"):
         _section("voice_leveler.md", "voiceleveler_settings.png")
 
 with tab_silence:
