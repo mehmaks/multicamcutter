@@ -212,63 +212,85 @@ def _bursts_rolling(
     min_duration_s: float, max_duration_s: float,
     hold_s: float,
     timeline_start_frame: int,
-    mode: str = 'rms',
+    mode: str = 'peak',
+    decay_hold_s: float = 3.0,
+    lookback_s: float = 1.0,
+    sustain_margin_db: float = 1.5,
 ) -> list:
-    """Rolling-Baseline Burst Detection (identisch zu test_rolling_detection.py)."""
+    """Rolling-Baseline Burst Detection mit Rise-Erkennung.
+
+    Erkennt Bursts anhand der Baseline-Anstiegsrate (nicht Pegel vs Baseline).
+    Burst-Dauer wird durch Peak-Tracking bestimmt: Burst endet, wenn die
+    Baseline unter (Peak - sustain_margin_db) fällt.
+    """
     db        = _level_windows(audio, sr, window_s, mode=mode)
     attack_n  = max(1, int(attack_window_s  / window_s))
     release_n = max(1, int(release_window_s / window_s))
-    min_wins  = max(1, int(min_duration_s   / window_s))
     max_wins  = max(1, int(max_duration_s   / window_s))
-    hold_wins = int(hold_s / window_s)
+    min_wins  = max(1, int(min_duration_s   / window_s))
+    lookback_n = max(1, int(lookback_s      / window_s))
+    decay_hold_n = max(0, int(decay_hold_s  / window_s))
     alpha_a   = 1.0 / attack_n
     alpha_r   = 1.0 / release_n
 
-    def _build_baseline(db, start_idx, start_val):
-        b = np.empty(len(db))
-        b[:start_idx] = 0.0
-        b[start_idx]  = start_val
-        for k in range(start_idx + 1, len(db)):
-            if db[k] > b[k - 1]:
-                b[k] = b[k - 1] + alpha_a * (db[k] - b[k - 1])
-            else:
-                b[k] = b[k - 1] + alpha_r * (db[k] - b[k - 1])
-        return b
-
+    # ── Baseline mit S-Kurve-Decay ──────────────────────────────────────────
     warmup_n  = max(1, int(warmup_s / window_s))
     start_val = float(np.percentile(db[:warmup_n], 75))
-    baseline  = _build_baseline(db, 0, start_val)
+
+    baseline = np.empty(len(db))
+    baseline[0] = start_val
+    since_attack = 0
+    for k in range(1, len(db)):
+        if db[k] > baseline[k - 1]:
+            baseline[k] = baseline[k - 1] + alpha_a * (db[k] - baseline[k - 1])
+            since_attack = 0
+        else:
+            since_attack += 1
+            if decay_hold_n > 0:
+                t = min(since_attack / decay_hold_n, 1.0)
+                s = t * t * (3.0 - 2.0 * t)
+                eff_alpha = alpha_r * (0.05 + 0.95 * s)
+            else:
+                eff_alpha = alpha_r
+            baseline[k] = baseline[k - 1] + eff_alpha * (db[k] - baseline[k - 1])
+
+    # ── Rise-Detection ──────────────────────────────────────────────────────
+    rise = np.zeros(len(db))
+    for k in range(1, len(db)):
+        lo = max(0, k - lookback_n)
+        rise[k] = baseline[k] - baseline[lo]
 
     bursts = []
     i = 0
     while i < len(db):
-        if db[i] > baseline[i] + rise_db:
-            j, hold_count = i, 0
+        if rise[i] >= rise_db:
+            # Burst-Start! Peak-Tracking für Burst-Dauer
+            peak = baseline[i]
+            j = i + 1
             while j < len(db):
-                if db[j] > baseline[j] + rise_db:
-                    hold_count = 0
-                    j += 1
-                elif hold_count < hold_wins:
-                    hold_count += 1
-                    j += 1
-                else:
+                if baseline[j] > peak:
+                    peak = baseline[j]
+                if baseline[j] < peak - sustain_margin_db:
                     break
-            actual_end = j - hold_count
-            burst_len  = j - i
-            if min_wins <= burst_len <= max_wins:
+                if max_wins > 0 and (j - i) >= max_wins:
+                    break
+                j += 1
+
+            burst_len = j - i
+            if burst_len >= min_wins:
                 start_s  = i * window_s
-                avg_rise = float(np.mean(db[i:actual_end] - baseline[i:actual_end]))
-                conf     = min(1.0, 0.5 + avg_rise / 20.0)
+                end_s    = j * window_s
+                avg_rise = float(np.mean(rise[i:j]))
+                conf     = min(1.0, avg_rise / rise_db)
                 tl_frame = timeline_start_frame + round(start_s * fps)
                 bursts.append({
                     'start_s':  start_s,
+                    'end_s':    end_s,
+                    'dur_s':    end_s - start_s,
                     'tl_frame': tl_frame,
                     'conf':     round(conf, 3),
                 })
-                if actual_end < len(db):
-                    new_bl = _build_baseline(db, actual_end, baseline[i])
-                    baseline[actual_end:] = new_bl[actual_end:]
-            i = actual_end if actual_end > i else i + 1
+            i = j
         else:
             i += 1
     return bursts
@@ -280,14 +302,17 @@ def detect_speaking_reactions(
     fps: float, wav_edl_frame: int,
     cam1_timeline_zero_video: int, cam2_timeline_zero_video: int,
     window_s: float        = 0.05,
-    rise_db: float         = 10.0,
+    rise_db: float         = 6.0,
     min_duration_s: float  = 0.20,
-    max_duration_s: float  = 1.5,
-    attack_window_s: float = 1.0,
+    max_duration_s: float  = 2.5,
+    attack_window_s: float = 0.2,
     release_window_s: float = 20.0,
     warmup_s: float        = 3.0,
     hold_s: float          = 0.0,
-    mode: str              = 'rms',
+    mode: str              = 'peak',
+    decay_hold_s: float    = 3.0,
+    lookback_s: float      = 1.0,
+    sustain_margin_db: float = 1.5,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -311,6 +336,7 @@ def detect_speaking_reactions(
             'timecode':   tc,
             'type':       'speaking_reaction',
             'confidence': burst['conf'],
+            'dur_s':      burst.get('dur_s', 0),
         }
 
     cam1_reactions, cam2_reactions = [], []
@@ -331,6 +357,9 @@ def detect_speaking_reactions(
                 rise_db, min_duration_s, max_duration_s, hold_s,
                 timeline_start_frame=tl_offset,
                 mode=mode,
+                decay_hold_s=decay_hold_s,
+                lookback_s=lookback_s,
+                sustain_margin_db=sustain_margin_db,
             )
             for b in bursts:
                 r = _to_reaction(b, cam2_timeline_zero_video)
@@ -346,6 +375,9 @@ def detect_speaking_reactions(
                 rise_db, min_duration_s, max_duration_s, hold_s,
                 timeline_start_frame=tl_offset,
                 mode=mode,
+                decay_hold_s=decay_hold_s,
+                lookback_s=lookback_s,
+                sustain_margin_db=sustain_margin_db,
             )
             for b in bursts:
                 r = _to_reaction(b, cam1_timeline_zero_video)
@@ -515,14 +547,14 @@ def main():
                         help='JSON output path for CAM1 speaking reactions')
     parser.add_argument('--speaking-reactions-cam2-out', default=None,
                         help='JSON output path for CAM2 speaking reactions')
-    parser.add_argument('--speaking-rise-db',       type=float, default=10.0)
+    parser.add_argument('--speaking-rise-db',       type=float, default=6.0)
     parser.add_argument('--speaking-min-duration',  type=float, default=0.20)
-    parser.add_argument('--speaking-max-duration',  type=float, default=1.5)
-    parser.add_argument('--speaking-attack-window', type=float, default=1.0)
+    parser.add_argument('--speaking-max-duration',  type=float, default=2.5)
+    parser.add_argument('--speaking-attack-window', type=float, default=0.2)
     parser.add_argument('--speaking-release-window',type=float, default=20.0)
     parser.add_argument('--speaking-warmup',        type=float, default=3.0)
     parser.add_argument('--speaking-hold',          type=float, default=0.0)
-    parser.add_argument('--speaking-mode',          choices=['rms', 'peak'], default='rms')
+    parser.add_argument('--speaking-mode',          choices=['rms', 'peak'], default='peak')
     # Off-sections output (für Nodding-Analyse Optimierung)
     parser.add_argument('--cam1-off-sections-out', default=None,
                         help='JSON-Ausgabe: Video-Frame-Ranges in denen CAM1 die Off-Kamera ist')

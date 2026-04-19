@@ -60,7 +60,12 @@ Lege alle Clips der Folge in einen gemeinsamen Bin in DaVinci Resolve. Der Bin m
 Wähle unter „MIC für CAM1" und „MIC für CAM2" das jeweils passende Mikrofon. Die Namen der erkannten Audiodateien werden direkt angezeigt.
 
 #### 5. Einstellungen anpassen (optional)
-Unter **Analyse-Einstellungen** findest du vier aufklappbare Gruppen. Jeder Wert hat ein **?-Symbol**, das beim Überfahren erklärt, was er tut. Die Standardwerte sind für einen typischen Podcast-Workflow kalibriert.
+Unter **Analyse-Einstellungen** findest du mehrere aufklappbare Gruppen. Jeder Wert hat ein **?-Symbol**, das beim Überfahren erklärt, was er tut. Die Standardwerte sind für einen typischen Podcast-Workflow kalibriert.
+
+Die **Cutaway Regeln** sind in drei Spalten organisiert:
+- **Generell** — Cutaway-Länge, Pre-Roll und Zufallsfaktor (gilt für alle Cutaway-Typen)
+- **Kopfnicken** — Toggle, Konfidenz, Nod-Threshold und -Dauer
+- **Sprachreaktionen** — Toggle, Rise (dB) und maximale Burst-Dauer
 
 Einstellungen lassen sich als **Preset** speichern und für andere Folgen oder Formate wieder laden.
 
@@ -154,7 +159,7 @@ Die Mediendateien werden automatisch mit bereits importierten Clips im Media Poo
 
 1. **Waveform-Sync** — vergleicht das Audiosignal aller Quellen miteinander und berechnet, wie viele Frames sie gegeneinander verschoben sind
 2. **Sprecher-Erkennung** — analysiert beide Mikrofon-Spuren und entscheidet per Lautstärke-Vergleich, wer gerade spricht
-3. **Gesichtsanalyse** — analysiert mit KI (MediaPipe) nur die Frames, in denen eine Kamera *nicht* der aktive Sprecher ist — sucht nach Nicken und kurzen Einwürfen
+3. **Gesichtsanalyse & Sprachreaktionen** — analysiert mit KI (MediaPipe) nur die Frames, in denen eine Kamera *nicht* der aktive Sprecher ist — sucht nach Nicken. Parallel erkennt eine Baseline-Rise-Analyse kurze Einwürfe der Off-Kamera anhand des Anstiegsverhaltens der Audio-Baseline
 4. **Cutaway-Einbau** — fügt erkannte Reaktionen als Cutaways in die Timeline ein, bereinigt zu kurze Clips und erzwingt Schnitte bei zu langen Einstellungen
 5. **Timeline-Aufbau** — entweder direkt in Resolve (Bin-Workflow) oder als FCPXML/EDL (Ordner-Workflow)
 
@@ -214,22 +219,21 @@ Die AAF referenziert die Mediendateien über ihren absoluten Pfad und eingebette
 
 Die vollständige Konfiguration liegt in `config.ini` im gleichen Ordner. Alle relevanten Werte sind über das UI editierbar — direkte Änderungen in der Datei sind nur für fortgeschrittene Anpassungen nötig.
 
-| Sektion | Parameter | Beschreibung |
-|---|---|---|
-| `[General]` | `min_shot_duration` | Minimum Shotlänge vor einem Cutaway |
-| | `reaction_min_duration` | Basislänge eines Reaction-Cutaways |
-| | `max_shot_duration` | Maximale Shotlänge vor Pflicht-Cutaway |
-| | `cleanup_min_duration` | Clips kürzer als dieser Wert werden entfernt |
-| | `cutaway_randomness` | Zufälliger Aufschlag auf Cutaway-Länge (0–0.5) |
-| `[RMSDiarization]` | `threshold_db` | dB-Unterschied für Sprecherwechsel |
-| | `min_edit_duration` | Mindestlänge eines Sprechabschnitts |
-| | `change_delay` | Verzögerung vor Sprecherwechsel |
-| `[Detection]` | `min_confidence` | Mindest-Konfidenz für Nodding-Cutaways |
-| | `analysis_width` | Breite für KI-Analyse (0 = Originalauflösung) |
-| `[Nodding]` | `min_nod_duration` | Mindestdauer der Kopfbewegung |
-| | `cooldown_frames` | Frames Pause nach erkanntem Nod |
-| `[SpeakingReaction]` | `rise_db` | dB-Anstieg über Baseline für Sprecherkennung |
-| | `min_duration` / `max_duration` | Gültige Burst-Länge |
-| | `min_confidence` | Mindest-Konfidenz für Speaking-Cutaways |
-| `[CutawayTiming]` | `pre_roll_frames` | Frames Vorlauf vor dem Cutaway-Start |
-| | `cluster_max_gap_frames` | Max. Abstand um Reaktionen zu gruppieren |
+| Sektion | Parameter | UI-Bereich | Beschreibung |
+|---|---|---|---|
+| `[General]` | `min_shot_duration` | Generelle Schnittregeln | Minimum Shotlänge vor einem Cutaway |
+| | `max_shot_duration` | Generelle Schnittregeln | Maximale Shotlänge vor Pflicht-Cutaway |
+| | `cleanup_min_duration` | Generelle Schnittregeln | Clips kürzer als dieser Wert werden entfernt |
+| | `reaction_min_duration` | Cutaway Regeln → Generell | Basislänge eines Reaction-Cutaways (Nodding + Max-Shot) |
+| | `cutaway_randomness` | Cutaway Regeln → Generell | Zufälliger Aufschlag auf Cutaway-Länge (0–0.5) |
+| `[CutawayTiming]` | `pre_roll_frames` | Cutaway Regeln → Generell | Frames Vorlauf vor dem Cutaway-Start |
+| | `cluster_max_gap_frames` | — | Max. Abstand um Reaktionen zu gruppieren |
+| `[RMSDiarization]` | `threshold_db` | Sprecher-Erkennung | dB-Unterschied für Sprecherwechsel |
+| | `min_edit_duration` | Sprecher-Erkennung | Mindestlänge eines Sprechabschnitts |
+| | `change_delay` | Sprecher-Erkennung | Verzögerung vor Sprecherwechsel |
+| `[Detection]` | `min_confidence` | Cutaway Regeln → Kopfnicken | Mindest-Konfidenz für Nodding-Cutaways |
+| | `analysis_width` | — | Breite für KI-Analyse (0 = Originalauflösung) |
+| `[Nodding]` | `min_nod_duration` | Cutaway Regeln → Kopfnicken | Mindestdauer der Kopfbewegung |
+| | `cooldown_frames` | — | Frames Pause nach erkanntem Nod |
+| `[SpeakingReaction]` | `rise_db` | Cutaway Regeln → Sprachreaktionen | dB-Anstieg der Baseline für Burst-Erkennung |
+| | `max_duration` | Cutaway Regeln → Sprachreaktionen | Maximale Burst-Dauer in Sekunden |

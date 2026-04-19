@@ -238,7 +238,12 @@ class AdvancedReactionDetector:
         if abs(seg3_avg - seg1_avg) > y_range * 0.45:
             return False, 0.0
 
-        confidence = min(y_range / (50.0 * res_scale), 1.0)
+        # Confidence basiert auf dem schwächsten Segment-Übergang:
+        # Beide Richtungen (hin UND zurück) müssen stark sein für hohe Konfidenz.
+        # Normalisiert auf halben Threshold — conf=1.0 erst wenn der schwächere
+        # Übergang allein schon 50% des Thresholds erreicht.
+        seg_delta_min = min(abs(seg2_avg - seg1_avg), abs(seg2_avg - seg3_avg))
+        confidence = min(seg_delta_min / (effective_nod_threshold * 0.5), 1.0)
         state['last_nod_frame'] = frame_number
         return True, confidence
     
@@ -423,7 +428,8 @@ def _write_preview_frame(frame, detector, reactions, cam_label: str, preview_pat
 
 
 def analyze_video(video_path, output_json=None, sensitivity='medium', show_preview=False,
-                  config=None, off_sections=None, preview_path=None, auto_accuracy=False):
+                  config=None, off_sections=None, preview_path=None, auto_accuracy=False,
+                  lut_path=None):
     """
     Analysiert Video auf Reaktionen
 
@@ -466,16 +472,23 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     if config and config.has_section('Detection'):
         analysis_width = config.getint('Detection', 'analysis_width', fallback=0)
 
+    # Video-Filter zusammenbauen (LUT + optionales Resize)
+    _vf_filters = []
+    if lut_path and Path(lut_path).is_file():
+        _vf_filters.append(f"lut3d='{lut_path}'")
+        print(f"LUT: {Path(lut_path).name}")
+
     if analysis_width and analysis_width < orig_width:
         scale_h = int(orig_height * analysis_width / orig_width)
         scale_h += scale_h % 2  # muss gerade sein
         frame_w, frame_h = analysis_width, scale_h
-        vf_arg = ['-vf', f'scale={frame_w}:{frame_h}']
+        _vf_filters.append(f'scale={frame_w}:{frame_h}')
         print(f"Video: {orig_width}×{orig_height} → Analyse-Auflösung: {frame_w}×{frame_h}")
     else:
         frame_w, frame_h = orig_width, orig_height
-        vf_arg = []
         print(f"Video: {orig_width}×{orig_height} (kein Resize)")
+
+    vf_arg = ['-vf', ','.join(_vf_filters)] if _vf_filters else []
 
     # Debug: Frame-Limit aus Config lesen
     _debug_limit = False
@@ -516,7 +529,7 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
         for reaction_type, data in reactions.items():
             if reaction_type in ('face_detected', 'face_count'):
                 continue
-            if data['detected'] and data['confidence'] > 0.5:
+            if data['detected'] and data['confidence'] > 0.2:
                 tc = frame_num / fps
                 all_reactions.append({
                     'frame':      frame_num,
@@ -718,6 +731,8 @@ def main():
                         help='Pfad für Live-Preview-JPEG (wird jede Sekunde überschrieben)')
     parser.add_argument('--auto-accuracy', action='store_true',
                         help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
+    parser.add_argument('--lut', default=None,
+                        help='Pfad zu einer .cube LUT-Datei (wird per lut3d auf die Frames angewendet)')
 
     args = parser.parse_args()
     
@@ -761,6 +776,7 @@ def main():
         off_sections=off_sections,
         preview_path=args.preview_path,
         auto_accuracy=args.auto_accuracy,
+        lut_path=args.lut,
     )
     
     if reactions is not None:

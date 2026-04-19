@@ -71,8 +71,43 @@ def scan_bin(folder) -> dict:
 
 # ── Timeline builders ─────────────────────────────────────────────────────────
 
+def _create_timeline(mp, name: str, bin_folder=None):
+    """
+    Creates an empty timeline, handling Resolve's global name uniqueness.
+    If bin_folder is given, sets it as current folder first.
+    Returns (timeline, actual_name).
+    """
+    if bin_folder:
+        mp.SetCurrentFolder(bin_folder)
+    tl = mp.CreateEmptyTimeline(name)
+    if tl is None:
+        time.sleep(1.0)
+        tl = mp.CreateEmptyTimeline(name)
+    if tl is not None:
+        return tl, name
+
+    # Name global vergeben (anderer Bin) — Bin-Name als Prefix
+    if bin_folder:
+        bin_name = bin_folder.GetName()
+        prefixed = f"{bin_name} – {name}"
+        tl = mp.CreateEmptyTimeline(prefixed)
+        if tl is not None:
+            print(f"  '{name}' existiert in anderem Bin → '{prefixed}'")
+            return tl, prefixed
+
+    # Letzter Fallback: Suffix
+    for suffix in range(2, 20):
+        alt = f"{name} ({suffix})"
+        tl = mp.CreateEmptyTimeline(alt)
+        if tl is not None:
+            print(f"  '{name}' existiert bereits → '{alt}'")
+            return tl, alt
+
+    raise RuntimeError(f"Timeline '{name}' konnte nicht erstellt werden.")
+
+
 def build_sync_timeline(mp, name: str, cams: list, mics: list,
-                        offsets: dict, fps: float):
+                        offsets: dict, fps: float, bin_folder=None):
     """
     Builds the sync reference timeline:
       V1: CAM1        V2: CAM2
@@ -81,14 +116,7 @@ def build_sync_timeline(mp, name: str, cams: list, mics: list,
     """
     print(f"\nErstelle Sync-Timeline: '{name}'")
 
-    tl = mp.CreateEmptyTimeline(name)
-    if tl is None:
-        # Name already taken — append a counter until we find a free name
-        i = 2
-        while tl is None:
-            tl = mp.CreateEmptyTimeline(f"{name} {i}")
-            i += 1
-        print(f"  Name vergeben, erstellt als '{tl.GetName()}'")
+    tl, actual_name = _create_timeline(mp, name, bin_folder)
     # starts with V1 (stereo) + A1 (stereo)
 
     # Add V2
@@ -172,7 +200,8 @@ def build_sync_timeline(mp, name: str, cams: list, mics: list,
 
 
 def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
-                       offsets: dict, cam_items: dict, fps: float):
+                       offsets: dict, cam_items: dict, fps: float,
+                       skipped_gap_frames: int = 0, bin_folder=None):
     """
     Builds the final cut timeline:
       V1: assembled video segments (from cut_events)
@@ -186,20 +215,26 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
     """
     print(f"\nErstelle Cut-Timeline: '{name}'")
 
-    tl = mp.CreateEmptyTimeline(name)
+    tl, actual_name = _create_timeline(mp, name, bin_folder)
     time.sleep(0.5)  # Resolve braucht einen Moment nach CreateEmptyTimeline
 
-    # Alle default Audio-Tracks entfernen (Resolve erstellt einen stereo A1)
-    n_audio = tl.GetTrackCount('audio') or 0
-    for _ in range(n_audio):
-        tl.DeleteTrack('audio', 1)
-        time.sleep(0.1)
-    time.sleep(0.2)
-
-    # Gewünschte Mono-Tracks anlegen
+    # Mono-Tracks anlegen, dann den Default-Stereo-Track löschen.
+    # Resolve kann den letzten Audio-Track nicht löschen, daher erst hinzufügen.
     for _ in range(len(mics)):
         tl.AddTrack('audio', 'mono')
-    time.sleep(0.3)  # Track-Operationen abwarten
+        time.sleep(0.1)
+    time.sleep(0.3)
+
+    # Default-Stereo-A1 entfernen (jetzt möglich, da Mono-Tracks existieren)
+    if tl.DeleteTrack('audio', 1):
+        time.sleep(0.2)
+    else:
+        print("  ⚠️  Default-Stereo-Track konnte nicht gelöscht werden")
+
+    # Audio-Track-Index bestimmen: erste Mono-Spur
+    n_audio = tl.GetTrackCount('audio') or 0
+    audio_start_idx = n_audio - len(mics) + 1  # Falls Stereo-Track noch da ist
+    print(f"  Audio-Tracks: {n_audio} (MICs ab A{audio_start_idx})")
 
     # V1: video segments sequentially
     video_list = []
@@ -220,6 +255,9 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
     time.sleep(0.3)  # Video-Append abwarten bevor Audio folgt
 
     # A1/A2+: MIC files continuous, aligned with start of cut timeline.
+    # When parse_edl skipped events (negative source frames), the record
+    # timeline is shorter than the EDL span. The MIC must skip the same
+    # duration to stay in sync with the remaining video events.
     first_event = cut_events[0] if cut_events else None
     mic1_offset = offsets.get('MIC1', 0)
     if first_event:
@@ -239,6 +277,22 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
             # MIC starts after the first cut — delay MIC in the cut timeline
             mic_source_start = 0
             mic_record_start = mic1_offset - abs_start
+
+        # Verify sync using last event (detects gaps from skipped events)
+        if len(cut_events) > 1:
+            last_event = cut_events[-1]
+            if last_event['clip'] is cam1_item:
+                last_cam_offset = offsets.get('CAM1', 0)
+            else:
+                last_cam_offset = offsets.get('CAM2', 0)
+            last_abs_end = last_event['source_out'] + last_cam_offset
+            expected_mic_end = last_abs_end - mic1_offset
+            actual_mic_end = mic_source_start + record_cursor
+            drift = expected_mic_end - actual_mic_end
+            if abs(drift) > 1:
+                print(f"  ⚠️  MIC-Sync-Drift erkannt: {drift} Frames ({drift / fps:.2f}s)")
+                print(f"      Übersprungene Events: {skipped_gap_frames} Frames")
+                print(f"      ⚠️  Audio/Video werden NICHT synchron sein!")
     else:
         mic_source_start = 0
         mic_record_start = 0
@@ -264,7 +318,7 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
             'startFrame':   mic_source_start,
             'endFrame':     mic_source_end,
             'mediaType':    2,
-            'trackIndex':   1 + i,
+            'trackIndex':   audio_start_idx + i,
             'recordFrame':  mic_record_start,
         })
 
@@ -298,6 +352,15 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
         if item.SetClipColor(color):
             colored += 1
     print(f"  {colored}/{len(video_items)} Clips eingefärbt")
+
+    # Farblegende als Marker an Frame 1 der Timeline
+    tl.AddMarker(
+        1, 'Blue', 'Farblegende',
+        'Blue = Speaker CAM1 | Teal = Speaker CAM2 | '
+        'Purple = Nodding | Green = Speaking-Reaction | '
+        'Orange = Max-Time',
+        1,
+    )
 
     return tl
 
@@ -375,6 +438,7 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
         )
 
     cut_events = []
+    skipped_gaps = 0
     for ev_match, cn_match in zip(events_raw, clip_names):
         src_in_tc  = ev_match.group(1)
         src_out_tc = ev_match.group(2)
@@ -400,7 +464,12 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
         source_out = _tc_to_frames(src_out_tc, fps) - ref
 
         if source_in < 0 or source_out <= source_in:
-            print(f"  Warnung: ungültige Source-Frames ({source_in}–{source_out}) für '{clip_name}' — überspringe")
+            rec_in_tc  = ev_match.group(3)
+            rec_out_tc = ev_match.group(4)
+            gap_frames = _tc_to_frames(rec_out_tc, fps) - _tc_to_frames(rec_in_tc, fps)
+            print(f"  ⚠️  ÜBERSPRUNGEN: '{clip_name}' Source-Frames {source_in}–{source_out} "
+                  f"(Record {rec_in_tc}–{rec_out_tc}, {gap_frames} Frames Lücke)")
+            skipped_gaps += gap_frames
             continue
 
         cut_events.append({
@@ -425,11 +494,14 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
             print(f"  ⚠ Colors JSON konnte nicht gelesen werden: {e}")
 
     print(f"  {len(cut_events)} Cut-Events aus EDL gelesen")
+    if skipped_gaps > 0:
+        print(f"  ⚠️  {skipped_gaps} Frames ({skipped_gaps / fps:.1f}s) übersprungen — "
+              f"MIC-Platzierung wird kompensiert")
     if cut_events:
         first = cut_events[0]
         first_s = first['source_in'] / fps
         print(f"  Erster Event: source_in={first['source_in']} ({first_s:.1f}s ins Video)")
-    return cut_events
+    return cut_events, skipped_gaps
 
 
 # ── Analysis pipeline ─────────────────────────────────────────────────────────
@@ -441,7 +513,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                  cam_types: list = None,
                  cam_nodding: list = None,
                  speaking_mode_override: str = None,
-                 auto_accuracy: bool = False):
+                 auto_accuracy: bool = False,
+                 lut_path: str = None):
     """
     Runs nodding + RMS analysis for N cameras, returns path to final EDL.
 
@@ -514,18 +587,17 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--cam2-off-sections-out', str(cam2_off_sections),
         ]
         if speaking_enabled:
-            mode = speaking_mode_override or sr_cfg.get('mode', 'rms')
             builder_args += [
                 '--speaking-reactions-cam1-out', str(cam1_speaking_json),
                 '--speaking-reactions-cam2-out', str(cam2_speaking_json),
-                '--speaking-rise-db',        sr_cfg.get('rise_db',        '10.0'),
+                '--speaking-rise-db',        sr_cfg.get('rise_db',        '6.0'),
                 '--speaking-min-duration',   sr_cfg.get('min_duration',   '0.20'),
-                '--speaking-max-duration',   sr_cfg.get('max_duration',   '1.5'),
-                '--speaking-attack-window',  sr_cfg.get('attack_window',  '1.0'),
+                '--speaking-max-duration',   sr_cfg.get('max_duration',   '2.5'),
+                '--speaking-attack-window',  sr_cfg.get('attack_window',  '0.2'),
                 '--speaking-release-window', sr_cfg.get('release_window', '20.0'),
                 '--speaking-warmup',         sr_cfg.get('warmup',         '3.0'),
                 '--speaking-hold',           sr_cfg.get('hold',           '0.0'),
-                '--speaking-mode',           mode,
+                '--speaking-mode',           'peak',
             ]
         # Totale-Cam: erste Kamera mit type='wide' (falls vorhanden)
         totale_idx = next(
@@ -563,6 +635,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             args_list += ['--preview-path', f'/tmp/multicam_preview_cam{i + 1}.jpg']
             if auto_accuracy:
                 args_list += ['--auto-accuracy']
+            if lut_path:
+                args_list += ['--lut', lut_path]
             run(args_list, f"Nodding-Analyse CAM{i + 1} ({Path(cp).name})")
 
     # ── Schritt 3: Cameras-JSON bauen und Cutaways einfügen ──────────────────
@@ -671,6 +745,14 @@ def main():
                              'Beispiel: "true true false" (deaktiviert für CAM3)')
     parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
                         help='Überschreibt speaking_mode aus config.ini')
+    parser.add_argument('--mic-cam1', type=int, default=None,
+                        help='MIC-Index für CAM1 (Legacy, nutze --cam-mics)')
+    parser.add_argument('--mic-cam2', type=int, default=None,
+                        help='MIC-Index für CAM2 (Legacy, nutze --cam-mics)')
+    parser.add_argument('--auto-accuracy', action='store_true',
+                        help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
+    parser.add_argument('--lut', default=None,
+                        help='Pfad zu einer .cube LUT-Datei für die Mediapipe-Analyse')
     args = parser.parse_args()
 
     resolve = get_resolve()
@@ -716,12 +798,20 @@ def main():
 
     # 3. Sync-Timeline aufbauen
     sync_name = args.sync_timeline or f"{args.output} Sync"
-    sync_tl = build_sync_timeline(mp, sync_name, cams, mics, offsets, args.fps)
+    sync_tl = build_sync_timeline(mp, sync_name, cams, mics, offsets, args.fps,
+                                   bin_folder=bin_folder)
     project.SetCurrentTimeline(sync_tl)
 
     # 4. Analyse-Pipeline
     n_cams      = len(cams)
-    cam_mic_map = _parse_cam_mics(args.cam_mics,   n_cams, len(mic_paths))
+    # --mic-cam1/--mic-cam2 als Fallback wenn --cam-mics nicht gesetzt
+    _cam_mics_arg = args.cam_mics
+    if _cam_mics_arg is None and (args.mic_cam1 is not None or args.mic_cam2 is not None):
+        _cam_mics_arg = [
+            str(args.mic_cam1 if args.mic_cam1 is not None else min(1, len(mic_paths) - 1)),
+            str(args.mic_cam2 if args.mic_cam2 is not None else 0),
+        ]
+    cam_mic_map = _parse_cam_mics(_cam_mics_arg,   n_cams, len(mic_paths))
     cam_types   = _parse_cam_list(args.cam_types,   n_cams, 'close')
     cam_nodding = _parse_cam_nodding(args.cam_nodding, n_cams)
     work_dir = Path(cam1_path).parent / 'analyse'
@@ -735,6 +825,8 @@ def main():
             cam_types=cam_types,
             cam_nodding=cam_nodding,
             speaking_mode_override=args.speaking_mode,
+            auto_accuracy=args.auto_accuracy,
+            lut_path=args.lut,
         )
     except RuntimeError as e:
         print(f"\nFEHLER in Analyse: {e}")
@@ -747,7 +839,7 @@ def main():
     }
     print(f"\nParse finale EDL: {final_edl.name}")
     try:
-        cut_events = parse_edl(final_edl, cam_items, args.fps)
+        cut_events, skipped_gap_frames = parse_edl(final_edl, cam_items, args.fps)
     except (ValueError, Exception) as e:
         print(f"FEHLER beim EDL-Parsen: {e}")
         return 1
@@ -759,6 +851,8 @@ def main():
     cut_tl = build_cut_timeline(
         mp, args.output, cut_events, mics,
         offsets=offsets, cam_items=cam_items, fps=args.fps,
+        skipped_gap_frames=skipped_gap_frames,
+        bin_folder=bin_folder,
     )
     project.SetCurrentTimeline(cut_tl)
     time.sleep(0.3)

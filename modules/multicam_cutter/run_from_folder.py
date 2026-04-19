@@ -70,6 +70,8 @@ def main():
                         help='Überschreibt speaking_mode aus config.ini')
     parser.add_argument('--auto-accuracy', action='store_true',
                         help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
+    parser.add_argument('--lut', default=None,
+                        help='Pfad zu einer .cube LUT-Datei für die Mediapipe-Analyse')
     args = parser.parse_args()
 
     folder = Path(args.folder).resolve()
@@ -140,6 +142,7 @@ def main():
             cam_nodding=cam_nodding,
             speaking_mode_override=args.speaking_mode,
             auto_accuracy=args.auto_accuracy,
+            lut_path=args.lut,
         )
     except RuntimeError as e:
         print(f"\nFEHLER in Analyse-Pipeline: {e}")

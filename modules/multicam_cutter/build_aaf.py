@@ -182,6 +182,7 @@ def _parse_edl(edl_path: Path, cam_paths: list, fps: float) -> list:
     clip_re = re.compile(r'^\*\s*FROM CLIP NAME:\s*(.+)', re.MULTILINE)
 
     result = []
+    skipped = 0
     for ev, cn in zip(event_re.finditer(text), clip_re.finditer(text)):
         clip_name = cn.group(1).strip()
         clip_stem = Path(clip_name).stem.lower()
@@ -199,10 +200,18 @@ def _parse_edl(edl_path: Path, cam_paths: list, fps: float) -> list:
         src_in  = _tc_to_frames(ev.group(1), fps) - ref
         src_out = _tc_to_frames(ev.group(2), fps) - ref
         if src_in < 0 or src_out <= src_in:
+            rec_in  = ev.group(3)
+            rec_out = ev.group(4)
+            gap = _tc_to_frames(rec_out, fps) - _tc_to_frames(rec_in, fps)
+            print(f"  ⚠️  ÜBERSPRUNGEN: '{clip_name}' Source-Frames {src_in}–{src_out} "
+                  f"(Record {rec_in}–{rec_out}, {gap} Frames)")
+            skipped += 1
             continue
 
         result.append({'cam_index': cam_idx, 'source_in': src_in, 'source_out': src_out})
 
+    if skipped:
+        print(f"  ⚠️  {skipped} Events übersprungen — Audio/Video-Sync kann abweichen!")
     return result
 
 

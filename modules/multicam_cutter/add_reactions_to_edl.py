@@ -271,6 +271,25 @@ def build_events_with_cutaways(
         if cutaway_frame - last_cut_frame < min_shot_frames:
             continue
 
+        # OFF-Cutaway: Multi-Person → Wide-Kamera; Single-Person → beste Close-Kamera
+        if _is_multi_person(cutaway_frame) and wide_cams:
+            off_cam    = wide_cams[0]
+            cut_reason = f"reaction_{rtype}_wide"
+        else:
+            off_cam    = reaction['cam']
+            cut_reason = f"reaction_{rtype}"
+
+        off_clip            = off_cam['name']
+        off_reference_frame = off_cam['reference_frame']
+        off_tzvf            = off_cam['timeline_zero_video']
+
+        # Prüfe ob Kamera zum Cutaway-Zeitpunkt bereits aufnimmt
+        off_vi_check = off_tzvf + cutaway_frame
+        if off_vi_check < 0:
+            print(f"  ⚠️  Cutaway auf {off_clip} übersprungen @ EDL {cutaway_frame}: "
+                  f"Kamera startet erst {-off_vi_check} Frames später")
+            continue
+
         # ON-Clip bis Cutaway
         if cutaway_frame > current_pos:
             vi = section_video_start + (current_pos - section_start)
@@ -283,18 +302,6 @@ def build_events_with_cutaways(
                 record_out=frames_to_timecode(cutaway_frame, fps),
                 fps=fps, reason="speaker",
             ))
-
-        # OFF-Cutaway: Multi-Person → Wide-Kamera; Single-Person → beste Close-Kamera
-        if _is_multi_person(cutaway_frame) and wide_cams:
-            off_cam    = wide_cams[0]
-            cut_reason = f"reaction_{rtype}_wide"
-        else:
-            off_cam    = reaction['cam']
-            cut_reason = f"reaction_{rtype}"
-
-        off_clip            = off_cam['name']
-        off_reference_frame = off_cam['reference_frame']
-        off_tzvf            = off_cam['timeline_zero_video']
 
         randomness = config.get('cutaway_randomness', 0.0)
         this_cutaway_frames = int(
@@ -339,15 +346,22 @@ def build_events_with_cutaways(
                 if reset_cam:
                     off_vi = reset_cam['timeline_zero_video'] + next_cut
                     off_vo = reset_cam['timeline_zero_video'] + cutaway_end
-                    events.append(EDLEvent(
-                        event_num=0, clip_name=reset_cam['name'],
-                        source_in=frames_to_timecode(reset_cam['reference_frame'] + off_vi, fps),
-                        source_out=frames_to_timecode(reset_cam['reference_frame'] + off_vo, fps),
-                        record_in=frames_to_timecode(next_cut, fps),
-                        record_out=frames_to_timecode(cutaway_end, fps),
-                        fps=fps, reason="max_time",
-                    ))
-                current_pos = cutaway_end
+                    if off_vi >= 0:
+                        events.append(EDLEvent(
+                            event_num=0, clip_name=reset_cam['name'],
+                            source_in=frames_to_timecode(reset_cam['reference_frame'] + off_vi, fps),
+                            source_out=frames_to_timecode(reset_cam['reference_frame'] + off_vo, fps),
+                            record_in=frames_to_timecode(next_cut, fps),
+                            record_out=frames_to_timecode(cutaway_end, fps),
+                            fps=fps, reason="max_time",
+                        ))
+                        current_pos = cutaway_end
+                    else:
+                        print(f"  ⚠️  Max-Time Reset auf {reset_cam['name']} übersprungen @ EDL {next_cut}: "
+                              f"Kamera startet erst {-off_vi} Frames später")
+                        current_pos = next_cut
+                else:
+                    current_pos = next_cut
         else:
             vi = section_video_start + (current_pos - section_start)
             vo = section_video_start + (section_end - section_start)
@@ -439,14 +453,22 @@ def split_long_shots(
                 # Insert cutaway between first and second ON-segment
                 off_vi = timeline_zero_video_frames[other_clip] + cut_start
                 off_vo = timeline_zero_video_frames[other_clip] + cut_end
-                new_events.append(EDLEvent(
-                    event_num=0, clip_name=other_clip,
-                    source_in=frames_to_timecode(reference_frames[other_clip] + off_vi, fps),
-                    source_out=frames_to_timecode(reference_frames[other_clip] + off_vo, fps),
-                    record_in=frames_to_timecode(cut_start, fps),
-                    record_out=frames_to_timecode(cut_end, fps),
-                    fps=fps, reason="max_time",
-                ))
+                if off_vi >= 0:
+                    new_events.append(EDLEvent(
+                        event_num=0, clip_name=other_clip,
+                        source_in=frames_to_timecode(reference_frames[other_clip] + off_vi, fps),
+                        source_out=frames_to_timecode(reference_frames[other_clip] + off_vo, fps),
+                        record_in=frames_to_timecode(cut_start, fps),
+                        record_out=frames_to_timecode(cut_end, fps),
+                        fps=fps, reason="max_time",
+                    ))
+                else:
+                    # Kamera noch nicht gestartet — kein Split, Event ungeteilt lassen
+                    new_events.pop()  # Ersten ON-Teil wieder entfernen
+                    new_events.append(event)  # Original-Event beibehalten
+                    print(f"  ⚠️  Split-Cutaway auf {other_clip} übersprungen @ EDL {cut_start}: "
+                          f"Kamera startet erst {-off_vi} Frames später")
+                    break  # Zweiten ON-Teil nicht hinzufügen
 
         print(f"  ✂️  Split: @ {event.record_in} ({duration/fps:.1f}s)")
 

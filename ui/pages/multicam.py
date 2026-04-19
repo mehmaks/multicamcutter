@@ -64,8 +64,8 @@ _PARAM_NAMES = [
     'min_shot', 'max_shot', 'reaction_dur', 'cleanup_dur', 'randomness',
     'threshold_db', 'min_edit', 'change_delay',
     'min_conf', 'nodding_enabled', 'nod_threshold', 'min_nod_dur', 'pre_roll',
-    'speaking_enabled', 'rise_db', 'speaking_min_dur', 'speaking_max_dur', 'speaking_min_conf',
-    'speaking_peak', 'totale_simul_dur',
+    'speaking_enabled', 'rise_db', 'speaking_max_dur',
+    'totale_simul_dur',
 ]
 
 _DEFAULTS: dict = {
@@ -83,11 +83,8 @@ _DEFAULTS: dict = {
     'min_nod_dur':       0.65,
     'pre_roll':          15,
     'speaking_enabled':  True,
-    'rise_db':           10.0,
-    'speaking_min_dur':  0.20,
-    'speaking_max_dur':  1.5,
-    'speaking_min_conf': 90,
-    'speaking_peak':     False,
+    'rise_db':           6.0,
+    'speaking_max_dur':  2.5,
     'totale_simul_dur':  3.0,
 }
 
@@ -263,12 +260,8 @@ def _workflow_dialog(prefix: str, steps: list, preview_paths: list[str]) -> None
     # ── Layout ───────────────────────────────────────────────────────────────
     _left_col, _right_col = st.columns([3, 2])
 
-    _prev_slots: list = []
     with _left_col:
-        if preview_paths:
-            _prev_sub_cols = st.columns(len(preview_paths))
-            for _pc in _prev_sub_cols:
-                _prev_slots.append(_pc.empty())
+        _prev_slot = st.empty() if preview_paths else None
 
     with _right_col:
         _data_ph = st.empty()
@@ -315,12 +308,18 @@ def _workflow_dialog(prefix: str, steps: list, preview_paths: list[str]) -> None
 
     # ── Render-Funktionen ────────────────────────────────────────────────────
     def _render_previews() -> None:
-        for _slot, _pp in zip(_prev_slots, preview_paths):
-            if Path(_pp).exists():
-                try:
-                    _slot.image(str(_pp), use_container_width=True)
-                except Exception:
-                    pass
+        if not _prev_slot or not preview_paths:
+            return
+        # Aktive Kamera ermitteln (CAM1 → Index 0, CAM2 → Index 1, ...)
+        _cur = st.session_state.get(current_cam_key, "")
+        _cam_idx = int(_cur.replace("CAM", "")) - 1 if _cur.startswith("CAM") else 0
+        _cam_idx = min(_cam_idx, len(preview_paths) - 1)
+        _pp = preview_paths[_cam_idx]
+        if Path(_pp).exists():
+            try:
+                _prev_slot.image(str(_pp), use_container_width=True)
+            except Exception:
+                pass
 
     def _render_data() -> None:
         with _data_ph.container():
@@ -615,15 +614,9 @@ def _render_settings_panel(prefix):
                 min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_max_shot",
                 help="Bleibt eine Kamera länger als dieser Wert ohne Schnitt, wird automatisch zu einer Reaktion gewechselt.")
         with c2:
-            st.number_input("Cutaway-Länge (s)", value=D['reaction_dur'],
-                min_value=0.5, step=0.1, format="%.1f", key=f"{prefix}_reaction_dur",
-                help="Wie lange eine Reaktionsaufnahme mindestens gezeigt wird. Mit Zufallsfaktor kann sie etwas länger ausfallen.")
             st.number_input("Cleanup-Mindestlänge (s)", value=D['cleanup_dur'],
                 min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_cleanup_dur",
                 help="Schnitte kürzer als dieser Wert werden am Ende automatisch entfernt.")
-        st.slider("Cutaway-Zufallsfaktor", 0.0, 0.5, D['randomness'],
-            step=0.05, key=f"{prefix}_randomness",
-            help="Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell.")
 
     with st.expander("Sprecher-Erkennung"):
         c1, c2, c3 = st.columns(3)
@@ -641,57 +634,49 @@ def _render_settings_panel(prefix):
                 help="Wie lange jemand durchgehend lauter sein muss, bevor auf ihn geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.")
 
     with st.expander("Cutaway Regeln"):
-        # ── Kopfnicken ────────────────────────────────────────────────────────
-        st.toggle("Kopfnicken", value=D['nodding_enabled'],
-            key=f"{prefix}_nodding_enabled",
-            help="Erkennt Kopfnicken der zuhörenden Person und schneidet in diesem Moment auf sie.")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            st.number_input("Min. Konfidenz (%)", value=D['min_conf'],
-                min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_min_conf",
-                help="Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird. Höhere Werte vermeiden Fehlschnitte, erkennen dafür weniger Nicken.")
-        with c2:
-            st.number_input("Nod-Threshold (px)", value=D['nod_threshold'],
-                min_value=1.0, step=1.0, format="%.0f", key=f"{prefix}_nod_threshold",
-                help="Wie weit sich der Kopf bewegen muss, damit es als Nicken zählt. Kleinere Werte erkennen auch dezentes Nicken.")
-        with c3:
-            st.number_input("Min. Nod-Dauer (s)", value=D['min_nod_dur'],
-                min_value=0.1, step=0.05, format="%.2f", key=f"{prefix}_min_nod_dur",
-                help="Wie lang die Kopfbewegung andauern muss, um als echtes Nicken zu gelten. Höhere Werte ignorieren kurze zufällige Bewegungen.")
-        with c4:
+        col_pre, col_nod, col_speak = st.columns(3)
+
+        # ── Pre-Roll (gilt für alle Cutaways) ────────────────────────────────
+        with col_pre:
+            st.markdown("**Generell**")
+            st.number_input("Cutaway-Länge (s)", value=D['reaction_dur'],
+                min_value=0.5, step=0.1, format="%.1f", key=f"{prefix}_reaction_dur",
+                help="Wie lange eine Reaktionsaufnahme mindestens gezeigt wird. Gilt für Kopfnicken und Max-Shotlänge-Cutaways.")
             st.number_input("Pre-Roll (Frames)", value=D['pre_roll'],
                 min_value=0, step=1, key=f"{prefix}_pre_roll",
-                help="Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt.")
-        with c5:
-            st.toggle("Auto Accuracy", value=True, key=f"{prefix}_auto_accuracy",
-                help="Passt die Empfindlichkeit automatisch an, je nachdem wie groß das Gesicht im Bild ist. Sinnvoll wenn Personen unterschiedlich nah an der Kamera sitzen.")
+                help="Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt. Gilt für alle Cutaway-Typen.")
+            st.slider("Zufallsfaktor", 0.0, 0.5, D['randomness'],
+                step=0.05, key=f"{prefix}_randomness",
+                help="Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell.")
 
-        st.divider()
+        # ── Kopfnicken ────────────────────────────────────────────────────────
+        with col_nod:
+            st.toggle("Kopfnicken", value=D['nodding_enabled'],
+                key=f"{prefix}_nodding_enabled",
+                help="Erkennt Kopfnicken der zuhörenden Person und schneidet in diesem Moment auf sie.")
+            st.number_input("Min. Konfidenz (%)", value=D['min_conf'],
+                min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_min_conf",
+                help="Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird.")
+            st.number_input("Nod-Threshold (px)", value=D['nod_threshold'],
+                min_value=1.0, step=1.0, format="%.0f", key=f"{prefix}_nod_threshold",
+                help="Wie weit sich der Kopf bewegen muss, damit es als Nicken zählt.")
+            st.number_input("Min. Nod-Dauer (s)", value=D['min_nod_dur'],
+                min_value=0.1, step=0.05, format="%.2f", key=f"{prefix}_min_nod_dur",
+                help="Wie lang die Kopfbewegung andauern muss, um als echtes Nicken zu gelten.")
+            st.toggle("Auto Accuracy", value=True, key=f"{prefix}_auto_accuracy",
+                help="Passt die Empfindlichkeit automatisch an die Gesichtsgröße im Bild an.")
 
         # ── Sprachreaktionen ──────────────────────────────────────────────────
-        st.toggle("Sprachreaktionen", value=D['speaking_enabled'],
-            key=f"{prefix}_speaking_enabled",
-            help="Erkennt kurze Einwürfe oder Laute der nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie.")
-        c1, c2, c3, c4, c5 = st.columns(5)
-        with c1:
-            st.number_input("Rise (dB über Baseline)", value=D['rise_db'],
+        with col_speak:
+            st.toggle("Sprachreaktionen", value=D['speaking_enabled'],
+                key=f"{prefix}_speaking_enabled",
+                help="Erkennt kurze Einwürfe oder Laute der nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie.")
+            st.number_input("Rise (dB)", value=D['rise_db'],
                 min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_rise_db",
-                help="Wie deutlich lauter jemand kurz werden muss, um als Reaktion erkannt zu werden. Höhere Werte reagieren nur auf klare Einwürfe wie 'Genau!' oder Lachen.")
-        with c2:
-            st.number_input("Min. Burst-Dauer (s)", value=D['speaking_min_dur'],
-                min_value=0.05, step=0.05, format="%.2f", key=f"{prefix}_speaking_min_dur",
-                help="Wie kurz ein Einwurf mindestens sein muss, um erkannt zu werden. Kleinere Werte erfassen auch sehr kurze Laute wie 'Mhm'.")
-        with c3:
-            st.number_input("Max. Burst-Dauer (s)", value=D['speaking_max_dur'],
-                min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_speaking_max_dur",
-                help="Wie lang ein Einwurf maximal sein darf. Längere Töne werden als normales Sprechen gewertet, nicht als Reaktion.")
-        with c4:
-            st.number_input("Min. Konfidenz (%)", value=D['speaking_min_conf'],
-                min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_speaking_min_conf",
-                help="Wie sicher die Erkennung sein muss, bevor ein Einwurf als Schnitt verwendet wird.")
-        with c5:
-            st.toggle("Peak-Detektion", value=D['speaking_peak'], key=f"{prefix}_speaking_peak",
-                help="Reagiert auf den lautesten Moment statt auf den Durchschnittspegel. Empfehlenswert für sehr kurze, knackige Einwürfe.")
+                help="Wie stark die Baseline ansteigen muss, um einen Sprach-Cutaway auszulösen.")
+            st.number_input("Max. Cutaway-Dauer (s)", value=D['speaking_max_dur'],
+                min_value=0.5, step=0.5, format="%.1f", key=f"{prefix}_speaking_max_dur",
+                help="Maximale Dauer eines Sprach-Cutaways. Im Normalfall endet der Cutaway organisch wenn die Baseline abfällt.")
 
     with st.expander("Totale-Cam Schnittlogik"):
         c1, c2 = st.columns(2)
@@ -729,10 +714,8 @@ def _collect_settings(prefix):
         'min_nod_dur':       st.session_state.get(f"{p}min_nod_dur", 0.65),
         'pre_roll':          st.session_state.get(f"{p}pre_roll", 15),
         'speaking_enabled':  st.session_state.get(f"{p}speaking_enabled", True),
-        'rise_db':           st.session_state.get(f"{p}rise_db", 10.0),
-        'speaking_min_dur':  st.session_state.get(f"{p}speaking_min_dur", 0.20),
-        'speaking_max_dur':  st.session_state.get(f"{p}speaking_max_dur", 1.5),
-        'speaking_min_conf': st.session_state.get(f"{p}speaking_min_conf", 90) / 100,
+        'rise_db':           st.session_state.get(f"{p}rise_db", 6.0),
+        'speaking_max_dur':  st.session_state.get(f"{p}speaking_max_dur", 2.5),
         'totale_simul_dur':  st.session_state.get(f"{p}totale_simul_dur", 3.0),
     }
 
@@ -755,9 +738,7 @@ def _save_settings_to_config(v):
         ('Nodding',          'min_nod_duration',     v['min_nod_dur']),
         ('CutawayTiming',    'pre_roll_frames',      v['pre_roll']),
         ('SpeakingReaction', 'rise_db',              v['rise_db']),
-        ('SpeakingReaction', 'min_duration',         v['speaking_min_dur']),
         ('SpeakingReaction', 'max_duration',         v['speaking_max_dur']),
-        ('SpeakingReaction', 'min_confidence',       v['speaking_min_conf']),
         ('TotaleLogic',      'simul_min_duration',   v['totale_simul_dur']),
     ]:
         if sec not in save:
@@ -904,6 +885,47 @@ if tab_bin is not None:
 
     # ── Analyse-Einstellungen ─────────────────────────────────────────────────
     st.divider()
+    # Pending pick → History aktualisieren + s_lut_path setzen
+    if "_lut_path_pending_s" in st.session_state:
+        _pending_lut_s = st.session_state.pop("_lut_path_pending_s")
+        _save_lut_to_history(_pending_lut_s)
+        st.session_state["s_lut_path"] = _pending_lut_s
+
+    _lut_history_s = _load_lut_history()
+    _lut_options_s = ["(kein LUT)"] + _lut_history_s
+    _cur_lut_s     = st.session_state.get("s_lut_path", "")
+    _lut_idx_s     = (_lut_history_s.index(_cur_lut_s) + 1) if _cur_lut_s in _lut_history_s else 0
+
+    _lut_col_sel_s, _lut_col_btn_s = st.columns([5, 1])
+    with _lut_col_sel_s:
+        _lut_chosen_s = st.selectbox(
+            "LUT (.cube)",
+            options=_lut_options_s,
+            index=_lut_idx_s,
+            format_func=lambda p: "(kein LUT)" if p == "(kein LUT)" else Path(p).name,
+            help="Optionale CUBE-LUT für die Mediapipe-Analyse (z.B. S-Log2→Rec.709).",
+            key="s_lut_selectbox",
+        )
+    with _lut_col_btn_s:
+        st.markdown("<div style='margin-top:1.85rem'></div>", unsafe_allow_html=True)
+        if st.button("", icon=":material/folder_open:", key="lut_picker_btn_s", use_container_width=True, help="Neue LUT-Datei auswählen"):
+            _picked_lut_s = None
+            try:
+                import subprocess as _subp_lut_s
+                _r_lut_s = _subp_lut_s.run(
+                    ["osascript", "-e",
+                     'POSIX path of (choose file with prompt "LUT-Datei auswählen (.cube)")'],
+                    capture_output=True, text=True, timeout=60,
+                )
+                if _r_lut_s.returncode == 0 and _r_lut_s.stdout.strip():
+                    _picked_lut_s = _r_lut_s.stdout.strip()
+            except Exception:
+                st.warning("Datei-Dialog nicht verfügbar.")
+            if _picked_lut_s:
+                st.session_state["_lut_path_pending_s"] = _picked_lut_s
+                st.rerun()
+    st.session_state["s_lut_path"] = "" if _lut_chosen_s == "(kein LUT)" else _lut_chosen_s
+
     st.subheader("Analyse-Einstellungen")
 
     _render_preset_row('s')
@@ -953,10 +975,12 @@ if tab_bin is not None:
         if sync_tl_name.strip():
             cmd += ["--sync-timeline", sync_tl_name.strip()]
         cmd += ["--mic-cam1", str(mic_cam1_idx), "--mic-cam2", str(mic_cam2_idx)]
-        if st.session_state.get("s_speaking_peak", False):
-            cmd += ["--speaking-mode", "peak"]
+        # Peak-Mode ist jetzt immer aktiv (hardcoded in run_from_bin.py)
         if st.session_state.get("s_auto_accuracy", False):
             cmd.append("--auto-accuracy")
+        _lut_bin = st.session_state.get("s_lut_path", "")
+        if _lut_bin:
+            cmd += ["--lut", _lut_bin]
 
         n_bin_cams = len(_scanned_cams) if '_scanned_cams' in dir() else 2
         st.session_state.bin_preview_paths = [
@@ -1331,10 +1355,12 @@ with tab_folder:
             cmd.append("--skip-analysis")
         if skip_base_edl_f:
             cmd.append("--skip-base-edl")
-        if st.session_state.get("f_speaking_peak", False):
-            cmd += ["--speaking-mode", "peak"]
+        # Peak-Mode ist jetzt immer aktiv (hardcoded in run_from_bin.py)
         if st.session_state.get("f_auto_accuracy", False):
             cmd.append("--auto-accuracy")
+        _lut_folder = st.session_state.get("f_lut_path", "")
+        if _lut_folder:
+            cmd += ["--lut", _lut_folder]
 
         st.session_state.folder_preview_paths = [
             f"/tmp/multicam_preview_cam{i + 1}.jpg" for i in range(len(_f_cams))
