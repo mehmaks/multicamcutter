@@ -123,6 +123,9 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
     dominant[diff < -threshold_db] = 'CAM2'
 
     # Change-Delay smoothing
+    # Wechsel wird erst akzeptiert wenn der neue Sprecher delay_wins
+    # aufeinanderfolgende Fenster dominant ist. Der Schnitt wird dann
+    # rückwirkend auf den Beginn des Streaks gesetzt.
     delay_wins = max(1, int(change_delay_s / window_s))
     smoothed = list(dominant)
     current, streak = None, 0
@@ -133,8 +136,13 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
             smoothed[i] = current
         else:
             streak += 1
-            smoothed[i] = current if streak < delay_wins else raw
-            if streak >= delay_wins:
+            if streak < delay_wins:
+                smoothed[i] = current
+            else:
+                # Streak bestätigt: rückwirkend alle Fenster des Streaks
+                # auf den neuen Sprecher setzen
+                for j in range(i - streak + 1, i + 1):
+                    smoothed[j] = raw
                 current = raw
 
     # Rohe Segmente
