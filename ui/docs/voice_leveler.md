@@ -1,7 +1,5 @@
 ## Wie der Voice Leveler arbeitet
 
-Der Voice Leveler bringt Sprachaufnahmen auf einen konsistenten, sendefähigen Pegel — leise Passagen werden angehoben, laute kontrolliert, Rauschen zwischen Sätzen abgesenkt.
-
 Intern arbeitet er in zwei aufeinander aufbauenden Schritten:
 
 **Schritt 1 — Leveler (AGC):** Der Leveler analysiert die integrierte Lautheit der gesamten Datei und normalisiert sie auf den eingestellten Zielwert. Das schafft eine konsistente Ausgangsbasis, auf der der nächste Schritt arbeiten kann.

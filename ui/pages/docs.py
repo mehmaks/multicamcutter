@@ -47,14 +47,26 @@ tab_multicam, tab_takes, tab_silence, tab_vl = st.tabs(["Multicam Cutter", "Take
 
 with tab_multicam:
     st.header("Multicam Cutter")
-    st.caption(
-        "Erklärt die Logik hinter den Einstellungen des Multicam Cutters — "
-        "warum es die Parameter gibt und welches Problem sie lösen."
+
+    _anleitung_path = _REPO_ROOT / "modules" / "multicam_cutter" / "Multicam_Cutter_Anleitung.md"
+    st.markdown(
+        "Der Multicam Cutter erstellt automatisch einen Rohschnitt aus deiner "
+        "Podcast-Aufnahme. Er erkennt, wer spricht, schneidet zwischen den Kameras "
+        "— und fügt Reaktions-Cutaways ein, wenn die andere Person nickt oder etwas einwirft.\n\n"
+        "Das Ergebnis ist ein Vorschlag, kein Fertigschnitt. Du kannst danach in "
+        "deinem Schnittprogramm alles nachjustieren."
     )
 
-    _anleitung = _REPO_ROOT / "modules" / "multicam_cutter" / "Multicam_Cutter_Anleitung.md"
+    _workflow_img = _ASSETS_DIR / "multicam-cutter_diagram.png"
+    if _workflow_img.exists():
+        st.markdown("<div style='margin: 1.5rem 0;'>", unsafe_allow_html=True)
+        _col_l, _col_img, _col_r = st.columns([0.15, 0.7, 0.15])
+        with _col_img:
+            st.image(str(_workflow_img), use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
     with st.expander("Kurzanleitung", expanded=True):
-        st.markdown(_anleitung.read_text(encoding="utf-8") if _anleitung.exists() else "_Datei nicht gefunden._")
+        st.markdown(_anleitung_path.read_text(encoding="utf-8") if _anleitung_path.exists() else "_Datei nicht gefunden._")
 
     with st.expander("Sprecher-Erkennung"):
         _section("multicam_sprecher.md", "sprecher-erkennung.png")
@@ -73,10 +85,21 @@ with tab_multicam:
 
 with tab_takes:
     st.header("Take Selector")
-    st.caption(
-        "Erklärt die Erkennungsparameter des Take Selectors — "
-        "wie Takes und Sektionen erkannt werden und welche Filter es gibt."
+    st.markdown(
+        "Der Take Selector analysiert geskriptete Aufnahmen — Clips, in denen ein Text "
+        "mehrfach aufgenommen wurde — und wählt automatisch den besten Take pro Abschnitt aus.\n\n"
+        "Er erkennt, wo neue Versuche beginnen, gruppiert zusammengehörige Takes und schlägt "
+        "jeweils den letzten vollständigen Take vor. Die Auswahl kann manuell überschrieben werden."
     )
+
+    _takes_img = _ASSETS_DIR / "takeselector_diagram.png"
+    if _takes_img.exists():
+        st.markdown("<div style='margin: 1.5rem 0;'>", unsafe_allow_html=True)
+        _col_tl, _col_timg, _col_tr = st.columns([0.15, 0.7, 0.15])
+        with _col_timg:
+            st.image(str(_takes_img), use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
+
     with st.expander("Whisper-Modell", expanded=True):
         _section("takes.md", "takeselector_erkennung.png")
 
@@ -85,17 +108,37 @@ with tab_takes:
 
 with tab_vl:
     st.header("Voice Leveler")
-    st.caption("Erklärt die Einstellungen des Voice Levelers.")
+    st.markdown(
+        "Der Voice Leveler bringt Sprachaufnahmen auf einen konsistenten, sendefähigen Pegel "
+        "— leise Passagen werden angehoben, laute kontrolliert, Rauschen zwischen Sätzen abgesenkt."
+    )
+
+    _vl_img = _ASSETS_DIR / "voiceleveler_diagram.png"
+    if _vl_img.exists():
+        st.markdown("<div style='margin: 1.5rem 0;'>", unsafe_allow_html=True)
+        _col_vl, _col_vimg, _col_vr = st.columns([0.15, 0.7, 0.15])
+        with _col_vimg:
+            st.image(str(_vl_img), use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with st.expander("Einstellungen", expanded=True):
         _section("voice_leveler.md", "voiceleveler_settings.png")
 
 with tab_silence:
     st.header("Silence Cutter")
-    st.caption(
-        "Erklärt wie die Stille-Erkennung funktioniert und was die einzelnen "
-        "Parameter bewirken."
+    st.markdown(
+        "Der Silence Cutter erkennt stille Passagen in Audioaufnahmen und entfernt sie automatisch "
+        "aus der Timeline — ideal für Interviews, Podcasts oder Voice-Over, bei denen lange Pausen "
+        "den Schnitt aufblähen."
     )
+
+    _silence_img = _ASSETS_DIR / "silencecutter_diagram.png"
+    if _silence_img.exists():
+        st.markdown("<div style='margin: 1.5rem 0;'>", unsafe_allow_html=True)
+        _col_sl, _col_simg, _col_sr = st.columns([0.15, 0.7, 0.15])
+        with _col_simg:
+            st.image(str(_silence_img), use_container_width=True)
+        st.markdown("</div>", unsafe_allow_html=True)
 
     with st.expander("Funktionsweise & Einstellungen", expanded=True):
         _section("silence.md", "silencecutter_settings.png")

@@ -18,14 +18,6 @@ Das Modell wird beim ersten Einsatz automatisch heruntergeladen und lokal zwisch
 
 ---
 
-## Take Selector
-
-Der Take Selector analysiert geskriptete Aufnahmen — Clips, in denen ein Text mehrfach aufgenommen wurde — und wählt automatisch den besten Take pro Abschnitt aus.
-
-Er erkennt, wo neue Versuche beginnen, gruppiert zusammengehörige Takes und schlägt jeweils den letzten vollständigen Take vor. Die Auswahl kann manuell überschrieben werden.
-
----
-
 ### Erkennungs-Parameter
 
 #### Pause-Schwelle (s)

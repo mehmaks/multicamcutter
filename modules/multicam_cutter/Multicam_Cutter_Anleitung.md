@@ -1,15 +1,9 @@
 # Multicam Cutter — Kurzanleitung
 
-Der Multicam Cutter erstellt automatisch einen Rohschnitt aus deiner Podcast-Aufnahme. Er erkennt, wer spricht, schneidet zwischen den Kameras — und fügt Reaktions-Cutaways ein, wenn die andere Person nickt oder etwas einwirft.
-
-Das Ergebnis ist ein Vorschlag, kein Fertigschnitt. Du kannst danach in deinem Schnittprogramm alles nachjustieren.
-
----
-
 ## Was du brauchst
 
 - **Mindestens 2 Kamera-Clips** (MP4, MOV oder MXF) mit eingebettetem Timecode — optional eine zusätzliche Totale
-- **1–2 separate Mikrofon-Aufnahmen** (WAV oder AIF, z.B. vom Zoom-Recorder)
+- **Pro Person eine eigene Mikrofonspur** (WAV oder AIF, z.B. vom Zoom-Recorder)
 - Die Kameras müssen **nicht gleichzeitig gestartet** worden sein — die Synchronisation passiert automatisch
 
 ---
