@@ -224,12 +224,17 @@ def _bursts_rolling(
     decay_hold_s: float = 3.0,
     lookback_s: float = 1.0,
     sustain_margin_db: float = 1.5,
-) -> list:
-    """Rolling-Baseline Burst Detection mit Rise-Erkennung.
+    no_burst_decay_factor: float = 3.0,
+    return_debug: bool = False,
+):
+    """Rolling-Baseline Burst Detection mit Rise-Erkennung (Single-Pass).
 
     Erkennt Bursts anhand der Baseline-Anstiegsrate (nicht Pegel vs Baseline).
     Burst-Dauer wird durch Peak-Tracking bestimmt: Burst endet, wenn die
     Baseline unter (Peak - sustain_margin_db) fällt.
+
+    Baseline-Decay ist schneller wenn kein Burst aktiv ist (no_burst_decay_factor),
+    damit die Baseline nicht durch nicht-ausgelöste Rises hochdriftet.
     """
     db        = _level_windows(audio, sr, window_s, mode=mode)
     attack_n  = max(1, int(attack_window_s  / window_s))
@@ -241,66 +246,105 @@ def _bursts_rolling(
     alpha_a   = 1.0 / attack_n
     alpha_r   = 1.0 / release_n
 
-    # ── Baseline mit S-Kurve-Decay ──────────────────────────────────────────
     warmup_n  = max(1, int(warmup_s / window_s))
     start_val = float(np.percentile(db[:warmup_n], 75))
 
+    # ── Single-Pass: Baseline + Rise + Burst-Detection ──────────────────────
     baseline = np.empty(len(db))
     baseline[0] = start_val
+    rise = np.zeros(len(db))
+
+    bursts = []
+    in_burst = False
+    burst_start = 0
+    peak = 0.0
     since_attack = 0
+
     for k in range(1, len(db)):
+        # ── Baseline-Update ─────────────────────────────────────────────
         if db[k] > baseline[k - 1]:
             baseline[k] = baseline[k - 1] + alpha_a * (db[k] - baseline[k - 1])
             since_attack = 0
         else:
             since_attack += 1
-            if decay_hold_n > 0:
-                t = min(since_attack / decay_hold_n, 1.0)
-                s = t * t * (3.0 - 2.0 * t)
-                eff_alpha = alpha_r * (0.05 + 0.95 * s)
+            if in_burst:
+                # Während Burst: langsamer Decay mit S-Kurve
+                if decay_hold_n > 0:
+                    t = min(since_attack / decay_hold_n, 1.0)
+                    s = t * t * (3.0 - 2.0 * t)
+                    eff_alpha = alpha_r * (0.05 + 0.95 * s)
+                else:
+                    eff_alpha = alpha_r
             else:
-                eff_alpha = alpha_r
+                # Kein Burst: schnellerer Decay
+                eff_alpha = alpha_r * no_burst_decay_factor
             baseline[k] = baseline[k - 1] + eff_alpha * (db[k] - baseline[k - 1])
 
-    # ── Rise-Detection ──────────────────────────────────────────────────────
-    rise = np.zeros(len(db))
-    for k in range(1, len(db)):
+        # ── Rise ────────────────────────────────────────────────────────
         lo = max(0, k - lookback_n)
         rise[k] = baseline[k] - baseline[lo]
 
-    bursts = []
-    i = 0
-    while i < len(db):
-        if rise[i] >= rise_db:
-            # Burst-Start! Peak-Tracking für Burst-Dauer
-            peak = baseline[i]
-            j = i + 1
-            while j < len(db):
-                if baseline[j] > peak:
-                    peak = baseline[j]
-                if baseline[j] < peak - sustain_margin_db:
-                    break
-                if max_wins > 0 and (j - i) >= max_wins:
-                    break
-                j += 1
+        # ── Burst State Machine ─────────────────────────────────────────
+        if in_burst:
+            if baseline[k] > peak:
+                peak = baseline[k]
+            if baseline[k] < peak - sustain_margin_db:
+                burst_len = k - burst_start
+                if burst_len >= min_wins:
+                    start_s  = burst_start * window_s
+                    end_s    = k * window_s
+                    avg_rise = float(np.mean(rise[burst_start:k]))
+                    conf     = min(1.0, avg_rise / rise_db)
+                    tl_frame = timeline_start_frame + round(start_s * fps)
+                    bursts.append({
+                        'start_s':  start_s,
+                        'end_s':    end_s,
+                        'dur_s':    end_s - start_s,
+                        'tl_frame': tl_frame,
+                        'conf':     round(conf, 3),
+                    })
+                in_burst = False
+            elif max_wins > 0 and (k - burst_start) >= max_wins:
+                burst_len = k - burst_start
+                if burst_len >= min_wins:
+                    start_s  = burst_start * window_s
+                    end_s    = k * window_s
+                    avg_rise = float(np.mean(rise[burst_start:k]))
+                    conf     = min(1.0, avg_rise / rise_db)
+                    tl_frame = timeline_start_frame + round(start_s * fps)
+                    bursts.append({
+                        'start_s':  start_s,
+                        'end_s':    end_s,
+                        'dur_s':    end_s - start_s,
+                        'tl_frame': tl_frame,
+                        'conf':     round(conf, 3),
+                    })
+                in_burst = False
+        elif rise[k] >= rise_db:
+            in_burst = True
+            burst_start = k
+            peak = baseline[k]
 
-            burst_len = j - i
-            if burst_len >= min_wins:
-                start_s  = i * window_s
-                end_s    = j * window_s
-                avg_rise = float(np.mean(rise[i:j]))
-                conf     = min(1.0, avg_rise / rise_db)
-                tl_frame = timeline_start_frame + round(start_s * fps)
-                bursts.append({
-                    'start_s':  start_s,
-                    'end_s':    end_s,
-                    'dur_s':    end_s - start_s,
-                    'tl_frame': tl_frame,
-                    'conf':     round(conf, 3),
-                })
-            i = j
-        else:
-            i += 1
+    # Letzten offenen Burst schließen
+    if in_burst:
+        k = len(db)
+        burst_len = k - burst_start
+        if burst_len >= min_wins:
+            start_s  = burst_start * window_s
+            end_s    = k * window_s
+            avg_rise = float(np.mean(rise[burst_start:k]))
+            conf     = min(1.0, avg_rise / rise_db)
+            tl_frame = timeline_start_frame + round(start_s * fps)
+            bursts.append({
+                'start_s':  start_s,
+                'end_s':    end_s,
+                'dur_s':    end_s - start_s,
+                'tl_frame': tl_frame,
+                'conf':     round(conf, 3),
+            })
+
+    if return_debug:
+        return bursts, db, baseline, rise
     return bursts
 
 
@@ -325,9 +369,9 @@ def detect_speaking_reactions(
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
 
-    Läuft auf dem vollständigen Audio (nicht per Segment), damit die Baseline
-    sich über die gesamte Aufnahme anpassen kann. Die Diarisierungs-Segmente
-    bestimmen nur noch, welche Bursts als CAM1- vs. CAM2-Reaktion zählen.
+    Läuft per Diarization-Segment mit Baseline-Reset am Anfang jeder
+    Off-Section, damit die Baseline nicht über die gesamte Aufnahme
+    wegdriftet.
 
     Returns (cam1_reactions, cam2_reactions).
     """
@@ -347,50 +391,45 @@ def detect_speaking_reactions(
             'dur_s':      burst.get('dur_s', 0),
         }
 
+    # Per-Segment Burst-Detection mit frischer Baseline pro Segment.
+    # CAM1 spricht → MIC2-Bursts = CAM2-Reaktionen
+    # CAM2 spricht → MIC1-Bursts = CAM1-Reaktionen
     cam1_reactions, cam2_reactions = [], []
 
     for seg in segments:
-        seg_start_s  = seg['start_s']
-        seg_end_s    = seg['end_s']
-        seg_start_sa = int(seg_start_s * sr)
-        seg_end_sa   = int(seg_end_s   * sr)
-        tl_offset    = wav_edl_frame + round(seg_start_s * fps)
+        seg_start_sample = int(seg['start_s'] * sr)
+        seg_end_sample   = int(seg['end_s'] * sr)
+        seg_start_edl    = wav_edl_frame + round(seg['start_s'] * fps)
 
         if seg['speaker'] == 'CAM1':
-            # CAM1 spricht → Off-Mic ist MIC2 (audio2)
-            audio_slice = audio2[seg_start_sa:seg_end_sa]
-            bursts = _bursts_rolling(
-                audio_slice, sr, fps, window_s,
-                attack_window_s, release_window_s, warmup_s,
-                rise_db, min_duration_s, max_duration_s, hold_s,
-                timeline_start_frame=tl_offset,
-                mode=mode,
-                decay_hold_s=decay_hold_s,
-                lookback_s=lookback_s,
-                sustain_margin_db=sustain_margin_db,
-            )
-            for b in bursts:
-                r = _to_reaction(b, cam2_timeline_zero_video)
-                if r:
-                    cam2_reactions.append(r)
-
+            seg_audio = audio2[seg_start_sample:seg_end_sample]
+            cam_tz = cam2_timeline_zero_video
+            target = cam2_reactions
         elif seg['speaker'] == 'CAM2':
-            # CAM2 spricht → Off-Mic ist MIC1 (audio1)
-            audio_slice = audio1[seg_start_sa:seg_end_sa]
-            bursts = _bursts_rolling(
-                audio_slice, sr, fps, window_s,
-                attack_window_s, release_window_s, warmup_s,
-                rise_db, min_duration_s, max_duration_s, hold_s,
-                timeline_start_frame=tl_offset,
-                mode=mode,
-                decay_hold_s=decay_hold_s,
-                lookback_s=lookback_s,
-                sustain_margin_db=sustain_margin_db,
-            )
-            for b in bursts:
-                r = _to_reaction(b, cam1_timeline_zero_video)
-                if r:
-                    cam1_reactions.append(r)
+            seg_audio = audio1[seg_start_sample:seg_end_sample]
+            cam_tz = cam1_timeline_zero_video
+            target = cam1_reactions
+        else:
+            continue
+
+        if len(seg_audio) < int(warmup_s * sr):
+            continue
+
+        bursts = _bursts_rolling(
+            seg_audio, sr, fps, window_s,
+            attack_window_s, release_window_s, warmup_s,
+            rise_db, min_duration_s, max_duration_s, hold_s,
+            timeline_start_frame=seg_start_edl,
+            mode=mode,
+            decay_hold_s=decay_hold_s,
+            lookback_s=lookback_s,
+            sustain_margin_db=sustain_margin_db,
+        )
+
+        for b in bursts:
+            r = _to_reaction(b, cam_tz)
+            if r:
+                target.append(r)
 
     return cam1_reactions, cam2_reactions
 
@@ -577,6 +616,22 @@ def main():
                         help='EDL-Frame bei dem die Totale-Cam Frame 0 liegt (Standard: 0 = wie CAM1)')
     parser.add_argument('--totale-simul-min-duration', type=float, default=3.0,
                         help='Mindestdauer Simultansprechen bevor auf Totale geschnitten wird (s)')
+    # Pause-Trimming
+    parser.add_argument('--pause-trim',           action='store_true',
+                        help='Überlange Sprechpausen an Diarization-Grenzen trimmen')
+    parser.add_argument('--max-pause',            type=float, default=1.0,
+                        help='Max. erlaubte Pausendauer in Sekunden (default: 1.0)')
+    parser.add_argument('--pause-silence-db',     type=float, default=-40.0,
+                        help='dB-Schwelle unter der Stille erkannt wird (default: -40)')
+    parser.add_argument('--pause-search-radius',  type=float, default=3.0,
+                        help='Suchradius um jede Grenze in Sekunden (default: 3.0)')
+    parser.add_argument('--pause-min-duration',   type=float, default=0.3,
+                        help='Mindest-Pausendauer für Erkennung (default: 0.3)')
+    parser.add_argument('--pause-cut-mode',       choices=['l-cut', 'middle', 'j-cut'],
+                        default='middle',
+                        help='Video-Schnittmodus in der Pause (default: middle)')
+    parser.add_argument('--audio-trims-out',      default=None,
+                        help='JSON-Ausgabe: Audio-Keep-Regionen für MIC-Platzierung')
     args = parser.parse_args()
 
     print("=" * 70)
@@ -818,6 +873,24 @@ def main():
             Path(args.cam2_off_sections_out).write_text(json.dumps(cam2_off))
             total_off_s = sum(e - s for s, e in cam2_off) / args.fps
             print(f"  CAM2 Off-Sektionen: {len(cam2_off)} Segmente ({total_off_s/60:.1f} min)")
+
+    # ── 6b. Pause-Detection (optional) ──────────────────────────────────────
+    # Nur erkennen und als JSON speichern — Anwendung erfolgt später in
+    # run_from_bin.py auf die finalen cut_events (nach Cutaway-Einfügung),
+    # damit tzvf in add_reactions_to_edl.py korrekt bleibt.
+    if args.pause_trim:
+        from pause_trim_edl import detect_pauses, save_pauses
+        pauses = detect_pauses(
+            events, audio_cam1, audio_cam2, sr1,
+            args.wav_edl_frame, args.fps,
+            silence_db=args.pause_silence_db,
+            search_radius_s=args.pause_search_radius,
+            min_pause_s=args.pause_min_duration,
+        )
+        if pauses and args.audio_trims_out:
+            save_pauses(pauses, args.audio_trims_out)
+        elif not pauses:
+            print("  Keine trimmbare Pausen gefunden")
 
     # ── 7. EDL schreiben ──────────────────────────────────────────────────────
     write_edl(events, args.output)

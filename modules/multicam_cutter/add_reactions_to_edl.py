@@ -218,8 +218,7 @@ def build_events_with_cutaways(
 
             if not cutaway_enabled.get(rtype, False):
                 continue
-            threshold = speaking_min_confidence if rtype == 'speaking_reaction' else min_confidence
-            if confidence < threshold:
+            if rtype != 'speaking_reaction' and confidence < min_confidence:
                 continue
             if timeline_frame < 0:
                 continue
@@ -656,7 +655,10 @@ def main():
         print(f"  {on_name}: {cam_cutaways} Cutaways eingefügt")
 
     all_events.sort(key=lambda e: e.record_in_frame)
+    speaking_cutaways = sum(1 for e in all_events if 'speaking' in getattr(e, 'reason', ''))
+    nodding_cutaways = sum(1 for e in all_events if 'nodding' in getattr(e, 'reason', ''))
     print(f"\n  Gesamt vor Cleanup: {len(all_events)} Events")
+    print(f"    davon Nodding-Cutaways: {nodding_cutaways}, Speaking-Cutaways: {speaking_cutaways}")
 
     # Pass 3: Cleanup
     final_events = cleanup_short_events(all_events, cleanup_min_duration, args.fps)
