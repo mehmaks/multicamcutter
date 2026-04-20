@@ -12,7 +12,7 @@ Du gibst dem Tool deine Kamera- und Mikrofondateien. Es übernimmt alles bis zum
 
 ## Für welche Formate ist es gemacht?
 
-- **Podcasts** mit 2 Personen (Moderator + Gast)
+- **Podcasts** mit 2 oder mehr Personen (Moderator + Gast)
 - **Interviews** im Studio oder on location
 - **Gesprächsformate** mit mehreren Kameras und separaten Lavalier-Mikrofonen
 - Jede Produktion, bei der zwei oder mehr Personen vor einer oder mehreren Kameras sprechen
@@ -28,7 +28,7 @@ Das Tool erkennt automatisch, wer gerade spricht — auf Basis der Mikrofonsigna
 Während Person A spricht, beobachtet das Tool Person B im Bild. Nickt sie? Lacht sie? Fällt sie kurz ein? Diese Momente werden automatisch als Gegenschnitte in die Timeline eingebaut.
 
 **Automatische Synchronisation**
-Kameras und Mikrofone müssen nicht gleichzeitig gestartet worden sein. Das Tool synchronisiert alle Quellen automatisch über den Ton — kein Klatschholz, kein Timecode nötig.
+Kameras und Mikrofone müssen nicht gleichzeitig gestartet worden sein. Das Tool synchronisiert alle Quellen automatisch über den Ton — keine Klappe, kein Timecode nötig.
 
 **Saubere Audiospur**
 Die fertigen Lavalier-Spuren landen synchron in der Timeline — eine pro Sprecher. Kein manuelles Verschieben von Audioclips.
@@ -39,19 +39,19 @@ Die fertigen Lavalier-Spuren landen synchron in der Timeline — eine pro Sprech
 
 Eine Timeline in deinem Schnittprogramm — bereit zum Verfeinern.
 
-- Alle Schnitte sind farblich markiert, damit du auf einen Blick siehst warum ein Schnitt gesetzt wurde
 - Nichts ist fest — jeder Schnitt lässt sich verschieben, verlängern oder löschen
-- Das Ergebnis ist kein Fertigschnitt, sondern ein strukturierter Ausgangspunkt, der 70–90 % der Schnittarbeit abnimmt
+- Das Ergebnis ist kein Fertigschnitt, sondern ein strukturierter Ausgangspunkt, der 90–95 % der Schnittarbeit abnimmt
 
 ---
 
 ## Kompatible Schnittprogramme
 
-Die fertigen Dateien lassen sich direkt importieren in:
+Getestet und bestätigt:
 
 - **DaVinci Resolve**
 - **Adobe Premiere Pro**
-- **Avid Media Composer**
+
+Das Tool gibt eine AAF-Datei aus — ein offenes Format, das von den meisten professionellen Schnittprogrammen unterstützt wird. Grundsätzlich sollte jede Software funktionieren, die AAF-Import beherrscht.
 
 ---
 
@@ -59,9 +59,9 @@ Die fertigen Dateien lassen sich direkt importieren in:
 
 | Produktionslänge | Manuelle Schnittzeit (Ersteditschnitt) | Mit Multicam Cutter |
 |---|---|---|
-| 30-Minuten-Folge | 2–4 Stunden | 15–30 Minuten |
-| 60-Minuten-Folge | 4–8 Stunden | 30–60 Minuten |
-| 90-Minuten-Folge | 6–12 Stunden | 45–90 Minuten |
+| 30-Minuten-Folge | 1–2 Stunden | ~15 Minuten |
+| 60-Minuten-Folge | 2–3 Stunden | ~30 Minuten |
+| 90-Minuten-Folge | 3–5 Stunden | ~45 Minuten |
 
 *Die Laufzeit hängt von der Hardware und der Länge des Materials ab. Analysiert wird lokal auf deinem Rechner — keine Cloud, keine externen Server.*
 
@@ -71,7 +71,7 @@ Die fertigen Dateien lassen sich direkt importieren in:
 
 - Zwei oder mehr Kameraaufnahmen der Situation (MP4, MOV, MXF)
 - Separate Audiodateien pro Mikrofon (WAV oder AIF)
-- Einen Rechner mit macOS oder Windows (Apple Silicon empfohlen für kurze Analysezeiten)
+- Einen Mac (Apple Silicon empfohlen für kurze Analysezeiten)
 
 Die Kameras müssen nicht denselben Standort haben, nicht gleichzeitig gestartet worden sein und nicht dieselbe Auflösung haben.
 

@@ -37,7 +37,8 @@ def add_marker(frame: int, color: str = "blue", name: str = "",
     if color not in MARKER_COLORS:
         raise ValueError(f"Ungültige Farbe '{color}'. Erlaubt: {sorted(MARKER_COLORS)}")
     timeline = _get_timeline()
-    return timeline.AddMarker(frame, color.capitalize(), name, note, duration)
+    tl_start = timeline.GetStartFrame()
+    return timeline.AddMarker(frame - tl_start, color.capitalize(), name, note, duration)
 
 
 def add_markers_from_events(events: list, color: str = "blue"):

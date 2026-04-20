@@ -36,7 +36,7 @@ def _load_lut_history() -> list[str]:
         if _LUT_HISTORY_FILE.exists():
             seen: set[str] = set()
             result: list[str] = []
-            for p in json.loads(_LUT_HISTORY_FILE.read_text()):
+            for p in json.loads(_LUT_HISTORY_FILE.read_text(encoding='utf-8')):
                 if p not in seen and Path(p).is_file():
                     seen.add(p)
                     result.append(p)
@@ -66,6 +66,7 @@ _PARAM_NAMES = [
     'min_conf', 'nodding_enabled', 'nod_threshold', 'min_nod_dur', 'pre_roll',
     'speaking_enabled', 'rise_db', 'speaking_max_dur',
     'totale_simul_dur',
+    'pause_trim_enabled', 'max_pause', 'pause_silence_db', 'pause_cut_mode',
 ]
 
 _DEFAULTS: dict = {
@@ -86,6 +87,10 @@ _DEFAULTS: dict = {
     'rise_db':           6.0,
     'speaking_max_dur':  2.5,
     'totale_simul_dur':  3.0,
+    'pause_trim_enabled': False,
+    'max_pause':         1.0,
+    'pause_silence_db':  -40.0,
+    'pause_cut_mode':    'middle',
 }
 
 _resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"
@@ -410,13 +415,15 @@ def _workflow_dialog(prefix: str, steps: list, preview_paths: list[str]) -> None
 
     # ── Schließen (nach Abschluss) ───────────────────────────────────────────
     if not st.session_state.get(running_key, False):
+        # Flag sofort zurücksetzen — verhindert Wiederauftauchen wenn der
+        # Dialog per X-Button geschlossen wird statt per "Schließen".
+        st.session_state[f"show_{prefix}_dialog"] = False
         if st.button("Schließen", type="primary", use_container_width=True):
             for _pp in preview_paths:
                 try:
                     Path(_pp).unlink(missing_ok=True)
                 except Exception:
                     pass
-            st.session_state[f"show_{prefix}_dialog"] = False
             st.rerun()
 
 
@@ -463,7 +470,7 @@ def _on_preset_change(prefix: str) -> None:
         preset_file = _builtin_presets_dir / f"{sel}.json"
     if not preset_file.exists():
         return
-    pdata = json.loads(preset_file.read_text())
+    pdata = json.loads(preset_file.read_text(encoding='utf-8'))
     pending = {}
     for name, val in pdata.items():
         bare = name[2:] if (name.startswith('s_') or name.startswith('f_')) else name
@@ -537,14 +544,12 @@ def _render_preset_row(prefix: str) -> None:
             on_change=_on_preset_change,
             args=(prefix,),
         )
-        if builtin_names:
-            st.caption("◆ Mitgelieferte Vorlage — kann nicht gelöscht werden")
         sel_name = st.session_state.get(f"{prefix}_preset_select")
         if sel_name in builtin_names:
             _preset_path = next((p for n, p, bi in presets if n == sel_name and bi), None)
             if _preset_path:
                 try:
-                    _desc = json.loads(_preset_path.read_text()).get("description", "")
+                    _desc = json.loads(_preset_path.read_text(encoding='utf-8')).get("description", "")
                     if _desc:
                         st.caption(_desc)
                 except Exception:
@@ -633,6 +638,37 @@ def _render_settings_panel(prefix):
                 min_value=0.0, step=0.05, format="%.2f", key=f"{prefix}_change_delay",
                 help="Wie lange jemand durchgehend lauter sein muss, bevor auf ihn geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.")
 
+        st.divider()
+        st.markdown("**Pausen-Trimming**")
+        cp1, cp2, cp3 = st.columns(3)
+        with cp1:
+            st.toggle("Pausen trimmen", value=D['pause_trim_enabled'],
+                key=f"{prefix}_pause_trim_enabled",
+                help="Überlange Sprechpausen an Sprecherwechseln automatisch kürzen.")
+            _CUT_MODES = ['Middle', 'L-Cut', 'J-Cut', 'Zufall']
+            _cut_mode_val = D['pause_cut_mode'].capitalize() if D['pause_cut_mode'] != 'random' else 'Zufall'
+            if _cut_mode_val == 'L-cut':
+                _cut_mode_val = 'L-Cut'
+            elif _cut_mode_val == 'J-cut':
+                _cut_mode_val = 'J-Cut'
+            st.selectbox("Schnittmodus", options=_CUT_MODES,
+                index=_CUT_MODES.index(_cut_mode_val),
+                key=f"{prefix}_pause_cut_mode",
+                help="Wo der Videocut in der Pause liegt. Middle: symmetrisch. "
+                     "L-Cut: Video schneidet am Pausenanfang. "
+                     "J-Cut: Video schneidet am Pausenende. "
+                     "Zufall: Wählt bei jedem Schnitt zufällig. "
+                     "Audio ist immer Middle-Cut.")
+        with cp2:
+            st.number_input("Max. Pause (s)", value=D['max_pause'],
+                min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_max_pause",
+                help="Maximale Pausenlänge die bestehen bleibt. Längere Pausen werden auf diesen Wert gekürzt.")
+        with cp3:
+            st.number_input("Stille-Schwelle (dB)", value=D['pause_silence_db'],
+                min_value=-80.0, max_value=-10.0, step=1.0, format="%.0f",
+                key=f"{prefix}_pause_silence_db",
+                help="dB-Schwelle unter der beide Mikrofone als still gelten. Standard: -40 dB.")
+
     with st.expander("Cutaway Regeln"):
         col_pre, col_nod, col_speak = st.columns(3)
 
@@ -716,7 +752,12 @@ def _collect_settings(prefix):
         'speaking_enabled':  st.session_state.get(f"{p}speaking_enabled", True),
         'rise_db':           st.session_state.get(f"{p}rise_db", 6.0),
         'speaking_max_dur':  st.session_state.get(f"{p}speaking_max_dur", 2.5),
-        'totale_simul_dur':  st.session_state.get(f"{p}totale_simul_dur", 3.0),
+        'totale_simul_dur':      st.session_state.get(f"{p}totale_simul_dur", 3.0),
+        'pause_trim_enabled':    st.session_state.get(f"{p}pause_trim_enabled", False),
+        'max_pause':             st.session_state.get(f"{p}max_pause", 1.0),
+        'pause_silence_db':      st.session_state.get(f"{p}pause_silence_db", -40.0),
+        'pause_cut_mode':        {'Middle': 'middle', 'L-Cut': 'l-cut', 'J-Cut': 'j-cut', 'Zufall': 'random'}.get(
+                                     st.session_state.get(f"{p}pause_cut_mode", 'Middle'), 'middle'),
     }
 
 
@@ -746,6 +787,12 @@ def _save_settings_to_config(v):
         save[sec][key] = str(val)
     save['Nodding']['enabled'] = 'true' if v['nodding_enabled'] else 'false'
     save['SpeakingReaction']['enabled'] = 'true' if v['speaking_enabled'] else 'false'
+    if 'PauseTrim' not in save:
+        save['PauseTrim'] = {}
+    save['PauseTrim']['enabled']            = 'true' if v.get('pause_trim_enabled') else 'false'
+    save['PauseTrim']['max_pause']           = str(v.get('max_pause', 1.0))
+    save['PauseTrim']['silence_db']          = str(v.get('pause_silence_db', -40.0))
+    save['PauseTrim']['cut_mode']            = str(v.get('pause_cut_mode', 'middle'))
     with open(str(_cfg_path), 'w') as f:
         save.write(f)
 

@@ -9,6 +9,7 @@ Zwei Phasen:
 """
 
 import json
+import random
 import numpy as np
 from pathlib import Path
 
@@ -273,10 +274,12 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         half = max_pause_frames // 2
         half2 = max_pause_frames - half
 
-        if cut_mode == 'l-cut':
+        mode = random.choice(['middle', 'l-cut', 'j-cut']) if cut_mode == 'random' else cut_mode
+
+        if mode == 'l-cut':
             p1_end = ps                       # Clip 1 endet am Pausenanfang
             p2_start = pe - max_pause_frames  # Clip 2 startet so dass max_pause bleibt
-        elif cut_mode == 'j-cut':
+        elif mode == 'j-cut':
             p1_end = ps + max_pause_frames    # Clip 1 behält max_pause Stille
             p2_start = pe                     # Clip 2 startet am Pausenende
         else:  # middle

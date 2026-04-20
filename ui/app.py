@@ -401,6 +401,14 @@ with st.sidebar:
         unsafe_allow_html=True,
     )
 
+    if _ui_cfg.getboolean("Debug", "limit_frames", fallback=False):
+        st.markdown(
+            "<span style='background:#dc2626; color:#fff; padding:2px 10px; "
+            "border-radius:4px; font-size:0.75rem; font-weight:600;'>"
+            "DEBUG MODUS</span>",
+            unsafe_allow_html=True,
+        )
+
     st.divider()
 
     # 2. Modul-Liste mit Sections

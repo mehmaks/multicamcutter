@@ -657,7 +657,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--pause-silence-db',    pt_cfg.get('silence_db', '-40.0'),
                 '--pause-search-radius', pt_cfg.get('search_radius', '3.0'),
                 '--pause-min-duration',  pt_cfg.get('min_pause_duration', '0.3'),
-                '--pause-cut-mode',      pt_cfg.get('cut_mode', 'middle'),
+                '--pause-cut-mode',      'middle' if pt_cfg.get('cut_mode', 'middle') == 'random' else pt_cfg.get('cut_mode', 'middle'),
                 '--audio-trims-out',     str(work_dir / 'audio_trims.json'),
             ]
 

@@ -1,7 +1,7 @@
 import streamlit as st
 
-st.header("Roadmap")
-st.markdown(
+st.title("Roadmap")
+st.caption(
     "Geplante Features und offene Punkte — geordnet nach Modul bzw. Bereich."
 )
 
@@ -46,23 +46,19 @@ st.markdown(
 """
 )
 
-st.subheader("KI-Pipeline")
-st.markdown(
-    """
-- **Klappenerkennung** — Automatische Erkennung von Filmklappen: Audio-Transient (librosa) + visuelle Bestätigung (CLIP Zero-Shot) + Texterkennung (Claude Vision API).
-- **KI-Metadaten-Pipeline** — Claude Vision + Whisper für automatische Clip-Analyse. Architektur entschieden, noch nichts gebaut.
-"""
-)
-
 st.subheader("Allgemein / UI")
 st.markdown(
     """
-- **Zentrales App-Log für Bugreports** — Persistenter, modulübergreifender Rolling-File-Logger (`~/.resolve-toolkit/app.log`).
-- **Log-Zeitstempel** — Jedem Log-Eintrag einen Zeitstempel voranstellen (z.B. `[10:14:32]`).
-- **Log-Console UX** — Scrollbare Console mit fixer Höhe + optionaler "Konsole maximieren"-Button.
 - **Projektabhängige Parameter-Saves** — Slider-Werte je Resolve-Projekt in einer JSON-Datei speichern.
-- **Settings-Page** — Enhance, Silence und Auphonic haben noch keine eigene Settings-UI (nur Rohtexteditor).
 - **Mehrsprachigkeit** — Zentrale String-Datei + Sprachauswahl in der Sidebar für englischsprachige Nutzer.
+"""
+)
+
+st.subheader("Cloud-Analyse")
+st.markdown(
+    """
+- **Server-seitige Multicam-Analyse** — Lokale Proxy-Erstellung (640px H.264, ~300 MB/Kamera statt 120 GB), Upload zum Server, parallele Nodding-Analyse aller Kameras gleichzeitig, AAF-Download. Drastisch schnellere Analyse für Nutzer mit schwacher Hardware.
+- **Freemium-Modell** — Lokale Nutzung kostenfrei oder einmalige Lizenz; Cloud-Computing als Abo oder nutzungsbasierte Abrechnung.
 """
 )
 
