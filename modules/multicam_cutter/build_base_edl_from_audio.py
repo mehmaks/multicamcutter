@@ -195,6 +195,74 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
     return final
 
 
+def detect_on_speaker_pauses(audio1: np.ndarray, audio2: np.ndarray, sr: int,
+                              segments: list, silence_db: float = -40.0,
+                              min_pause_s: float = 0.3, padding_s: float = 0.15,
+                              window_s: float = 0.02) -> dict:
+    """
+    Erkennt Sprechpausen innerhalb der On-Segmente jedes Sprechers.
+
+    Für jedes Diarization-Segment wird das ON-Mic (nicht Off-Mic!) auf Stille
+    geprüft. Erkannte Pausen werden als Masken-Intervalle zurückgegeben, damit
+    die Speaking-Reaction-Baseline während Crossbleed-Abfällen eingefroren wird.
+
+    Returns:
+        {'CAM1': [(start_s, end_s), ...], 'CAM2': [(start_s, end_s), ...]}
+    """
+    min_wins = max(1, int(min_pause_s / window_s))
+    pad_wins = int(padding_s / window_s)
+
+    pauses = {'CAM1': [], 'CAM2': []}
+
+    for seg in segments:
+        spk = seg['speaker']
+        if spk not in ('CAM1', 'CAM2'):
+            continue
+
+        on_audio = audio1 if spk == 'CAM1' else audio2
+        s = int(seg['start_s'] * sr)
+        e = int(seg['end_s'] * sr)
+        chunk = on_audio[s:e]
+
+        if len(chunk) < int(window_s * sr):
+            continue
+
+        db = compute_rms_db(chunk, sr, window_s)
+        silent = db < silence_db
+
+        # Zusammenhängende Stille-Regionen finden
+        in_pause = False
+        pause_start = 0
+        for i in range(len(silent)):
+            if silent[i] and not in_pause:
+                pause_start = i
+                in_pause = True
+            elif not silent[i] and in_pause:
+                if i - pause_start >= min_wins:
+                    ps = max(0, pause_start - pad_wins)
+                    pe = min(len(silent), i + pad_wins)
+                    ps_s = seg['start_s'] + ps * window_s
+                    pe_s = seg['start_s'] + pe * window_s
+                    pauses[spk].append((ps_s, pe_s))
+                in_pause = False
+        if in_pause and len(silent) - pause_start >= min_wins:
+            ps = max(0, pause_start - pad_wins)
+            pe = min(len(silent), len(silent) + pad_wins)
+            ps_s = seg['start_s'] + ps * window_s
+            pe_s = seg['start_s'] + pe * window_s
+            pauses[spk].append((ps_s, pe_s))
+
+    for spk in pauses:
+        pauses[spk].sort()
+
+    total = sum(len(v) for v in pauses.values())
+    if total:
+        print(f"\n🎭 On-Speaker-Pausen: {len(pauses['CAM1'])} (CAM1), "
+              f"{len(pauses['CAM2'])} (CAM2)")
+
+    return pauses
+
+
 # ─── Speaking Reaction Detection (Rolling-Baseline) ───────────────────────────
 
 def _level_windows(audio: np.ndarray, sr: int, window_s: float,
@@ -226,6 +294,7 @@ def _bursts_rolling(
     sustain_margin_db: float = 1.5,
     no_burst_decay_factor: float = 3.0,
     return_debug: bool = False,
+    freeze_mask: np.ndarray = None,
 ):
     """Rolling-Baseline Burst Detection mit Rise-Erkennung (Single-Pass).
 
@@ -262,7 +331,11 @@ def _bursts_rolling(
 
     for k in range(1, len(db)):
         # ── Baseline-Update ─────────────────────────────────────────────
-        if db[k] > baseline[k - 1]:
+        if freeze_mask is not None and freeze_mask[k]:
+            # On-Speaker-Pause: Baseline einfrieren, damit Crossbleed-
+            # Abfall keinen falschen Rise beim Wiedereinsetzen erzeugt.
+            baseline[k] = baseline[k - 1]
+        elif db[k] > baseline[k - 1]:
             baseline[k] = baseline[k - 1] + alpha_a * (db[k] - baseline[k - 1])
             since_attack = 0
         else:
@@ -365,6 +438,7 @@ def detect_speaking_reactions(
     decay_hold_s: float    = 3.0,
     lookback_s: float      = 1.0,
     sustain_margin_db: float = 1.5,
+    on_pauses: dict = None,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -372,6 +446,9 @@ def detect_speaking_reactions(
     Läuft per Diarization-Segment mit Baseline-Reset am Anfang jeder
     Off-Section, damit die Baseline nicht über die gesamte Aufnahme
     wegdriftet.
+
+    on_pauses: Dict {'CAM1': [(s, e), ...], 'CAM2': [(s, e), ...]}
+               On-Speaker-Pausen zur Baseline-Maskierung.
 
     Returns (cam1_reactions, cam2_reactions).
     """
@@ -415,6 +492,26 @@ def detect_speaking_reactions(
         if len(seg_audio) < int(warmup_s * sr):
             continue
 
+        # Freeze-Mask: On-Speaker-Pausen in Fenster-Koordinaten umrechnen
+        seg_freeze = None
+        if on_pauses:
+            spk = seg['speaker']
+            spk_pauses = on_pauses.get(spk, [])
+            if spk_pauses:
+                win = int(sr * window_s)
+                n_wins = len(seg_audio) // win
+                seg_freeze = np.zeros(n_wins, dtype=bool)
+                seg_s = seg['start_s']
+                for ps, pe in spk_pauses:
+                    # Pause in lokale Segment-Fenster umrechnen
+                    local_start = int((ps - seg_s) / window_s)
+                    local_end   = int((pe - seg_s) / window_s)
+                    if local_end <= 0 or local_start >= n_wins:
+                        continue
+                    local_start = max(0, local_start)
+                    local_end   = min(n_wins, local_end)
+                    seg_freeze[local_start:local_end] = True
+
         bursts = _bursts_rolling(
             seg_audio, sr, fps, window_s,
             attack_window_s, release_window_s, warmup_s,
@@ -424,6 +521,7 @@ def detect_speaking_reactions(
             decay_hold_s=decay_hold_s,
             lookback_s=lookback_s,
             sustain_margin_db=sustain_margin_db,
+            freeze_mask=seg_freeze,
         )
 
         for b in bursts:
@@ -602,6 +700,10 @@ def main():
     parser.add_argument('--speaking-warmup',        type=float, default=3.0)
     parser.add_argument('--speaking-hold',          type=float, default=0.0)
     parser.add_argument('--speaking-mode',          choices=['rms', 'peak'], default='peak')
+    parser.add_argument('--speaking-mask-min-pause', type=float, default=0.3,
+                        help='Min. Pausenlänge des On-Sprechers für Baseline-Freeze (s)')
+    parser.add_argument('--speaking-mask-padding',   type=float, default=0.15,
+                        help='Padding um On-Speaker-Pausen für Baseline-Freeze (s)')
     # Off-sections output (für Nodding-Analyse Optimierung)
     parser.add_argument('--cam1-off-sections-out', default=None,
                         help='JSON-Ausgabe: Video-Frame-Ranges in denen CAM1 die Off-Kamera ist')
@@ -898,6 +1000,15 @@ def main():
     # ── 8. Speaking Reactions (optional) ─────────────────────────────────────
     if args.speaking_reactions_cam1_out or args.speaking_reactions_cam2_out:
         print(f"\n🗣️  Erkenne Speaking Reactions (mode={args.speaking_mode})...")
+
+        # On-Speaker-Pausen erkennen für Baseline-Freeze
+        _on_pauses = detect_on_speaker_pauses(
+            audio_cam1, audio_cam2, sr1, segments,
+            silence_db=args.pause_silence_db,
+            min_pause_s=args.speaking_mask_min_pause,
+            padding_s=args.speaking_mask_padding,
+        )
+
         cam1_sr, cam2_sr = detect_speaking_reactions(
             audio_cam1, audio_cam2, sr1,
             segments,
@@ -912,6 +1023,7 @@ def main():
             warmup_s=args.speaking_warmup,
             hold_s=args.speaking_hold,
             mode=args.speaking_mode,
+            on_pauses=_on_pauses,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
         if args.speaking_reactions_cam1_out:

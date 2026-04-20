@@ -635,6 +635,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--speaking-warmup',         sr_cfg.get('warmup',         '3.0'),
                 '--speaking-hold',           sr_cfg.get('hold',           '0.0'),
                 '--speaking-mode',           'peak',
+                '--speaking-mask-min-pause', sr_cfg.get('mask_min_pause', '0.3'),
+                '--speaking-mask-padding',   sr_cfg.get('mask_padding',   '0.15'),
             ]
         # Totale-Cam: erste Kamera mit type='wide' (falls vorhanden)
         totale_idx = next(
