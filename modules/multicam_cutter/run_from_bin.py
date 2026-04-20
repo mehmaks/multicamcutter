@@ -201,7 +201,8 @@ def build_sync_timeline(mp, name: str, cams: list, mics: list,
 
 def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
                        offsets: dict, cam_items: dict, fps: float,
-                       skipped_gap_frames: int = 0, bin_folder=None):
+                       skipped_gap_frames: int = 0, bin_folder=None,
+                       audio_trims_path: Path = None):
     """
     Builds the final cut timeline:
       V1: assembled video segments (from cut_events)
@@ -297,33 +298,66 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
         mic_source_start = 0
         mic_record_start = 0
 
-    audio_list = []
-    for i, mic in enumerate(mics):
+    # Audio-Keeps laden (Pause-Trimming)
+    audio_keeps = None
+    if audio_trims_path and audio_trims_path.exists():
         try:
-            mic_frames = int(mic.GetClipProperty('Frames') or 0)
-            if mic_frames == 0:
-                raise ValueError
-        except (TypeError, ValueError):
-            path = mic.GetClipProperty('File Path') or ''
-            probe = subprocess.run(
-                ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                 '-of', 'default=noprint_wrappers=1:nokey=1', path],
-                capture_output=True, text=True,
-            )
-            mic_frames = round(float(probe.stdout.strip()) * fps)
-        mic_available = record_cursor - mic_record_start
-        mic_source_end = min(mic_frames, mic_source_start + mic_available)
-        audio_list.append({
-            'mediaPoolItem': mic,
-            'startFrame':   mic_source_start,
-            'endFrame':     mic_source_end,
-            'mediaType':    2,
-            'trackIndex':   audio_start_idx + i,
-            'recordFrame':  mic_record_start,
-        })
+            audio_keeps = json.loads(audio_trims_path.read_text())
+            print(f"  Audio-Keeps geladen: {len(audio_keeps)} Segmente (Pause-Trim aktiv)")
+        except Exception:
+            audio_keeps = None
 
-    mp.AppendToTimeline(audio_list)
-    print(f"  {len(cut_events)} Video-Segmente, {len(mics)} MIC-Spur(en)")
+    if audio_keeps:
+        # MIC segmentiert platzieren: Keep-Regionen überspringen die Trim-Lücken
+        # audio_keeps: [(orig_start_frame, orig_end_frame, new_record_frame), ...]
+        for i, mic in enumerate(mics):
+            for orig_s, orig_e, rec_frame in audio_keeps:
+                src_s = mic_source_start + (orig_s - audio_keeps[0][0])
+                src_e = mic_source_start + (orig_e - audio_keeps[0][0])
+                if src_s < 0:
+                    rec_frame += -src_s
+                    src_s = 0
+                if src_e <= src_s:
+                    continue
+                mp.AppendToTimeline([{
+                    'mediaPoolItem': mic,
+                    'startFrame':   src_s,
+                    'endFrame':     src_e,
+                    'mediaType':    2,
+                    'trackIndex':   audio_start_idx + i,
+                    'recordFrame':  rec_frame,
+                }])
+        print(f"  {len(cut_events)} Video-Segmente, {len(mics)} MIC-Spur(en) "
+              f"({len(audio_keeps)} Audio-Segmente je MIC)")
+    else:
+        # Standard: MIC als ein durchgehender Clip
+        audio_list = []
+        for i, mic in enumerate(mics):
+            try:
+                mic_frames = int(mic.GetClipProperty('Frames') or 0)
+                if mic_frames == 0:
+                    raise ValueError
+            except (TypeError, ValueError):
+                path = mic.GetClipProperty('File Path') or ''
+                probe = subprocess.run(
+                    ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
+                     '-of', 'default=noprint_wrappers=1:nokey=1', path],
+                    capture_output=True, text=True,
+                )
+                mic_frames = round(float(probe.stdout.strip()) * fps)
+            mic_available = record_cursor - mic_record_start
+            mic_source_end = min(mic_frames, mic_source_start + mic_available)
+            audio_list.append({
+                'mediaPoolItem': mic,
+                'startFrame':   mic_source_start,
+                'endFrame':     mic_source_end,
+                'mediaType':    2,
+                'trackIndex':   audio_start_idx + i,
+                'recordFrame':  mic_record_start,
+            })
+
+        mp.AppendToTimeline(audio_list)
+        print(f"  {len(cut_events)} Video-Segmente, {len(mics)} MIC-Spur(en)")
 
     # Apply clip colors based on cut reason
     _COLOR_MAP = {
@@ -460,12 +494,12 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
         item, _ = cam_items[label]
         ref      = ref_frames[label]
 
+        rec_in_tc  = ev_match.group(3)
+        rec_out_tc = ev_match.group(4)
         source_in  = _tc_to_frames(src_in_tc,  fps) - ref
         source_out = _tc_to_frames(src_out_tc, fps) - ref
 
         if source_in < 0 or source_out <= source_in:
-            rec_in_tc  = ev_match.group(3)
-            rec_out_tc = ev_match.group(4)
             gap_frames = _tc_to_frames(rec_out_tc, fps) - _tc_to_frames(rec_in_tc, fps)
             print(f"  ⚠️  ÜBERSPRUNGEN: '{clip_name}' Source-Frames {source_in}–{source_out} "
                   f"(Record {rec_in_tc}–{rec_out_tc}, {gap_frames} Frames Lücke)")
@@ -476,6 +510,8 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
             'clip':       item,
             'source_in':  source_in,
             'source_out': source_out,
+            'record_in':  _tc_to_frames(rec_in_tc, fps),
+            'record_out': _tc_to_frames(rec_out_tc, fps),
             'reason':     'speaker',
         })
 
@@ -561,6 +597,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     rms    = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
     sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
     tl_cfg = cfg['TotaleLogic']     if 'TotaleLogic'     in cfg else {}
+    pt_cfg = cfg['PauseTrim']       if 'PauseTrim'       in cfg else {}
     speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
 
     # ── Schritt 1: Base-EDL aus Audio (binäre Diarisierung CAM1/CAM2) ────────
@@ -611,6 +648,19 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--totale-edl-frame',           str(offsets.get(f'CAM{totale_idx + 1}', 0)),
                 '--totale-simul-min-duration',  tl_cfg.get('simul_min_duration', '3.0'),
             ]
+        # Pause-Trimming
+        pause_trim_enabled = pt_cfg.get('enabled', 'false').strip().lower() == 'true'
+        if pause_trim_enabled:
+            builder_args += [
+                '--pause-trim',
+                '--max-pause',           pt_cfg.get('max_pause', '1.0'),
+                '--pause-silence-db',    pt_cfg.get('silence_db', '-40.0'),
+                '--pause-search-radius', pt_cfg.get('search_radius', '3.0'),
+                '--pause-min-duration',  pt_cfg.get('min_pause_duration', '0.3'),
+                '--pause-cut-mode',      pt_cfg.get('cut_mode', 'middle'),
+                '--audio-trims-out',     str(work_dir / 'audio_trims.json'),
+            ]
+
         run(builder_args, "Base-EDL aus Audio")
 
     # ── Schritt 2: Nodding-Analyse für ALLE Kameras ───────────────────────────
@@ -848,11 +898,42 @@ def main():
         print("FEHLER: Keine Cut-Events aus EDL gelesen.")
         return 1
 
+    # ── Pause-Trimming anwenden (auf finale cut_events, nach Cutaway-Einfügung) ──
+    import configparser
+    _cfg = configparser.ConfigParser()
+    _cfg.read(str(args.config), encoding='utf-8')
+    _pt_cfg = _cfg['PauseTrim'] if 'PauseTrim' in _cfg else {}
+
+    audio_trims_path = work_dir / 'audio_trims.json'
+    audio_keeps = None
+    if audio_trims_path.exists():
+        try:
+            from pause_trim_edl import load_pauses, apply_pauses_to_cut_events
+            pauses = load_pauses(str(audio_trims_path))
+            if pauses:
+                cut_events, audio_keeps = apply_pauses_to_cut_events(
+                    cut_events, pauses, args.fps,
+                    max_pause_s=float(_pt_cfg.get('max_pause', '1.0')),
+                    cut_mode=_pt_cfg.get('cut_mode', 'middle'),
+                )
+                if audio_keeps:
+                    # Audio-Keeps als JSON speichern für build_cut_timeline
+                    audio_trims_path.write_text(json.dumps(audio_keeps))
+                    print(f"  Audio-Keeps: {len(audio_keeps)} Segmente")
+                else:
+                    # Keine Trims nötig — Pauses-JSON entfernen damit
+                    # build_cut_timeline es nicht als audio_keeps interpretiert
+                    audio_trims_path.unlink(missing_ok=True)
+        except Exception as e:
+            print(f"  ⚠️  Pause-Trim Fehler: {e}")
+            audio_trims_path.unlink(missing_ok=True)
+
     cut_tl = build_cut_timeline(
         mp, args.output, cut_events, mics,
         offsets=offsets, cam_items=cam_items, fps=args.fps,
         skipped_gap_frames=skipped_gap_frames,
         bin_folder=bin_folder,
+        audio_trims_path=audio_trims_path,
     )
     project.SetCurrentTimeline(cut_tl)
     time.sleep(0.3)
