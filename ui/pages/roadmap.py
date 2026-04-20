@@ -32,7 +32,6 @@ st.markdown(
 - **Totale bei Max. Shotlänge — Toggle** — Wenn aktiv, wird nach Erreichen der Max. Shotlänge immer auf die Totale geschnitten statt auf eine zufällige Kamera.
 - **Multi-Gäste-Schnittlogik bei >2 Mikrofonen** — Fallback-Logik für "alle reden gleichzeitig" und "niemand redet"-Segmente.
 - **Easy/Advanced-Mode** — Easy-Mode zeigt nur die 4–5 wichtigsten Parameter; Advanced-Mode alle aktuellen Einstellungen, per Button umschaltbar.
-- **Stille-Trimming an Sprecherwechsel-Schnitten** — Stille am Ende des ausgehenden und am Anfang des eingehenden Segments automatisch herausschneiden.
 - **DeepFilterNet Audio-Enhancement** — MIC-WAVs vor der RMS-Analyse durch DeepFilterNet laufen lassen, um Rauschen und Hall zu reduzieren.
 - **Speaker-Profil-basierter Crossbleed-Filter** — Persistentes Sprecher-Embedding für den Moderator zur Crossbleed-Erkennung auf dem Off-Mic.
 - **CLIP/LLM-basierte Custom Reaktionserkennung** — Nutzerdefinierte Trigger- und Ignore-Listen, erkannt per CLIP und optionaler LLM-Validierung.

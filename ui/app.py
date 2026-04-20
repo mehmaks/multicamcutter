@@ -68,6 +68,9 @@ def _migrate_config() -> int:
     cfg.read(_cfg_path, encoding="utf-8")
 
     added = 0
+    removed = 0
+
+    # 1. Fehlende Sections/Keys aus Template ergänzen
     for section in tmpl.sections():
         if not cfg.has_section(section):
             cfg.add_section(section)
@@ -76,7 +79,18 @@ def _migrate_config() -> int:
                 cfg.set(section, key, value)
                 added += 1
 
-    if added:
+    # 2. Obsolete Keys entfernen (in config aber nicht im Template)
+    #    Sections die nicht im Template sind, werden beibehalten (könnten
+    #    von Plugins oder manueller Nutzung stammen — besser konservativ).
+    for section in cfg.sections():
+        if not tmpl.has_section(section):
+            continue
+        for key in cfg.options(section):
+            if not tmpl.has_option(section, key):
+                cfg.remove_option(section, key)
+                removed += 1
+
+    if added or removed:
         with open(_cfg_path, "w", encoding="utf-8") as f:
             cfg.write(f)
 
