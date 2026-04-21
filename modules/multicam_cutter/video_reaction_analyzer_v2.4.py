@@ -228,9 +228,15 @@ class AdvancedReactionDetector:
 
         seg_threshold = max(8 * res_scale, y_range * 0.2)
 
-        # Mittleres Segment muss sich von beiden Rändern abheben
-        if not (abs(seg2_avg - seg1_avg) > seg_threshold and
-                abs(seg2_avg - seg3_avg) > seg_threshold):
+        # Richtungsumkehr erzwingen: seg2 muss sich von seg1 entfernen,
+        # seg3 muss in die Gegenrichtung zurückkehren (echte Oszillation).
+        # Monotoner Drift (z.B. 100→107→114) wird so ausgeschlossen.
+        d1 = seg2_avg - seg1_avg  # Hinbewegung
+        d2 = seg3_avg - seg2_avg  # Rückbewegung
+        if not (abs(d1) > seg_threshold and abs(d2) > seg_threshold):
+            return False, 0.0
+        # Vorzeichen müssen verschieden sein (Richtungsumkehr)
+        if (d1 > 0) == (d2 > 0):
             return False, 0.0
 
         # Return-to-Baseline: Kopf muss nach dem Nicken zurückkehren
