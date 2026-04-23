@@ -21,12 +21,16 @@ venv/
 *.edl
 *.json
 !modules/multicam_cutter/presets/*.json
+!modules/multicam_cutter/nodding_patterns.json
 !ui/pages/presets/**/*.json
 *.html
 *.csv
 
 # Streamlit-Config (wird beim Start aus config.template.toml erzeugt)
 .streamlit/config.toml
+
+# Sandbox-Tools (lokale Entwicklung, nicht versioniert)
+tools/
 
 # macOS
 .DS_Store

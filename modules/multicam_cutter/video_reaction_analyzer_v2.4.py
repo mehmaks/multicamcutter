@@ -26,6 +26,15 @@ _MODEL_URL = (
     "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
 )
 _MODEL_PATH = Path(__file__).parent / "face_landmarker.task"
+_PATTERNS_PATH = Path(__file__).parent / "nodding_patterns.json"
+
+
+def _load_nod_patterns(path=None):
+    """Lädt Nodding-Pattern-Definitionen aus JSON."""
+    p = path or _PATTERNS_PATH
+    with open(p, 'r', encoding='utf-8') as f:
+        data = json.load(f)
+    return data['global'], [pat for pat in data['patterns'] if pat.get('enabled', True)]
 
 
 def _ensure_model():
@@ -83,18 +92,21 @@ class AdvancedReactionDetector:
 
         # Video FPS (für Speaking-Detection timing)
         self.fps = fps
-        
-        # Defaults für Config-Werte
-        self.min_nod_duration = 0.5  # Default: 0.5 Sekunden
-        
+
         # Lade Sensitivität aus Config wenn vorhanden
         if config and config.has_option('General', 'default_sensitivity'):
             sensitivity = config.get('General', 'default_sensitivity')
-        
-        # Nodding-Threshold: einzelner Wert (kalibriert für calibration_height px)
-        self.nod_threshold = 80.0
-        if config and config.has_section('Nodding'):
-            self.nod_threshold = config.getfloat('Nodding', 'threshold', fallback=80.0)
+
+        # ── Nodding: Pattern-basierter Detektor (Parameter aus nodding_patterns.json) ──
+        self._nod_globals, self._nod_patterns = _load_nod_patterns()
+        self._nod_threshold = self._nod_globals['nod_threshold']
+        self._nod_cooldown_frames = int(self._nod_globals['cooldown_s'] * fps)
+        self._nod_auto_accuracy_ref = self._nod_globals['auto_accuracy_ref']
+        self._nod_smooth_kernel = self._nod_globals['smooth_kernel']
+        self._nod_calibration_height = self._nod_globals['calibration_height']
+        # Buffer-Größe = längstes Pattern-Window
+        max_window = max(p['window_s'] for p in self._nod_patterns)
+        self._nod_window_frames = int(max_window * fps)
 
         # Laughing-Threshold: weiterhin sensitiv-abhängig
         laugh_threshold_low = 1.7
@@ -111,7 +123,7 @@ class AdvancedReactionDetector:
             'high':   {'laugh_threshold': laugh_threshold_high},
         }
         self.settings = laugh_settings.get(sensitivity, laugh_settings['medium'])
-        
+
         # Reaktionstypen Enables aus Config laden
         self.enabled_reactions = {
             'nodding': True,
@@ -119,50 +131,42 @@ class AdvancedReactionDetector:
             'laughing': True,
             'eyebrow_raise': True
         }
-        
+
         if config:
             if config.has_section('Nodding'):
                 self.enabled_reactions['nodding'] = config.getboolean('Nodding', 'enabled', fallback=True)
-                self.min_nod_duration = config.getfloat('Nodding', 'min_nod_duration', fallback=0.5)
             if config.has_section('HeadShake'):
                 self.enabled_reactions['head_shake'] = config.getboolean('HeadShake', 'enabled', fallback=True)
             if config.has_section('Laughing'):
                 self.enabled_reactions['laughing'] = config.getboolean('Laughing', 'enabled', fallback=True)
             if config.has_section('EyebrowRaise'):
                 self.enabled_reactions['eyebrow_raise'] = config.getboolean('EyebrowRaise', 'enabled', fallback=True)
-        
-        # Nod-Cooldown aus Config (verhindert Drift-Loop)
-        self.nod_cooldown_frames = 35
-        if config and config.has_section('Nodding'):
-            self.nod_cooldown_frames = config.getint('Nodding', 'cooldown_frames', fallback=35)
 
-        # Kalibrierungs-Auflösung: Thresholds wurden für diese Höhe eingestellt
-        self.calibration_height = 2160
+        # Kalibrierungs-Auflösung (für andere Detektoren wie HeadShake)
+        self.calibration_height = self._nod_calibration_height
         if config and config.has_section('Detection'):
             self.calibration_height = config.getint('Detection', 'calibration_height', fallback=2160)
 
-        # Auto Accuracy: skaliert Nodding-Threshold dynamisch auf erkannte Gesichtsgröße
-        # Referenz-Gesichtshöhe = 0.45 (normiert auf Frame-Höhe), gemessen an einem
-        # nahaufnahme-typischen Podcast-Frame mit einer Person (gute Erkennungsrate).
+        # Auto Accuracy: immer aktiv im Pattern-Detektor (über face_h Skalierung)
         self.auto_accuracy = auto_accuracy
-        self._auto_accuracy_ref = 0.45
 
         # Per-Gesicht-Historien (keyed by Sortier-Index = links→rechts-Position im Frame)
         # Separate Deques pro Gesicht verhindern Vermischung bei mehreren Personen
-        self._nod_history_size = max(30, int(self.min_nod_duration * self.fps) + 10)
         self._face_states: dict = {}
 
     def _get_face_state(self, face_idx: int) -> dict:
         """Gibt den Zustand (Historien + Cooldowns) für ein Gesicht zurück, legt ihn bei Bedarf an."""
         if face_idx not in self._face_states:
+            wf = self._nod_window_frames
             self._face_states[face_idx] = {
-                'head_y_history':     deque(maxlen=self._nod_history_size),
-                'head_x_history_nod': deque(maxlen=self._nod_history_size),
-                'head_x_history':     deque(maxlen=30),
-                'mouth_history':      deque(maxlen=20),
-                'eyebrow_history':    deque(maxlen=15),
-                'last_nod_frame':     -100,
-                'last_laugh_frame':   -100,
+                'nose_y':           deque(maxlen=wf),
+                'nose_x':           deque(maxlen=wf),
+                'bridge_y':         deque(maxlen=wf),
+                'head_x_history':   deque(maxlen=30),
+                'mouth_history':    deque(maxlen=20),
+                'eyebrow_history':  deque(maxlen=15),
+                'last_nod_frame':   -999,
+                'last_laugh_frame': -100,
             }
         return self._face_states[face_idx]
 
@@ -175,83 +179,192 @@ class AdvancedReactionDetector:
         lm = landmarks[index]
         return int(lm.x * width), int(lm.y * height)
     
+    def _check_nod_pattern(self, pat, y_arr, x_arr, b_arr, thr):
+        """Prüft ein einzelnes Nodding-Pattern gegen die Signaldaten.
+        Returns (passed, confidence)."""
+        f = pat['filters']
+        c = pat['confidence']
+        k = self._nod_smooth_kernel
+
+        # Window zuschneiden
+        win_frames = int(pat['window_s'] * self.fps)
+        y = y_arr[-win_frames:]
+        x = x_arr[-win_frames:]
+        b = b_arr[-win_frames:]
+
+        y_range = y.max() - y.min()
+        x_range = x.max() - x.min()
+
+        # X-Drift-Check
+        x_drift_ratio = f.get('x_drift_ratio', 0.7)
+        if y_range > 0 and x_range >= y_range * x_drift_ratio:
+            return False, 0.0
+
+        # Glätten + Velocities
+        y_smooth = np.convolve(y, np.ones(k) / k, mode='valid')
+        b_smooth = np.convolve(b, np.ones(k) / k, mode='valid')
+        vel_y = np.diff(y_smooth)
+        vel_b = np.diff(b_smooth)
+
+        # Richtungsumkehrungen
+        rev_indices = []
+        for i in range(1, len(vel_y)):
+            if vel_y[i - 1] * vel_y[i] < 0:
+                rev_indices.append(i)
+        reversals = len(rev_indices)
+
+        # Reversal-Range prüfen
+        min_rev = f.get('min_reversals', 0)
+        max_rev = f.get('max_reversals')
+        if reversals < min_rev:
+            return False, 0.0
+        if max_rev is not None and reversals > max_rev:
+            return False, 0.0
+
+        # Nose↔Bridge Korrelation
+        if len(vel_y) >= 5 and len(vel_b) >= 5:
+            n = min(len(vel_y), len(vel_b))
+            corr = float(np.corrcoef(vel_y[:n], vel_b[:n])[0, 1])
+            if np.isnan(corr):
+                corr = 0.0
+        else:
+            corr = 0.0
+
+        min_corr = f.get('min_correlation', 0.85)
+        if corr < min_corr:
+            return False, 0.0
+
+        # Frequenz-Check (nur wenn max_reversal_gap definiert)
+        median_gap = 0.0
+        max_gap = f.get('max_reversal_gap')
+        if max_gap is not None and reversals >= 2:
+            rev_gaps = np.diff(rev_indices)
+            median_gap = float(np.median(rev_gaps))
+            if median_gap > max_gap:
+                return False, 0.0
+
+        # Dämpfung (nur wenn min_damping definiert)
+        damping_ratio = 0.5
+        half_amplitudes = []
+        min_damp = f.get('min_damping')
+        if reversals >= 2:
+            all_rev = [0] + rev_indices + [len(y_smooth) - 1]
+            for i in range(len(all_rev) - 1):
+                seg = y_smooth[all_rev[i]:all_rev[i + 1] + 1]
+                if len(seg) >= 2:
+                    half_amplitudes.append(seg.max() - seg.min())
+            if len(half_amplitudes) >= 3:
+                dc = sum(1 for i in range(1, len(half_amplitudes) - 1)
+                         if half_amplitudes[i + 1] <= half_amplitudes[i] * 1.1)
+                damping_ratio = dc / (len(half_amplitudes) - 2)
+            if min_damp is not None and len(half_amplitudes) >= 3:
+                if damping_ratio < min_damp:
+                    return False, 0.0
+
+        # Amplitude-Threshold
+        amp_factor = f.get('amplitude_factor', 1.0)
+        effective_thr = thr * amp_factor
+
+        # Dynamischer Threshold (nur wenn konfiguriert)
+        dyn = f.get('dynamic_threshold')
+        if dyn and dyn.get('enabled') and reversals >= 2:
+            osc_strength = min(reversals / 4.0, 1.0) * corr
+            max_red = dyn.get('max_reduction', 0.4)
+            effective_thr = thr * (1.0 - max_red * osc_strength)
+
+        if y_range < effective_thr:
+            return False, 0.0
+
+        # Return-to-Baseline (nur wenn konfiguriert)
+        max_drift_ratio = f.get('return_to_baseline')
+        baseline_drift = 0.0
+        if max_drift_ratio is not None:
+            n_edge = max(3, len(y_smooth) // 5)
+            start_mean = np.mean(y_smooth[:n_edge])
+            end_mean = np.mean(y_smooth[-n_edge:])
+            baseline_drift = abs(end_mean - start_mean)
+            if baseline_drift > y_range * max_drift_ratio:
+                return False, 0.0
+
+        # V-Form Geschwindigkeit (nur wenn konfiguriert)
+        max_v_dur = f.get('max_v_duration_s')
+        if max_v_dur is not None and reversals >= 1:
+            rev_pos = rev_indices[0]
+            total_len = len(y_smooth)
+            max_v_frames = int(max_v_dur * self.fps)
+            if total_len - rev_pos > max_v_frames and rev_pos > max_v_frames:
+                return False, 0.0
+
+        # ── Alle Filter bestanden → Confidence berechnen ─────────────
+        weights = c['weights']
+        scores = {}
+
+        if 'reversals' in weights:
+            scores['reversals'] = min((reversals - 1) / 5.0, 1.0)
+        if 'frequency' in weights:
+            scores['frequency'] = max(0, 1.0 - (median_gap - 2) / 8.0) if median_gap > 0 else 0.5
+        if 'damping' in weights:
+            scores['damping'] = damping_ratio
+        if 'correlation' in weights:
+            scores['correlation'] = min((corr - min_corr) / max(0.01, 1.0 - min_corr), 1.0)
+        if 'amplitude' in weights:
+            scores['amplitude'] = max(0.0, min((y_range / effective_thr - 1.0) * 2.0 + 0.5, 1.0))
+        if 'return_to_baseline' in weights:
+            max_dr = max_drift_ratio if max_drift_ratio else 0.45
+            scores['return_to_baseline'] = max(0.0, 1.0 - baseline_drift / (y_range * max_dr))
+
+        confidence = sum(weights[wk] * scores[wk] for wk in weights if wk in scores)
+        confidence *= c.get('multiplier', 1.0)
+        confidence = min(confidence, c.get('max', 1.0))
+
+        return True, confidence
+
     def detect_nodding(self, landmarks, frame_number, height, width, state: dict):
-        """Nicken-Erkennung v2.4 mit X-Achsen-Check und Return-to-Baseline"""
-        # Nasenpunkt (Landmark 1) — Y und X tracken
+        """Pattern-basierte Nicken-Erkennung: prüft alle Patterns, höchste Confidence gewinnt."""
+        # Landmarks tracken: Nase (L1) und Nasenrücken (L6)
         nose_y = landmarks[1].y * height
         nose_x = landmarks[1].x * width
-        state['head_y_history'].append(nose_y)
-        state['head_x_history_nod'].append(nose_x)
+        bridge_y = landmarks[6].y * height
+        state['nose_y'].append(nose_y)
+        state['nose_x'].append(nose_x)
+        state['bridge_y'].append(bridge_y)
 
-        min_frames = int(self.min_nod_duration * self.fps)
-
-        if len(state['head_y_history']) < min_frames:
+        min_frames = max(15, int(0.4 * self.fps))
+        if len(state['nose_y']) < min_frames:
             return False, 0.0
 
-        # Cooldown (jetzt konfigurierbar, verhindert Drift-Loop)
-        if frame_number - state['last_nod_frame'] < self.nod_cooldown_frames:
+        # Cooldown
+        if frame_number - state['last_nod_frame'] <= self._nod_cooldown_frames:
             return False, 0.0
 
-        y_positions = list(state['head_y_history'])
-        x_positions = list(state['head_x_history_nod'])
+        # Signale vorbereiten
+        y_arr = np.array(state['nose_y'])
+        x_arr = np.array(state['nose_x'])
+        b_arr = np.array(state['bridge_y'])
 
-        y_range = max(y_positions) - min(y_positions)
-        x_range = max(x_positions) - min(x_positions)
+        # Threshold skalieren auf Auflösung und Gesichtsgröße
+        res_scale = height / self._nod_calibration_height
+        thr = self._nod_threshold * res_scale
+        face_h = abs(landmarks[10].y - landmarks[152].y)
+        if face_h > 0.05:
+            face_scale = max(0.3, min(2.0, face_h / self._nod_auto_accuracy_ref))
+            thr *= face_scale
 
-        # Skaliere Pixel-Threshold auf tatsächliche Auflösung
-        res_scale = height / self.calibration_height
-        effective_nod_threshold = self.nod_threshold * res_scale
+        # Alle Patterns prüfen — höchste Confidence gewinnt
+        best_conf = 0.0
+        for pat in self._nod_patterns:
+            passed, conf = self._check_nod_pattern(pat, y_arr, x_arr, b_arr, thr)
+            if passed and conf > best_conf:
+                best_conf = conf
 
-        # Auto Accuracy: Threshold proportional zur erkannten Gesichtsgröße skalieren.
-        # Kleinere Gesichter (z.B. Totale mit 2 Personen) erzeugen kleinere Landmark-Deltas
-        # → Threshold wird proportional reduziert, sodass Nickbewegungen nicht verfehlt werden.
-        if self.auto_accuracy:
-            face_height_norm = abs(landmarks[10].y - landmarks[152].y)
-            if face_height_norm > 0.05:  # Mindestgröße, um Rauschen zu vermeiden
-                face_scale = max(0.3, min(2.0, face_height_norm / self._auto_accuracy_ref))
-                effective_nod_threshold *= face_scale
+        if best_conf > 0:
+            state['last_nod_frame'] = frame_number
+            state['nose_y'].clear()
+            state['nose_x'].clear()
+            state['bridge_y'].clear()
+            return True, best_conf
 
-        # Mindest-Y-Bewegung
-        if y_range < effective_nod_threshold:
-            return False, 0.0
-
-        # X-Achsen-Check: wenn horizontale Bewegung ≥ 70% der vertikalen,
-        # ist es wahrscheinlich Drehstuhl-Sway oder Körperbewegung → kein Nicken
-        if x_range >= y_range * 0.7:
-            return False, 0.0
-
-        # Auf-Ab-Auf Pattern (3 Segmente)
-        third = len(y_positions) // 3
-        seg1_avg = np.mean(y_positions[:third])
-        seg2_avg = np.mean(y_positions[third:2*third])
-        seg3_avg = np.mean(y_positions[2*third:])
-
-        seg_threshold = max(8 * res_scale, y_range * 0.2)
-
-        # Richtungsumkehr erzwingen: seg2 muss sich von seg1 entfernen,
-        # seg3 muss in die Gegenrichtung zurückkehren (echte Oszillation).
-        # Monotoner Drift (z.B. 100→107→114) wird so ausgeschlossen.
-        d1 = seg2_avg - seg1_avg  # Hinbewegung
-        d2 = seg3_avg - seg2_avg  # Rückbewegung
-        if not (abs(d1) > seg_threshold and abs(d2) > seg_threshold):
-            return False, 0.0
-        # Vorzeichen müssen verschieden sein (Richtungsumkehr)
-        if (d1 > 0) == (d2 > 0):
-            return False, 0.0
-
-        # Return-to-Baseline: Kopf muss nach dem Nicken zurückkehren
-        # seg3 muss nah an seg1 liegen (innerhalb 45% des Bewegungsbereichs)
-        if abs(seg3_avg - seg1_avg) > y_range * 0.45:
-            return False, 0.0
-
-        # Confidence basiert auf dem schwächsten Segment-Übergang:
-        # Beide Richtungen (hin UND zurück) müssen stark sein für hohe Konfidenz.
-        # Normalisiert auf halben Threshold — conf=1.0 erst wenn der schwächere
-        # Übergang allein schon 50% des Thresholds erreicht.
-        seg_delta_min = min(abs(seg2_avg - seg1_avg), abs(seg2_avg - seg3_avg))
-        confidence = min(seg_delta_min / (effective_nod_threshold * 0.5), 1.0)
-        state['last_nod_frame'] = frame_number
-        return True, confidence
+        return False, 0.0
     
     def detect_head_shake(self, landmarks, frame_number, width, state: dict):
         """Erkennt Kopfschütteln (nein-nein)"""
@@ -588,11 +701,11 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
         # Nur das tatsächlich benötigte Material wird dekodiert.
         analyzed = 0
         for sec_idx, (sec_start, sec_end) in enumerate(_off_sections):
-            if _max_frames and analyzed >= _max_frames:
+            if _max_frames and sec_start >= _max_frames:
                 break
             n_frames = sec_end - sec_start
-            if _max_frames:
-                n_frames = min(n_frames, _max_frames - analyzed)
+            if _max_frames and sec_end > _max_frames:
+                n_frames = _max_frames - sec_start
             start_s  = sec_start / fps
             ff_cmd = [
                 'ffmpeg', '-ss', f'{start_s:.6f}', '-i', str(video_path),
