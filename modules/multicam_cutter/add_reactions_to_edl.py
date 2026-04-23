@@ -223,8 +223,13 @@ def build_events_with_cutaways(
             if timeline_frame < 0:
                 continue
             if section_start <= timeline_frame < section_end:
+                peak = reaction.get('peak_frame')
+                peak_tl = (peak - tzvf) if peak is not None else timeline_frame
+                tail = reaction.get('tail_frames', 0)
                 valid_reactions.append({
                     'timeline_frame': timeline_frame,
+                    'peak_tl_frame':  peak_tl,
+                    'tail_frames':    tail,
                     'type':           rtype,
                     'confidence':     confidence,
                     'cam':            cam,
@@ -302,10 +307,15 @@ def build_events_with_cutaways(
                 fps=fps, reason="speaker",
             ))
 
+        # Cutaway-Dauer: natürliche Pattern-Länge (Start→Peak+Tail) oder Minimum
+        peak_tl = reaction.get('peak_tl_frame', reaction['timeline_frame'])
+        tail = reaction.get('tail_frames', 0)
+        pattern_dur = max(0, peak_tl - cutaway_frame + tail)
+        base_frames = max(reaction_duration_frames, pattern_dur)
         randomness = config.get('cutaway_randomness', 0.0)
         this_cutaway_frames = int(
-            reaction_duration_frames * (1.0 + random.uniform(0.0, randomness))
-        ) if randomness > 0 else reaction_duration_frames
+            base_frames * (1.0 + random.uniform(0.0, randomness))
+        ) if randomness > 0 else base_frames
         cutaway_end = min(cutaway_frame + this_cutaway_frames, section_end)
 
         off_vi = off_tzvf + cutaway_frame

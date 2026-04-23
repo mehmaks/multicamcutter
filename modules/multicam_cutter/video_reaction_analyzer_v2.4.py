@@ -104,6 +104,7 @@ class AdvancedReactionDetector:
         self._nod_auto_accuracy_ref = self._nod_globals['auto_accuracy_ref']
         self._nod_smooth_kernel = self._nod_globals['smooth_kernel']
         self._nod_calibration_height = self._nod_globals['calibration_height']
+        self._nod_settle_frames = int(self._nod_globals.get('settle_s', 0) * fps)
         # Buffer-Größe = längstes Pattern-Window
         max_window = max(p['window_s'] for p in self._nod_patterns)
         self._nod_window_frames = int(max_window * fps)
@@ -167,11 +168,17 @@ class AdvancedReactionDetector:
                 'eyebrow_history':  deque(maxlen=15),
                 'last_nod_frame':   -999,
                 'last_laugh_frame': -100,
+                '_pending_conf':    0,
+                '_pending_first':   0,
+                '_pending_frame':   0,
+                '_pending_start':   0,
+                '_pending_tail':    0,
             }
         return self._face_states[face_idx]
 
     def reset_history(self):
-        """Setzt alle Bewegungs-Historien zurück (beim Betreten einer neuen Off-Sektion)."""
+        """Setzt alle Bewegungs-Historien zurück (beim Betreten einer neuen Off-Sektion).
+        Pending Nod-Detections werden verworfen — sie gehören zur vorigen Sektion."""
         self._face_states.clear()
     
     def get_landmark_coord(self, landmarks, index, width, height):
@@ -181,7 +188,9 @@ class AdvancedReactionDetector:
     
     def _check_nod_pattern(self, pat, y_arr, x_arr, b_arr, thr):
         """Prüft ein einzelnes Nodding-Pattern gegen die Signaldaten.
-        Returns (passed, confidence)."""
+        Returns (passed, confidence, pattern_offset) — pattern_offset ist die
+        Anzahl Frames vom aktuellen Frame zurück zum Beginn des Patterns
+        (erste Bewegung vor dem ersten Reversal). 0 bei Nicht-Detection."""
         f = pat['filters']
         c = pat['confidence']
         k = self._nod_smooth_kernel
@@ -195,10 +204,12 @@ class AdvancedReactionDetector:
         y_range = y.max() - y.min()
         x_range = x.max() - x.min()
 
-        # X-Drift-Check
+        FAIL = (False, 0.0, 0, 0)
+
+        # X-Drift-Check (degressiv: x_limit = ratio * y_range^0.7)
         x_drift_ratio = f.get('x_drift_ratio', 0.7)
-        if y_range > 0 and x_range >= y_range * x_drift_ratio:
-            return False, 0.0
+        if y_range > 0 and x_range >= x_drift_ratio * (y_range ** 0.7):
+            return FAIL
 
         # Glätten + Velocities
         y_smooth = np.convolve(y, np.ones(k) / k, mode='valid')
@@ -217,9 +228,12 @@ class AdvancedReactionDetector:
         min_rev = f.get('min_reversals', 0)
         max_rev = f.get('max_reversals')
         if reversals < min_rev:
-            return False, 0.0
+            return FAIL
         if max_rev is not None and reversals > max_rev:
-            return False, 0.0
+            return FAIL
+
+        # Pattern-relevante Reversals: die letzten min_rev bilden das Pattern
+        pattern_revs = rev_indices[-min_rev:] if min_rev > 0 else rev_indices
 
         # Nose↔Bridge Korrelation
         if len(vel_y) >= 5 and len(vel_b) >= 5:
@@ -232,25 +246,36 @@ class AdvancedReactionDetector:
 
         min_corr = f.get('min_correlation', 0.85)
         if corr < min_corr:
-            return False, 0.0
+            return FAIL
 
         # Frequenz-Check (nur wenn max_reversal_gap definiert)
         median_gap = 0.0
         max_gap = f.get('max_reversal_gap')
-        if max_gap is not None and reversals >= 2:
-            rev_gaps = np.diff(rev_indices)
+        if max_gap is not None and len(pattern_revs) >= 2:
+            rev_gaps = np.diff(pattern_revs)
             median_gap = float(np.median(rev_gaps))
             if median_gap > max_gap:
-                return False, 0.0
+                return FAIL
 
-        # Dämpfung (nur wenn min_damping definiert)
+        # Oszillations-Bereich: von einer Gap-Länge vor dem ersten
+        # Pattern-Reversal bis zum Fenster-Ende. Damit messen Amplitude,
+        # Dämpfung und Ratio nur die tatsächliche Oszillation.
+        if len(pattern_revs) >= 2:
+            typical_gap = int(np.median(np.diff(pattern_revs)))
+        else:
+            typical_gap = max_gap or 7
+        osc_start = max(0, pattern_revs[0] - typical_gap)
+        osc_y = y_smooth[osc_start:]
+        osc_y_range = float(osc_y.max() - osc_y.min())
+
+        # Dämpfung + Halbamplituden (nur über Pattern-Reversals)
         damping_ratio = 0.5
         half_amplitudes = []
         min_damp = f.get('min_damping')
-        if reversals >= 2:
-            all_rev = [0] + rev_indices + [len(y_smooth) - 1]
-            for i in range(len(all_rev) - 1):
-                seg = y_smooth[all_rev[i]:all_rev[i + 1] + 1]
+        if len(pattern_revs) >= 2:
+            osc_bounds = [osc_start] + list(pattern_revs) + [len(y_smooth) - 1]
+            for i in range(len(osc_bounds) - 1):
+                seg = y_smooth[osc_bounds[i]:osc_bounds[i + 1] + 1]
                 if len(seg) >= 2:
                     half_amplitudes.append(seg.max() - seg.min())
             if len(half_amplitudes) >= 3:
@@ -259,21 +284,28 @@ class AdvancedReactionDetector:
                 damping_ratio = dc / (len(half_amplitudes) - 2)
             if min_damp is not None and len(half_amplitudes) >= 3:
                 if damping_ratio < min_damp:
-                    return False, 0.0
+                    return FAIL
 
-        # Amplitude-Threshold
+        # Mindest-Verhältnis der 2. Halbschwingung zur 1.
+        min_amp_ratio = f.get('min_amplitude_ratio')
+        if min_amp_ratio is not None and len(half_amplitudes) >= 2:
+            ratio = half_amplitudes[1] / half_amplitudes[0] if half_amplitudes[0] > 0 else 0
+            if ratio < min_amp_ratio:
+                return FAIL
+
+        # Amplitude-Threshold (gegen Oszillations-Range, nicht Fenster-Range)
         amp_factor = f.get('amplitude_factor', 1.0)
         effective_thr = thr * amp_factor
 
         # Dynamischer Threshold (nur wenn konfiguriert)
         dyn = f.get('dynamic_threshold')
-        if dyn and dyn.get('enabled') and reversals >= 2:
-            osc_strength = min(reversals / 4.0, 1.0) * corr
+        if dyn and dyn.get('enabled') and len(pattern_revs) >= 2:
+            osc_strength = min(len(pattern_revs) / 4.0, 1.0) * corr
             max_red = dyn.get('max_reduction', 0.4)
             effective_thr = thr * (1.0 - max_red * osc_strength)
 
-        if y_range < effective_thr:
-            return False, 0.0
+        if osc_y_range < effective_thr:
+            return FAIL
 
         # Return-to-Baseline (nur wenn konfiguriert)
         max_drift_ratio = f.get('return_to_baseline')
@@ -284,7 +316,7 @@ class AdvancedReactionDetector:
             end_mean = np.mean(y_smooth[-n_edge:])
             baseline_drift = abs(end_mean - start_mean)
             if baseline_drift > y_range * max_drift_ratio:
-                return False, 0.0
+                return FAIL
 
         # V-Form Geschwindigkeit (nur wenn konfiguriert)
         max_v_dur = f.get('max_v_duration_s')
@@ -293,7 +325,15 @@ class AdvancedReactionDetector:
             total_len = len(y_smooth)
             max_v_frames = int(max_v_dur * self.fps)
             if total_len - rev_pos > max_v_frames and rev_pos > max_v_frames:
-                return False, 0.0
+                return FAIL
+
+        # ── Pattern-Start-Offset berechnen ───────────────────────────
+        # Die letzten min_reversals Umkehrungen bilden das auslösende Pattern.
+        # rev_indices[-min_rev] ist der Beginn dieser Gruppe im vel_y-Array.
+        # + k korrigiert für convolve(valid) + diff.
+        pattern_rev_idx = rev_indices[-min_rev] if min_rev <= len(rev_indices) else rev_indices[0]
+        pattern_start_in_window = pattern_rev_idx + k
+        pattern_offset = len(y) - pattern_start_in_window
 
         # ── Alle Filter bestanden → Confidence berechnen ─────────────
         weights = c['weights']
@@ -317,10 +357,46 @@ class AdvancedReactionDetector:
         confidence *= c.get('multiplier', 1.0)
         confidence = min(confidence, c.get('max', 1.0))
 
-        return True, confidence
+        # tail_frames: geschätzte Ausklingzeit nach dem letzten Reversal
+        # (ein typical_gap = eine halbe Schwingung Nachlauf)
+        last_rev_in_window = rev_indices[-1] + k
+        tail_frames = typical_gap
+
+        return True, confidence, pattern_offset, tail_frames
+
+    def _fire_pending_nod(self, state):
+        """Feuert eine ausstehende Nod-Detection und räumt den Pending-State auf.
+        Returns (True, confidence, first_frame, peak_frame, tail_frames).
+        first_frame  = erster Detection-Frame (Cutaway-Ankerpunkt).
+        peak_frame   = Frame mit höchster Confidence (für Dauer-Berechnung).
+        tail_frames  = geschätzte Ausklingzeit nach dem letzten Reversal."""
+        conf = state['_pending_conf']
+        first_frame = state['_pending_first']
+        peak_frame = state['_pending_frame']
+        tail_frames = state.get('_pending_tail', 0)
+        state['last_nod_frame'] = peak_frame
+        state['_pending_conf'] = 0
+        state['_pending_first'] = 0
+        state['_pending_frame'] = 0
+        state['_pending_start'] = 0
+        state['_pending_tail'] = 0
+        state['nose_y'].clear()
+        state['nose_x'].clear()
+        state['bridge_y'].clear()
+        return True, conf, first_frame, peak_frame, tail_frames
 
     def detect_nodding(self, landmarks, frame_number, height, width, state: dict):
-        """Pattern-basierte Nicken-Erkennung: prüft alle Patterns, höchste Confidence gewinnt."""
+        """Pattern-basierte Nicken-Erkennung mit Delayed-Fire.
+
+        Nach erster Detection wird eine Beobachtungsphase (settle_s) gestartet.
+        Während dieser Phase wird weiter geprüft — kommt eine stärkere Detection,
+        wird deren Confidence übernommen. Am Ende der Phase feuert die Detection.
+
+        Returns (detected, confidence, first_frame, peak_frame, tail_frames).
+        first_frame  = Frame der ersten Detection (Cutaway-Ankerpunkt).
+        peak_frame   = Frame mit höchster Confidence (für Dauer-Berechnung).
+        tail_frames  = geschätzte Ausklingzeit nach dem letzten Reversal.
+        """
         # Landmarks tracken: Nase (L1) und Nasenrücken (L6)
         nose_y = landmarks[1].y * height
         nose_x = landmarks[1].x * width
@@ -330,12 +406,42 @@ class AdvancedReactionDetector:
         state['bridge_y'].append(bridge_y)
 
         min_frames = max(15, int(0.4 * self.fps))
+        NO = (False, 0.0, frame_number, frame_number, 0)
         if len(state['nose_y']) < min_frames:
-            return False, 0.0
+            return NO
 
-        # Cooldown
+        settle = self._nod_settle_frames
+
+        # ── Settle-Phase aktiv: beobachten ob stärkere Detection kommt ──
+        if state['_pending_conf'] > 0:
+            # Pattern-Check weiterführen (Buffer wird NICHT geleert)
+            y_arr = np.array(state['nose_y'])
+            x_arr = np.array(state['nose_x'])
+            b_arr = np.array(state['bridge_y'])
+
+            res_scale = height / self._nod_calibration_height
+            thr = self._nod_threshold * res_scale
+            face_h = abs(landmarks[10].y - landmarks[152].y)
+            if face_h > 0.05:
+                face_scale = max(0.3, min(2.0, face_h / self._nod_auto_accuracy_ref))
+                thr *= face_scale
+
+            for pat in self._nod_patterns:
+                passed, conf, _, tail = self._check_nod_pattern(pat, y_arr, x_arr, b_arr, thr)
+                if passed and conf > state['_pending_conf']:
+                    state['_pending_conf'] = conf
+                    state['_pending_frame'] = frame_number
+                    state['_pending_tail'] = tail
+
+            # Settle-Window abgelaufen → feuern
+            if frame_number - state['_pending_start'] >= settle:
+                return self._fire_pending_nod(state)
+
+            return NO
+
+        # ── Kein Pending: normaler Cooldown-Check ──
         if frame_number - state['last_nod_frame'] <= self._nod_cooldown_frames:
-            return False, 0.0
+            return NO
 
         # Signale vorbereiten
         y_arr = np.array(state['nose_y'])
@@ -352,19 +458,35 @@ class AdvancedReactionDetector:
 
         # Alle Patterns prüfen — höchste Confidence gewinnt
         best_conf = 0.0
+        best_offset = 0
+        best_tail = 0
         for pat in self._nod_patterns:
-            passed, conf = self._check_nod_pattern(pat, y_arr, x_arr, b_arr, thr)
+            passed, conf, offset, tail = self._check_nod_pattern(pat, y_arr, x_arr, b_arr, thr)
             if passed and conf > best_conf:
                 best_conf = conf
+                best_offset = offset
+                best_tail = tail
 
         if best_conf > 0:
-            state['last_nod_frame'] = frame_number
-            state['nose_y'].clear()
-            state['nose_x'].clear()
-            state['bridge_y'].clear()
-            return True, best_conf
+            # Pattern-Start: aktueller Frame minus Offset zum ersten Reversal
+            pattern_start_frame = frame_number - best_offset
+            if settle > 0:
+                # Settle-Phase starten — noch nicht feuern
+                state['_pending_conf'] = best_conf
+                state['_pending_first'] = pattern_start_frame
+                state['_pending_frame'] = frame_number
+                state['_pending_start'] = frame_number
+                state['_pending_tail'] = best_tail
+                return NO
+            else:
+                # Kein Settle → sofort feuern (altes Verhalten)
+                state['last_nod_frame'] = frame_number
+                state['nose_y'].clear()
+                state['nose_x'].clear()
+                state['bridge_y'].clear()
+                return True, best_conf, pattern_start_frame, frame_number, best_tail
 
-        return False, 0.0
+        return NO
     
     def detect_head_shake(self, landmarks, frame_number, width, state: dict):
         """Erkennt Kopfschütteln (nein-nein)"""
@@ -491,9 +613,13 @@ class AdvancedReactionDetector:
             state = self._get_face_state(face_idx)
 
             if self.enabled_reactions.get('nodding', True):
-                det, conf = self.detect_nodding(landmarks, frame_number, height, width, state)
+                det, conf, first_frame, peak_frame, tail = self.detect_nodding(landmarks, frame_number, height, width, state)
                 if det and conf > reactions['nodding']['confidence']:
-                    reactions['nodding'] = {'detected': True, 'confidence': conf}
+                    reactions['nodding'] = {
+                        'detected': True, 'confidence': conf,
+                        'frame': first_frame, 'peak_frame': peak_frame,
+                        'tail_frames': tail,
+                    }
 
             if self.enabled_reactions.get('head_shake', True):
                 det, conf = self.detect_head_shake(landmarks, frame_number, width, state)
@@ -649,13 +775,19 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
             if reaction_type in ('face_detected', 'face_count'):
                 continue
             if data['detected'] and data['confidence'] > 0.2:
-                tc = frame_num / fps
-                all_reactions.append({
-                    'frame':      frame_num,
+                actual_frame = data.get('frame', frame_num)
+                tc = actual_frame / fps
+                entry = {
+                    'frame':      actual_frame,
                     'timecode':   f"{int(tc // 60):02d}:{tc % 60:06.3f}",
                     'type':       reaction_type,
                     'confidence': round(data['confidence'], 3),
-                })
+                }
+                if 'peak_frame' in data:
+                    entry['peak_frame'] = data['peak_frame']
+                if 'tail_frames' in data:
+                    entry['tail_frames'] = data['tail_frames']
+                all_reactions.append(entry)
 
     def _log_face_counts(face_counts: list, label: str):
         """Gibt Verteilung + Stabilitäts-Warnung für eine Liste von Gesichts-Zählwerten aus."""
@@ -714,6 +846,20 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                 '-f', 'rawvideo', '-pix_fmt', 'bgr24', '-an', 'pipe:1',
             ]
             ff_proc = subprocess.Popen(ff_cmd, stdout=subprocess.PIPE, stderr=subprocess.DEVNULL)
+            # Pending Nod-Detections der vorigen Sektion feuern bevor State geleert wird
+            for fs in detector._face_states.values():
+                if fs.get('_pending_conf', 0) > 0:
+                    _, conf, first_f, peak_f, tail_f = detector._fire_pending_nod(fs)
+                    if conf > 0.2:
+                        tc = first_f / fps
+                        all_reactions.append({
+                            'frame': first_f,
+                            'timecode': f"{int(tc // 60):02d}:{tc % 60:06.3f}",
+                            'type': 'nodding',
+                            'confidence': round(conf, 3),
+                            'peak_frame': peak_f,
+                            'tail_frames': tail_f,
+                        })
             detector.reset_history()
             local = 0
             sec_face_counts = []
@@ -790,6 +936,21 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                     print(f"__REACTIONS__ {' '.join(f'{k}:{v}' for k,v in _by.items())}", flush=True)
         ff_proc.stdout.close()
         ff_proc.wait()
+
+    # Letzte Pending Nod-Detections feuern (Ende der letzten Sektion / des Videos)
+    for fs in detector._face_states.values():
+        if fs.get('_pending_conf', 0) > 0:
+            _, conf, first_f, peak_f, tail_f = detector._fire_pending_nod(fs)
+            if conf > 0.2:
+                tc = first_f / fps
+                all_reactions.append({
+                    'frame': first_f,
+                    'timecode': f"{int(tc // 60):02d}:{tc % 60:06.3f}",
+                    'type': 'nodding',
+                    'confidence': round(conf, 3),
+                    'peak_frame': peak_f,
+                    'tail_frames': tail_f,
+                })
 
     print()  # Neue Zeile nach Progress Bar
     if show_preview:

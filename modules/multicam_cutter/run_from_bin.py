@@ -375,7 +375,12 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
         tl.GetItemListInTrack('video', 1) or [],
         key=lambda x: x.GetStart(),
     )
+    if len(video_items) != len(cut_events):
+        print(f"  ⚠️  FARB-MISMATCH: {len(video_items)} Timeline-Items vs "
+              f"{len(cut_events)} Cut-Events — Farben können verschoben sein!")
+
     colored = 0
+    color_stats = {}
     for i, item in enumerate(video_items):
         if i >= len(cut_events):
             break
@@ -385,7 +390,11 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
         color   = _COLOR_MAP.get((reason, is_cam1), 'Blue')
         if item.SetClipColor(color):
             colored += 1
+        color_stats[reason] = color_stats.get(reason, 0) + 1
     print(f"  {colored}/{len(video_items)} Clips eingefärbt")
+    for reason, count in sorted(color_stats.items()):
+        color = _COLOR_MAP.get((reason, True), 'Blue')
+        print(f"    {color:8s} ← {reason} ({count}x)")
 
     # Farblegende als Marker an Frame 1 der Timeline
     tl.AddMarker(
@@ -395,6 +404,38 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
         'Orange = Max-Time',
         1,
     )
+
+    # Post-Trim Manifest: Zeigt für jedes Timeline-Event Reason + Color + Record-TC
+    manifest = []
+    for i, ev in enumerate(cut_events):
+        reason = ev.get('reason', 'speaker')
+        is_cam1 = ev['clip'] is cam1_ref
+        color = _COLOR_MAP.get((reason, is_cam1), 'Blue')
+        rec_in = ev.get('record_in', 0)
+        rec_out = ev.get('record_out', 0)
+        # Clip-Name ermitteln
+        clip_name = 'CAM1' if is_cam1 else 'CAM2'
+        for label, (item, _) in cam_items.items():
+            if item is ev['clip']:
+                clip_name = label
+                break
+        s_in = ev.get('source_in', 0)
+        manifest.append({
+            'idx': i + 1,
+            'record_tc': f"{int(rec_in / fps) // 3600:02d}:{(int(rec_in / fps) % 3600) // 60:02d}:"
+                         f"{int(rec_in / fps) % 60:02d}:{int(rec_in % fps):02d}",
+            'clip': clip_name,
+            'source_frame': s_in,
+            'reason': reason,
+            'color': color,
+        })
+    if audio_trims_path:
+        manifest_path = audio_trims_path.parent / 'timeline_manifest.json'
+        try:
+            manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+            print(f"  ✓ Manifest: {manifest_path.name} ({len(manifest)} Events)")
+        except Exception:
+            pass
 
     return tl
 

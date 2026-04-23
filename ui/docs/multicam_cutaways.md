@@ -30,29 +30,17 @@ Wenn alle Cutaways exakt gleich lang wären, entstünde ein mechanisch-gleichmä
 
 ### Kopfnicken
 
-Die Erkennung nutzt MediaPipe, eine Gesichtserkennungsbibliothek von Google, um 468 Gesichtspunkte pro Frame zu verfolgen. Für die Nickerkennung wird die vertikale Bewegung der Nasenspitze beobachtet: Bewegt sie sich innerhalb kurzer Zeit stark genug nach unten und wieder nach oben, gilt das als Nicken. Die Analyse läuft direkt auf den Videodateien.
+Die Erkennung nutzt MediaPipe, eine Gesichtserkennungsbibliothek von Google, um Gesichtspunkte pro Frame zu verfolgen. Für die Nickerkennung werden zwei Punkte beobachtet: Nasenspitze und Nasenrücken. Über ein gleitendes Zeitfenster (2 Sekunden) wird das Bewegungsmuster analysiert — der Detektor sucht nach mehrfachen Richtungswechseln (Oszillation), die typisch für echtes Kopfnicken sind. Die Analyse läuft direkt auf den Videodateien.
+
+Verschiedene Nickmuster sind als **Patterns** definiert, die unabhängig aktiviert und deaktiviert werden können. Aktuell gibt es zwei Patterns: **Oscillation** erkennt typisches Nicken mit mindestens zwei Richtungswechseln, **Strong Oscillation** erkennt kräftigeres Nicken mit mindestens drei Richtungswechseln und höherer Amplitude. Beide Patterns prüfen zusätzlich, ob die Geschwindigkeitskurven von Nasenspitze und Nasenrücken synchron verlaufen — bei echtem Kopfnicken ist diese Korrelation extrem hoch, bei zufälligem Rauschen oder Artefakten nicht. Außerdem wird geprüft, ob die Schwingung gedämpft ist (wie eine Feder, die ausschwingt) und ob die Bewegung nicht zu stark seitlich verläuft (Kopfschütteln-Filter).
+
+Das Pattern mit der höchsten Konfidenz gewinnt. Der Cutaway beginnt automatisch am Anfang der sichtbaren Nickbewegung, nicht erst am Ende der Erkennung. Die Cutaway-Dauer passt sich dynamisch an die tatsächliche Länge der Bewegung an — kurze Nicker bekommen die eingestellte Mindestdauer, längere Bewegungen werden vollständig gezeigt.
 
 #### Min. Konfidenz (%)
 
-Die Konfidenz wird aus der Deutlichkeit der Nickbewegung selbst berechnet: Das Auf-Ab-Auf-Pattern wird in drei Segmente geteilt, und der schwächste Übergang (hin oder zurück) bestimmt den Wert. Je gleichmäßiger und kräftiger die Bewegung in beide Richtungen ist, desto höher die Konfidenz. Ein zaghaftes Nicken, bei dem der Kopf kaum zurückkehrt, erhält eine niedrige Konfidenz — ein deutliches Nicken mit klarer Rückkehr zur Ausgangsposition erreicht 100 %. Höhere Werte reduzieren Fehlschnitte, können aber dazu führen, dass subtilere Nicken ignoriert werden.
+Die Konfidenz wird aus mehreren Faktoren berechnet: Anzahl der Richtungswechsel, Frequenz der Schwingung, Stärke der Dämpfung, Korrelation zwischen Nasenspitze und Nasenrücken sowie Amplitude der Bewegung. Je nach Pattern werden diese Faktoren unterschiedlich gewichtet. Ein schwaches Nicken mit wenigen Richtungswechseln erhält eine niedrigere Konfidenz als ein deutliches, kräftiges Nicken. Höhere Werte reduzieren Fehlschnitte, können aber dazu führen, dass subtilere Nicker ignoriert werden.
 
-> **Standardwert 88 % bedeutet:** Nur Nickbewegungen, bei denen beide Übergänge — nach unten und zurück — mindestens 88 % der erwarteten Stärke erreichen, werden als Cutaway verwendet.
-
-#### Nod-Threshold (px)
-
-Nicht jede Kopfbewegung ist ein bewusstes Nicken. Menschen bewegen den Kopf ständig leicht — beim Sprechen, beim Gestikulieren, beim Schlucken. Der Threshold filtert kleine Zufallsbewegungen heraus: Nur wenn die Nase sich um mindestens diesen Pixelwert vertikal bewegt, wird die Bewegung als potentielles Nicken registriert. Der Wert ist auf eine Framehöhe von 2160 Pixeln (4K) kalibriert.
-
-> **Standardwert 80 px bedeutet:** Die Nasenspitze muss sich bei 4K-Material mindestens 80 Pixel vertikal bewegen — etwa 3,7 % der Bildhöhe — damit die Bewegung überhaupt als Nicken in Betracht kommt.
-
-#### Min. Nod-Dauer (s)
-
-Fügt eine Zeitbedingung hinzu: Die Bewegung muss lang genug anhalten, um als echtes Nicken zu gelten. Zu kurze Bewegungen — z.B. ein kurzer Zuck beim Lachen — werden so herausgefiltert.
-
-> **Standardwert 0,65 Sekunden bedeutet:** Eine Kopfbewegung muss mindestens 0,65 Sekunden andauern, um als gültiges Nicken zu zählen. Schnellere Bewegungen, die häufig beim Sprechen oder Lachen entstehen, werden ignoriert.
-
-#### Auto Accuracy
-
-Wenn sich eine Person sehr nah an der Kamera befindet, nimmt das Gesicht einen großen Teil des Bildes ein und Bewegungen in Pixeln sind entsprechend groß. Sitzt jemand weiter entfernt, fällt die gleiche Kopfbewegung in Pixeln viel kleiner aus. Auto Accuracy gleicht diesen Unterschied automatisch aus, indem der Threshold dynamisch an die erkannte Gesichtsgröße angepasst wird. Besonders nützlich bei Totalen, auf denen mehrere Personen gleichzeitig sichtbar sind.
+> **Standardwert 60 % bedeutet:** Nur Nickbewegungen, deren gewichtete Bewertung mindestens 60 % erreicht, werden als Cutaway verwendet.
 
 ---
 
