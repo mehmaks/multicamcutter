@@ -24,6 +24,7 @@ if "_pending_toast" in st.session_state:
 
 SCRIPT_DIR   = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter"
 _cfg_path    = SCRIPT_DIR / "config.ini"
+_nod_patterns_path = SCRIPT_DIR / "nodding_patterns.json"
 _builtin_presets_dir = SCRIPT_DIR / "presets"
 _presets_dir = Path.home() / ".resolve-toolkit" / "multicam_presets"
 _presets_dir.mkdir(parents=True, exist_ok=True)
@@ -691,6 +692,18 @@ def _render_settings_panel(prefix):
             st.number_input("Min. Konfidenz (%)", value=D['min_conf'],
                 min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_min_conf",
                 help="Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird.")
+            # Pattern-Toggles aus nodding_patterns.json
+            if _nod_patterns_path.is_file():
+                _pat_data = json.loads(_nod_patterns_path.read_text(encoding='utf-8'))
+                for _pat in _pat_data.get('patterns', []):
+                    _pname = _pat['name']
+                    _pkey = f"{prefix}_nod_pat_{_pname}"
+                    st.toggle(
+                        _pname.replace('_', ' ').title(),
+                        value=_pat.get('enabled', True),
+                        key=_pkey,
+                        help=_pat.get('description', ''),
+                    )
 
         # ── Sprachreaktionen ──────────────────────────────────────────────────
         with col_speak:
@@ -747,6 +760,24 @@ def _collect_settings(prefix):
         'pause_cut_mode':        {'Middle': 'middle', 'L-Cut': 'l-cut', 'J-Cut': 'j-cut', 'Zufall': 'random'}.get(
                                      st.session_state.get(f"{p}pause_cut_mode", 'Middle'), 'middle'),
     }
+
+
+def _save_nod_pattern_toggles(prefix):
+    """Sync pattern enabled-flags from UI toggles back to nodding_patterns.json."""
+    if not _nod_patterns_path.is_file():
+        return
+    data = json.loads(_nod_patterns_path.read_text(encoding='utf-8'))
+    changed = False
+    for pat in data.get('patterns', []):
+        key = f"{prefix}_nod_pat_{pat['name']}"
+        if key in st.session_state:
+            new_val = bool(st.session_state[key])
+            if pat.get('enabled', True) != new_val:
+                pat['enabled'] = new_val
+                changed = True
+    if changed:
+        _nod_patterns_path.write_text(json.dumps(data, indent=2, ensure_ascii=False) + '\n',
+                                      encoding='utf-8')
 
 
 def _save_settings_to_config(v):
@@ -986,6 +1017,7 @@ if tab_bin is not None:
     if start_bin:
         _v = _collect_settings('s')
         _save_settings_to_config(_v)
+        _save_nod_pattern_toggles('s')
 
         st.session_state.bin_running  = True
         st.session_state.bin_log      = []
@@ -1340,6 +1372,7 @@ with tab_folder:
     if start_folder:
         _v = _collect_settings('f')
         _save_settings_to_config(_v)
+        _save_nod_pattern_toggles('f')
 
         st.session_state.folder_running  = True
         st.session_state.folder_log      = []
