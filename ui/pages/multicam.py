@@ -79,7 +79,7 @@ _DEFAULTS: dict = {
     'threshold_db':      6.0,
     'min_edit':          1.0,
     'change_delay':      0.3,
-    'min_conf':          88,
+    'min_conf':          60,
     'nodding_enabled':   True,
     'pre_roll':          15,
     'speaking_enabled':  True,
