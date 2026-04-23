@@ -63,7 +63,7 @@ def _save_lut_to_history(new_path: str) -> None:
 _PARAM_NAMES = [
     'min_shot', 'max_shot', 'reaction_dur', 'cleanup_dur', 'randomness',
     'threshold_db', 'min_edit', 'change_delay',
-    'min_conf', 'nodding_enabled', 'nod_threshold', 'min_nod_dur', 'pre_roll',
+    'min_conf', 'nodding_enabled', 'pre_roll',
     'speaking_enabled', 'rise_db', 'speaking_max_dur',
     'totale_simul_dur',
     'pause_trim_enabled', 'max_pause', 'pause_silence_db', 'pause_cut_mode',
@@ -80,8 +80,6 @@ _DEFAULTS: dict = {
     'change_delay':      0.3,
     'min_conf':          88,
     'nodding_enabled':   True,
-    'nod_threshold':     80.0,
-    'min_nod_dur':       0.65,
     'pre_roll':          15,
     'speaking_enabled':  True,
     'rise_db':           6.0,
@@ -693,14 +691,6 @@ def _render_settings_panel(prefix):
             st.number_input("Min. Konfidenz (%)", value=D['min_conf'],
                 min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_min_conf",
                 help="Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird.")
-            st.number_input("Nod-Threshold (px)", value=D['nod_threshold'],
-                min_value=1.0, step=1.0, format="%.0f", key=f"{prefix}_nod_threshold",
-                help="Wie weit sich der Kopf bewegen muss, damit es als Nicken zählt.")
-            st.number_input("Min. Nod-Dauer (s)", value=D['min_nod_dur'],
-                min_value=0.1, step=0.05, format="%.2f", key=f"{prefix}_min_nod_dur",
-                help="Wie lang die Kopfbewegung andauern muss, um als echtes Nicken zu gelten.")
-            st.toggle("Auto Accuracy", value=True, key=f"{prefix}_auto_accuracy",
-                help="Passt die Empfindlichkeit automatisch an die Gesichtsgröße im Bild an.")
 
         # ── Sprachreaktionen ──────────────────────────────────────────────────
         with col_speak:
@@ -746,8 +736,6 @@ def _collect_settings(prefix):
         'change_delay':      st.session_state.get(f"{p}change_delay", 0.3),
         'min_conf':          st.session_state.get(f"{p}min_conf", 88) / 100,
         'nodding_enabled':   st.session_state.get(f"{p}nodding_enabled", True),
-        'nod_threshold':     st.session_state.get(f"{p}nod_threshold", 80.0),
-        'min_nod_dur':       st.session_state.get(f"{p}min_nod_dur", 0.65),
         'pre_roll':          st.session_state.get(f"{p}pre_roll", 15),
         'speaking_enabled':  st.session_state.get(f"{p}speaking_enabled", True),
         'rise_db':           st.session_state.get(f"{p}rise_db", 6.0),
@@ -775,8 +763,6 @@ def _save_settings_to_config(v):
         ('RMSDiarization',   'min_edit_duration',    v['min_edit']),
         ('RMSDiarization',   'change_delay',         v['change_delay']),
         ('Detection',        'min_confidence',       v['min_conf']),
-        ('Nodding',          'threshold',             v['nod_threshold']),
-        ('Nodding',          'min_nod_duration',     v['min_nod_dur']),
         ('CutawayTiming',    'pre_roll_frames',      v['pre_roll']),
         ('SpeakingReaction', 'rise_db',              v['rise_db']),
         ('SpeakingReaction', 'max_duration',         v['speaking_max_dur']),
