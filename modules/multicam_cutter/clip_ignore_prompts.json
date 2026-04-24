@@ -1,0 +1,14 @@
+{
+  "ignore": [
+    "a person drinking from a cup or glass",
+    "a person drinking water",
+    "a person drinking coffee"
+  ],
+  "neutral": [
+    "a person listening attentively",
+    "a person nodding",
+    "a person sitting normally",
+    "a person talking",
+    "a person looking at another person"
+  ]
+}

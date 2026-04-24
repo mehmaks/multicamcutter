@@ -369,6 +369,8 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
         ('reaction_speaking_reaction', False):  'Green',   # Speaking-Cutaway (auf CAM2)
         ('max_time', True):                     'Orange',  # Forced Max-Time Split (CAM1)
         ('max_time', False):                    'Orange',  # Forced Max-Time Split (CAM2)
+        ('pause_cutaway', True):                'Violet',  # Stille-Cutaway (auf CAM1)
+        ('pause_cutaway', False):               'Violet',  # Stille-Cutaway (auf CAM2)
     }
     cam1_ref = cam_items['CAM1'][0]
     video_items = sorted(
@@ -639,7 +641,11 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
     tl_cfg = cfg['TotaleLogic']     if 'TotaleLogic'     in cfg else {}
     pt_cfg = cfg['PauseTrim']       if 'PauseTrim'       in cfg else {}
+    pc_cfg = cfg['PauseCutaway']    if 'PauseCutaway'    in cfg else {}
+    cf_cfg = cfg['CLIPFilter']      if 'CLIPFilter'      in cfg else {}
     speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
+    pause_cutaway_enabled = pc_cfg.get('enabled', 'false').strip().lower() == 'true'
+    clip_filter_enabled = cf_cfg.get('enabled', 'false').strip().lower() == 'true'
 
     # ── Schritt 1: Base-EDL aus Audio (binäre Diarisierung CAM1/CAM2) ────────
     if not skip_base_edl:
@@ -704,6 +710,13 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--audio-trims-out',     str(work_dir / 'audio_trims.json'),
             ]
 
+        # Pause-Cutaway (Stille-Cutaway)
+        if pause_cutaway_enabled:
+            builder_args += [
+                '--pause-cutaway-json-out',  str(work_dir / 'pause_cutaways.json'),
+                '--pause-cutaway-min-pause', pc_cfg.get('min_pause', '2.0'),
+            ]
+
         run(builder_args, "Base-EDL aus Audio")
 
     # ── Schritt 2: Nodding-Analyse für ALLE Kameras ───────────────────────────
@@ -760,14 +773,20 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     )
 
     final_edl = work_dir / 'final.edl'
-    run([
+    add_reactions_args = [
         str(SCRIPT_DIR / 'add_reactions_to_edl.py'),
         '--cameras-json', str(cameras_json_path),
         '--resolve-edl',  str(base_edl),
         '--output',       str(final_edl),
         '--config',       str(config),
         '--fps',          str(fps),
-    ], "Cutaways einfügen")
+    ]
+    pause_cutaways_json = work_dir / 'pause_cutaways.json'
+    if pause_cutaway_enabled and pause_cutaways_json.exists():
+        add_reactions_args += ['--pause-cutaways', str(pause_cutaways_json)]
+    if clip_filter_enabled:
+        add_reactions_args += ['--clip-filter-config', str(SCRIPT_DIR / 'clip_ignore_prompts.json')]
+    run(add_reactions_args, "Cutaways einfügen")
 
     return final_edl
 

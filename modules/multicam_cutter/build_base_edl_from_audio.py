@@ -734,6 +734,11 @@ def main():
                         help='Video-Schnittmodus in der Pause (default: middle)')
     parser.add_argument('--audio-trims-out',      default=None,
                         help='JSON-Ausgabe: Audio-Keep-Regionen für MIC-Platzierung')
+    # Pause-Cutaway (Stille-Cutaway)
+    parser.add_argument('--pause-cutaway-json-out', default=None,
+                        help='JSON-Ausgabe: On-Speaker-Pausen als Cutaway-Kandidaten')
+    parser.add_argument('--pause-cutaway-min-pause', type=float, default=2.0,
+                        help='Min. Pausenlänge für Stille-Cutaway (s, default: 2.0)')
     args = parser.parse_args()
 
     print("=" * 70)
@@ -1034,6 +1039,33 @@ def main():
             Path(args.speaking_reactions_cam2_out).write_text(
                 json.dumps({'fps': args.fps, 'reactions': cam2_sr}, indent=2)
             )
+
+    # ── 9. Pause-Cutaway-Kandidaten exportieren (optional) ─────────────────
+    if args.pause_cutaway_json_out:
+        print(f"\n🔇 Erkenne Stille-Pausen für Cutaways (min {args.pause_cutaway_min_pause}s)...")
+        _cutaway_pauses = detect_on_speaker_pauses(
+            audio_cam1, audio_cam2, sr1, segments,
+            silence_db=args.pause_silence_db,
+            min_pause_s=args.pause_cutaway_min_pause,
+            padding_s=0.0,
+        )
+        # Audio-Sekunden → Timeline-Frames
+        pause_list = []
+        for spk in ('CAM1', 'CAM2'):
+            for ps, pe in _cutaway_pauses.get(spk, []):
+                sf = round(ps * args.fps) + args.wav_edl_frame
+                ef = round(pe * args.fps) + args.wav_edl_frame
+                if ef > sf:
+                    pause_list.append({
+                        'start_frame': sf,
+                        'end_frame': ef,
+                        'speaker': spk,
+                    })
+        pause_list.sort(key=lambda p: p['start_frame'])
+        Path(args.pause_cutaway_json_out).write_text(
+            json.dumps({'fps': args.fps, 'pauses': pause_list}, indent=2)
+        )
+        print(f"  {len(pause_list)} Pause-Cutaway-Kandidaten exportiert")
 
     print("\n" + "=" * 70)
     print("✅ FERTIG")

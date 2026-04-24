@@ -386,15 +386,39 @@ def build_events_with_cutaways(
     return events
 
 
+def _is_diarization_switch(event, prev, next_event) -> bool:
+    """Prüft ob ein kurzes Event ein reiner Diarization-Sprecherwechsel ist.
+
+    Ein Sprecherwechsel-Sandwich liegt vor, wenn:
+    - Das kurze Event reason='speaker' hat
+    - Das Event einen anderen Clip hat als Vorgänger UND Nachfolger
+    - Vorgänger und Nachfolger denselben Clip haben (CAM1→CAM2→CAM1)
+    """
+    if event.reason != "speaker":
+        return False
+    if event.clip_name == prev.clip_name:
+        return False
+    if next_event is not None and next_event.clip_name == event.clip_name:
+        return False
+    return True
+
+
 def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float) -> List[EDLEvent]:
     print(f"\n🧹 PASS 3: Cleanup kurzer Events")
     print(f"  Min Duration: {min_duration}s ({int(min_duration * fps)} Frames)")
     min_frames = int(min_duration * fps)
     cleaned = []
     removed = 0
-    for event in events:
+    skipped_diarization = 0
+    for i, event in enumerate(events):
         if event.duration_frames() < min_frames and cleaned:
+            next_event = events[i + 1] if i + 1 < len(events) else None
             prev = cleaned[-1]
+            if _is_diarization_switch(event, prev, next_event):
+                cleaned.append(event)
+                skipped_diarization += 1
+                print(f"  ⏭ Sprecherwechsel beibehalten: {event.clip_name} @ {event.record_in} ({event.duration_frames()} Frames)")
+                continue
             source_offset = prev.source_in_frame - prev.record_in_frame
             prev.record_out       = event.record_out
             prev.record_out_frame = event.record_out_frame
@@ -404,8 +428,137 @@ def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float
             print(f"  ✗ Entfernt: Event @ {event.record_in} ({event.duration_frames()} Frames)")
         else:
             cleaned.append(event)
-    print(f"  ✓ {removed} entfernt, {len(cleaned)} verbleiben")
+    print(f"  ✓ {removed} entfernt, {skipped_diarization} Sprecherwechsel beibehalten, {len(cleaned)} verbleiben")
     return cleaned
+
+
+def insert_pause_cutaways(
+    events: List[EDLEvent],
+    pause_data: Dict,
+    cameras: List[Dict],
+    reference_frames: Dict[str, int],
+    timeline_zero_video_frames: Dict[str, int],
+    min_shot_frames: int,
+    fps: float,
+) -> List[EDLEvent]:
+    """Pass 2b: Fügt Cutaways in On-Speaker-Pausen ein.
+
+    Für jede Pause wird geprüft, ob sie komplett innerhalb eines
+    speaker-Events liegt (nicht an einem Schnitt beginnt/endet).
+    Wenn ja, wird das Event aufgespalten und ein Cutaway eingefügt.
+    """
+    print(f"\n🔇 PASS 2b: Pause-Cutaways")
+    pauses = pause_data.get('pauses', [])
+    if not pauses:
+        print("  Keine Pausen-Kandidaten vorhanden")
+        return events
+
+    # CAM1/CAM2 → Clip-Name Mapping (erste zwei Kameras)
+    speaker_to_clip = {}
+    if len(cameras) >= 1:
+        speaker_to_clip['CAM1'] = cameras[0]['name']
+    if len(cameras) >= 2:
+        speaker_to_clip['CAM2'] = cameras[1]['name']
+
+    inserted = 0
+    result = list(events)
+
+    for pause in pauses:
+        ps = pause['start_frame']
+        pe = pause['end_frame']
+        spk = pause['speaker']
+        on_clip = speaker_to_clip.get(spk)
+        if not on_clip:
+            continue
+
+        # Finde das Event, das die Pause komplett enthält
+        host_idx = None
+        for i, ev in enumerate(result):
+            if (ev.clip_name == on_clip
+                    and ev.reason == "speaker"
+                    and ev.record_in_frame <= ps
+                    and ev.record_out_frame >= pe):
+                # Mindestabstand zum Event-Rand prüfen
+                if (ps - ev.record_in_frame >= min_shot_frames
+                        and ev.record_out_frame - pe >= min_shot_frames):
+                    host_idx = i
+                    break
+
+        if host_idx is None:
+            continue
+
+        ev = result[host_idx]
+        on_ref = reference_frames[on_clip]
+        on_tzvf = timeline_zero_video_frames[on_clip]
+
+        # Off-Kamera wählen: erste andere Close-Kamera
+        off_cam = None
+        for cam in cameras:
+            if cam['name'] != on_clip:
+                off_cam = cam
+                break
+        if not off_cam or off_cam['name'] not in reference_frames:
+            continue
+
+        off_clip = off_cam['name']
+        off_ref = reference_frames[off_clip]
+        off_tzvf = timeline_zero_video_frames[off_clip]
+
+        # Prüfe ob Off-Kamera zum Pause-Zeitpunkt bereits aufnimmt
+        off_vi_check = off_tzvf + ps
+        if off_vi_check < 0:
+            continue
+
+        # Source-Offset des Host-Events beibehalten
+        source_offset = ev.source_in_frame - ev.record_in_frame
+
+        # 3 neue Events: ON-vor-Pause, OFF-Cutaway, ON-nach-Pause
+        new_events = []
+
+        # ON vor Pause
+        vi_pre = on_tzvf + ev.record_in_frame
+        vo_pre = on_tzvf + ps
+        new_events.append(EDLEvent(
+            event_num=0, clip_name=on_clip,
+            source_in=frames_to_timecode(on_ref + vi_pre, fps),
+            source_out=frames_to_timecode(on_ref + vo_pre, fps),
+            record_in=frames_to_timecode(ev.record_in_frame, fps),
+            record_out=frames_to_timecode(ps, fps),
+            fps=fps, reason="speaker",
+        ))
+
+        # OFF Cutaway (Pause)
+        off_vi = off_tzvf + ps
+        off_vo = off_tzvf + pe
+        new_events.append(EDLEvent(
+            event_num=0, clip_name=off_clip,
+            source_in=frames_to_timecode(off_ref + off_vi, fps),
+            source_out=frames_to_timecode(off_ref + off_vo, fps),
+            record_in=frames_to_timecode(ps, fps),
+            record_out=frames_to_timecode(pe, fps),
+            fps=fps, reason="pause_cutaway",
+        ))
+
+        # ON nach Pause
+        vi_post = on_tzvf + pe
+        vo_post = on_tzvf + ev.record_out_frame
+        new_events.append(EDLEvent(
+            event_num=0, clip_name=on_clip,
+            source_in=frames_to_timecode(on_ref + vi_post, fps),
+            source_out=frames_to_timecode(on_ref + vo_post, fps),
+            record_in=frames_to_timecode(pe, fps),
+            record_out=frames_to_timecode(ev.record_out_frame, fps),
+            fps=fps, reason="speaker",
+        ))
+
+        # Host-Event ersetzen
+        result[host_idx:host_idx + 1] = new_events
+        inserted += 1
+        print(f"  🔇 Pause-Cutaway: {on_clip}→{off_clip} @ {frames_to_timecode(ps, fps)} "
+              f"({(pe - ps) / fps:.1f}s)")
+
+    print(f"  ✓ {inserted} Pause-Cutaways eingefügt, {len(result)} Events total")
+    return result
 
 
 def split_long_shots(
@@ -499,6 +652,259 @@ def write_edl(events: List[EDLEvent], output_path: str, title: str = "Multicam w
     print(f"✓ {len(events)} Events geschrieben")
 
 
+def _tc_to_seconds(tc: str, fps: float) -> float:
+    """HH:MM:SS:FF → Sekunden."""
+    parts = tc.split(':')
+    return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2]) + int(parts[3]) / fps
+
+
+def _extract_frame(video_path: str, time_s: float, output_path: str) -> bool:
+    """Extrahiert ein Einzelbild per ffmpeg."""
+    result = subprocess.run(
+        ['ffmpeg', '-y', '-ss', f'{time_s:.3f}', '-i', video_path,
+         '-frames:v', '1', '-q:v', '2', output_path],
+        capture_output=True, timeout=10,
+    )
+    return result.returncode == 0 and Path(output_path).exists()
+
+
+def _clip_score_for_event(
+    event: 'EDLEvent',
+    clip_to_video: Dict[str, str],
+    clip_start_s: Dict[str, float],
+    model, processor, all_prompts: List[str],
+    n_ignore: int, fps: float, tmpdir: str, tag: str,
+    device: str,
+) -> float:
+    """Berechnet den Ignore-Score für ein Cutaway-Event (max über 2 Frames)."""
+    import torch
+    from PIL import Image
+
+    video_path = clip_to_video.get(event.clip_name)
+    if not video_path or not Path(video_path).exists():
+        return 0.0
+
+    start_offset = clip_start_s.get(event.clip_name, 0.0)
+    src_in_s = _tc_to_seconds(event.source_in, fps) - start_offset
+    src_out_s = _tc_to_seconds(event.source_out, fps) - start_offset
+    mid_s = (src_in_s + src_out_s) / 2
+
+    scores = []
+    for label, t in [('s', src_in_s + 0.2), ('m', mid_s)]:
+        frame_path = f"{tmpdir}/clip_{tag}_{label}.jpg"
+        if not _extract_frame(video_path, t, frame_path):
+            continue
+        image = Image.open(frame_path).convert('RGB')
+        inputs = processor(text=all_prompts, images=image,
+                           return_tensors="pt", padding=True).to(device)
+        with torch.no_grad():
+            outputs = model(**inputs)
+            probs = outputs.logits_per_image[0].softmax(dim=0).cpu().numpy()
+        scores.append(float(sum(probs[:n_ignore])))
+
+    return max(scores) if scores else 0.0
+
+
+def clip_filter_cutaways(
+    events: List['EDLEvent'],
+    cameras: List[Dict],
+    reference_frames: Dict[str, int],
+    timeline_zero_video_frames: Dict[str, int],
+    clip_config: Dict,
+    fps: float,
+) -> List['EDLEvent']:
+    """Pass 5: CLIP-basierter Ignore-Filter.
+
+    Prüft alle Cutaway-Events gegen eine Ignore-Liste (z.B. 'Person trinkt').
+    Geflagte Cutaways werden verschoben (alternierend ±step) und erneut geprüft.
+    """
+    import tempfile
+
+    prompts_path = clip_config.get('prompts_path', '')
+    threshold = clip_config.get('ignore_threshold', 0.5)
+    shift_step_s = clip_config.get('shift_step_s', 2.0)
+    max_attempts = clip_config.get('max_attempts', 5)
+
+    if not prompts_path or not Path(prompts_path).exists():
+        print("\n⚠️  CLIP-Filter: Prompts-JSON nicht gefunden, überspringe")
+        return events
+
+    prompts_data = json.loads(Path(prompts_path).read_text())
+    ignore_prompts = prompts_data.get('ignore', [])
+    neutral_prompts = prompts_data.get('neutral', [])
+    if not ignore_prompts:
+        return events
+
+    print(f"\n🔍 PASS 5: CLIP Ignore-Filter")
+    print(f"  Ignore-Prompts: {ignore_prompts}")
+    print(f"  Threshold: {threshold:.0%}, Shift: {shift_step_s}s, Max Versuche: {max_attempts}")
+
+    # CLIP laden
+    try:
+        import torch
+        from transformers import CLIPProcessor, CLIPModel
+    except ImportError:
+        print("  ⚠️  transformers/torch nicht installiert, überspringe CLIP-Filter")
+        return events
+
+    device = 'cpu'
+    if torch.backends.mps.is_available():
+        device = 'mps'
+    elif torch.cuda.is_available():
+        device = 'cuda'
+
+    print(f"  Lade CLIP-Modell auf {device}...")
+    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
+    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+
+    all_prompts = ignore_prompts + neutral_prompts
+    n_ignore = len(ignore_prompts)
+
+    # Video-Pfade und Start-TCs
+    clip_to_video = {cam['name']: cam['video'] for cam in cameras}
+    clip_start_s = {}
+    for cam in cameras:
+        tc = get_video_timecode_with_ffprobe(cam['video'])
+        clip_start_s[cam['name']] = _tc_to_seconds(tc, fps) if tc else 0.0
+
+    shift_frames = int(shift_step_s * fps)
+    checked = 0
+    flagged = 0
+    shifted = 0
+    unresolved = 0
+
+    result = list(events)
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        for i, event in enumerate(result):
+            if event.reason == "speaker":
+                continue
+
+            checked += 1
+            score = _clip_score_for_event(
+                event, clip_to_video, clip_start_s,
+                model, processor, all_prompts, n_ignore,
+                fps, tmpdir, f"e{i}", device,
+            )
+
+            if score < threshold:
+                continue
+
+            flagged += 1
+            print(f"  🚫 Geflagged: {event.reason} @ {event.record_in} "
+                  f"({event.clip_name}) ignore={score:.0%}")
+
+            # Verschiebungsversuche
+            best_delta = 0
+            best_score = score
+            cutaway_dur = event.duration_frames()
+
+            # Grenzen: Vorgänger und Nachfolger müssen Speaker sein
+            prev_ev = result[i - 1] if i > 0 else None
+            next_ev = result[i + 1] if i + 1 < len(result) else None
+
+            found = False
+            for attempt in range(1, max_attempts + 1):
+                # Alternierend: +1*step, -1*step, +2*step, -2*step, ...
+                sign = 1 if attempt % 2 == 1 else -1
+                magnitude = (attempt + 1) // 2
+                delta = sign * magnitude * shift_frames
+
+                new_rec_in = event.record_in_frame + delta
+                new_rec_out = new_rec_in + cutaway_dur
+
+                # Grenzen prüfen
+                if prev_ev and prev_ev.reason == "speaker":
+                    if new_rec_in < prev_ev.record_in_frame + 1:
+                        continue
+                else:
+                    if new_rec_in < event.record_in_frame:
+                        continue
+
+                if next_ev and next_ev.reason == "speaker":
+                    if new_rec_out > next_ev.record_out_frame - 1:
+                        continue
+                else:
+                    if new_rec_out > event.record_out_frame:
+                        continue
+
+                # Testweise Source-TCs berechnen
+                tzvf = timeline_zero_video_frames.get(event.clip_name, 0)
+                ref = reference_frames.get(event.clip_name, 0)
+                test_event = EDLEvent(
+                    event_num=0, clip_name=event.clip_name,
+                    source_in=frames_to_timecode(ref + tzvf + new_rec_in, fps),
+                    source_out=frames_to_timecode(ref + tzvf + new_rec_out, fps),
+                    record_in=frames_to_timecode(new_rec_in, fps),
+                    record_out=frames_to_timecode(new_rec_out, fps),
+                    fps=fps, reason=event.reason,
+                )
+
+                test_score = _clip_score_for_event(
+                    test_event, clip_to_video, clip_start_s,
+                    model, processor, all_prompts, n_ignore,
+                    fps, tmpdir, f"e{i}_a{attempt}", device,
+                )
+
+                if test_score < best_score:
+                    best_score = test_score
+                    best_delta = delta
+
+                if test_score < threshold:
+                    found = True
+                    print(f"    ✓ Verschoben um {delta/fps:+.1f}s → ignore={test_score:.0%}")
+                    break
+                else:
+                    print(f"    ✗ Versuch {delta/fps:+.1f}s → ignore={test_score:.0%}")
+
+            if not found and best_delta == 0:
+                print(f"    ⚠️  Keine bessere Position gefunden, belasse Original")
+                unresolved += 1
+                continue
+
+            if not found:
+                print(f"    ⚠️  Keine saubere Position, nutze beste ({best_score:.0%}, "
+                      f"{best_delta/fps:+.1f}s)")
+                unresolved += 1
+
+            # Event verschieben
+            delta = best_delta
+            new_rec_in = event.record_in_frame + delta
+            new_rec_out = new_rec_in + cutaway_dur
+            tzvf = timeline_zero_video_frames.get(event.clip_name, 0)
+            ref = reference_frames.get(event.clip_name, 0)
+
+            event.record_in_frame = new_rec_in
+            event.record_out_frame = new_rec_out
+            event.record_in = frames_to_timecode(new_rec_in, fps)
+            event.record_out = frames_to_timecode(new_rec_out, fps)
+            event.source_in_frame = ref + tzvf + new_rec_in
+            event.source_out_frame = ref + tzvf + new_rec_out
+            event.source_in = frames_to_timecode(event.source_in_frame, fps)
+            event.source_out = frames_to_timecode(event.source_out_frame, fps)
+
+            # Nachbar-Events anpassen
+            if prev_ev and prev_ev.reason == "speaker":
+                prev_ev.record_out_frame = new_rec_in
+                prev_ev.record_out = frames_to_timecode(new_rec_in, fps)
+                prev_offset = prev_ev.source_in_frame - prev_ev.record_in_frame
+                prev_ev.source_out_frame = prev_offset + new_rec_in
+                prev_ev.source_out = frames_to_timecode(prev_ev.source_out_frame, fps)
+
+            if next_ev and next_ev.reason == "speaker":
+                next_ev.record_in_frame = new_rec_out
+                next_ev.record_in = frames_to_timecode(new_rec_out, fps)
+                next_offset = next_ev.source_in_frame - next_ev.record_in_frame
+                next_ev.source_in_frame = next_offset + new_rec_out
+                next_ev.source_in = frames_to_timecode(next_ev.source_in_frame, fps)
+
+            shifted += 1
+
+    print(f"  ✓ {checked} geprüft, {flagged} geflagged, "
+          f"{shifted} verschoben, {unresolved} nicht lösbar")
+    return result
+
+
 def main():
     parser = argparse.ArgumentParser(
         description='Fügt Reaktions-Cutaways zu EDL hinzu (v4.0 - N Kameras)'
@@ -509,6 +915,10 @@ def main():
                         help='Base-EDL (Sprecher-Segmente)')
     parser.add_argument('--output', '-o', required=True)
     parser.add_argument('--config', default='config.ini')
+    parser.add_argument('--pause-cutaways', default=None,
+                        help='JSON mit On-Speaker-Pausen für Stille-Cutaways')
+    parser.add_argument('--clip-filter-config', default=None,
+                        help='JSON mit CLIP Ignore-/Neutral-Prompts')
     parser.add_argument('--fps', type=float, default=25.0)
     args = parser.parse_args()
 
@@ -557,6 +967,19 @@ def main():
         cutaway_enabled['eyebrow_raise']    = rc.getboolean('eyebrow_cutaway',  False)
     if config and config.has_option('SpeakingReaction', 'enabled'):
         cutaway_enabled['speaking_reaction'] = config.getboolean('SpeakingReaction', 'enabled', fallback=False)
+
+    # CLIP-Filter Config
+    clip_filter_enabled = False
+    clip_config = {}
+    if config and config.has_section('CLIPFilter'):
+        cf = config['CLIPFilter']
+        clip_filter_enabled = cf.getboolean('enabled', fallback=False)
+        clip_config = {
+            'ignore_threshold': cf.getfloat('ignore_threshold', fallback=0.5),
+            'shift_step_s':     cf.getfloat('shift_step_s', fallback=2.0),
+            'max_attempts':     cf.getint('max_attempts', fallback=5),
+            'prompts_path':     args.clip_filter_config or '',
+        }
 
     settings = {
         'min_shot_duration':      min_shot_duration,
@@ -670,6 +1093,16 @@ def main():
     print(f"\n  Gesamt vor Cleanup: {len(all_events)} Events")
     print(f"    davon Nodding-Cutaways: {nodding_cutaways}, Speaking-Cutaways: {speaking_cutaways}")
 
+    # Pass 2b: Pause-Cutaways
+    if args.pause_cutaways and Path(args.pause_cutaways).exists():
+        pause_data = json.loads(Path(args.pause_cutaways).read_text())
+        min_shot_frames = int(min_shot_duration * args.fps)
+        all_events = insert_pause_cutaways(
+            all_events, pause_data, cameras,
+            reference_frames, timeline_zero_video_frames,
+            min_shot_frames, args.fps,
+        )
+
     # Pass 3: Cleanup
     final_events = cleanup_short_events(all_events, cleanup_min_duration, args.fps)
 
@@ -681,6 +1114,14 @@ def main():
         reference_frames, timeline_zero_video_frames, all_cam_names, args.fps,
         cam_types_dict=cam_types_dict,
     )
+
+    # Pass 5: CLIP Ignore-Filter
+    if clip_filter_enabled and clip_config.get('prompts_path'):
+        final_events = clip_filter_cutaways(
+            final_events, cameras,
+            reference_frames, timeline_zero_video_frames,
+            clip_config, args.fps,
+        )
 
     write_edl(final_events, args.output)
 

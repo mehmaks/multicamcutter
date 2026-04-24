@@ -19,5 +19,8 @@
   "pause_trim_enabled": false,
   "max_pause": 1.0,
   "pause_silence_db": -40.0,
-  "pause_cut_mode": "middle"
+  "pause_cut_mode": "middle",
+  "pause_cutaway_enabled": false,
+  "pause_cutaway_min_pause": 2.0,
+  "clip_filter_enabled": false
 }

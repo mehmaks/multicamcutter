@@ -22,6 +22,7 @@ venv/
 *.json
 !modules/multicam_cutter/presets/*.json
 !modules/multicam_cutter/nodding_patterns.json
+!modules/multicam_cutter/clip_ignore_prompts.json
 !ui/pages/presets/**/*.json
 *.html
 *.csv

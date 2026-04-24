@@ -68,6 +68,7 @@ _PARAM_NAMES = [
     'speaking_enabled', 'rise_db', 'speaking_max_dur',
     'totale_simul_dur',
     'pause_trim_enabled', 'max_pause', 'pause_silence_db', 'pause_cut_mode',
+    'pause_cutaway_enabled', 'pause_cutaway_min_pause', 'clip_filter_enabled',
 ]
 
 _DEFAULTS: dict = {
@@ -90,6 +91,9 @@ _DEFAULTS: dict = {
     'max_pause':         1.0,
     'pause_silence_db':  -40.0,
     'pause_cut_mode':    'middle',
+    'pause_cutaway_enabled':  False,
+    'pause_cutaway_min_pause': 2.0,
+    'clip_filter_enabled':    False,
 }
 
 _resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"
@@ -669,7 +673,7 @@ def _render_settings_panel(prefix):
                 help="dB-Schwelle unter der beide Mikrofone als still gelten. Standard: -40 dB.")
 
     with st.expander("Cutaway Regeln"):
-        col_pre, col_nod, col_speak = st.columns(3)
+        col_pre, col_nod, col_speak, col_pause = st.columns(4)
 
         # ── Pre-Roll (gilt für alle Cutaways) ────────────────────────────────
         with col_pre:
@@ -717,6 +721,19 @@ def _render_settings_panel(prefix):
                 min_value=0.5, step=0.5, format="%.1f", key=f"{prefix}_speaking_max_dur",
                 help="Maximale Dauer eines Sprach-Cutaways. Im Normalfall endet der Cutaway organisch wenn die Baseline abfällt.")
 
+        # ── Stille ────────────────────────────────────────────────────────────
+        with col_pause:
+            st.toggle("Stille", value=D['pause_cutaway_enabled'],
+                key=f"{prefix}_pause_cutaway_enabled",
+                help="Erkennt Sprechpausen auf der On-Kamera und schneidet während der Stille auf die andere Kamera.")
+            st.number_input("Min. Pausenlänge (s)", value=D['pause_cutaway_min_pause'],
+                min_value=0.5, step=0.5, format="%.1f", key=f"{prefix}_pause_cutaway_min_pause",
+                help="Wie lang eine Sprechpause mindestens sein muss, damit ein Cutaway eingefügt wird.")
+
+            st.toggle("Ungünstige Cutaways verschieben", value=D['clip_filter_enabled'],
+                key=f"{prefix}_clip_filter_enabled",
+                help="Prüft per Bilderkennung (CLIP), ob ein Cutaway eine unerwünschte Szene zeigt (z.B. Person trinkt) und verschiebt ihn automatisch.")
+
     with st.expander("Totale-Cam Schnittlogik"):
         c1, c2 = st.columns(2)
         with c1:
@@ -759,6 +776,9 @@ def _collect_settings(prefix):
         'pause_silence_db':      st.session_state.get(f"{p}pause_silence_db", -40.0),
         'pause_cut_mode':        {'Middle': 'middle', 'L-Cut': 'l-cut', 'J-Cut': 'j-cut', 'Zufall': 'random'}.get(
                                      st.session_state.get(f"{p}pause_cut_mode", 'Middle'), 'middle'),
+        'pause_cutaway_enabled':     st.session_state.get(f"{p}pause_cutaway_enabled", False),
+        'pause_cutaway_min_pause':   st.session_state.get(f"{p}pause_cutaway_min_pause", 2.0),
+        'clip_filter_enabled':       st.session_state.get(f"{p}clip_filter_enabled", False),
     }
 
 
@@ -810,6 +830,13 @@ def _save_settings_to_config(v):
     save['PauseTrim']['max_pause']           = str(v.get('max_pause', 1.0))
     save['PauseTrim']['silence_db']          = str(v.get('pause_silence_db', -40.0))
     save['PauseTrim']['cut_mode']            = str(v.get('pause_cut_mode', 'middle'))
+    if 'PauseCutaway' not in save:
+        save['PauseCutaway'] = {}
+    save['PauseCutaway']['enabled']   = 'true' if v.get('pause_cutaway_enabled') else 'false'
+    save['PauseCutaway']['min_pause'] = str(v.get('pause_cutaway_min_pause', 2.0))
+    if 'CLIPFilter' not in save:
+        save['CLIPFilter'] = {}
+    save['CLIPFilter']['enabled'] = 'true' if v.get('clip_filter_enabled') else 'false'
     with open(str(_cfg_path), 'w') as f:
         save.write(f)
 
