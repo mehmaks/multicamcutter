@@ -15,6 +15,7 @@ import time
 import json
 import configparser as _cp
 from pathlib import Path
+from ui.schema_renderer import load_schema, get_param_names, get_defaults, render_settings_panel, collect_settings
 
 st.title(":material/content_cut: Multicam Cutter")
 st.caption("Schneidet automatisch zwischen mehreren Kameras, basierend darauf wer gerade spricht. Das Ergebnis ist eine fertige Schnitt-Timeline.")
@@ -60,41 +61,10 @@ def _save_lut_to_history(new_path: str) -> None:
     except Exception:
         pass
 
-# Canonical parameter names (no prefix) — used by preset save/load
-_PARAM_NAMES = [
-    'min_shot', 'max_shot', 'reaction_dur', 'cleanup_dur', 'randomness',
-    'threshold_db', 'min_edit', 'change_delay',
-    'min_conf', 'nodding_enabled', 'pre_roll',
-    'speaking_enabled', 'rise_db', 'speaking_max_dur',
-    'totale_simul_dur',
-    'pause_trim_enabled', 'max_pause', 'pause_silence_db', 'pause_cut_mode',
-    'pause_cutaway_enabled', 'pause_cutaway_min_pause', 'clip_filter_enabled',
-]
-
-_DEFAULTS: dict = {
-    'min_shot':          3.0,
-    'max_shot':          14.0,
-    'reaction_dur':      1.8,
-    'cleanup_dur':       1.8,
-    'randomness':        0.2,
-    'threshold_db':      6.0,
-    'min_edit':          1.0,
-    'change_delay':      0.3,
-    'min_conf':          60,
-    'nodding_enabled':   True,
-    'pre_roll':          15,
-    'speaking_enabled':  True,
-    'rise_db':           6.0,
-    'speaking_max_dur':  2.5,
-    'totale_simul_dur':  3.0,
-    'pause_trim_enabled': False,
-    'max_pause':         1.0,
-    'pause_silence_db':  -40.0,
-    'pause_cut_mode':    'middle',
-    'pause_cutaway_enabled':  False,
-    'pause_cutaway_min_pause': 2.0,
-    'clip_filter_enabled':    False,
-}
+# Parameter-Schema → _PARAM_NAMES + _DEFAULTS aus JSON
+_SCHEMA = load_schema("multicam")
+_PARAM_NAMES = get_param_names(_SCHEMA)
+_DEFAULTS = get_defaults(_SCHEMA)
 
 _resolve_ok = st.session_state.get("resolve_status", ("error",))[0] == "ok"
 
@@ -450,6 +420,45 @@ def _run_script(cmd, log_queue):
     log_queue.put(f"__EXIT__{process.returncode}")
 
 
+def _seed_preset_values(prefix: str) -> None:
+    """Seed session_state with preset values for missing params.
+
+    Called BEFORE widgets render so that widgets pick up preset values
+    on first load (F5) and when expert mode reveals new params.
+    Uses _all_presets() directly to determine the preset name, so it
+    doesn't depend on the selectbox widget state being available yet.
+    """
+    from ui.schema_renderer import apply_preset_transforms
+    missing = [n for n in _PARAM_NAMES if f"{prefix}_{n}" not in st.session_state]
+    if not missing:
+        return
+    if f"_preset_pending_{prefix}" in st.session_state:
+        return  # will be handled after selectbox render
+    # Determine preset name: prefer existing selectbox state, fallback to first preset
+    presets_list = _all_presets()
+    sel = st.session_state.get(f"{prefix}_preset_select")
+    if not sel and presets_list:
+        sel = presets_list[0][0]
+    if not sel:
+        return
+    pfile = _presets_dir / f"{sel}.json"
+    if not pfile.exists():
+        pfile = _builtin_presets_dir / f"{sel}.json"
+    if not pfile.exists():
+        return
+    pdata = json.loads(pfile.read_text(encoding='utf-8'))
+    pending: dict[str, object] = {}
+    for name, val in pdata.items():
+        bare = name[2:] if (name.startswith('s_') or name.startswith('f_')) else name
+        if bare in _PARAM_NAMES:
+            pending[bare] = val
+    pending = apply_preset_transforms(_SCHEMA, pending)
+    for bare, val in pending.items():
+        key = f"{prefix}_{bare}"
+        if key not in st.session_state:
+            st.session_state[key] = val
+
+
 def _all_presets() -> list[tuple[str, Path, bool]]:
     """Gibt alle Presets zurück als (name, path, is_builtin), alphabetisch sortiert.
     Built-ins zuerst, dann User-Presets. Namenskonflikte: User-Preset gewinnt."""
@@ -609,177 +618,14 @@ def _render_preset_expander(prefix: str) -> None:
 
 
 def _render_settings_panel(prefix):
-    """Render 4 settings expanders with widget keys prefixed by `prefix`."""
-    D = _DEFAULTS
-
-    with st.expander("Generelle Schnittregeln", expanded=True):
-        c1, c2 = st.columns(2)
-        with c1:
-            st.number_input("Min. Shotlänge (s)", value=D['min_shot'],
-                min_value=0.5, step=0.1, format="%.1f", key=f"{prefix}_min_shot",
-                help="Wie lange eine Kamera mindestens zu sehen ist, bevor zu einer Reaktion geschnitten werden darf.")
-            st.number_input("Max. Shotlänge (s)", value=D['max_shot'],
-                min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_max_shot",
-                help="Bleibt eine Kamera länger als dieser Wert ohne Schnitt, wird automatisch zu einer Reaktion gewechselt.")
-        with c2:
-            st.number_input("Cleanup-Mindestlänge (s)", value=D['cleanup_dur'],
-                min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_cleanup_dur",
-                help="Schnitte kürzer als dieser Wert werden am Ende automatisch entfernt.")
-
-    with st.expander("Sprecher-Erkennung"):
-        c1, c2, c3 = st.columns(3)
-        with c1:
-            st.number_input("Schwelle (dB)", value=D['threshold_db'],
-                min_value=0.5, step=0.5, format="%.1f", key=f"{prefix}_threshold_db",
-                help="Wie deutlich lauter jemand sein muss als der andere, damit ein Sprecherwechsel erkannt wird. Höhere Werte schneiden nur bei klarer Dominanz.")
-        with c2:
-            st.number_input("Min. Segmentlänge (s)", value=D['min_edit'],
-                min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_min_edit",
-                help="Sehr kurze Sprechabschnitte werden mit dem nächsten zusammengelegt. Verhindert zu häufiges Hin- und Herschneiden.")
-        with c3:
-            st.number_input("Wechsel-Verzögerung (s)", value=D['change_delay'],
-                min_value=0.0, step=0.05, format="%.2f", key=f"{prefix}_change_delay",
-                help="Wie lange jemand durchgehend lauter sein muss, bevor auf ihn geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.")
-
-        st.divider()
-        st.markdown("**Pausen-Trimming**")
-        cp1, cp2, cp3 = st.columns(3)
-        with cp1:
-            st.toggle("Pausen trimmen", value=D['pause_trim_enabled'],
-                key=f"{prefix}_pause_trim_enabled",
-                help="Überlange Sprechpausen an Sprecherwechseln automatisch kürzen.")
-            _CUT_MODES = ['Middle', 'L-Cut', 'J-Cut', 'Zufall']
-            _cut_mode_val = D['pause_cut_mode'].capitalize() if D['pause_cut_mode'] != 'random' else 'Zufall'
-            if _cut_mode_val == 'L-cut':
-                _cut_mode_val = 'L-Cut'
-            elif _cut_mode_val == 'J-cut':
-                _cut_mode_val = 'J-Cut'
-            st.selectbox("Schnittmodus", options=_CUT_MODES,
-                index=_CUT_MODES.index(_cut_mode_val),
-                key=f"{prefix}_pause_cut_mode",
-                help="Wo der Videocut in der Pause liegt. Middle: symmetrisch. "
-                     "L-Cut: Video schneidet am Pausenanfang. "
-                     "J-Cut: Video schneidet am Pausenende. "
-                     "Zufall: Wählt bei jedem Schnitt zufällig. "
-                     "Audio ist immer Middle-Cut.")
-        with cp2:
-            st.number_input("Max. Pause (s)", value=D['max_pause'],
-                min_value=0.1, step=0.1, format="%.1f", key=f"{prefix}_max_pause",
-                help="Maximale Pausenlänge die bestehen bleibt. Längere Pausen werden auf diesen Wert gekürzt.")
-        with cp3:
-            st.number_input("Stille-Schwelle (dB)", value=D['pause_silence_db'],
-                min_value=-80.0, max_value=-10.0, step=1.0, format="%.0f",
-                key=f"{prefix}_pause_silence_db",
-                help="dB-Schwelle unter der beide Mikrofone als still gelten. Standard: -40 dB.")
-
-    with st.expander("Cutaway Regeln"):
-        col_pre, col_nod, col_speak, col_pause = st.columns(4)
-
-        # ── Pre-Roll (gilt für alle Cutaways) ────────────────────────────────
-        with col_pre:
-            st.markdown("**Generell**")
-            st.number_input("Cutaway-Länge (s)", value=D['reaction_dur'],
-                min_value=0.5, step=0.1, format="%.1f", key=f"{prefix}_reaction_dur",
-                help="Wie lange eine Reaktionsaufnahme mindestens gezeigt wird. Gilt für Kopfnicken und Max-Shotlänge-Cutaways.")
-            st.number_input("Pre-Roll (Frames)", value=D['pre_roll'],
-                min_value=0, step=1, key=f"{prefix}_pre_roll",
-                help="Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt. Gilt für alle Cutaway-Typen.")
-            st.slider("Zufallsfaktor", 0.0, 0.5, D['randomness'],
-                step=0.05, key=f"{prefix}_randomness",
-                help="Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell.")
-
-        # ── Kopfnicken ────────────────────────────────────────────────────────
-        with col_nod:
-            st.toggle("Kopfnicken", value=D['nodding_enabled'],
-                key=f"{prefix}_nodding_enabled",
-                help="Erkennt Kopfnicken der zuhörenden Person und schneidet in diesem Moment auf sie.")
-            st.number_input("Min. Konfidenz (%)", value=D['min_conf'],
-                min_value=0, max_value=100, step=1, format="%d", key=f"{prefix}_min_conf",
-                help="Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird.")
-            # Pattern-Toggles aus nodding_patterns.json
-            if _nod_patterns_path.is_file():
-                _pat_data = json.loads(_nod_patterns_path.read_text(encoding='utf-8'))
-                for _pat in _pat_data.get('patterns', []):
-                    _pname = _pat['name']
-                    _pkey = f"{prefix}_nod_pat_{_pname}"
-                    st.toggle(
-                        _pname.replace('_', ' ').title(),
-                        value=_pat.get('enabled', True),
-                        key=_pkey,
-                        help=_pat.get('description', ''),
-                    )
-
-        # ── Sprachreaktionen ──────────────────────────────────────────────────
-        with col_speak:
-            st.toggle("Sprachreaktionen", value=D['speaking_enabled'],
-                key=f"{prefix}_speaking_enabled",
-                help="Erkennt kurze Einwürfe oder Laute der nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie.")
-            st.number_input("Rise (dB)", value=D['rise_db'],
-                min_value=1.0, step=0.5, format="%.1f", key=f"{prefix}_rise_db",
-                help="Wie stark die Baseline ansteigen muss, um einen Sprach-Cutaway auszulösen.")
-            st.number_input("Max. Cutaway-Dauer (s)", value=D['speaking_max_dur'],
-                min_value=0.5, step=0.5, format="%.1f", key=f"{prefix}_speaking_max_dur",
-                help="Maximale Dauer eines Sprach-Cutaways. Im Normalfall endet der Cutaway organisch wenn die Baseline abfällt.")
-
-        # ── Stille ────────────────────────────────────────────────────────────
-        with col_pause:
-            st.toggle("Stille", value=D['pause_cutaway_enabled'],
-                key=f"{prefix}_pause_cutaway_enabled",
-                help="Erkennt Sprechpausen auf der On-Kamera und schneidet während der Stille auf die andere Kamera.")
-            st.number_input("Min. Pausenlänge (s)", value=D['pause_cutaway_min_pause'],
-                min_value=0.5, step=0.5, format="%.1f", key=f"{prefix}_pause_cutaway_min_pause",
-                help="Wie lang eine Sprechpause mindestens sein muss, damit ein Cutaway eingefügt wird.")
-
-            st.toggle("Ungünstige Cutaways verschieben", value=D['clip_filter_enabled'],
-                key=f"{prefix}_clip_filter_enabled",
-                help="Prüft per Bilderkennung (CLIP), ob ein Cutaway eine unerwünschte Szene zeigt (z.B. Person trinkt) und verschiebt ihn automatisch.")
-
-    with st.expander("Totale-Cam Schnittlogik"):
-        c1, c2 = st.columns(2)
-        with c1:
-            st.number_input(
-                "Min. Simultandauer (s)",
-                value=D['totale_simul_dur'],
-                min_value=0.5, step=0.5, format="%.1f",
-                key=f"{prefix}_totale_simul_dur",
-                help="Wie lange beide gleichzeitig sprechen müssen, bevor auf die Totale geschnitten wird.",
-            )
-        with c2:
-            st.caption(
-                "Greift nur wenn ein Clip als **Totale** markiert ist. "
-                "Erkennt Phasen wo beide Mics gleichzeitig aktiv sind "
-                "(kein klarer Dominanzunterschied) und schneidet auf die Totale."
-            )
+    """Render settings expanders from JSON schema, filtered by expert mode."""
+    expert = st.session_state.get("expert_mode", False)
+    render_settings_panel(_SCHEMA, prefix, expert)
 
 
 def _collect_settings(prefix):
-    """Read current widget values for the given prefix from session_state."""
-    p = f"{prefix}_"
-    return {
-        'min_shot':          st.session_state.get(f"{p}min_shot", 3.0),
-        'max_shot':          st.session_state.get(f"{p}max_shot", 14.0),
-        'reaction_dur':      st.session_state.get(f"{p}reaction_dur", 1.8),
-        'cleanup_dur':       st.session_state.get(f"{p}cleanup_dur", 1.8),
-        'randomness':        st.session_state.get(f"{p}randomness", 0.2),
-        'threshold_db':      st.session_state.get(f"{p}threshold_db", 6.0),
-        'min_edit':          st.session_state.get(f"{p}min_edit", 1.0),
-        'change_delay':      st.session_state.get(f"{p}change_delay", 0.3),
-        'min_conf':          st.session_state.get(f"{p}min_conf", 88) / 100,
-        'nodding_enabled':   st.session_state.get(f"{p}nodding_enabled", True),
-        'pre_roll':          st.session_state.get(f"{p}pre_roll", 15),
-        'speaking_enabled':  st.session_state.get(f"{p}speaking_enabled", True),
-        'rise_db':           st.session_state.get(f"{p}rise_db", 6.0),
-        'speaking_max_dur':  st.session_state.get(f"{p}speaking_max_dur", 2.5),
-        'totale_simul_dur':      st.session_state.get(f"{p}totale_simul_dur", 3.0),
-        'pause_trim_enabled':    st.session_state.get(f"{p}pause_trim_enabled", False),
-        'max_pause':             st.session_state.get(f"{p}max_pause", 1.0),
-        'pause_silence_db':      st.session_state.get(f"{p}pause_silence_db", -40.0),
-        'pause_cut_mode':        {'Middle': 'middle', 'L-Cut': 'l-cut', 'J-Cut': 'j-cut', 'Zufall': 'random'}.get(
-                                     st.session_state.get(f"{p}pause_cut_mode", 'Middle'), 'middle'),
-        'pause_cutaway_enabled':     st.session_state.get(f"{p}pause_cutaway_enabled", False),
-        'pause_cutaway_min_pause':   st.session_state.get(f"{p}pause_cutaway_min_pause", 2.0),
-        'clip_filter_enabled':       st.session_state.get(f"{p}clip_filter_enabled", False),
-    }
+    """Read current widget values from session_state via schema."""
+    return collect_settings(_SCHEMA, prefix)
 
 
 def _save_nod_pattern_toggles(prefix):
@@ -1019,12 +865,13 @@ if tab_bin is not None:
 
     st.subheader("Analyse-Einstellungen")
 
+    _seed_preset_values('s')
     _render_preset_row('s')
     st.divider()
-    if "s_min_shot" not in st.session_state and "_preset_pending_s" not in st.session_state:
-        _on_preset_change('s')
     if "_preset_pending_s" in st.session_state:
-        for _bare, _val in st.session_state.pop("_preset_pending_s").items():
+        from ui.schema_renderer import apply_preset_transforms
+        _pending_s = apply_preset_transforms(_SCHEMA, st.session_state.pop("_preset_pending_s"))
+        for _bare, _val in _pending_s.items():
             st.session_state[f"s_{_bare}"] = _val
     _render_settings_panel('s')
     _render_preset_expander('s')
@@ -1325,12 +1172,13 @@ with tab_folder:
     st.divider()
     st.subheader("Analyse-Einstellungen")
 
+    _seed_preset_values('f')
     _render_preset_row('f')
     st.divider()
-    if "f_min_shot" not in st.session_state and "_preset_pending_f" not in st.session_state:
-        _on_preset_change('f')
     if "_preset_pending_f" in st.session_state:
-        for _bare, _val in st.session_state.pop("_preset_pending_f").items():
+        from ui.schema_renderer import apply_preset_transforms
+        _pending_f = apply_preset_transforms(_SCHEMA, st.session_state.pop("_preset_pending_f"))
+        for _bare, _val in _pending_f.items():
             st.session_state[f"f_{_bare}"] = _val
     _render_settings_panel('f')
     with st.expander("Andere Einstellungen"):

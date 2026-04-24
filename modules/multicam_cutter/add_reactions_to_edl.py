@@ -391,14 +391,19 @@ def _is_diarization_switch(event, prev, next_event) -> bool:
 
     Ein Sprecherwechsel-Sandwich liegt vor, wenn:
     - Das kurze Event reason='speaker' hat
+    - Vorgänger und Nachfolger ebenfalls reason='speaker' haben
     - Das Event einen anderen Clip hat als Vorgänger UND Nachfolger
     - Vorgänger und Nachfolger denselben Clip haben (CAM1→CAM2→CAM1)
     """
     if event.reason != "speaker":
         return False
+    if prev.reason != "speaker":
+        return False
+    if next_event is None or next_event.reason != "speaker":
+        return False
     if event.clip_name == prev.clip_name:
         return False
-    if next_event is not None and next_event.clip_name == event.clip_name:
+    if next_event.clip_name == event.clip_name:
         return False
     return True
 
@@ -774,6 +779,7 @@ def clip_filter_cutaways(
     unresolved = 0
 
     result = list(events)
+    total_cutaways = sum(1 for e in result if e.reason != "speaker")
 
     with tempfile.TemporaryDirectory() as tmpdir:
         for i, event in enumerate(result):
@@ -781,6 +787,9 @@ def clip_filter_cutaways(
                 continue
 
             checked += 1
+            if checked % 50 == 0 or checked == total_cutaways:
+                print(f"  … {checked}/{total_cutaways} geprüft", flush=True)
+
             score = _clip_score_for_event(
                 event, clip_to_video, clip_start_s,
                 model, processor, all_prompts, n_ignore,
@@ -892,9 +901,9 @@ def clip_filter_cutaways(
                 prev_ev.source_out = frames_to_timecode(prev_ev.source_out_frame, fps)
 
             if next_ev and next_ev.reason == "speaker":
+                next_offset = next_ev.source_in_frame - next_ev.record_in_frame
                 next_ev.record_in_frame = new_rec_out
                 next_ev.record_in = frames_to_timecode(new_rec_out, fps)
-                next_offset = next_ev.source_in_frame - next_ev.record_in_frame
                 next_ev.source_in_frame = next_offset + new_rec_out
                 next_ev.source_in = frames_to_timecode(next_ev.source_in_frame, fps)
 

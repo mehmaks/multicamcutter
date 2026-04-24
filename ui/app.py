@@ -448,6 +448,23 @@ with st.sidebar:
         for _p in _setting_pages:
             st.page_link(_p, use_container_width=True)
 
+    # Expert-Mode Toggle — persistent in config.ini [UI]
+    _expert_cfg_path = os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini")
+    if "expert_mode" not in st.session_state:
+        st.session_state["expert_mode"] = _ui_cfg.getboolean("UI", "expert_mode", fallback=False)
+
+    def _on_expert_toggle():
+        import configparser as _cp2
+        _cfg2 = _cp2.ConfigParser()
+        _cfg2.read(_expert_cfg_path, encoding="utf-8")
+        if not _cfg2.has_section("UI"):
+            _cfg2.add_section("UI")
+        _cfg2.set("UI", "expert_mode", str(st.session_state["expert_mode"]).lower())
+        with open(_expert_cfg_path, "w", encoding="utf-8") as _f2:
+            _cfg2.write(_f2)
+
+    st.toggle("Expertenmodus", key="expert_mode", on_change=_on_expert_toggle)
+
     st.divider()
 
     # 3. Feedback-Button

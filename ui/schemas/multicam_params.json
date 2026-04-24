@@ -1,0 +1,292 @@
+{
+  "page": "multicam",
+  "expanders": [
+    {
+      "key": "general",
+      "label": "Generelle Schnittregeln",
+      "expanded": true,
+      "rows": [
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "min_shot",
+              "widget": "number_input",
+              "default": 3.0,
+              "label": "Schnittlänge (s)",
+              "label_expert": "Min. Shotlänge (s)",
+              "help": "Wie lange eine Kamera mindestens zu sehen ist, bevor zu einer Reaktion geschnitten werden darf.",
+              "expert": false,
+              "config": { "min_value": 0.5, "step": 0.1, "format": "%.1f" },
+              "column": 0
+            },
+            {
+              "name": "max_shot",
+              "widget": "number_input",
+              "default": 14.0,
+              "label": "Max. Shotlänge (s)",
+              "help": "Bleibt eine Kamera länger als dieser Wert ohne Schnitt, wird automatisch zu einer Reaktion gewechselt.",
+              "expert": true,
+              "config": { "min_value": 1.0, "step": 0.5, "format": "%.1f" },
+              "column": 0
+            },
+            {
+              "name": "cleanup_dur",
+              "widget": "number_input",
+              "default": 1.8,
+              "label": "Cleanup-Mindestlänge (s)",
+              "help": "Schnitte kürzer als dieser Wert werden am Ende automatisch entfernt.",
+              "expert": true,
+              "config": { "min_value": 0.1, "step": 0.1, "format": "%.1f" },
+              "column": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "speaker",
+      "label": "Sprecher-Erkennung",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 3,
+          "params": [
+            {
+              "name": "threshold_db",
+              "widget": "number_input",
+              "default": 6.0,
+              "label": "Schwelle (dB)",
+              "help": "Wie deutlich lauter jemand sein muss als der andere, damit ein Sprecherwechsel erkannt wird. Höhere Werte schneiden nur bei klarer Dominanz.",
+              "expert": false,
+              "config": { "min_value": 0.5, "step": 0.5, "format": "%.1f" },
+              "column": 0
+            },
+            {
+              "name": "min_edit",
+              "widget": "number_input",
+              "default": 1.0,
+              "label": "Min. Segmentlänge (s)",
+              "help": "Sehr kurze Sprechabschnitte werden mit dem nächsten zusammengelegt. Verhindert zu häufiges Hin- und Herschneiden.",
+              "expert": true,
+              "config": { "min_value": 0.1, "step": 0.1, "format": "%.1f" },
+              "column": 1
+            },
+            {
+              "name": "change_delay",
+              "widget": "number_input",
+              "default": 0.3,
+              "label": "Wechsel-Verzögerung (s)",
+              "help": "Wie lange jemand durchgehend lauter sein muss, bevor auf ihn geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.",
+              "expert": true,
+              "config": { "min_value": 0.0, "step": 0.05, "format": "%.2f" },
+              "column": 2
+            }
+          ]
+        },
+        {
+          "divider": true,
+          "section_label": "Pausen-Trimming"
+        },
+        {
+          "columns": 3,
+          "params": [
+            {
+              "name": "pause_trim_enabled",
+              "widget": "toggle",
+              "default": false,
+              "label": "Pausen trimmen",
+              "help": "Überlange Sprechpausen an Sprecherwechseln automatisch kürzen.",
+              "expert": false,
+              "column": 0
+            },
+            {
+              "name": "pause_cut_mode",
+              "widget": "selectbox",
+              "default": "middle",
+              "label": "Schnittmodus",
+              "help": "Wo der Videocut in der Pause liegt. Middle: symmetrisch. L-Cut: Video schneidet am Pausenanfang. J-Cut: Video schneidet am Pausenende. Zufall: Wählt bei jedem Schnitt zufällig. Audio ist immer Middle-Cut.",
+              "expert": true,
+              "config": {
+                "options": ["Middle", "L-Cut", "J-Cut", "Zufall"]
+              },
+              "transform": {
+                "type": "map",
+                "to_internal": { "Middle": "middle", "L-Cut": "l-cut", "J-Cut": "j-cut", "Zufall": "random" },
+                "to_display": { "middle": "Middle", "l-cut": "L-Cut", "j-cut": "J-Cut", "random": "Zufall" }
+              },
+              "column": 0
+            },
+            {
+              "name": "max_pause",
+              "widget": "number_input",
+              "default": 1.0,
+              "label": "Max. Pause (s)",
+              "help": "Maximale Pausenlänge die bestehen bleibt. Längere Pausen werden auf diesen Wert gekürzt.",
+              "expert": false,
+              "config": { "min_value": 0.1, "step": 0.1, "format": "%.1f" },
+              "column": 1
+            },
+            {
+              "name": "pause_silence_db",
+              "widget": "number_input",
+              "default": -40.0,
+              "label": "Stille-Schwelle (dB)",
+              "help": "dB-Schwelle unter der beide Mikrofone als still gelten. Standard: -40 dB.",
+              "expert": true,
+              "config": { "min_value": -80.0, "max_value": -10.0, "step": 1.0, "format": "%.0f" },
+              "column": 2
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "cutaway",
+      "label": "Cutaway Regeln",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 4,
+          "params": [
+            {
+              "name": "reaction_dur",
+              "widget": "number_input",
+              "default": 1.8,
+              "label": "Cutaway-Länge (s)",
+              "help": "Wie lange eine Reaktionsaufnahme mindestens gezeigt wird. Gilt für Kopfnicken und Max-Shotlänge-Cutaways.",
+              "expert": false,
+              "section_label": "Generell",
+              "config": { "min_value": 0.5, "step": 0.1, "format": "%.1f" },
+              "column": 0
+            },
+            {
+              "name": "pre_roll",
+              "widget": "number_input",
+              "default": 15,
+              "label": "Pre-Roll (Frames)",
+              "help": "Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt. Gilt für alle Cutaway-Typen.",
+              "expert": true,
+              "config": { "min_value": 0, "step": 1 },
+              "column": 0
+            },
+            {
+              "name": "randomness",
+              "widget": "slider",
+              "default": 0.2,
+              "label": "Zufallsfaktor",
+              "help": "Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell.",
+              "expert": true,
+              "config": { "min_value": 0.0, "max_value": 0.5, "step": 0.05 },
+              "column": 0
+            },
+            {
+              "name": "nodding_enabled",
+              "widget": "toggle",
+              "default": true,
+              "label": "Kopfnicken",
+              "help": "Erkennt Kopfnicken der zuhörenden Person und schneidet in diesem Moment auf sie.",
+              "expert": false,
+              "column": 1
+            },
+            {
+              "name": "min_conf",
+              "widget": "number_input",
+              "default": 60,
+              "label": "Min. Konfidenz (%)",
+              "help": "Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird.",
+              "expert": true,
+              "config": { "min_value": 0, "max_value": 100, "step": 1, "format": "%d" },
+              "transform": { "type": "scale", "factor": 0.01 },
+              "column": 1
+            },
+            {
+              "name": "speaking_enabled",
+              "widget": "toggle",
+              "default": true,
+              "label": "Sprachreaktionen",
+              "help": "Erkennt kurze Einwürfe oder Laute der nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie.",
+              "expert": false,
+              "column": 2
+            },
+            {
+              "name": "rise_db",
+              "widget": "number_input",
+              "default": 6.0,
+              "label": "Rise (dB)",
+              "help": "Wie stark die Baseline ansteigen muss, um einen Sprach-Cutaway auszulösen.",
+              "expert": true,
+              "config": { "min_value": 1.0, "step": 0.5, "format": "%.1f" },
+              "column": 2
+            },
+            {
+              "name": "speaking_max_dur",
+              "widget": "number_input",
+              "default": 2.5,
+              "label": "Max. Cutaway-Dauer (s)",
+              "help": "Maximale Dauer eines Sprach-Cutaways. Im Normalfall endet der Cutaway organisch wenn die Baseline abfällt.",
+              "expert": true,
+              "config": { "min_value": 0.5, "step": 0.5, "format": "%.1f" },
+              "column": 2
+            },
+            {
+              "name": "pause_cutaway_enabled",
+              "widget": "toggle",
+              "default": false,
+              "label": "Stille",
+              "help": "Erkennt Sprechpausen auf der On-Kamera und schneidet während der Stille auf die andere Kamera.",
+              "expert": false,
+              "column": 3
+            },
+            {
+              "name": "pause_cutaway_min_pause",
+              "widget": "number_input",
+              "default": 2.0,
+              "label": "Min. Pausenlänge (s)",
+              "help": "Wie lang eine Sprechpause mindestens sein muss, damit ein Cutaway eingefügt wird.",
+              "expert": true,
+              "config": { "min_value": 0.5, "step": 0.5, "format": "%.1f" },
+              "column": 3
+            },
+            {
+              "name": "clip_filter_enabled",
+              "widget": "toggle",
+              "default": false,
+              "label": "Ungünstige Cutaways verschieben",
+              "help": "Prüft per Bilderkennung (CLIP), ob ein Cutaway eine unerwünschte Szene zeigt (z.B. Person trinkt) und verschiebt ihn automatisch.",
+              "expert": true,
+              "column": 3
+            }
+          ],
+          "nodding_patterns_slot": { "column": 1, "after": "min_conf" }
+        }
+      ]
+    },
+    {
+      "key": "totale",
+      "label": "Totale-Cam Schnittlogik",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "totale_simul_dur",
+              "widget": "number_input",
+              "default": 3.0,
+              "label": "Min. Simultandauer (s)",
+              "help": "Wie lange beide gleichzeitig sprechen müssen, bevor auf die Totale geschnitten wird.",
+              "expert": true,
+              "config": { "min_value": 0.5, "step": 0.5, "format": "%.1f" },
+              "column": 0
+            }
+          ],
+          "caption_slot": {
+            "column": 1,
+            "text": "Greift nur wenn ein Clip als **Totale** markiert ist. Erkennt Phasen wo beide Mics gleichzeitig aktiv sind (kein klarer Dominanzunterschied) und schneidet auf die Totale."
+          }
+        }
+      ]
+    }
+  ]
+}
