@@ -439,6 +439,7 @@ def detect_speaking_reactions(
     lookback_s: float      = 1.0,
     sustain_margin_db: float = 1.5,
     on_pauses: dict = None,
+    crossbleed_ratio: float = 0.5,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -473,6 +474,8 @@ def detect_speaking_reactions(
     # CAM2 spricht → MIC1-Bursts = CAM1-Reaktionen
     cam1_reactions, cam2_reactions = [], []
 
+    crossbleed_filtered = 0
+
     for seg in segments:
         seg_start_sample = int(seg['start_s'] * sr)
         seg_end_sample   = int(seg['end_s'] * sr)
@@ -480,10 +483,12 @@ def detect_speaking_reactions(
 
         if seg['speaker'] == 'CAM1':
             seg_audio = audio2[seg_start_sample:seg_end_sample]
+            seg_on    = audio1[seg_start_sample:seg_end_sample]
             cam_tz = cam2_timeline_zero_video
             target = cam2_reactions
         elif seg['speaker'] == 'CAM2':
             seg_audio = audio1[seg_start_sample:seg_end_sample]
+            seg_on    = audio2[seg_start_sample:seg_end_sample]
             cam_tz = cam1_timeline_zero_video
             target = cam1_reactions
         else:
@@ -524,10 +529,35 @@ def detect_speaking_reactions(
             freeze_mask=seg_freeze,
         )
 
+        # Crossbleed-Filter: On-Mic-Rise im selben Zeitfenster prüfen.
+        # Wenn der On-Speaker zeitgleich einen ähnlichen Pegelanstieg hat,
+        # ist der Off-Mic-Rise wahrscheinlich Crossbleed, keine echte Reaktion.
+        if bursts and crossbleed_ratio > 0:
+            on_db = _level_windows(seg_on, sr, window_s, mode=mode)
+            lookback_n = max(1, int(lookback_s / window_s))
+            filtered_bursts = []
+            for b in bursts:
+                # Burst-Start in lokale Window-Indizes umrechnen
+                win_start = int(b['start_s'] / window_s)
+                win_lo = max(0, win_start - lookback_n)
+                if win_start < len(on_db) and win_lo < len(on_db):
+                    on_rise = on_db[win_start] - on_db[win_lo]
+                    # Off-Mic-Rise aus Burst-Confidence rekonstruieren
+                    off_rise = b['conf'] * rise_db
+                    if on_rise >= off_rise * crossbleed_ratio:
+                        crossbleed_filtered += 1
+                        continue
+                filtered_bursts.append(b)
+            bursts = filtered_bursts
+
         for b in bursts:
             r = _to_reaction(b, cam_tz)
             if r:
                 target.append(r)
+
+    if crossbleed_filtered:
+        print(f"  Crossbleed-Filter: {crossbleed_filtered} Speaking-Reactions "
+              f"als Crossbleed verworfen (ratio={crossbleed_ratio})")
 
     return cam1_reactions, cam2_reactions
 
@@ -704,6 +734,8 @@ def main():
                         help='Min. Pausenlänge des On-Sprechers für Baseline-Freeze (s)')
     parser.add_argument('--speaking-mask-padding',   type=float, default=0.15,
                         help='Padding um On-Speaker-Pausen für Baseline-Freeze (s)')
+    parser.add_argument('--speaking-crossbleed-ratio', type=float, default=0.5,
+                        help='Crossbleed-Filter: On-Mic-Rise / Off-Mic-Rise Schwelle (0=aus)')
     # Off-sections output (für Nodding-Analyse Optimierung)
     parser.add_argument('--cam1-off-sections-out', default=None,
                         help='JSON-Ausgabe: Video-Frame-Ranges in denen CAM1 die Off-Kamera ist')
@@ -794,6 +826,26 @@ def main():
     audio_cam1, audio_cam2 = audio_cam1[:n], audio_cam2[:n]
     duration_s = n / sr1
     print(f"  Länge: {duration_s/60:.1f} min")
+
+    # ── Pegel-Normalisierung: Median-dB ausgleichen ──────────────────────────
+    # Unterschiedlich laut aufgenommene Mics verzerren alle Pegelvergleiche.
+    # Korrektur auf Sample-Ebene, damit alle downstream Passes profitieren.
+    _rms1 = compute_rms_db(audio_cam1, sr1, args.analysis_window)
+    _rms2 = compute_rms_db(audio_cam2, sr1, args.analysis_window)
+    _median1 = float(np.median(_rms1))
+    _median2 = float(np.median(_rms2))
+    _offset_db = (_median1 - _median2) / 2.0
+    if abs(_offset_db) > 0.1:
+        # dB → linearer Gain-Faktor, auf Samples anwenden
+        _gain1 = 10 ** (-_offset_db / 20.0)
+        _gain2 = 10 ** (+_offset_db / 20.0)
+        audio_cam1 = (audio_cam1 * _gain1).astype(audio_cam1.dtype)
+        audio_cam2 = (audio_cam2 * _gain2).astype(audio_cam2.dtype)
+        print(f"\n🔊 Pegel-Normalisierung:")
+        print(f"  Median vor Korrektur: MIC1={_median1:.1f} dB, MIC2={_median2:.1f} dB")
+        print(f"  Korrektur: MIC1 {-_offset_db:+.1f} dB, MIC2 {+_offset_db:+.1f} dB")
+    else:
+        print(f"\n🔊 Pegel-Check: MIC1={_median1:.1f} dB, MIC2={_median2:.1f} dB (kein Ausgleich nötig)")
 
     print("\n📊 RMS-Diarization...")
     segments = rms_diarize(
@@ -1029,6 +1081,7 @@ def main():
             hold_s=args.speaking_hold,
             mode=args.speaking_mode,
             on_pauses=_on_pauses,
+            crossbleed_ratio=args.speaking_crossbleed_ratio,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
         if args.speaking_reactions_cam1_out:

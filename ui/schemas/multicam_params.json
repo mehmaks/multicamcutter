@@ -230,6 +230,16 @@
               "column": 2
             },
             {
+              "name": "crossbleed_ratio",
+              "widget": "number_input",
+              "default": 0.5,
+              "label": "Crossbleed-Filter",
+              "help": "Filtert Sprach-Cutaways, die durch Übersprechen (Crossbleed) des On-Speakers verursacht werden. Wenn der On-Mic-Anstieg ≥ diesem Anteil des Off-Mic-Anstiegs ist, wird der Cutaway verworfen. Höhere Werte = weniger aggressiv. 0 = deaktiviert.",
+              "expert": true,
+              "config": { "min_value": 0.0, "max_value": 2.0, "step": 0.1, "format": "%.1f" },
+              "column": 2
+            },
+            {
               "name": "pause_cutaway_enabled",
               "widget": "toggle",
               "default": false,

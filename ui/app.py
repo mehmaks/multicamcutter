@@ -444,9 +444,13 @@ with st.sidebar:
             st.page_link(_p, use_container_width=True)
 
     if _setting_pages:
-        st.caption("SETTINGS")
-        for _p in _setting_pages:
-            st.page_link(_p, use_container_width=True)
+        _is_expert = st.session_state.get("expert_mode", False)
+        _visible_settings = [_p for _p in _setting_pages
+                             if _p.title != "Config" or _is_expert]
+        if _visible_settings:
+            st.caption("SETTINGS")
+            for _p in _visible_settings:
+                st.page_link(_p, use_container_width=True)
 
     # Expert-Mode Toggle — persistent in config.ini [UI]
     _expert_cfg_path = os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini")

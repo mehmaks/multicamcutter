@@ -101,6 +101,48 @@ if _changed:
 
 st.divider()
 
+# ── CLIP Ignore Prompts Editor ───────────────────────────────────────────────
+
+CLIP_PROMPTS_PATH = CONFIG_PATH.parent / "clip_ignore_prompts.json"
+
+if CLIP_PROMPTS_PATH.exists():
+    st.subheader("CLIP Ignore Prompts")
+    st.caption(f"`{CLIP_PROMPTS_PATH}`")
+
+    if "clip_prompts_text" not in st.session_state:
+        st.session_state.clip_prompts_text = CLIP_PROMPTS_PATH.read_text(encoding="utf-8")
+
+    col_save_clip, col_reload_clip = st.columns([1, 5])
+
+    with col_save_clip:
+        save_clip = st.button("Speichern", icon=":material/save:", type="primary",
+                              use_container_width=True, key="clip_save")
+    with col_reload_clip:
+        if st.button("Neu laden", icon=":material/refresh:", use_container_width=True, key="clip_reload"):
+            st.session_state.clip_prompts_text = CLIP_PROMPTS_PATH.read_text(encoding="utf-8")
+            st.rerun()
+
+    edited_clip = st.text_area(
+        label="clip_ignore_prompts.json",
+        value=st.session_state.clip_prompts_text,
+        height=400,
+        label_visibility="collapsed",
+        key="clip_prompts_editor",
+    )
+
+    if save_clip:
+        import json as _json
+        try:
+            _json.loads(edited_clip)
+        except _json.JSONDecodeError as e:
+            st.error(f"Ungültiges JSON: {e}")
+        else:
+            CLIP_PROMPTS_PATH.write_text(edited_clip, encoding="utf-8")
+            st.session_state.clip_prompts_text = edited_clip
+            st.success("Gespeichert.")
+
+    st.divider()
+
 # ── Config.ini Editor ─────────────────────────────────────────────────────────
 
 st.subheader("config.ini")

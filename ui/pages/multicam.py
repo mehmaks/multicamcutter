@@ -112,6 +112,21 @@ FOLDER_WORKFLOW_STEPS = [
 _NODDING_RANGES = {"CAM1": (0.50, 0.65), "CAM2": (0.66, 0.85)}
 
 
+_LOGS_DIR = Path(__file__).parent.parent.parent / "logs"
+
+
+def _save_log(prefix: str, log_lines: list) -> None:
+    """Speichert das vollständige Workflow-Log als Textdatei."""
+    if not log_lines:
+        return
+    _LOGS_DIR.mkdir(exist_ok=True)
+    from datetime import datetime
+    ts = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+    log_file = _LOGS_DIR / f"{prefix}_{ts}.log"
+    log_file.write_text("\n".join(log_lines), encoding="utf-8")
+    print(f"Log gespeichert: {log_file}")
+
+
 def _advance_progress_step(line, current, steps):
     for keyword, pval, label, step_num, total in steps:
         if keyword in line and pval > current:
@@ -189,6 +204,7 @@ def _poll_workflow_ui(prefix, steps):
                     st.session_state[eta_key]      = ""
                     st.session_state[step_key]     = total_steps
                     st.session_state[total_key]    = total_steps
+                    _save_log(prefix, st.session_state.get(log_key, []))
                     break
                 _cur = st.session_state.get(progress_key, 0.0)
                 _sp, _sl, _eta = _parse_subprogress(_line, _cur)
@@ -352,6 +368,7 @@ def _workflow_dialog(prefix: str, steps: list, preview_paths: list[str]) -> None
                     st.session_state[eta_key]      = ""
                     st.session_state[step_key]     = total_steps
                     st.session_state[total_key]    = total_steps
+                    _save_log(prefix, st.session_state.get(log_key, []))
                     break
                 _cur = st.session_state.get(progress_key, 0.0)
                 _sp, _sl, _eta_v = _parse_subprogress(_line, _cur)
@@ -663,6 +680,7 @@ def _save_settings_to_config(v):
         ('CutawayTiming',    'pre_roll_frames',      v['pre_roll']),
         ('SpeakingReaction', 'rise_db',              v['rise_db']),
         ('SpeakingReaction', 'max_duration',         v['speaking_max_dur']),
+        ('SpeakingReaction', 'crossbleed_ratio',     v.get('crossbleed_ratio', 0.5)),
         ('TotaleLogic',      'simul_min_duration',   v['totale_simul_dur']),
     ]:
         if sec not in save:
