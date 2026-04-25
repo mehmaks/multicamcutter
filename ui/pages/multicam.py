@@ -701,6 +701,16 @@ def _save_settings_to_config(v):
     if 'CLIPFilter' not in save:
         save['CLIPFilter'] = {}
     save['CLIPFilter']['enabled'] = 'true' if v.get('clip_filter_enabled') else 'false'
+    if 'CrossbleedGate' not in save:
+        save['CrossbleedGate'] = {}
+    save['CrossbleedGate']['enabled']        = 'true' if v.get('crossbleed_gate_enabled') else 'false'
+    save['CrossbleedGate']['window']         = str(v.get('gate_window', 80))
+    save['CrossbleedGate']['attack']         = str(v.get('gate_attack', 15))
+    save['CrossbleedGate']['release']        = str(v.get('gate_release', 80))
+    save['CrossbleedGate']['floor']          = str(v.get('gate_floor', -25))
+    save['CrossbleedGate']['hysteresis']     = str(v.get('gate_hysteresis', 2.0))
+    save['CrossbleedGate']['both_threshold'] = str(v.get('gate_both_threshold', 3.0))
+    save['CrossbleedGate']['use_filtered']  = 'true' if v.get('gate_use_filtered') else 'false'
     with open(str(_cfg_path), 'w') as f:
         save.write(f)
 

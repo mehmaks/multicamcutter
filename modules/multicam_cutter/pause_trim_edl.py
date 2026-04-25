@@ -146,8 +146,8 @@ def detect_pauses(events: list, audio1: np.ndarray, audio2: np.ndarray,
                     min_pause_s=min_pause_s,
                 )
                 if pause:
-                    pause_start_frame = int(pause['pause_start_s'] * fps) + wav_edl_frame
-                    pause_end_frame = int(pause['pause_end_s'] * fps) + wav_edl_frame
+                    pause_start_frame = round(pause['pause_start_s'] * fps) + wav_edl_frame
+                    pause_end_frame = round(pause['pause_end_s'] * fps) + wav_edl_frame
                     pauses.append({
                         'pause_start_frame': pause_start_frame,
                         'pause_end_frame': pause_end_frame,
@@ -298,27 +298,46 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         #    Wie Sandbox: bedingungslos verschieben. Wenn Grenze vor p1_end,
         #    wird das Event verlängert (in Stillebereich hinein). Netto-Trim
         #    beider Seiten = excess, garantiert Audio-Sync.
+        actual_trim_before = 0
         for ev in cut_events:
             if abs(ev['record_out'] - matched_cb) <= boundary_tolerance:
-                ev['source_out'] -= (ev['record_out'] - p1_end)
-                ev['record_out'] = p1_end
+                trim = ev['record_out'] - p1_end
+                # Cap: Event darf nicht negativ werden
+                max_trim = ev['source_out'] - ev['source_in']
+                if trim > max_trim:
+                    trim = max_trim
+                ev['source_out'] -= trim
+                ev['record_out'] -= trim
+                actual_trim_before = trim
                 break
 
         # 5. Event NACH der Grenze kürzen (Anfang → p2_start)
+        actual_trim_after = 0
         for ev in cut_events:
             if abs(ev['record_in'] - matched_cb) <= boundary_tolerance:
                 delta = p2_start - ev['record_in']
+                # Cap: Event darf nicht negativ werden
+                max_delta = ev['source_out'] - ev['source_in']
+                if delta > max_delta:
+                    delta = max_delta
                 ev['source_in'] += delta
-                ev['record_in'] = p2_start
+                ev['record_in'] += delta
+                actual_trim_after = delta
                 break
 
-        # Audio-Trim immer Middle-Cut (um Pausenmitte zentriert)
-        at_start = ps + half
-        at_end = pe - half2
-        audio_trims.append((at_start, at_end))
+        # Audio-Trim = tatsächlich entfernte Frames (symmetrisch um Pausenmitte)
+        actual_total = actual_trim_before + actual_trim_after
+        if actual_total > 0:
+            at_half = actual_total // 2
+            at_half2 = actual_total - at_half
+            pause_center = (ps + pe) // 2
+            at_start = pause_center - at_half2
+            at_end = pause_center + at_half
+            audio_trims.append((at_start, at_end))
 
-        trimmed_count += 1
-        total_saved_frames += excess
+        if actual_total > 0:
+            trimmed_count += 1
+            total_saved_frames += actual_total
 
     # Leere Events entfernen
     cut_events = [ev for ev in cut_events if ev['source_out'] > ev['source_in']]

@@ -107,10 +107,12 @@ def compute_rms_db(audio: np.ndarray, sr: int, window_s: float) -> np.ndarray:
 
 def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
                 window_s: float, threshold_db: float,
-                change_delay_s: float, min_edit_s: float):
+                change_delay_s: float, min_edit_s: float,
+                silence_gate_db: float = -55.0):
     """
     RMS-Pegelvergleich → Segmente mit 'CAM1'/'CAM2' Speaker-Label.
     audio1 = Mikrofon für CAM1, audio2 = Mikrofon für CAM2.
+    silence_gate_db: Wenn beide Mics unter diesem Pegel → kein Speaker (None).
     """
     rms1 = compute_rms_db(audio1, sr, window_s)
     rms2 = compute_rms_db(audio2, sr, window_s)
@@ -121,6 +123,11 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
     dominant = np.full(n, None, dtype=object)
     dominant[diff >  threshold_db] = 'CAM1'
     dominant[diff < -threshold_db] = 'CAM2'
+
+    # Stille-Gate: Wenn selbst das lautere Mic unter der Schwelle liegt,
+    # spricht niemand → keinen Speaker zuweisen (vorheriger bleibt)
+    both_quiet = np.maximum(rms1, rms2) < silence_gate_db
+    dominant[both_quiet] = None
 
     # Change-Delay smoothing
     # Wechsel wird erst akzeptiert wenn der neue Sprecher delay_wins
@@ -193,6 +200,103 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
             final.append({'speaker': seg['speaker'], 'start_s': s_s, 'end_s': e_s})
 
     return final
+
+
+def rms_gate(audio1: np.ndarray, audio2: np.ndarray, sr: int,
+             window_ms: float = 80, attack_ms: float = 15, release_ms: float = 80,
+             floor_db: float = -25, hysteresis_db: float = 2.0,
+             both_threshold_db: float = 3.0):
+    """
+    RMS-gesteuerter Crossbleed-Gate: Pro Fenster wird das lautere Mic
+    als aktiv betrachtet, das leisere wird stark gedaempft.
+    Bei gleichzeitigem Sprechen (|diff| < both_threshold) werden beide
+    Mics durchgelassen.
+
+    Gibt (audio1_gated, audio2_gated) zurueck — nur fuer Analyse,
+    nicht fuer die finale Timeline.
+    """
+    win_samples = int(sr * window_ms / 1000)
+    hop = win_samples // 2  # 50% Overlap
+    n_frames = (len(audio1) - win_samples) // hop + 1
+
+    # RMS pro Fenster
+    rms1 = np.zeros(n_frames)
+    rms2 = np.zeros(n_frames)
+    for i in range(n_frames):
+        s = i * hop
+        e = s + win_samples
+        rms1[i] = np.sqrt(np.mean(audio1[s:e] ** 2) + 1e-12)
+        rms2[i] = np.sqrt(np.mean(audio2[s:e] ** 2) + 1e-12)
+
+    rms1_db = 20 * np.log10(rms1)
+    rms2_db = 20 * np.log10(rms2)
+    diff_db = rms1_db - rms2_db  # positiv = MIC1 lauter
+
+    # Gate-Entscheidung mit Hysterese und BOTH-Zustand
+    # Zustaende: 0=MIC1_ACTIVE, 1=MIC2_ACTIVE, 2=BOTH
+    STATE_MIC1, STATE_MIC2, STATE_BOTH = 0, 1, 2
+    states = np.zeros(n_frames, dtype=int)
+    current = STATE_MIC1 if diff_db[0] > 0 else STATE_MIC2
+
+    for i in range(n_frames):
+        d = diff_db[i]
+        if current == STATE_MIC1:
+            if d < -hysteresis_db:
+                current = STATE_MIC2
+            elif abs(d) < both_threshold_db:
+                current = STATE_BOTH
+        elif current == STATE_MIC2:
+            if d > hysteresis_db:
+                current = STATE_MIC1
+            elif abs(d) < both_threshold_db:
+                current = STATE_BOTH
+        else:  # STATE_BOTH
+            if d > both_threshold_db:
+                current = STATE_MIC1
+            elif d < -both_threshold_db:
+                current = STATE_MIC2
+        states[i] = current
+
+    # Gain-Kurven
+    floor_linear = 10 ** (floor_db / 20)
+    gain1_frames = np.where(states == STATE_MIC2, floor_linear, 1.0)
+    gain2_frames = np.where(states == STATE_MIC1, floor_linear, 1.0)
+
+    # Attack/Release Smoothing
+    attack_f = max(1, int((attack_ms / 1000) * sr / hop))
+    release_f = max(1, int((release_ms / 1000) * sr / hop))
+    alpha_attack = 1.0 - np.exp(-2.2 / attack_f) if attack_f > 0 else 1.0
+    alpha_release = 1.0 - np.exp(-2.2 / release_f) if release_f > 0 else 1.0
+
+    def smooth_gain(gain_raw):
+        smoothed = np.zeros_like(gain_raw)
+        smoothed[0] = gain_raw[0]
+        for i in range(1, len(gain_raw)):
+            if gain_raw[i] > smoothed[i - 1]:
+                smoothed[i] = smoothed[i - 1] + alpha_attack * (gain_raw[i] - smoothed[i - 1])
+            else:
+                smoothed[i] = smoothed[i - 1] + alpha_release * (gain_raw[i] - smoothed[i - 1])
+        return smoothed
+
+    gain1_smooth = smooth_gain(gain1_frames)
+    gain2_smooth = smooth_gain(gain2_frames)
+
+    # Frame-Gains auf Sample-Ebene interpolieren
+    frame_times = np.arange(n_frames) * hop + win_samples // 2
+    sample_times = np.arange(len(audio1))
+    gain1_samples = np.interp(sample_times, frame_times, gain1_smooth)
+    gain2_samples = np.interp(sample_times, frame_times, gain2_smooth)
+
+    # Statistiken
+    mic1_pct = np.sum(states == STATE_MIC1) / n_frames * 100
+    mic2_pct = np.sum(states == STATE_MIC2) / n_frames * 100
+    both_pct = np.sum(states == STATE_BOTH) / n_frames * 100
+    switches = np.sum(np.diff(states) != 0)
+    print(f"  MIC1 aktiv: {mic1_pct:.1f}%, MIC2 aktiv: {mic2_pct:.1f}%, "
+          f"Beide: {both_pct:.1f}%")
+    print(f"  Wechsel: {switches}")
+
+    return audio1 * gain1_samples, audio2 * gain2_samples
 
 
 def detect_on_speaker_pauses(audio1: np.ndarray, audio2: np.ndarray, sr: int,
@@ -715,6 +819,26 @@ def main():
     parser.add_argument('--threshold-db',        type=float, default=6.0)
     parser.add_argument('--analysis-window',     type=float, default=0.05)
 
+    # Crossbleed-Gate
+    parser.add_argument('--crossbleed-gate',      action='store_true',
+                        help='RMS-Gate vor Diarization aktivieren')
+    parser.add_argument('--gate-window',          type=float, default=80,
+                        help='Gate Analyse-Fenster in ms')
+    parser.add_argument('--gate-attack',          type=float, default=15,
+                        help='Gate Attack in ms')
+    parser.add_argument('--gate-release',         type=float, default=80,
+                        help='Gate Release in ms')
+    parser.add_argument('--gate-floor',           type=float, default=-25,
+                        help='Gate Daempfung in dB')
+    parser.add_argument('--gate-hysteresis',      type=float, default=2.0,
+                        help='Gate Hysterese in dB')
+    parser.add_argument('--gate-both-threshold',  type=float, default=3.0,
+                        help='Schwelle fuer gleichzeitiges Sprechen in dB')
+    parser.add_argument('--gate-use-filtered',    action='store_true',
+                        help='Gefilterte WAVs exportieren und fuer Timeline nutzen')
+    parser.add_argument('--gate-wav-out',         default=None,
+                        help='JSON-Pfad fuer exportierte Gate-WAV-Pfade')
+
     parser.add_argument('--fps',    type=float, default=25.0)
     parser.add_argument('--output', '-o', default='base.edl')
     # Speaking reaction output (optional)
@@ -844,12 +968,88 @@ def main():
         print(f"\n🔊 Pegel-Normalisierung:")
         print(f"  Median vor Korrektur: MIC1={_median1:.1f} dB, MIC2={_median2:.1f} dB")
         print(f"  Korrektur: MIC1 {-_offset_db:+.1f} dB, MIC2 {+_offset_db:+.1f} dB")
+        # Post-Normalisierung: RMS neu berechnen für Diagnostik
+        _rms1_post = compute_rms_db(audio_cam1, sr1, args.analysis_window)
+        _rms2_post = compute_rms_db(audio_cam2, sr1, args.analysis_window)
+        _diff_post = _rms1_post[:min(len(_rms1_post), len(_rms2_post))] \
+                   - _rms2_post[:min(len(_rms1_post), len(_rms2_post))]
+        print(f"  Nach Korrektur: Median MIC1={float(np.median(_rms1_post)):.1f} dB, "
+              f"MIC2={float(np.median(_rms2_post)):.1f} dB")
+        _above = int(np.sum(np.abs(_diff_post) > args.threshold_db))
+        _total = len(_diff_post)
+        print(f"  Fenster über Schwelle ({args.threshold_db:.0f} dB): "
+              f"{_above}/{_total} ({100*_above/_total:.0f}%)")
     else:
         print(f"\n🔊 Pegel-Check: MIC1={_median1:.1f} dB, MIC2={_median2:.1f} dB (kein Ausgleich nötig)")
 
-    print("\n📊 RMS-Diarization...")
+    # ── Crossbleed-Gate ────────────────────────────────────────────────────
+    if args.crossbleed_gate:
+        print(f"\n🔇 Crossbleed-Gate (Fenster={args.gate_window}ms, "
+              f"Floor={args.gate_floor}dB, Both<{args.gate_both_threshold}dB)...")
+        _analysis1, _analysis2 = rms_gate(
+            audio_cam1, audio_cam2, sr1,
+            window_ms=args.gate_window,
+            attack_ms=args.gate_attack,
+            release_ms=args.gate_release,
+            floor_db=args.gate_floor,
+            hysteresis_db=args.gate_hysteresis,
+            both_threshold_db=args.gate_both_threshold,
+        )
+        # Debug: gefilterte WAVs exportieren fuer Timeline-Bestückung
+        if args.gate_use_filtered:
+            for src_paths, gated, label in [
+                (args.mic_cam1, _analysis1, 'MIC1'),
+                (args.mic_cam2, _analysis2, 'MIC2'),
+            ]:
+                out_path = Path(src_paths[0]).parent / f"{Path(src_paths[0]).stem}_gated.wav"
+                _pcm = (np.clip(gated, -1.0, 1.0) * 32767).astype(np.int16)
+                with wave.open(str(out_path), 'w') as wf:
+                    wf.setnchannels(1)
+                    wf.setsampwidth(2)
+                    wf.setframerate(sr1)
+                    wf.writeframes(_pcm.tobytes())
+                print(f"  Gate-Export: {out_path.name}")
+            if args.gate_wav_out:
+                # Pfade an run_from_bin weitergeben
+                gate_out = Path(args.gate_wav_out)
+                gate_out.write_text(json.dumps({
+                    'mic1': str(Path(args.mic_cam1[0]).parent / f"{Path(args.mic_cam1[0]).stem}_gated.wav"),
+                    'mic2': str(Path(args.mic_cam2[0]).parent / f"{Path(args.mic_cam2[0]).stem}_gated.wav"),
+                }))
+    else:
+        _analysis1, _analysis2 = audio_cam1, audio_cam2
+
+    # ── Post-Gate Pegel-Normalisierung ──────────────────────────────────────
+    # Nach dem Gate: Median nur aus AKTIVEN Fenstern (über Gate-Floor),
+    # damit gedämpfte Crossbleed-Fenster den Median nicht verfälschen.
+    _rms1_pg = compute_rms_db(_analysis1, sr1, args.analysis_window)
+    _rms2_pg = compute_rms_db(_analysis2, sr1, args.analysis_window)
+    if args.crossbleed_gate:
+        _floor_thresh = args.gate_floor + 5  # knapp über Gate-Floor
+        _active1 = _rms1_pg[_rms1_pg > _floor_thresh]
+        _active2 = _rms2_pg[_rms2_pg > _floor_thresh]
+        _median1_pg = float(np.median(_active1)) if len(_active1) > 0 else float(np.median(_rms1_pg))
+        _median2_pg = float(np.median(_active2)) if len(_active2) > 0 else float(np.median(_rms2_pg))
+    else:
+        _median1_pg = float(np.median(_rms1_pg))
+        _median2_pg = float(np.median(_rms2_pg))
+    _offset_pg = (_median1_pg - _median2_pg) / 2.0
+    if abs(_offset_pg) > 0.1:
+        _gain1_pg = 10 ** (-_offset_pg / 20.0)
+        _gain2_pg = 10 ** (+_offset_pg / 20.0)
+        _analysis1 = (_analysis1 * _gain1_pg).astype(_analysis1.dtype)
+        _analysis2 = (_analysis2 * _gain2_pg).astype(_analysis2.dtype)
+        _tag = "Post-Gate " if args.crossbleed_gate else ""
+        print(f"\n🔊 {_tag}Pegel-Normalisierung (nur aktive Fenster):")
+        print(f"  Median: MIC1={_median1_pg:.1f} dB, MIC2={_median2_pg:.1f} dB")
+        print(f"  Korrektur: MIC1 {-_offset_pg:+.1f} dB, MIC2 {+_offset_pg:+.1f} dB")
+    else:
+        _tag = "Post-Gate " if args.crossbleed_gate else ""
+        print(f"\n🔊 {_tag}Pegel-Check: MIC1={_median1_pg:.1f} dB, MIC2={_median2_pg:.1f} dB (kein Ausgleich nötig)")
+
+    print(f"\n📊 RMS-Diarization (threshold={args.threshold_db:.1f} dB)...")
     segments = rms_diarize(
-        audio_cam1, audio_cam2, sr1,
+        _analysis1, _analysis2, sr1,
         args.analysis_window, args.threshold_db,
         args.change_delay, args.min_edit_duration
     )
@@ -971,7 +1171,7 @@ def main():
             totale_edl_frame         = args.totale_edl_frame + _cam_shift
             totale_timeline_zero_vid = 0 - totale_edl_frame
             simul_segs = detect_simultaneous_speech(
-                audio_cam1, audio_cam2, sr1,
+                _analysis1, _analysis2, sr1,
                 args.analysis_window, args.threshold_db,
                 args.totale_simul_min_duration,
             )
@@ -1040,7 +1240,7 @@ def main():
     if args.pause_trim:
         from pause_trim_edl import detect_pauses, save_pauses
         pauses = detect_pauses(
-            events, audio_cam1, audio_cam2, sr1,
+            events, _analysis1, _analysis2, sr1,
             args.wav_edl_frame, args.fps,
             silence_db=args.pause_silence_db,
             search_radius_s=args.pause_search_radius,
@@ -1059,6 +1259,7 @@ def main():
         print(f"\n🗣️  Erkenne Speaking Reactions (mode={args.speaking_mode})...")
 
         # On-Speaker-Pausen erkennen für Baseline-Freeze
+        # Original-Audio: Gate verfälscht On-Mic-Pegel
         _on_pauses = detect_on_speaker_pauses(
             audio_cam1, audio_cam2, sr1, segments,
             silence_db=args.pause_silence_db,
@@ -1067,7 +1268,7 @@ def main():
         )
 
         cam1_sr, cam2_sr = detect_speaking_reactions(
-            audio_cam1, audio_cam2, sr1,
+            _analysis1, _analysis2, sr1,
             segments,
             args.fps, args.wav_edl_frame,
             cam1_timeline_zero_video, cam2_timeline_zero_video,
@@ -1096,24 +1297,52 @@ def main():
     # ── 9. Pause-Cutaway-Kandidaten exportieren (optional) ─────────────────
     if args.pause_cutaway_json_out:
         print(f"\n🔇 Erkenne Stille-Pausen für Cutaways (min {args.pause_cutaway_min_pause}s)...")
-        _cutaway_pauses = detect_on_speaker_pauses(
-            audio_cam1, audio_cam2, sr1, segments,
-            silence_db=args.pause_silence_db,
-            min_pause_s=args.pause_cutaway_min_pause,
-            padding_s=0.0,
-        )
-        # Audio-Sekunden → Timeline-Frames
+        # Gegenseitige Stille auf Gate+Norm-Audio: Nach Gate ist leise
+        # Sprache bei -40...-48 dB, echte Stille bei -55+ dB.
+        # Eigene Schwelle (-50 dB) unabhängig von pause_silence_db (-40 dB),
+        # weil Cutaways strenger sein müssen als Pause-Trimming.
+        _window_s = 0.02
+        _cutaway_silence_db = -50.0
+        _db1 = compute_rms_db(_analysis1, sr1, _window_s)
+        _db2 = compute_rms_db(_analysis2, sr1, _window_s)
+        _n = min(len(_db1), len(_db2))
+        _db1, _db2 = _db1[:_n], _db2[:_n]
+        _both_silent = (_db1 < _cutaway_silence_db) & (_db2 < _cutaway_silence_db)
+
+        # Zusammenhängende Stille-Regionen finden
+        _min_wins = max(1, int(args.pause_cutaway_min_pause / _window_s))
+        _mutual_pauses = []
+        _in_pause = False
+        _ps = 0
+        for i in range(_n):
+            if _both_silent[i] and not _in_pause:
+                _ps = i
+                _in_pause = True
+            elif not _both_silent[i] and _in_pause:
+                if i - _ps >= _min_wins:
+                    _mutual_pauses.append((_ps * _window_s, i * _window_s))
+                _in_pause = False
+        if _in_pause and _n - _ps >= _min_wins:
+            _mutual_pauses.append((_ps * _window_s, _n * _window_s))
+
+        # Sprecher vor der Pause bestimmen (aus Diarization-Segmenten)
         pause_list = []
-        for spk in ('CAM1', 'CAM2'):
-            for ps, pe in _cutaway_pauses.get(spk, []):
-                sf = round(ps * args.fps) + args.wav_edl_frame
-                ef = round(pe * args.fps) + args.wav_edl_frame
-                if ef > sf:
-                    pause_list.append({
-                        'start_frame': sf,
-                        'end_frame': ef,
-                        'speaker': spk,
-                    })
+        for ps_s, pe_s in _mutual_pauses:
+            # Welcher Sprecher war VOR der Pause aktiv?
+            spk = None
+            for seg in segments:
+                if seg['end_s'] >= ps_s - 0.5 and seg['start_s'] < ps_s:
+                    spk = seg['speaker']
+            if spk not in ('CAM1', 'CAM2'):
+                continue
+            sf = round(ps_s * args.fps) + args.wav_edl_frame
+            ef = round(pe_s * args.fps) + args.wav_edl_frame
+            if ef > sf:
+                pause_list.append({
+                    'start_frame': sf,
+                    'end_frame': ef,
+                    'speaker': spk,
+                })
         pause_list.sort(key=lambda p: p['start_frame'])
         Path(args.pause_cutaway_json_out).write_text(
             json.dumps({'fps': args.fps, 'pauses': pause_list}, indent=2)

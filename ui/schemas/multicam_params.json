@@ -138,6 +138,103 @@
               "column": 2
             }
           ]
+        },
+        {
+          "divider": true,
+          "section_label": "Crossbleed-Filter"
+        },
+        {
+          "columns": 3,
+          "params": [
+            {
+              "name": "crossbleed_gate_enabled",
+              "widget": "toggle",
+              "default": false,
+              "label": "Crossbleed-Gate",
+              "help": "Unterdrückt Übersprechen zwischen Mikrofonen vor der Sprechererkennung. Nützlich wenn beide Mics im selben Raum stehen und Crossbleed die Diarization verfälscht.",
+              "expert": true,
+              "column": 0
+            },
+            {
+              "name": "gate_floor",
+              "widget": "number_input",
+              "default": -25.0,
+              "label": "Dämpfung (dB)",
+              "help": "Wie stark das inaktive Mikrofon gedämpft wird. -25 dB unterdrückt Crossbleed stark, lässt aber minimale Raumakustik durch.",
+              "expert": true,
+              "config": { "min_value": -60.0, "max_value": -5.0, "step": 1.0, "format": "%.0f" },
+              "column": 1
+            },
+            {
+              "name": "gate_hysteresis",
+              "widget": "number_input",
+              "default": 2.0,
+              "label": "Hysterese (dB)",
+              "help": "Vermeidet Flattern an Grenzen. Ein Wechsel findet erst statt, wenn das andere Mic um diesen Betrag lauter wird.",
+              "expert": true,
+              "config": { "min_value": 0.5, "max_value": 10.0, "step": 0.5, "format": "%.1f" },
+              "column": 2
+            }
+          ]
+        },
+        {
+          "columns": 3,
+          "params": [
+            {
+              "name": "gate_window",
+              "widget": "number_input",
+              "default": 80.0,
+              "label": "Fenster (ms)",
+              "help": "Analyse-Fenster für die Pegelvergleich. Groß genug für Raumhall, klein genug für schnelle Wechsel.",
+              "expert": true,
+              "config": { "min_value": 20.0, "max_value": 500.0, "step": 10.0, "format": "%.0f" },
+              "column": 0
+            },
+            {
+              "name": "gate_attack",
+              "widget": "number_input",
+              "default": 15.0,
+              "label": "Attack (ms)",
+              "help": "Wie schnell das Gate öffnet. Kurz genug, damit Silbenanfänge nicht verloren gehen.",
+              "expert": true,
+              "config": { "min_value": 1.0, "max_value": 200.0, "step": 5.0, "format": "%.0f" },
+              "column": 1
+            },
+            {
+              "name": "gate_release",
+              "widget": "number_input",
+              "default": 80.0,
+              "label": "Release (ms)",
+              "help": "Wie langsam das Gate schließt. Längere Werte verhindern Pumping-Effekte.",
+              "expert": true,
+              "config": { "min_value": 10.0, "max_value": 500.0, "step": 10.0, "format": "%.0f" },
+              "column": 2
+            }
+          ]
+        },
+        {
+          "columns": 3,
+          "params": [
+            {
+              "name": "gate_both_threshold",
+              "widget": "number_input",
+              "default": 3.0,
+              "label": "Gleichzeitig-Schwelle (dB)",
+              "help": "Wenn der Pegelunterschied kleiner als dieser Wert ist, werden beide Mics durchgelassen (gleichzeitiges Sprechen).",
+              "expert": true,
+              "config": { "min_value": 0.5, "max_value": 10.0, "step": 0.5, "format": "%.1f" },
+              "column": 0
+            },
+            {
+              "name": "gate_use_filtered",
+              "widget": "toggle",
+              "default": false,
+              "label": "Gate-Audio in Timeline",
+              "help": "Debug: Verwendet die gefilterten WAVs statt der Originale in der finalen Timeline. Nur zu Testzwecken.",
+              "expert": true,
+              "column": 1
+            }
+          ]
         }
       ]
     },

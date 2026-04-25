@@ -279,8 +279,11 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
             mic_source_start = 0
             mic_record_start = mic1_offset - abs_start
 
-        # Verify sync using last event (detects gaps from skipped events)
-        if len(cut_events) > 1:
+        # Verify sync using last event (detects gaps from skipped events).
+        # Nur prüfen wenn KEIN Pause-Trimming aktiv — bei audio_keeps wird
+        # MIC segmentiert platziert, nicht als durchgehender Clip.
+        _has_audio_keeps = (audio_trims_path and audio_trims_path.exists())
+        if len(cut_events) > 1 and not _has_audio_keeps:
             last_event = cut_events[-1]
             if last_event['clip'] is cam1_item:
                 last_cam_offset = offsets.get('CAM1', 0)
@@ -310,7 +313,10 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
     if audio_keeps:
         # MIC segmentiert platzieren: Keep-Regionen überspringen die Trim-Lücken
         # audio_keeps: [(orig_start_frame, orig_end_frame, new_record_frame), ...]
+        # Batch-Aufruf wie Video (einzelne AppendToTimeline-Aufrufe können
+        # bei Resolve zu kumulativem Drift führen).
         for i, mic in enumerate(mics):
+            mic_segments = []
             for orig_s, orig_e, rec_frame in audio_keeps:
                 src_s = mic_source_start + (orig_s - audio_keeps[0][0])
                 src_e = mic_source_start + (orig_e - audio_keeps[0][0])
@@ -319,14 +325,26 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
                     src_s = 0
                 if src_e <= src_s:
                     continue
-                mp.AppendToTimeline([{
+                mic_segments.append({
                     'mediaPoolItem': mic,
                     'startFrame':   src_s,
                     'endFrame':     src_e,
                     'mediaType':    2,
                     'trackIndex':   audio_start_idx + i,
                     'recordFrame':  rec_frame,
-                }])
+                })
+            mp.AppendToTimeline(mic_segments)
+            time.sleep(0.3)
+        # Diagnostik: Audio-Segment-Positionen loggen
+        _ak_total = sum(e - s for s, e, _ in audio_keeps)
+        print(f"  Audio-Keeps: {len(audio_keeps)} Segmente, "
+              f"Gesamt={_ak_total} Frames ({_ak_total / fps:.1f}s)")
+        print(f"  Video-Gesamt: {record_cursor} Frames ({record_cursor / fps:.1f}s)")
+        _ak_diff = record_cursor - _ak_total
+        if abs(_ak_diff) > 2:
+            print(f"  ⚠️  Video/Audio-Keeps Diff: {_ak_diff} Frames")
+        else:
+            print(f"  ✓ Video/Audio-Keeps synchron (Diff={_ak_diff})")
         print(f"  {len(cut_events)} Video-Segmente, {len(mics)} MIC-Spur(en) "
               f"({len(audio_keeps)} Audio-Segmente je MIC)")
     else:
@@ -643,9 +661,11 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     pt_cfg = cfg['PauseTrim']       if 'PauseTrim'       in cfg else {}
     pc_cfg = cfg['PauseCutaway']    if 'PauseCutaway'    in cfg else {}
     cf_cfg = cfg['CLIPFilter']      if 'CLIPFilter'      in cfg else {}
+    cg_cfg = cfg['CrossbleedGate']  if 'CrossbleedGate'  in cfg else {}
     speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
     pause_cutaway_enabled = pc_cfg.get('enabled', 'false').strip().lower() == 'true'
     clip_filter_enabled = cf_cfg.get('enabled', 'false').strip().lower() == 'true'
+    crossbleed_gate_enabled = cg_cfg.get('enabled', 'false').strip().lower() == 'true'
 
     # ── Schritt 1: Base-EDL aus Audio (binäre Diarisierung CAM1/CAM2) ────────
     if not skip_base_edl:
@@ -670,6 +690,23 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--cam1-off-sections-out', str(cam1_off_sections),
             '--cam2-off-sections-out', str(cam2_off_sections),
         ]
+        gate_use_filtered = cg_cfg.get('use_filtered', 'false').strip().lower() == 'true'
+        gate_wav_json = work_dir / 'gate_wavs.json'
+        if crossbleed_gate_enabled:
+            builder_args += [
+                '--crossbleed-gate',
+                '--gate-window',         cg_cfg.get('window', '80'),
+                '--gate-attack',         cg_cfg.get('attack', '15'),
+                '--gate-release',        cg_cfg.get('release', '80'),
+                '--gate-floor',          cg_cfg.get('floor', '-25'),
+                '--gate-hysteresis',     cg_cfg.get('hysteresis', '2.0'),
+                '--gate-both-threshold', cg_cfg.get('both_threshold', '3.0'),
+            ]
+            if gate_use_filtered:
+                builder_args += [
+                    '--gate-use-filtered',
+                    '--gate-wav-out', str(gate_wav_json),
+                ]
         if speaking_enabled:
             builder_args += [
                 '--speaking-reactions-cam1-out', str(cam1_speaking_json),
@@ -719,6 +756,23 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             ]
 
         run(builder_args, "Base-EDL aus Audio")
+
+    # Gate-WAVs in Media Pool importieren (Debug: gefilterte Audio in Timeline)
+    if crossbleed_gate_enabled and gate_use_filtered and gate_wav_json.exists():
+        try:
+            _gw = json.loads(gate_wav_json.read_text())
+            _gated_paths = [_gw['mic1'], _gw['mic2']]
+            print(f"\n  🔇 Gate-Debug: Importiere gefilterte WAVs in Media Pool...")
+            _imported = mp.ImportMedia(_gated_paths)
+            if _imported and len(_imported) >= 2:
+                # Sortiert wie Original-MICs (alphabetisch nach Name)
+                _imported_sorted = sorted(_imported, key=lambda c: c.GetName())
+                mics = _imported_sorted
+                print(f"  Gate-MICs: {[m.GetName() for m in mics]}")
+            else:
+                print(f"  ⚠️  Gate-WAV Import fehlgeschlagen, nutze Original-MICs")
+        except Exception as e:
+            print(f"  ⚠️  Gate-WAV Fehler: {e}, nutze Original-MICs")
 
     # ── Schritt 2: Nodding-Analyse für ALLE Kameras ───────────────────────────
     # Off-Sections stehen nur für CAM1/CAM2 zur Verfügung (aus binärer Diarisierung).
