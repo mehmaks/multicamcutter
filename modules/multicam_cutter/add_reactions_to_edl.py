@@ -338,39 +338,62 @@ def build_events_with_cutaways(
         reset_cam = wide_cams[0] if wide_cams else (close_cams[0] if close_cams else None)
         if section_end - current_pos > max_shot_frames:
             while current_pos < section_end:
-                next_cut = min(current_pos + max_shot_frames, section_end)
+                remaining = section_end - current_pos
+                if remaining <= max_shot_frames:
+                    # Letztes Segment passt ohne Split
+                    vi = section_video_start + (current_pos - section_start)
+                    vo = section_video_start + (section_end - section_start)
+                    events.append(EDLEvent(
+                        event_num=0, clip_name=on_clip,
+                        source_in=frames_to_timecode(on_reference_frame + vi, fps),
+                        source_out=frames_to_timecode(on_reference_frame + vo, fps),
+                        record_in=frames_to_timecode(current_pos, fps),
+                        record_out=frames_to_timecode(section_end, fps),
+                        fps=fps, reason="speaker",
+                    ))
+                    current_pos = section_end
+                    break
+
+                # Cutaway in der MITTE des Segments platzieren
+                segment_end = min(current_pos + max_shot_frames, section_end)
+                segment_dur = segment_end - current_pos
+                middle = current_pos + (segment_dur // 2)
+                cut_half = reaction_duration_frames // 2
+                cut_start = middle - cut_half
+                cut_end = min(cut_start + reaction_duration_frames, section_end)
+
+                # Erster On-Speaker-Teil: current_pos → cut_start
                 vi = section_video_start + (current_pos - section_start)
-                vo = section_video_start + (next_cut - section_start)
+                vo = section_video_start + (cut_start - section_start)
                 events.append(EDLEvent(
                     event_num=0, clip_name=on_clip,
                     source_in=frames_to_timecode(on_reference_frame + vi, fps),
                     source_out=frames_to_timecode(on_reference_frame + vo, fps),
                     record_in=frames_to_timecode(current_pos, fps),
-                    record_out=frames_to_timecode(next_cut, fps),
+                    record_out=frames_to_timecode(cut_start, fps),
                     fps=fps, reason="speaker",
                 ))
-                if next_cut >= section_end:
-                    break
-                cutaway_end = min(next_cut + reaction_duration_frames, section_end)
+
+                # Cutaway in der Mitte
                 if reset_cam:
-                    off_vi = reset_cam['timeline_zero_video'] + next_cut
-                    off_vo = reset_cam['timeline_zero_video'] + cutaway_end
+                    off_vi = reset_cam['timeline_zero_video'] + cut_start
+                    off_vo = reset_cam['timeline_zero_video'] + cut_end
                     if off_vi >= 0:
                         events.append(EDLEvent(
                             event_num=0, clip_name=reset_cam['name'],
                             source_in=frames_to_timecode(reset_cam['reference_frame'] + off_vi, fps),
                             source_out=frames_to_timecode(reset_cam['reference_frame'] + off_vo, fps),
-                            record_in=frames_to_timecode(next_cut, fps),
-                            record_out=frames_to_timecode(cutaway_end, fps),
+                            record_in=frames_to_timecode(cut_start, fps),
+                            record_out=frames_to_timecode(cut_end, fps),
                             fps=fps, reason="max_time",
                         ))
-                        current_pos = cutaway_end
+                        current_pos = cut_end
                     else:
-                        print(f"  ⚠️  Max-Time Reset auf {reset_cam['name']} übersprungen @ EDL {next_cut}: "
+                        print(f"  ⚠️  Max-Time Reset auf {reset_cam['name']} übersprungen @ EDL {cut_start}: "
                               f"Kamera startet erst {-off_vi} Frames später")
-                        current_pos = next_cut
+                        current_pos = segment_end
                 else:
-                    current_pos = next_cut
+                    current_pos = segment_end
         else:
             vi = section_video_start + (current_pos - section_start)
             vo = section_video_start + (section_end - section_start)
@@ -583,11 +606,23 @@ def split_long_shots(
     split_count = 0
     types = cam_types_dict or {}
 
-    for event in events:
+    for idx, event in enumerate(events):
         duration = event.duration_frames()
         if duration <= threshold_frames:
             new_events.append(event)
             continue
+
+        # Wenn das nächste Event bereits ein Sprecherwechsel ist und der
+        # Split in der zweiten Hälfte landen würde, ist er überflüssig.
+        next_ev = events[idx + 1] if idx + 1 < len(events) else None
+        if next_ev and next_ev.clip_name != event.clip_name:
+            # Abstand vom geplanten Split-Ende zum Event-Ende
+            middle = event.record_in_frame + (duration // 2)
+            cut_end = middle + (cutaway_frames // 2)
+            remaining_after_split = event.record_out_frame - cut_end
+            if remaining_after_split < threshold_frames:
+                new_events.append(event)
+                continue
 
         # Wide-Kamera bevorzugt als Split-Ziel (Reset-Schnitt); Fallback: erste andere Close-Kamera
         wide_others  = [c for c in all_cam_names if c != event.clip_name and types.get(c, 'close') == 'wide']
