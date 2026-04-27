@@ -1,6 +1,6 @@
 {
   "global": {
-    "nod_threshold": 65,
+    "nod_threshold": 45,
     "cooldown_s": 3.0,
     "settle_s": 3.0,
     "auto_accuracy_ref": 0.31,
@@ -22,7 +22,7 @@
         "min_amplitude_ratio": 0.4,
         "min_correlation": 0.85,
         "x_drift_ratio": 0.7,
-        "amplitude_factor": 1.0,
+        "amplitude_factor": 0.9,
         "dynamic_threshold": {
           "enabled": true,
           "max_reduction": 0.4
@@ -40,6 +40,39 @@
         },
         "multiplier": 1.0,
         "max": 1.0
+      }
+    },
+    {
+      "name": "slow_oscillation",
+      "description": "Langsameres/emphatisches Nicken — größere Gaps, kein Damping-Zwang, großzügiger Threshold",
+      "enabled": true,
+      "window_s": 2.5,
+      "filters": {
+        "min_reversals": 2,
+        "max_reversals": null,
+        "max_reversal_gap": 12,
+        "min_damping": null,
+        "min_amplitude_ratio": null,
+        "min_correlation": 0.85,
+        "x_drift_ratio": 0.7,
+        "amplitude_factor": 0.7,
+        "dynamic_threshold": {
+          "enabled": true,
+          "max_reduction": 0.5
+        },
+        "return_to_baseline": null,
+        "max_v_duration_s": null
+      },
+      "confidence": {
+        "weights": {
+          "reversals": 0.2,
+          "frequency": 0.2,
+          "damping": 0.2,
+          "correlation": 0.15,
+          "amplitude": 0.25
+        },
+        "multiplier": 0.9,
+        "max": 0.9
       }
     },
     {

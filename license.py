@@ -29,6 +29,7 @@ ALL_MODULES = [
     "maxxvolume",
     "silence",
     "takes",
+    "sequencer",
 ]
 
 # Module, die noch nicht für Beta freigegeben sind.

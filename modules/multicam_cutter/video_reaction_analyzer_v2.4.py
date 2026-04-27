@@ -10,6 +10,7 @@ import mediapipe as mp
 from mediapipe.tasks import python as mp_tasks
 from mediapipe.tasks.python import vision as mp_vision
 import numpy as np
+import math
 from pathlib import Path
 import json
 import subprocess
@@ -163,6 +164,8 @@ class AdvancedReactionDetector:
                 'nose_y':           deque(maxlen=wf),
                 'nose_x':           deque(maxlen=wf),
                 'bridge_y':         deque(maxlen=wf),
+                'head_tilt':        deque(maxlen=wf),
+                'head_yaw':         deque(maxlen=wf),
                 'head_x_history':   deque(maxlen=30),
                 'mouth_history':    deque(maxlen=20),
                 'eyebrow_history':  deque(maxlen=15),
@@ -186,7 +189,8 @@ class AdvancedReactionDetector:
         lm = landmarks[index]
         return int(lm.x * width), int(lm.y * height)
     
-    def _check_nod_pattern(self, pat, y_arr, x_arr, b_arr, thr):
+    def _check_nod_pattern(self, pat, y_arr, x_arr, b_arr, thr,
+                           tilt_arr=None, yaw_arr=None):
         """Prüft ein einzelnes Nodding-Pattern gegen die Signaldaten.
         Returns (passed, confidence, pattern_offset) — pattern_offset ist die
         Anzahl Frames vom aktuellen Frame zurück zum Beginn des Patterns
@@ -206,9 +210,27 @@ class AdvancedReactionDetector:
 
         FAIL = (False, 0.0, 0, 0)
 
-        # X-Drift-Check (degressiv: x_limit = ratio * y_range^0.7)
+        # X-Drift-Check mit Tilt- und Yaw-Korrektur
+        #
+        # Zwei geometrische Effekte erzeugen erwartete X-Komponenten beim Nicken:
+        # 1) Tilt: Kopf seitlich geneigt → Nicken hat X-Anteil = y * |tan(tilt)|
+        # 2) Yaw:  Kopf zur Seite gedreht (Halbprofil) → Nicken erzeugt
+        #    Bogen-Projektion mit X-Anteil proportional zur Drehung
+        #
+        # Nur die darüber hinausgehende X-Bewegung gilt als echter Drift.
         x_drift_ratio = f.get('x_drift_ratio', 0.7)
-        if y_range > 0 and x_range >= x_drift_ratio * (y_range ** 0.7):
+        expected_x_total = 0.0
+        if tilt_arr is not None and len(tilt_arr) > 0:
+            t = tilt_arr[-win_frames:]
+            median_tilt = float(np.median(t))
+            expected_x_total += y_range * abs(math.tan(median_tilt))
+        if yaw_arr is not None and len(yaw_arr) > 0:
+            yw = yaw_arr[-win_frames:]
+            median_yaw = float(np.median(yw))
+            yaw_dev = abs(median_yaw - 0.5) * 2.0  # 0=frontal, 1=Profil
+            expected_x_total += y_range * yaw_dev * 1.2
+        corrected_x = max(0.0, x_range - expected_x_total)
+        if y_range > 0 and corrected_x >= x_drift_ratio * (y_range ** 0.7):
             return FAIL
 
         # Glätten + Velocities
@@ -366,7 +388,7 @@ class AdvancedReactionDetector:
 
     def _fire_pending_nod(self, state):
         """Feuert eine ausstehende Nod-Detection und räumt den Pending-State auf.
-        Returns (True, confidence, first_frame, peak_frame, tail_frames).
+        Returns (True, confidence, first_frame, peak_frame, tail_frames, pattern_name).
         first_frame  = erster Detection-Frame (Cutaway-Ankerpunkt).
         peak_frame   = Frame mit höchster Confidence (für Dauer-Berechnung).
         tail_frames  = geschätzte Ausklingzeit nach dem letzten Reversal."""
@@ -374,16 +396,18 @@ class AdvancedReactionDetector:
         first_frame = state['_pending_first']
         peak_frame = state['_pending_frame']
         tail_frames = state.get('_pending_tail', 0)
+        pattern_name = state.get('_pending_pattern', '')
         state['last_nod_frame'] = peak_frame
         state['_pending_conf'] = 0
         state['_pending_first'] = 0
         state['_pending_frame'] = 0
         state['_pending_start'] = 0
         state['_pending_tail'] = 0
+        state['_pending_pattern'] = ''
         state['nose_y'].clear()
         state['nose_x'].clear()
         state['bridge_y'].clear()
-        return True, conf, first_frame, peak_frame, tail_frames
+        return True, conf, first_frame, peak_frame, tail_frames, pattern_name
 
     def detect_nodding(self, landmarks, frame_number, height, width, state: dict):
         """Pattern-basierte Nicken-Erkennung mit Delayed-Fire.
@@ -405,8 +429,27 @@ class AdvancedReactionDetector:
         state['nose_x'].append(nose_x)
         state['bridge_y'].append(bridge_y)
 
+        # Kopfneigung tracken (Stirn L10 → Kinn L152) für Tilt-Korrektur im X-Drift-Check
+        tilt = math.atan2(
+            landmarks[10].x * width - landmarks[152].x * width,
+            landmarks[152].y * height - landmarks[10].y * height,
+        )
+        state['head_tilt'].append(tilt)
+
+        # Yaw-Schätzung: Nasenrücken-Position relativ zu den Augen-Landmarks
+        # yaw_ratio ≈ 0.5 → frontal, Abweichung → Kopf gedreht
+        left_eye_x = landmarks[33].x * width
+        right_eye_x = landmarks[263].x * width
+        bridge_x = landmarks[6].x * width
+        eye_span = right_eye_x - left_eye_x
+        if abs(eye_span) > 1.0:
+            yaw_ratio = (bridge_x - left_eye_x) / eye_span
+        else:
+            yaw_ratio = 0.5
+        state['head_yaw'].append(yaw_ratio)
+
         min_frames = max(15, int(0.4 * self.fps))
-        NO = (False, 0.0, frame_number, frame_number, 0)
+        NO = (False, 0.0, frame_number, frame_number, 0, '')
         if len(state['nose_y']) < min_frames:
             return NO
 
@@ -418,6 +461,8 @@ class AdvancedReactionDetector:
             y_arr = np.array(state['nose_y'])
             x_arr = np.array(state['nose_x'])
             b_arr = np.array(state['bridge_y'])
+            t_arr = np.array(state['head_tilt'])
+            yw_arr = np.array(state['head_yaw'])
 
             res_scale = height / self._nod_calibration_height
             thr = self._nod_threshold * res_scale
@@ -427,11 +472,13 @@ class AdvancedReactionDetector:
                 thr *= face_scale
 
             for pat in self._nod_patterns:
-                passed, conf, _, tail = self._check_nod_pattern(pat, y_arr, x_arr, b_arr, thr)
+                passed, conf, _, tail = self._check_nod_pattern(
+                    pat, y_arr, x_arr, b_arr, thr, t_arr, yw_arr)
                 if passed and conf > state['_pending_conf']:
                     state['_pending_conf'] = conf
                     state['_pending_frame'] = frame_number
                     state['_pending_tail'] = tail
+                    state['_pending_pattern'] = pat['name']
 
             # Settle-Window abgelaufen → feuern
             if frame_number - state['_pending_start'] >= settle:
@@ -447,6 +494,8 @@ class AdvancedReactionDetector:
         y_arr = np.array(state['nose_y'])
         x_arr = np.array(state['nose_x'])
         b_arr = np.array(state['bridge_y'])
+        t_arr = np.array(state['head_tilt'])
+        yw_arr = np.array(state['head_yaw'])
 
         # Threshold skalieren auf Auflösung und Gesichtsgröße
         res_scale = height / self._nod_calibration_height
@@ -460,12 +509,15 @@ class AdvancedReactionDetector:
         best_conf = 0.0
         best_offset = 0
         best_tail = 0
+        best_pattern = None
         for pat in self._nod_patterns:
-            passed, conf, offset, tail = self._check_nod_pattern(pat, y_arr, x_arr, b_arr, thr)
+            passed, conf, offset, tail = self._check_nod_pattern(
+                pat, y_arr, x_arr, b_arr, thr, t_arr, yw_arr)
             if passed and conf > best_conf:
                 best_conf = conf
                 best_offset = offset
                 best_tail = tail
+                best_pattern = pat['name']
 
         if best_conf > 0:
             # Pattern-Start: aktueller Frame minus Offset zum ersten Reversal
@@ -477,6 +529,7 @@ class AdvancedReactionDetector:
                 state['_pending_frame'] = frame_number
                 state['_pending_start'] = frame_number
                 state['_pending_tail'] = best_tail
+                state['_pending_pattern'] = best_pattern
                 return NO
             else:
                 # Kein Settle → sofort feuern (altes Verhalten)
@@ -484,7 +537,7 @@ class AdvancedReactionDetector:
                 state['nose_y'].clear()
                 state['nose_x'].clear()
                 state['bridge_y'].clear()
-                return True, best_conf, pattern_start_frame, frame_number, best_tail
+                return True, best_conf, pattern_start_frame, frame_number, best_tail, best_pattern
 
         return NO
     
@@ -613,12 +666,12 @@ class AdvancedReactionDetector:
             state = self._get_face_state(face_idx)
 
             if self.enabled_reactions.get('nodding', True):
-                det, conf, first_frame, peak_frame, tail = self.detect_nodding(landmarks, frame_number, height, width, state)
+                det, conf, first_frame, peak_frame, tail, pat_name = self.detect_nodding(landmarks, frame_number, height, width, state)
                 if det and conf > reactions['nodding']['confidence']:
                     reactions['nodding'] = {
                         'detected': True, 'confidence': conf,
                         'frame': first_frame, 'peak_frame': peak_frame,
-                        'tail_frames': tail,
+                        'tail_frames': tail, 'pattern': pat_name,
                     }
 
             if self.enabled_reactions.get('head_shake', True):
@@ -787,6 +840,8 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                     entry['peak_frame'] = data['peak_frame']
                 if 'tail_frames' in data:
                     entry['tail_frames'] = data['tail_frames']
+                if data.get('pattern'):
+                    entry['pattern'] = data['pattern']
                 all_reactions.append(entry)
 
     def _log_face_counts(face_counts: list, label: str):
@@ -849,17 +904,20 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
             # Pending Nod-Detections der vorigen Sektion feuern bevor State geleert wird
             for fs in detector._face_states.values():
                 if fs.get('_pending_conf', 0) > 0:
-                    _, conf, first_f, peak_f, tail_f = detector._fire_pending_nod(fs)
+                    _, conf, first_f, peak_f, tail_f, pat_n = detector._fire_pending_nod(fs)
                     if conf > 0.2:
                         tc = first_f / fps
-                        all_reactions.append({
+                        entry = {
                             'frame': first_f,
                             'timecode': f"{int(tc // 60):02d}:{tc % 60:06.3f}",
                             'type': 'nodding',
                             'confidence': round(conf, 3),
                             'peak_frame': peak_f,
                             'tail_frames': tail_f,
-                        })
+                        }
+                        if pat_n:
+                            entry['pattern'] = pat_n
+                        all_reactions.append(entry)
             detector.reset_history()
             local = 0
             sec_face_counts = []
@@ -940,17 +998,20 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     # Letzte Pending Nod-Detections feuern (Ende der letzten Sektion / des Videos)
     for fs in detector._face_states.values():
         if fs.get('_pending_conf', 0) > 0:
-            _, conf, first_f, peak_f, tail_f = detector._fire_pending_nod(fs)
+            _, conf, first_f, peak_f, tail_f, pat_n = detector._fire_pending_nod(fs)
             if conf > 0.2:
                 tc = first_f / fps
-                all_reactions.append({
+                entry = {
                     'frame': first_f,
                     'timecode': f"{int(tc // 60):02d}:{tc % 60:06.3f}",
                     'type': 'nodding',
                     'confidence': round(conf, 3),
                     'peak_frame': peak_f,
                     'tail_frames': tail_f,
-                })
+                }
+                if pat_n:
+                    entry['pattern'] = pat_n
+                all_reactions.append(entry)
 
     print()  # Neue Zeile nach Progress Bar
     if show_preview:
