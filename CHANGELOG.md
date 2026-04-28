@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.6.1  (2026-04-28)
+
+### Fixes
+- **Update-Check** — Zeigte fälschlich ältere Versionen als Update an (z.B. v0.5.0 obwohl v0.6.0 installiert). Prüft jetzt nur noch den neuesten Tag der Hauptversion.
+- **licensing/ im Repo** — Das Lizenz-Modul fehlte nach `git pull` auf Client-Rechnern (war komplett in .gitignore).
+
+---
+
 ## v0.6.0 — Architektur-Refactoring & neue Features  (2026-04-28)
 
 ### Architektur
