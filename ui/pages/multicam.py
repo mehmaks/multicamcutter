@@ -13,7 +13,6 @@ import threading
 import queue
 import time
 import json
-import configparser as _cp
 from pathlib import Path
 from ui.schema_renderer import load_schema, get_param_names, get_defaults, render_settings_panel, collect_settings
 
@@ -23,9 +22,8 @@ st.caption("Schneidet automatisch zwischen mehreren Kameras, basierend darauf we
 if "_pending_toast" in st.session_state:
     st.toast(st.session_state.pop("_pending_toast"))
 
-from shared.paths import CONFIG_INI, NODDING_PATTERNS, PRESETS_DIR, MULTICAM_DIR
+from shared.paths import NODDING_PATTERNS, PRESETS_DIR, MULTICAM_DIR
 SCRIPT_DIR   = MULTICAM_DIR
-_cfg_path    = CONFIG_INI
 _nod_patterns_path = NODDING_PATTERNS
 _builtin_presets_dir = PRESETS_DIR / "multicam_cutter"
 _presets_dir = Path.home() / ".resolve-toolkit" / "multicam_presets"
@@ -664,55 +662,17 @@ def _save_nod_pattern_toggles(prefix):
                                       encoding='utf-8')
 
 
-def _save_settings_to_config(v):
-    """Persist settings dict to config.ini."""
-    save = _cp.ConfigParser()
-    save.read(str(_cfg_path))
-    for sec, key, val in [
-        ('General',          'min_shot_duration',    v['min_shot']),
-        ('General',          'reaction_min_duration', v['reaction_dur']),
-        ('General',          'max_shot_duration',    v['max_shot']),
-        ('General',          'cleanup_min_duration', v['cleanup_dur']),
-        ('General',          'cutaway_randomness',   v['randomness']),
-        ('RMSDiarization',   'threshold_db',         v['threshold_db']),
-        ('RMSDiarization',   'min_edit_duration',    v['min_edit']),
-        ('RMSDiarization',   'change_delay',         v['change_delay']),
-        ('Detection',        'min_confidence',       v['min_conf']),
-        ('CutawayTiming',    'pre_roll_frames',      v['pre_roll']),
-        ('SpeakingReaction', 'rise_db',              v['rise_db']),
-        ('SpeakingReaction', 'max_duration',         v['speaking_max_dur']),
-        ('TotaleLogic',      'simul_min_duration',   v['totale_simul_dur']),
-    ]:
-        if sec not in save:
-            save[sec] = {}
-        save[sec][key] = str(val)
-    save['Nodding']['enabled'] = 'true' if v['nodding_enabled'] else 'false'
-    save['SpeakingReaction']['enabled'] = 'true' if v['speaking_enabled'] else 'false'
-    if 'PauseTrim' not in save:
-        save['PauseTrim'] = {}
-    save['PauseTrim']['enabled']            = 'true' if v.get('pause_trim_enabled') else 'false'
-    save['PauseTrim']['max_pause']           = str(v.get('max_pause', 1.0))
-    save['PauseTrim']['silence_db']          = str(v.get('pause_silence_db', -40.0))
-    save['PauseTrim']['cut_mode']            = str(v.get('pause_cut_mode', 'middle'))
-    if 'PauseCutaway' not in save:
-        save['PauseCutaway'] = {}
-    save['PauseCutaway']['enabled']   = 'true' if v.get('pause_cutaway_enabled') else 'false'
-    save['PauseCutaway']['min_pause'] = str(v.get('pause_cutaway_min_pause', 2.0))
-    if 'CLIPFilter' not in save:
-        save['CLIPFilter'] = {}
-    save['CLIPFilter']['enabled'] = 'true' if v.get('clip_filter_enabled') else 'false'
-    if 'CrossbleedGate' not in save:
-        save['CrossbleedGate'] = {}
-    save['CrossbleedGate']['enabled']        = 'true' if v.get('crossbleed_gate_enabled') else 'false'
-    save['CrossbleedGate']['window']         = str(v.get('gate_window', 80))
-    save['CrossbleedGate']['attack']         = str(v.get('gate_attack', 15))
-    save['CrossbleedGate']['release']        = str(v.get('gate_release', 80))
-    save['CrossbleedGate']['floor']          = str(v.get('gate_floor', -25))
-    save['CrossbleedGate']['hysteresis']     = str(v.get('gate_hysteresis', 2.0))
-    save['CrossbleedGate']['both_threshold'] = str(v.get('gate_both_threshold', 3.0))
-    save['CrossbleedGate']['use_filtered']  = 'true' if v.get('gate_use_filtered') else 'false'
-    with open(str(_cfg_path), 'w') as f:
-        save.write(f)
+def _write_run_params(settings: dict) -> str:
+    """Schreibt Parameter-Dict als Temp-JSON für den Backend-Prozess.
+
+    Returns:
+        Pfad zur geschriebenen JSON-Datei.
+    """
+    import tempfile
+    fd, path = tempfile.mkstemp(prefix='multicam_params_', suffix='.json')
+    with os.fdopen(fd, 'w') as f:
+        json.dump(settings, f, indent=2)
+    return path
 
 
 # ══════════════════════════════════════════════════════════════════════════════
@@ -914,7 +874,7 @@ if tab_bin is not None:
 
     if start_bin:
         _v = _collect_settings('s')
-        _save_settings_to_config(_v)
+        _params_path = _write_run_params(_v)
         _save_nod_pattern_toggles('s')
 
         st.session_state.bin_running  = True
@@ -929,7 +889,7 @@ if tab_bin is not None:
             "--bin",    bin_name,
             "--output", output_name_bin,
             "--fps",    str(fps_bin),
-            "--config", str(_cfg_path),
+            "--params", _params_path,
         ]
         if skip_analysis_b:
             cmd.append("--skip-analysis")
@@ -1268,7 +1228,7 @@ with tab_folder:
 
     if start_folder:
         _v = _collect_settings('f')
-        _save_settings_to_config(_v)
+        _params_path = _write_run_params(_v)
         _save_nod_pattern_toggles('f')
 
         st.session_state.folder_running  = True
@@ -1310,7 +1270,7 @@ with tab_folder:
             str(SCRIPT_DIR / "run_from_folder.py"),
             "--folder", folder_path,
             "--fps",    str(fps_folder),
-            "--config", str(_cfg_path),
+            "--params", _params_path,
             "--cam-types", *_fd_cam_types,
             "--cam-mics",  *_fd_cam_mics_args,
         ]

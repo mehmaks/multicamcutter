@@ -23,23 +23,20 @@ import re
 import random
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
-import configparser
 import os
 import subprocess
 
 
 _ROOT = Path(__file__).resolve().parent.parent.parent
 
-def load_config(config_path='config.ini'):
-    config = configparser.ConfigParser()
-    for path in [config_path, _ROOT / 'config' / Path(config_path).name,
-                 Path(__file__).parent / 'config.ini', Path.cwd() / 'config.ini']:
-        if os.path.exists(path):
-            config.read(path)
-            print(f"✓ Config geladen: {path}")
-            return config
-    print("⚠️  config.ini nicht gefunden, nutze Default-Werte")
-    return None
+def load_params(params_path: str = None) -> dict:
+    """Lädt Parameter aus params.json."""
+    if params_path and os.path.exists(params_path):
+        params = json.loads(Path(params_path).read_text())
+        print(f"✓ Params geladen: {params_path}")
+        return params
+    print("⚠️  params.json nicht gefunden, nutze Default-Werte")
+    return {}
 
 
 from frame_utils import (
@@ -928,7 +925,8 @@ def main():
     parser.add_argument('--resolve-edl', required=True,
                         help='Base-EDL (Sprecher-Segmente)')
     parser.add_argument('--output', '-o', required=True)
-    parser.add_argument('--config', default='config.ini')
+    parser.add_argument('--params', default=None,
+                        help='Pfad zur params.json mit Modul-Parametern')
     parser.add_argument('--pause-cutaways', default=None,
                         help='JSON mit On-Speaker-Pausen für Stille-Cutaways')
     parser.add_argument('--clip-filter-config', default=None,
@@ -941,59 +939,35 @@ def main():
     print("=" * 70)
 
     cameras: List[Dict] = json.loads(Path(args.cameras_json).read_text())
-    config = load_config(args.config)
+    params = load_params(args.params)
 
-    # Settings aus config
-    min_shot_duration       = 2.0
-    reaction_min_duration   = 3.0
-    max_shot_duration       = 30.0
-    min_confidence          = 0.86
-    speaking_min_confidence = 0.90
-    cleanup_min_duration    = 1.5
-    cutaway_randomness      = 0.0
-    cluster_max_gap_frames  = 75
-    pre_roll_frames         = 0
-
-    if config:
-        g = config['General'] if config.has_section('General') else {}
-        min_shot_duration       = float(g.get('min_shot_duration',     min_shot_duration))
-        reaction_min_duration   = float(g.get('reaction_min_duration', reaction_min_duration))
-        max_shot_duration       = float(g.get('max_shot_duration',     max_shot_duration))
-        cleanup_min_duration    = float(g.get('cleanup_min_duration',  cleanup_min_duration))
-        cutaway_randomness      = float(g.get('cutaway_randomness',    cutaway_randomness))
-        if config.has_option('Detection', 'min_confidence'):
-            min_confidence = config.getfloat('Detection', 'min_confidence')
-        if config.has_option('SpeakingReaction', 'min_confidence'):
-            speaking_min_confidence = config.getfloat('SpeakingReaction', 'min_confidence')
-        if config.has_section('CutawayTiming'):
-            cluster_max_gap_frames = config.getint('CutawayTiming', 'cluster_max_gap_frames', fallback=75)
-            pre_roll_frames        = config.getint('CutawayTiming', 'pre_roll_frames', fallback=0)
+    # Settings aus params
+    min_shot_duration       = float(params.get('min_shot', 2.0))
+    reaction_min_duration   = float(params.get('reaction_dur', 3.0))
+    max_shot_duration       = float(params.get('max_shot', 30.0))
+    min_confidence          = float(params.get('min_conf', 0.86))
+    speaking_min_confidence = float(params.get('speaking_min_confidence', min_confidence))
+    cleanup_min_duration    = float(params.get('cleanup_dur', 1.5))
+    cutaway_randomness      = float(params.get('randomness', 0.0))
+    cluster_max_gap_frames  = int(params.get('cluster_max_gap_frames', 75))
+    pre_roll_frames         = int(params.get('pre_roll', 0))
 
     cutaway_enabled = {
-        'nodding': True, 'laughing': False,
-        'head_shake': False, 'eyebrow_raise': False, 'speaking_reaction': False,
+        'nodding': bool(params.get('nodding_enabled', True)),
+        'laughing': bool(params.get('laughing_cutaway', False)),
+        'head_shake': bool(params.get('headshake_cutaway', False)),
+        'eyebrow_raise': bool(params.get('eyebrow_cutaway', False)),
+        'speaking_reaction': bool(params.get('speaking_enabled', False)),
     }
-    if config and config.has_section('ReactionCutaways'):
-        rc = config['ReactionCutaways']
-        cutaway_enabled['nodding']          = rc.getboolean('nodding_cutaway',  True)
-        cutaway_enabled['laughing']         = rc.getboolean('laughing_cutaway', False)
-        cutaway_enabled['head_shake']       = rc.getboolean('headshake_cutaway', False)
-        cutaway_enabled['eyebrow_raise']    = rc.getboolean('eyebrow_cutaway',  False)
-    if config and config.has_option('SpeakingReaction', 'enabled'):
-        cutaway_enabled['speaking_reaction'] = config.getboolean('SpeakingReaction', 'enabled', fallback=False)
 
     # CLIP-Filter Config
-    clip_filter_enabled = False
-    clip_config = {}
-    if config and config.has_section('CLIPFilter'):
-        cf = config['CLIPFilter']
-        clip_filter_enabled = cf.getboolean('enabled', fallback=False)
-        clip_config = {
-            'ignore_threshold': cf.getfloat('ignore_threshold', fallback=0.5),
-            'shift_step_s':     cf.getfloat('shift_step_s', fallback=2.0),
-            'max_attempts':     cf.getint('max_attempts', fallback=5),
-            'prompts_path':     args.clip_filter_config or '',
-        }
+    clip_filter_enabled = bool(params.get('clip_filter_enabled', False))
+    clip_config = {
+        'ignore_threshold': float(params.get('clip_ignore_threshold', 0.5)),
+        'shift_step_s':     float(params.get('clip_shift_step_s', 2.0)),
+        'max_attempts':     int(params.get('clip_max_attempts', 5)),
+        'prompts_path':     args.clip_filter_config or '',
+    }
 
     settings = {
         'min_shot_duration':      min_shot_duration,

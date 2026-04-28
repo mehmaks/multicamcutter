@@ -60,7 +60,7 @@ Die Whisper-Analyse nutzt das Spracherkennungsmodell *Whisper tiny* von OpenAI, 
 
 Da Whisper echte Sprache erkennt statt nur Pegel zu clustern, ist diese Methode robuster bei schwierigen Aufnahmen — etwa wenn Grundrauschen und Sprache nah beieinanderliegen.
 
-**Wichtig:** Beim ersten Aufruf lädt Whisper das Modell (~75 MB) herunter. Ein Fortschrittsdialog zeigt den Status. Anschließend startet die Transkription, die je nach Dateilänge einige Sekunden bis Minuten dauern kann.
+**Wichtig:** Beim ersten Aufruf lädt Whisper das Modell (~39 MB) herunter. Ein Fortschrittsdialog zeigt den Status. Anschließend startet die Transkription, die je nach Dateilänge einige Sekunden bis Minuten dauern kann.
 
 > Geeignet für alle Aufnahmen, besonders bei schlechten Aufnahmebedingungen, lautem Hintergrundgeräusch oder leiser Sprache.
 

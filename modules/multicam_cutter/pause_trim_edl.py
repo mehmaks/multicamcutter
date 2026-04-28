@@ -25,17 +25,24 @@ def detect_pause_at_boundary(audio1: np.ndarray, audio2: np.ndarray, sr: int,
                               boundary_s: float,
                               search_radius_s: float = 3.0,
                               silence_db: float = -40.0,
+                              silence_db2: float = None,
                               window_s: float = 0.02,
                               min_pause_s: float = 0.3):
     """
     Sucht eine Sprechpause rund um eine Diarization-Grenze.
 
-    Analysiert beide MIC-Signale: Pause = beide unter silence_db.
+    Analysiert beide MIC-Signale: Pause = beide unter ihrer jeweiligen Schwelle.
+
+    Args:
+        silence_db: Schwelle für audio1
+        silence_db2: Schwelle für audio2 (wenn None, wird silence_db verwendet)
 
     Returns:
         dict {pause_start_s, pause_end_s, pause_dur_s, boundary_s}
         oder None
     """
+    if silence_db2 is None:
+        silence_db2 = silence_db
     search_start_s = max(0, boundary_s - search_radius_s)
     search_end_s = boundary_s + search_radius_s
 
@@ -55,7 +62,7 @@ def detect_pause_at_boundary(audio1: np.ndarray, audio2: np.ndarray, sr: int,
         return None
     db1, db2 = db1[:n], db2[:n]
 
-    both_silent = (db1 < silence_db) & (db2 < silence_db)
+    both_silent = (db1 < silence_db) & (db2 < silence_db2)
 
     pauses = []
     in_pause = False
@@ -110,6 +117,7 @@ def detect_pause_at_boundary(audio1: np.ndarray, audio2: np.ndarray, sr: int,
 def detect_pauses(events: list, audio1: np.ndarray, audio2: np.ndarray,
                   sr: int, wav_edl_frame: int, fps: float,
                   silence_db: float = -40.0,
+                  silence_db2: float = None,
                   search_radius_s: float = 3.0,
                   min_pause_s: float = 0.3) -> list:
     """
@@ -121,7 +129,8 @@ def detect_pauses(events: list, audio1: np.ndarray, audio2: np.ndarray,
         sr: Sample-Rate
         wav_edl_frame: EDL-Frame bei dem Audio Frame 0 liegt
         fps: Timeline-Framerate
-        silence_db: dB-Schwelle für Stille
+        silence_db: dB-Schwelle für audio1
+        silence_db2: dB-Schwelle für audio2 (wenn None, wird silence_db verwendet)
         search_radius_s: Suchradius um jede Grenze
         min_pause_s: Mindest-Pausendauer für Erkennung
 
@@ -145,6 +154,7 @@ def detect_pauses(events: list, audio1: np.ndarray, audio2: np.ndarray,
                     audio1, audio2, sr, boundary_audio_s,
                     search_radius_s=search_radius_s,
                     silence_db=silence_db,
+                    silence_db2=silence_db2,
                     min_pause_s=min_pause_s,
                 )
                 if pause:

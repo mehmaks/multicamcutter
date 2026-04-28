@@ -67,12 +67,16 @@ def compute_rms_db(audio: np.ndarray, sr: int, window_s: float) -> np.ndarray:
 def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
                 window_s: float, threshold_db: float,
                 change_delay_s: float, min_edit_s: float,
-                silence_gate_db: float = -55.0):
+                silence_gate_db: float = -55.0,
+                silence_gate_db2: float = None):
     """
     RMS-Pegelvergleich → Segmente mit 'CAM1'/'CAM2' Speaker-Label.
     audio1 = Mikrofon für CAM1, audio2 = Mikrofon für CAM2.
-    silence_gate_db: Wenn beide Mics unter diesem Pegel → kein Speaker (None).
+    silence_gate_db: Schwelle für MIC1 (beide Mics unter Schwelle → kein Speaker).
+    silence_gate_db2: Schwelle für MIC2 (wenn None, wird silence_gate_db verwendet).
     """
+    if silence_gate_db2 is None:
+        silence_gate_db2 = silence_gate_db
     rms1 = compute_rms_db(audio1, sr, window_s)
     rms2 = compute_rms_db(audio2, sr, window_s)
     n = min(len(rms1), len(rms2))
@@ -83,9 +87,9 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
     dominant[diff >  threshold_db] = 'CAM1'
     dominant[diff < -threshold_db] = 'CAM2'
 
-    # Stille-Gate: Wenn selbst das lautere Mic unter der Schwelle liegt,
+    # Stille-Gate: Wenn beide Mics unter ihrer jeweiligen Schwelle liegen,
     # spricht niemand → keinen Speaker zuweisen (vorheriger bleibt)
-    both_quiet = np.maximum(rms1, rms2) < silence_gate_db
+    both_quiet = (rms1 < silence_gate_db) & (rms2 < silence_gate_db2)
     dominant[both_quiet] = None
 
     # Change-Delay smoothing
@@ -260,6 +264,7 @@ def rms_gate(audio1: np.ndarray, audio2: np.ndarray, sr: int,
 
 def detect_on_speaker_pauses(audio1: np.ndarray, audio2: np.ndarray, sr: int,
                               segments: list, silence_db: float = -40.0,
+                              silence_db2: float = None,
                               min_pause_s: float = 0.3, padding_s: float = 0.15,
                               window_s: float = 0.02) -> dict:
     """
@@ -269,9 +274,15 @@ def detect_on_speaker_pauses(audio1: np.ndarray, audio2: np.ndarray, sr: int,
     geprüft. Erkannte Pausen werden als Masken-Intervalle zurückgegeben, damit
     die Speaking-Reaction-Baseline während Crossbleed-Abfällen eingefroren wird.
 
+    Args:
+        silence_db: Schwelle für audio1 (CAM1-Mic)
+        silence_db2: Schwelle für audio2 (CAM2-Mic), wenn None = silence_db
+
     Returns:
         {'CAM1': [(start_s, end_s), ...], 'CAM2': [(start_s, end_s), ...]}
     """
+    if silence_db2 is None:
+        silence_db2 = silence_db
     min_wins = max(1, int(min_pause_s / window_s))
     pad_wins = int(padding_s / window_s)
 
@@ -283,6 +294,7 @@ def detect_on_speaker_pauses(audio1: np.ndarray, audio2: np.ndarray, sr: int,
             continue
 
         on_audio = audio1 if spk == 'CAM1' else audio2
+        _thresh = silence_db if spk == 'CAM1' else silence_db2
         s = int(seg['start_s'] * sr)
         e = int(seg['end_s'] * sr)
         chunk = on_audio[s:e]
@@ -291,7 +303,7 @@ def detect_on_speaker_pauses(audio1: np.ndarray, audio2: np.ndarray, sr: int,
             continue
 
         db = compute_rms_db(chunk, sr, window_s)
-        silent = db < silence_db
+        silent = db < _thresh
 
         # Zusammenhängende Stille-Regionen finden
         in_pause = False
@@ -806,8 +818,8 @@ def main():
                         help='Überlange Sprechpausen an Diarization-Grenzen trimmen')
     parser.add_argument('--max-pause',            type=float, default=1.0,
                         help='Max. erlaubte Pausendauer in Sekunden (default: 1.0)')
-    parser.add_argument('--pause-silence-db',     type=float, default=-40.0,
-                        help='dB-Schwelle unter der Stille erkannt wird (default: -40)')
+    parser.add_argument('--pause-silence-db',     type=float, default=None,
+                        help='dB-Schwelle unter der Stille erkannt wird (default: adaptiv via K-Means)')
     parser.add_argument('--pause-search-radius',  type=float, default=3.0,
                         help='Suchradius um jede Grenze in Sekunden (default: 3.0)')
     parser.add_argument('--pause-min-duration',   type=float, default=0.3,
@@ -909,6 +921,35 @@ def main():
     else:
         print(f"\n🔊 Pegel-Check: MIC1={_median1:.1f} dB, MIC2={_median2:.1f} dB (kein Ausgleich nötig)")
 
+    # ── Adaptive Silence-Schwelle (K-Means auf normalisiertem Original) ──
+    # Pro Kanal, damit asymmetrische Aufnahmen (z.B. Mic weiter weg)
+    # jeweils die passende Grenze zwischen Sprache und Stille haben.
+    if args.pause_silence_db is not None:
+        silence_db_cam1 = args.pause_silence_db
+        silence_db_cam2 = args.pause_silence_db
+        # Für On-Speaker-Pausen: gleicher Wert bei manuellem Override
+        pause_db_cam1 = args.pause_silence_db
+        pause_db_cam2 = args.pause_silence_db
+        print(f"\n🔇 Silence-Schwelle: {args.pause_silence_db:.0f} dB (manuell, beide Kanäle)")
+    else:
+        from shared.audio_analysis import suggest_threshold_kmeans
+        _th1 = suggest_threshold_kmeans(audio_cam1, sr1)
+        _th2 = suggest_threshold_kmeans(audio_cam2, sr1)
+        # threshold: Mitte zwischen Noise und Sprache → für echte Stille
+        silence_db_cam1 = float(_th1['threshold'])
+        silence_db_cam2 = float(_th2['threshold'])
+        # Baseline-Freeze: quiet_speech + 3 dB Headroom.
+        # quiet_speech ist die untere Grenze erkannter Sprache — alles
+        # darunter ist "keine Sprache". +3 dB damit auch Momente knapp
+        # unter der Sprachgrenze den Freeze auslösen.
+        pause_db_cam1 = float(_th1['quiet_speech']) + 3
+        pause_db_cam2 = float(_th2['quiet_speech']) + 3
+        print(f"\n🔇 Adaptive Silence-Schwelle:")
+        print(f"  MIC1: Stille={silence_db_cam1:.0f} dB, Pause={pause_db_cam1:.0f} dB [{_th1['confidence']}] "
+              f"(Noise: {_th1['noise_floor']:.0f})")
+        print(f"  MIC2: Stille={silence_db_cam2:.0f} dB, Pause={pause_db_cam2:.0f} dB [{_th2['confidence']}] "
+              f"(Noise: {_th2['noise_floor']:.0f})")
+
     # ── Crossbleed-Gate ────────────────────────────────────────────────────
     if args.crossbleed_gate:
         print(f"\n🔇 Crossbleed-Gate (Fenster={args.gate_window}ms, "
@@ -922,63 +963,68 @@ def main():
             hysteresis_db=args.gate_hysteresis,
             both_threshold_db=args.gate_both_threshold,
         )
-        # Debug: gefilterte WAVs exportieren fuer Timeline-Bestückung
-        if args.gate_use_filtered:
-            for src_paths, gated, label in [
-                (args.mic_cam1, _analysis1, 'MIC1'),
-                (args.mic_cam2, _analysis2, 'MIC2'),
-            ]:
-                out_path = Path(src_paths[0]).parent / f"{Path(src_paths[0]).stem}_gated.wav"
-                _pcm = (np.clip(gated, -1.0, 1.0) * 32767).astype(np.int16)
-                with wave.open(str(out_path), 'w') as wf:
-                    wf.setnchannels(1)
-                    wf.setsampwidth(2)
-                    wf.setframerate(sr1)
-                    wf.writeframes(_pcm.tobytes())
-                print(f"  Gate-Export: {out_path.name}")
-            if args.gate_wav_out:
-                # Pfade an run_from_bin weitergeben
-                gate_out = Path(args.gate_wav_out)
-                gate_out.write_text(json.dumps({
-                    'mic1': str(Path(args.mic_cam1[0]).parent / f"{Path(args.mic_cam1[0]).stem}_gated.wav"),
-                    'mic2': str(Path(args.mic_cam2[0]).parent / f"{Path(args.mic_cam2[0]).stem}_gated.wav"),
-                }))
     else:
         _analysis1, _analysis2 = audio_cam1, audio_cam2
 
-    # ── Post-Gate Pegel-Normalisierung ──────────────────────────────────────
-    # Nach dem Gate: Median nur aus AKTIVEN Fenstern (über Gate-Floor),
-    # damit gedämpfte Crossbleed-Fenster den Median nicht verfälschen.
+    # ── Post-Gate Pegel-Normalisierung (RMS aktiver Fenster) ─────────────────
+    # Nach dem Gate: RMS nur aus AKTIVEN Fenstern (über Gate-Floor),
+    # damit gedämpfte Crossbleed-Fenster den Pegel nicht verfälschen.
+    # RMS statt Median, weil Energie-Mittel Bursts korrekt gewichtet —
+    # relevant für Speaking-Reaction und Pause-Trimming downstream.
     _rms1_pg = compute_rms_db(_analysis1, sr1, args.analysis_window)
     _rms2_pg = compute_rms_db(_analysis2, sr1, args.analysis_window)
     if args.crossbleed_gate:
         _floor_thresh = args.gate_floor + 5  # knapp über Gate-Floor
         _active1 = _rms1_pg[_rms1_pg > _floor_thresh]
         _active2 = _rms2_pg[_rms2_pg > _floor_thresh]
-        _median1_pg = float(np.median(_active1)) if len(_active1) > 0 else float(np.median(_rms1_pg))
-        _median2_pg = float(np.median(_active2)) if len(_active2) > 0 else float(np.median(_rms2_pg))
     else:
-        _median1_pg = float(np.median(_rms1_pg))
-        _median2_pg = float(np.median(_rms2_pg))
-    _offset_pg = (_median1_pg - _median2_pg) / 2.0
-    if abs(_offset_pg) > 0.1:
-        _gain1_pg = 10 ** (-_offset_pg / 20.0)
-        _gain2_pg = 10 ** (+_offset_pg / 20.0)
-        _analysis1 = (_analysis1 * _gain1_pg).astype(_analysis1.dtype)
-        _analysis2 = (_analysis2 * _gain2_pg).astype(_analysis2.dtype)
-        _tag = "Post-Gate " if args.crossbleed_gate else ""
-        print(f"\n🔊 {_tag}Pegel-Normalisierung (nur aktive Fenster):")
-        print(f"  Median: MIC1={_median1_pg:.1f} dB, MIC2={_median2_pg:.1f} dB")
-        print(f"  Korrektur: MIC1 {-_offset_pg:+.1f} dB, MIC2 {+_offset_pg:+.1f} dB")
-    else:
-        _tag = "Post-Gate " if args.crossbleed_gate else ""
-        print(f"\n🔊 {_tag}Pegel-Check: MIC1={_median1_pg:.1f} dB, MIC2={_median2_pg:.1f} dB (kein Ausgleich nötig)")
+        _active1 = _rms1_pg
+        _active2 = _rms2_pg
+    # RMS in dB-Domain = 10*log10(mean(10^(dB/10)))  (Energie-Mittel)
+    def _rms_mean_db(db_values):
+        return float(10 * np.log10(np.mean(10 ** (db_values / 10)) + 1e-12))
+    _rms1_pg_db = _rms_mean_db(_active1) if len(_active1) > 0 else _rms_mean_db(_rms1_pg)
+    _rms2_pg_db = _rms_mean_db(_active2) if len(_active2) > 0 else _rms_mean_db(_rms2_pg)
+    # Beide Kanäle auf gemeinsamen Ziel-RMS bringen (Mittelwert beider).
+    # RMS statt Median gewichtet energiereiche Bursts korrekt.
+    _target_pg = (_rms1_pg_db + _rms2_pg_db) / 2.0
+    _gain1_pg = 10 ** ((_target_pg - _rms1_pg_db) / 20.0)
+    _gain2_pg = 10 ** ((_target_pg - _rms2_pg_db) / 20.0)
+    _analysis1 = (_analysis1 * _gain1_pg).astype(_analysis1.dtype)
+    _analysis2 = (_analysis2 * _gain2_pg).astype(_analysis2.dtype)
+    _tag = "Post-Gate " if args.crossbleed_gate else ""
+    print(f"\n🔊 {_tag}Pegel-Normalisierung (RMS aktiver Fenster):")
+    print(f"  RMS: MIC1={_rms1_pg_db:.1f} dB, MIC2={_rms2_pg_db:.1f} dB → Ziel: {_target_pg:.1f} dB")
+    print(f"  Korrektur: MIC1 {_target_pg - _rms1_pg_db:+.1f} dB, MIC2 {_target_pg - _rms2_pg_db:+.1f} dB")
+
+    # ── Debug: Gate+Normalisierung als WAV exportieren ─────────────────────
+    if args.crossbleed_gate and args.gate_use_filtered:
+        for src_paths, gated, label in [
+            (args.mic_cam1, _analysis1, 'MIC1'),
+            (args.mic_cam2, _analysis2, 'MIC2'),
+        ]:
+            out_path = Path(src_paths[0]).parent / f"{Path(src_paths[0]).stem}_gated.wav"
+            _pcm = (np.clip(gated, -1.0, 1.0) * 32767).astype(np.int16)
+            with wave.open(str(out_path), 'w') as wf:
+                wf.setnchannels(1)
+                wf.setsampwidth(2)
+                wf.setframerate(sr1)
+                wf.writeframes(_pcm.tobytes())
+            print(f"  Gate-Export: {out_path.name}")
+        if args.gate_wav_out:
+            gate_out = Path(args.gate_wav_out)
+            gate_out.write_text(json.dumps({
+                'mic1': str(Path(args.mic_cam1[0]).parent / f"{Path(args.mic_cam1[0]).stem}_gated.wav"),
+                'mic2': str(Path(args.mic_cam2[0]).parent / f"{Path(args.mic_cam2[0]).stem}_gated.wav"),
+            }))
 
     print(f"\n📊 RMS-Diarization (threshold={args.threshold_db:.1f} dB)...")
     segments = rms_diarize(
         _analysis1, _analysis2, sr1,
         args.analysis_window, args.threshold_db,
-        args.change_delay, args.min_edit_duration
+        args.change_delay, args.min_edit_duration,
+        silence_gate_db=silence_db_cam1 - 15,
+        silence_gate_db2=silence_db_cam2 - 15,
     )
     print(f"  {len(segments)} Segmente erkannt")
 
@@ -1169,7 +1215,8 @@ def main():
         pauses = detect_pauses(
             events, _analysis1, _analysis2, sr1,
             args.wav_edl_frame, args.fps,
-            silence_db=args.pause_silence_db,
+            silence_db=silence_db_cam1,
+            silence_db2=silence_db_cam2,
             search_radius_s=args.pause_search_radius,
             min_pause_s=args.pause_min_duration,
         )
@@ -1186,16 +1233,18 @@ def main():
         print(f"\n🗣️  Erkenne Speaking Reactions (mode={args.speaking_mode})...")
 
         # On-Speaker-Pausen erkennen für Baseline-Freeze
-        # Original-Audio: Gate verfälscht On-Mic-Pegel
+        # Original-Audio: Das On-Mic wird vom Gate nicht gedämpft,
+        # daher korrekte Pausenerkennung auf dem Originalsignal.
         _on_pauses = detect_on_speaker_pauses(
             audio_cam1, audio_cam2, sr1, segments,
-            silence_db=args.pause_silence_db,
+            silence_db=pause_db_cam1,
+            silence_db2=pause_db_cam2,
             min_pause_s=args.speaking_mask_min_pause,
             padding_s=args.speaking_mask_padding,
         )
 
         cam1_sr, cam2_sr = detect_speaking_reactions(
-            _analysis1, _analysis2, sr1,
+            audio_cam1, audio_cam2, sr1,
             segments,
             args.fps, args.wav_edl_frame,
             cam1_timeline_zero_video, cam2_timeline_zero_video,
@@ -1223,17 +1272,14 @@ def main():
     # ── 9. Pause-Cutaway-Kandidaten exportieren (optional) ─────────────────
     if args.pause_cutaway_json_out:
         print(f"\n🔇 Erkenne Stille-Pausen für Cutaways (min {args.pause_cutaway_min_pause}s)...")
-        # Gegenseitige Stille auf Gate+Norm-Audio: Nach Gate ist leise
-        # Sprache bei -40...-48 dB, echte Stille bei -55+ dB.
-        # Eigene Schwelle (-50 dB) unabhängig von pause_silence_db (-40 dB),
-        # weil Cutaways strenger sein müssen als Pause-Trimming.
+        # Cutaway-Schwelle strenger als Pause-Trimming (-10 dB Offset),
+        # damit nur echte Stille Cutaways auslöst, keine leise Sprache.
         _window_s = 0.02
-        _cutaway_silence_db = -50.0
         _db1 = compute_rms_db(_analysis1, sr1, _window_s)
         _db2 = compute_rms_db(_analysis2, sr1, _window_s)
         _n = min(len(_db1), len(_db2))
         _db1, _db2 = _db1[:_n], _db2[:_n]
-        _both_silent = (_db1 < _cutaway_silence_db) & (_db2 < _cutaway_silence_db)
+        _both_silent = (_db1 < silence_db_cam1 - 10) & (_db2 < silence_db_cam2 - 10)
 
         # Zusammenhängende Stille-Regionen finden
         _min_wins = max(1, int(args.pause_cutaway_min_pause / _window_s))

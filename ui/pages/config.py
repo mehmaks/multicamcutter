@@ -146,8 +146,8 @@ if CLIP_PROMPTS_PATH.exists():
 
 # ── Config.ini Editor ─────────────────────────────────────────────────────────
 
-st.subheader("config.ini")
-st.caption(f"`{CONFIG_PATH}`")
+st.subheader("config.ini (UI-State)")
+st.caption(f"`{CONFIG_PATH}` — Tab-Sichtbarkeit, API-Keys, UI-Einstellungen")
 
 if "config_text" not in st.session_state:
     st.session_state.config_text = CONFIG_PATH.read_text(encoding="utf-8")

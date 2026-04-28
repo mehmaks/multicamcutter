@@ -12,7 +12,7 @@ Diese Einstellungen gelten für alle Cutaway-Typen — sowohl Kopfnicken als auc
 
 Legt fest, wie lange eine Reaktionsaufnahme mindestens gezeigt wird. Der tatsächliche Cutaway kann durch den Zufallsfaktor länger werden. Zu kurze Cutaways (unter ~1 Sekunde) wirken wie ein Versehen, zu lange (über 3–4 Sekunden) ohne erkennbaren Anlass wirken unmotiviert. Gilt für Kopfnicken und Max-Shotlänge-Cutaways — Sprachreaktionen bestimmen ihre Dauer organisch aus dem Audiosignal. Liegt der Wert unterhalb der Cleanup-Mindestlänge, werden die Cutaways im abschließenden Cleanup-Pass wieder entfernt.
 
-> **Standardwert 1,5 Sekunden bedeutet:** Jede Reaktionsaufnahme wird mindestens 1,5 Sekunden gezeigt. Mit dem Standardzufallsfaktor von 0,2 kann sie bis zu 1,8 Sekunden lang werden.
+> **Standardwert 1,8 Sekunden bedeutet:** Jede Reaktionsaufnahme wird mindestens 1,8 Sekunden gezeigt. Mit dem Standardzufallsfaktor von 0,2 kann sie bis zu 2,16 Sekunden lang werden.
 
 #### Pre-Roll (Frames)
 
@@ -24,7 +24,7 @@ Reaktionen werden erkannt, wenn sie passieren — aber der passende Cutaway-Eins
 
 Wenn alle Cutaways exakt gleich lang wären, entstünde ein mechanisch-gleichmäßiger Rhythmus, der im fertigen Schnitt auffällt. Der Zufallsfaktor fügt jedem Cutaway einen zufälligen Aufschlag hinzu. Gilt für Kopfnicken und Max-Shotlänge-Cutaways.
 
-> **Standardwert 0,2 bedeutet:** Jeder Cutaway bekommt einen zufälligen Aufschlag von 0 bis 20 % auf die eingestellte Cutaway-Länge. Bei 1,5 Sekunden Basis liegt die tatsächliche Länge also zufällig zwischen 1,5 und 1,8 Sekunden.
+> **Standardwert 0,2 bedeutet:** Jeder Cutaway bekommt einen zufälligen Aufschlag von 0 bis 20 % auf die eingestellte Cutaway-Länge. Bei 1,8 Sekunden Basis liegt die tatsächliche Länge also zufällig zwischen 1,8 und 2,16 Sekunden.
 
 ---
 
@@ -61,3 +61,29 @@ Legt fest, wie stark die Baseline innerhalb des Messfensters ansteigen muss, um 
 Sicherheitsbegrenzung für die maximale Dauer eines Sprach-Cutaways. Im Normalfall endet der Cutaway organisch, wenn die Baseline wieder abfällt. Dieser Parameter greift nur als Obergrenze, falls die Baseline ungewöhnlich lange erhöht bleibt.
 
 > **Standardwert 2,5 Sekunden bedeutet:** Selbst wenn die Baseline erhöht bleibt, wird der Cutaway nach spätestens 2,5 Sekunden beendet.
+
+---
+
+### Stille-Cutaways
+
+Stille-Cutaways schneiden während Sprechpausen auf die zuhörende Person. Wenn der aktive Sprecher eine längere Pause macht — z.B. um nachzudenken oder einen Satz neu anzusetzen — zeigt die Kamera in dieser Zeit die andere Person. Das verhindert, dass ein stilles Gesicht zu lange im Bild bleibt, und gibt dem Schnitt einen natürlicheren Gesprächsrhythmus.
+
+Die Erkennung arbeitet auf der Diarization: Pausen werden dort identifiziert, wo das aktive Mikrofon unter die Stille-Schwelle fällt. Der Cutaway wird in der Mitte der Pause platziert.
+
+#### Stille (Toggle)
+
+Aktiviert oder deaktiviert Stille-Cutaways. Standardmäßig deaktiviert.
+
+#### Min. Pausenlänge (s)
+
+Wie lang eine Sprechpause mindestens sein muss, damit ein Cutaway eingefügt wird. Kürzere Pausen — normales Luftholen, kurzes Nachdenken — bleiben ohne Schnitt.
+
+> **Standardwert 2,0 Sekunden bedeutet:** Erst ab 2 Sekunden Stille auf dem aktiven Mikrofon wird ein Cutaway auf die zuhörende Person gesetzt.
+
+---
+
+### Ungünstige Cutaways verschieben (CLIP-Filter)
+
+Manchmal trifft ein Cutaway einen Moment, in dem die zuhörende Person gerade trinkt, aufs Handy schaut oder sich abwendet — Szenen, die im fertigen Schnitt unpassend wirken. Der CLIP-Filter prüft per Bilderkennung (OpenAI CLIP), ob ein geplanter Cutaway eine solche Szene zeigt, und verschiebt ihn automatisch auf einen günstigeren Zeitpunkt.
+
+Die zu erkennenden Szenen sind in einer konfigurierbaren JSON-Datei (`config/clip_ignore_prompts.json`) definiert. Standardmäßig deaktiviert — die Analyse benötigt zusätzliche Rechenzeit pro Cutaway.

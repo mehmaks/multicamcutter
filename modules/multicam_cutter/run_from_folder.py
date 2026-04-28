@@ -51,7 +51,8 @@ def main():
     )
     parser.add_argument('--folder',   required=True, help='Ordner mit CAM- und MIC-Dateien')
     parser.add_argument('--fps',      type=float, default=25.0)
-    parser.add_argument('--config',   default=str(ROOT / 'config' / 'config.ini'))
+    parser.add_argument('--params',   default=None,
+                        help='Pfad zur params.json mit Modul-Parametern')
     parser.add_argument('--skip-analysis',  action='store_true',
                         help='Nodding-Analyse überspringen (JSONs müssen bereits existieren)')
     parser.add_argument('--skip-base-edl',  action='store_true',
@@ -67,7 +68,7 @@ def main():
                         help='Nodding-Analyse je CAM: "true" (default) oder "false". '
                              'Beispiel: "true true false"')
     parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
-                        help='Überschreibt speaking_mode aus config.ini')
+                        help='Überschreibt speaking_mode aus params.json')
     parser.add_argument('--auto-accuracy', action='store_true',
                         help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
     parser.add_argument('--lut', default=None,
@@ -120,10 +121,24 @@ def main():
         print(f"  {label}: {sign}{frames} frames ({sign}{frames / args.fps:.2f}s)")
 
     # ── 3. Analyse-Pipeline → final.edl ──────────────────────────────────────
-    import configparser
-    _cfg = configparser.ConfigParser()
-    _cfg.read(args.config)
-    wide_zoom = _cfg.getfloat('General', 'wide_zoom', fallback=1.5)
+    import json as _json
+    _params = {}
+    if args.params:
+        _params = _json.loads(Path(args.params).read_text())
+
+    # Debug-Settings aus config.ini mergen
+    _debug_ini = ROOT / 'config' / 'config.ini'
+    if _debug_ini.exists():
+        import configparser as _cp
+        _dbg_cfg = _cp.ConfigParser()
+        _dbg_cfg.read(str(_debug_ini), encoding='utf-8')
+        if _dbg_cfg.has_section('Debug'):
+            _params.setdefault('debug_limit_frames',
+                               _dbg_cfg.getboolean('Debug', 'limit_frames', fallback=False))
+            _params.setdefault('debug_max_analysis_frames',
+                               _dbg_cfg.getint('Debug', 'max_analysis_frames', fallback=10000))
+
+    wide_zoom = float(_params.get('wide_zoom', 1.5))
 
     n_cams      = len(cams)
     cam_mic_map = _parse_cam_mics(args.cam_mics,    n_cams, len(mics))
@@ -136,7 +151,7 @@ def main():
     try:
         final_edl = run_analysis(
             cam_paths, mic_paths, offsets,
-            args.fps, work_dir, Path(args.config),
+            args.fps, work_dir, _params,
             skip_analysis=args.skip_analysis,
             skip_base_edl=args.skip_base_edl,
             cam_mic_map=cam_mic_map,

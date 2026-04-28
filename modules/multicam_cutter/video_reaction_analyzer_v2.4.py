@@ -16,7 +16,6 @@ import json
 import subprocess
 from collections import deque
 import argparse
-import configparser
 import os
 import time
 import urllib.request
@@ -48,36 +47,24 @@ def _ensure_model():
     print(f"✓ Modell gespeichert: {_MODEL_PATH}")
 
 
-def load_config(config_path='config.ini'):
-    """Lädt Konfiguration aus config.ini"""
-    config = configparser.ConfigParser()
-    
-    # Suche config.ini: expliziter Pfad, config/, Skript-Verzeichnis, cwd
-    search_paths = [
-        config_path,
-        os.path.join(str(_ROOT), 'config', os.path.basename(config_path)),
-        os.path.join(os.path.dirname(__file__), config_path),
-        os.path.join(os.getcwd(), config_path)
-    ]
-    
-    for path in search_paths:
-        if os.path.exists(path):
-            config.read(path)
-            print(f"✓ Config geladen: {path}")
-            return config
-    
-    print(f"⚠️  config.ini nicht gefunden, nutze Default-Werte")
-    return None
+def load_params(params_path: str = None) -> dict:
+    """Lädt Parameter aus params.json."""
+    if params_path and os.path.exists(params_path):
+        params = json.loads(Path(params_path).read_text())
+        print(f"✓ Params geladen: {params_path}")
+        return params
+    print("⚠️  params.json nicht gefunden, nutze Default-Werte")
+    return {}
 
 
 class AdvancedReactionDetector:
     """Verbesserte Reaktionserkennung mit mehr Features"""
     
-    def __init__(self, sensitivity='medium', fps=25.0, config=None, auto_accuracy=False):
+    def __init__(self, sensitivity='medium', fps=25.0, params=None, auto_accuracy=False):
+        if params is None:
+            params = {}
         # Anzahl gleichzeitig erkannter Gesichter (konfigurierbar für Totalen / Zweier-Shots)
-        max_faces = 1
-        if config and config.has_section('Detection'):
-            max_faces = config.getint('Detection', 'max_faces', fallback=1)
+        max_faces = int(params.get('max_faces', 1))
 
         # MediaPipe FaceLandmarker (Tasks API, mediapipe >= 0.10)
         _ensure_model()
@@ -96,9 +83,9 @@ class AdvancedReactionDetector:
         # Video FPS (für Speaking-Detection timing)
         self.fps = fps
 
-        # Lade Sensitivität aus Config wenn vorhanden
-        if config and config.has_option('General', 'default_sensitivity'):
-            sensitivity = config.get('General', 'default_sensitivity')
+        # Lade Sensitivität aus Params wenn vorhanden
+        if params.get('default_sensitivity'):
+            sensitivity = params['default_sensitivity']
 
         # ── Nodding: Pattern-basierter Detektor (Parameter aus nodding_patterns.json) ──
         self._nod_globals, self._nod_patterns = _load_nod_patterns()
@@ -116,10 +103,12 @@ class AdvancedReactionDetector:
         laugh_threshold_low = 1.7
         laugh_threshold_medium = 1.5
         laugh_threshold_high = 1.3
-        if config and config.has_section('Laughing'):
-            laugh_threshold_low = config.getfloat('Laughing', 'threshold_low', fallback=1.7)
-            laugh_threshold_medium = config.getfloat('Laughing', 'threshold_medium', fallback=1.5)
-            laugh_threshold_high = config.getfloat('Laughing', 'threshold_high', fallback=1.3)
+        if 'laugh_threshold_low' in params:
+            laugh_threshold_low = float(params['laugh_threshold_low'])
+        if 'laugh_threshold_medium' in params:
+            laugh_threshold_medium = float(params['laugh_threshold_medium'])
+        if 'laugh_threshold_high' in params:
+            laugh_threshold_high = float(params['laugh_threshold_high'])
 
         laugh_settings = {
             'low':    {'laugh_threshold': laugh_threshold_low},
@@ -136,20 +125,19 @@ class AdvancedReactionDetector:
             'eyebrow_raise': True
         }
 
-        if config:
-            if config.has_section('Nodding'):
-                self.enabled_reactions['nodding'] = config.getboolean('Nodding', 'enabled', fallback=True)
-            if config.has_section('HeadShake'):
-                self.enabled_reactions['head_shake'] = config.getboolean('HeadShake', 'enabled', fallback=True)
-            if config.has_section('Laughing'):
-                self.enabled_reactions['laughing'] = config.getboolean('Laughing', 'enabled', fallback=True)
-            if config.has_section('EyebrowRaise'):
-                self.enabled_reactions['eyebrow_raise'] = config.getboolean('EyebrowRaise', 'enabled', fallback=True)
+        if 'nodding_enabled' in params:
+            self.enabled_reactions['nodding'] = bool(params['nodding_enabled'])
+        if 'head_shake_enabled' in params:
+            self.enabled_reactions['head_shake'] = bool(params['head_shake_enabled'])
+        if 'laughing_enabled' in params:
+            self.enabled_reactions['laughing'] = bool(params['laughing_enabled'])
+        if 'eyebrow_raise_enabled' in params:
+            self.enabled_reactions['eyebrow_raise'] = bool(params['eyebrow_raise_enabled'])
 
         # Kalibrierungs-Auflösung (für andere Detektoren wie HeadShake)
         self.calibration_height = self._nod_calibration_height
-        if config and config.has_section('Detection'):
-            self.calibration_height = config.getint('Detection', 'calibration_height', fallback=2160)
+        if 'calibration_height' in params:
+            self.calibration_height = int(params['calibration_height'])
 
         # Auto Accuracy: immer aktiv im Pattern-Detektor (über face_h Skalierung)
         self.auto_accuracy = auto_accuracy
@@ -728,7 +716,7 @@ def _write_preview_frame(frame, detector, reactions, cam_label: str, preview_pat
 
 
 def analyze_video(video_path, output_json=None, sensitivity='medium', show_preview=False,
-                  config=None, off_sections=None, preview_path=None, auto_accuracy=False,
+                  params=None, off_sections=None, preview_path=None, auto_accuracy=False,
                   lut_path=None):
     """
     Analysiert Video auf Reaktionen
@@ -738,7 +726,7 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
         output_json: Pfad für JSON-Output (optional)
         sensitivity: 'low', 'medium', 'high'
         show_preview: Zeigt Live-Preview während Analyse
-        config: ConfigParser-Objekt (optional)
+        params: Parameter-Dict (optional)
         off_sections: Liste von [start_frame, end_frame] Paaren (Video-Frame-Nummern).
                       Nur diese Bereiche werden mit MediaPipe analysiert. Alle anderen
                       Frames werden übersprungen (dekodiert aber nicht inferiert).
@@ -768,9 +756,9 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     duration_sec = total_frames / fps
 
     # Decode-Auflösung bestimmen (ffmpeg skaliert direkt beim Dekodieren)
-    analysis_width = 0
-    if config and config.has_section('Detection'):
-        analysis_width = config.getint('Detection', 'analysis_width', fallback=0)
+    if params is None:
+        params = {}
+    analysis_width = int(params.get('analysis_width', 0))
 
     # Video-Filter zusammenbauen (LUT + optionales Resize)
     _vf_filters = []
@@ -793,12 +781,11 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     # Debug: Frame-Limit aus Config lesen
     _debug_limit = False
     _max_frames = None
-    if config and config.has_section('Debug'):
-        _debug_limit = config.getboolean('Debug', 'limit_frames', fallback=False)
-        if _debug_limit:
-            _max_frames = config.getint('Debug', 'max_analysis_frames', fallback=10000)
-            total_frames = min(total_frames, _max_frames)
-            duration_sec = total_frames / fps
+    if params.get('debug_limit_frames', False):
+        _debug_limit = True
+        _max_frames = int(params.get('debug_max_analysis_frames', 10000))
+        total_frames = min(total_frames, _max_frames)
+        duration_sec = total_frames / fps
 
     print(f"FPS: {fps}")
     print(f"Frames: {total_frames}" + (f" (Debug-Limit: {_max_frames})" if _debug_limit else ""))
@@ -807,7 +794,7 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     frame_bytes = frame_w * frame_h * 3
 
     # Detector initialisieren mit Config und FPS
-    detector = AdvancedReactionDetector(sensitivity=sensitivity, fps=fps, config=config, auto_accuracy=auto_accuracy)
+    detector = AdvancedReactionDetector(sensitivity=sensitivity, fps=fps, params=params, auto_accuracy=auto_accuracy)
 
     # Zeige aktivierte Reaktionstypen
     enabled_types = [k for k, v in detector.enabled_reactions.items() if v]
@@ -1066,8 +1053,8 @@ def main():
                         help='Erkennungs-Sensitivität (überschreibt config.ini)')
     parser.add_argument('--preview', '-p', action='store_true', 
                         help='Zeige Live-Preview')
-    parser.add_argument('--config', default='config.ini',
-                        help='Pfad zur Config-Datei (default: config.ini)')
+    parser.add_argument('--params', default=None,
+                        help='Pfad zur params.json mit Modul-Parametern')
     parser.add_argument('--off-sections', default=None,
                         help='JSON-Datei mit [[start_frame, end_frame], ...] — nur diese Bereiche werden analysiert')
     parser.add_argument('--preview-path', default=None,
@@ -1079,19 +1066,19 @@ def main():
 
     args = parser.parse_args()
     
-    # Lade Config
-    config = load_config(args.config)
-    
+    # Lade Params
+    params = load_params(args.params)
+
     # Validiere Video-Pfad
     video_path = Path(args.video)
     if not video_path.exists():
         print(f"✗ Video nicht gefunden: {video_path}")
         return 1
-    
-    # Sensitivity: Commandline überschreibt Config
+
+    # Sensitivity: Commandline überschreibt Params
     sensitivity = args.sensitivity
-    if not sensitivity and config and config.has_option('General', 'default_sensitivity'):
-        sensitivity = config.get('General', 'default_sensitivity')
+    if not sensitivity and params.get('default_sensitivity'):
+        sensitivity = params['default_sensitivity']
     if not sensitivity:
         sensitivity = 'medium'
     
@@ -1109,13 +1096,13 @@ def main():
         else:
             print(f"⚠️  --off-sections Datei nicht gefunden: {args.off_sections} — analysiere alle Frames")
 
-    # Analysiere mit Config
+    # Analysiere mit Params
     reactions = analyze_video(
         video_path,
         output_json=output_json,
         sensitivity=sensitivity,
         show_preview=args.preview,
-        config=config,
+        params=params,
         off_sections=off_sections,
         preview_path=args.preview_path,
         auto_accuracy=args.auto_accuracy,

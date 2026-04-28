@@ -496,7 +496,7 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
 # ── Analysis pipeline ─────────────────────────────────────────────────────────
 
 def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
-                 fps: float, work_dir: Path, config: Path,
+                 fps: float, work_dir: Path, params: dict,
                  skip_analysis: bool = False, skip_base_edl: bool = False,
                  cam_mic_map: list = None,
                  cam_types: list = None,
@@ -544,20 +544,10 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         if result.returncode != 0:
             raise RuntimeError(f"Fehlgeschlagen: {desc}")
 
-    import configparser
-    cfg = configparser.ConfigParser()
-    cfg.read(str(config), encoding='utf-8')
-    rms    = cfg['RMSDiarization'] if 'RMSDiarization' in cfg else {}
-    sr_cfg = cfg['SpeakingReaction'] if 'SpeakingReaction' in cfg else {}
-    tl_cfg = cfg['TotaleLogic']     if 'TotaleLogic'     in cfg else {}
-    pt_cfg = cfg['PauseTrim']       if 'PauseTrim'       in cfg else {}
-    pc_cfg = cfg['PauseCutaway']    if 'PauseCutaway'    in cfg else {}
-    cf_cfg = cfg['CLIPFilter']      if 'CLIPFilter'      in cfg else {}
-    cg_cfg = cfg['CrossbleedGate']  if 'CrossbleedGate'  in cfg else {}
-    speaking_enabled = sr_cfg.get('enabled', 'false').strip().lower() == 'true'
-    pause_cutaway_enabled = pc_cfg.get('enabled', 'false').strip().lower() == 'true'
-    clip_filter_enabled = cf_cfg.get('enabled', 'false').strip().lower() == 'true'
-    crossbleed_gate_enabled = cg_cfg.get('enabled', 'false').strip().lower() == 'true'
+    speaking_enabled = bool(params.get('speaking_enabled', False))
+    pause_cutaway_enabled = bool(params.get('pause_cutaway_enabled', False))
+    clip_filter_enabled = bool(params.get('clip_filter_enabled', False))
+    crossbleed_gate_enabled = bool(params.get('crossbleed_gate_enabled', False))
 
     # ── Schritt 1: Base-EDL aus Audio (binäre Diarisierung CAM1/CAM2) ────────
     if not skip_base_edl:
@@ -576,23 +566,23 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--cam2-edl-frame',    str(offsets['CAM2']),
             '--fps',               str(fps),
             '--output',            str(base_edl),
-            '--min-edit-duration', rms.get('min_edit_duration', '1.0'),
-            '--change-delay',      rms.get('change_delay', '0.3'),
-            '--threshold-db',      rms.get('threshold_db', '6.0'),
+            '--min-edit-duration', str(params.get('min_edit', 1.0)),
+            '--change-delay',      str(params.get('change_delay', 0.3)),
+            '--threshold-db',      str(params.get('threshold_db', 6.0)),
             '--cam1-off-sections-out', str(cam1_off_sections),
             '--cam2-off-sections-out', str(cam2_off_sections),
         ]
-        gate_use_filtered = cg_cfg.get('use_filtered', 'false').strip().lower() == 'true'
+        gate_use_filtered = bool(params.get('gate_use_filtered', False))
         gate_wav_json = work_dir / 'gate_wavs.json'
         if crossbleed_gate_enabled:
             builder_args += [
                 '--crossbleed-gate',
-                '--gate-window',         cg_cfg.get('window', '80'),
-                '--gate-attack',         cg_cfg.get('attack', '15'),
-                '--gate-release',        cg_cfg.get('release', '80'),
-                '--gate-floor',          cg_cfg.get('floor', '-25'),
-                '--gate-hysteresis',     cg_cfg.get('hysteresis', '2.0'),
-                '--gate-both-threshold', cg_cfg.get('both_threshold', '3.0'),
+                '--gate-window',         str(params.get('gate_window', 80)),
+                '--gate-attack',         str(params.get('gate_attack', 15)),
+                '--gate-release',        str(params.get('gate_release', 80)),
+                '--gate-floor',          str(params.get('gate_floor', -25)),
+                '--gate-hysteresis',     str(params.get('gate_hysteresis', 2.0)),
+                '--gate-both-threshold', str(params.get('gate_both_threshold', 3.0)),
             ]
             if gate_use_filtered:
                 builder_args += [
@@ -603,16 +593,16 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             builder_args += [
                 '--speaking-reactions-cam1-out', str(cam1_speaking_json),
                 '--speaking-reactions-cam2-out', str(cam2_speaking_json),
-                '--speaking-rise-db',        sr_cfg.get('rise_db',        '6.0'),
-                '--speaking-min-duration',   sr_cfg.get('min_duration',   '0.20'),
-                '--speaking-max-duration',   sr_cfg.get('max_duration',   '2.5'),
-                '--speaking-attack-window',  sr_cfg.get('attack_window',  '0.2'),
-                '--speaking-release-window', sr_cfg.get('release_window', '20.0'),
-                '--speaking-warmup',         sr_cfg.get('warmup',         '3.0'),
-                '--speaking-hold',           sr_cfg.get('hold',           '0.0'),
+                '--speaking-rise-db',        str(params.get('rise_db', 6.0)),
+                '--speaking-min-duration',   str(params.get('speaking_min_duration', 0.20)),
+                '--speaking-max-duration',   str(params.get('speaking_max_dur', 2.5)),
+                '--speaking-attack-window',  str(params.get('speaking_attack_window', 0.2)),
+                '--speaking-release-window', str(params.get('speaking_release_window', 20.0)),
+                '--speaking-warmup',         str(params.get('speaking_warmup', 3.0)),
+                '--speaking-hold',           str(params.get('speaking_hold', 0.0)),
                 '--speaking-mode',           'peak',
-                '--speaking-mask-min-pause', sr_cfg.get('mask_min_pause', '0.3'),
-                '--speaking-mask-padding',   sr_cfg.get('mask_padding',   '0.15'),
+                '--speaking-mask-min-pause', str(params.get('speaking_mask_min_pause', 0.3)),
+                '--speaking-mask-padding',   str(params.get('speaking_mask_padding', 0.15)),
             ]
         # Totale-Cam: erste Kamera mit type='wide' (falls vorhanden)
         totale_idx = next(
@@ -624,18 +614,18 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--totale-video',               totale_path,
                 '--totale-clip',                Path(totale_path).name,
                 '--totale-edl-frame',           str(offsets.get(f'CAM{totale_idx + 1}', 0)),
-                '--totale-simul-min-duration',  tl_cfg.get('simul_min_duration', '3.0'),
+                '--totale-simul-min-duration',  str(params.get('totale_simul_dur', 3.0)),
             ]
         # Pause-Trimming
-        pause_trim_enabled = pt_cfg.get('enabled', 'false').strip().lower() == 'true'
+        pause_trim_enabled = bool(params.get('pause_trim_enabled', False))
         if pause_trim_enabled:
+            _cut_mode = params.get('pause_cut_mode', 'middle')
             builder_args += [
                 '--pause-trim',
-                '--max-pause',           pt_cfg.get('max_pause', '1.0'),
-                '--pause-silence-db',    pt_cfg.get('silence_db', '-40.0'),
-                '--pause-search-radius', pt_cfg.get('search_radius', '3.0'),
-                '--pause-min-duration',  pt_cfg.get('min_pause_duration', '0.3'),
-                '--pause-cut-mode',      'middle' if pt_cfg.get('cut_mode', 'middle') == 'random' else pt_cfg.get('cut_mode', 'middle'),
+                '--max-pause',           str(params.get('max_pause', 1.0)),
+                '--pause-search-radius', str(params.get('pause_search_radius', 3.0)),
+                '--pause-min-duration',  str(params.get('pause_min_duration', 0.3)),
+                '--pause-cut-mode',      'middle' if _cut_mode == 'random' else _cut_mode,
                 '--audio-trims-out',     str(work_dir / 'audio_trims.json'),
             ]
 
@@ -643,27 +633,10 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         if pause_cutaway_enabled:
             builder_args += [
                 '--pause-cutaway-json-out',  str(work_dir / 'pause_cutaways.json'),
-                '--pause-cutaway-min-pause', pc_cfg.get('min_pause', '2.0'),
+                '--pause-cutaway-min-pause', str(params.get('pause_cutaway_min_pause', 2.0)),
             ]
 
         run(builder_args, "Base-EDL aus Audio")
-
-    # Gate-WAVs in Media Pool importieren (Debug: gefilterte Audio in Timeline)
-    if crossbleed_gate_enabled and gate_use_filtered and gate_wav_json.exists():
-        try:
-            _gw = json.loads(gate_wav_json.read_text())
-            _gated_paths = [_gw['mic1'], _gw['mic2']]
-            print(f"\n  🔇 Gate-Debug: Importiere gefilterte WAVs in Media Pool...")
-            _imported = mp.ImportMedia(_gated_paths)
-            if _imported and len(_imported) >= 2:
-                # Sortiert wie Original-MICs (alphabetisch nach Name)
-                _imported_sorted = sorted(_imported, key=lambda c: c.GetName())
-                mics = _imported_sorted
-                print(f"  Gate-MICs: {[m.GetName() for m in mics]}")
-            else:
-                print(f"  ⚠️  Gate-WAV Import fehlgeschlagen, nutze Original-MICs")
-        except Exception as e:
-            print(f"  ⚠️  Gate-WAV Fehler: {e}, nutze Original-MICs")
 
     # ── Schritt 2: Nodding-Analyse für ALLE Kameras ───────────────────────────
     # Off-Sections stehen nur für CAM1/CAM2 zur Verfügung (aus binärer Diarisierung).
@@ -672,6 +645,10 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         cam1_path: cam1_off_sections,
         cam2_path: cam2_off_sections,
     }
+    # params.json für Subprozesse schreiben (Analyzer, etc.)
+    params_json_path = work_dir / 'params.json'
+    params_json_path.write_text(json.dumps(params, indent=2))
+
     if not skip_analysis:
         analyzer = str(SCRIPT_DIR / 'video_reaction_analyzer_v2.4.py')
         for i, cp in enumerate(cam_paths):
@@ -680,7 +657,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 print(f"\n  Nodding-Analyse CAM{i + 1} übersprungen (nodding_detection=false)")
                 continue
             json_out = work_dir / (Path(cp).stem + '_reactions.json')
-            args_list = [analyzer, cp, '--output', str(json_out), '--config', str(config)]
+            args_list = [analyzer, cp, '--output', str(json_out), '--params', str(params_json_path)]
             off_sec = off_sections_map.get(cp)
             if off_sec and off_sec.exists():
                 args_list += ['--off-sections', str(off_sec)]
@@ -724,7 +701,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         '--cameras-json', str(cameras_json_path),
         '--resolve-edl',  str(base_edl),
         '--output',       str(final_edl),
-        '--config',       str(config),
+        '--params',       str(params_json_path),
         '--fps',          str(fps),
     ]
     pause_cutaways_json = work_dir / 'pause_cutaways.json'
@@ -786,7 +763,8 @@ def main():
     parser.add_argument('--bin',    required=True, help='Media Pool Bin-Name')
     parser.add_argument('--output', required=True, help='Name der fertigen Cut-Timeline')
     parser.add_argument('--fps',    type=float, default=25.0)
-    parser.add_argument('--config', default=str(ROOT / 'config' / 'config.ini'))
+    parser.add_argument('--params', default=None,
+                        help='Pfad zur params.json mit Modul-Parametern')
     parser.add_argument('--skip-analysis', action='store_true')
     parser.add_argument('--skip-base-edl', action='store_true')
     parser.add_argument('--cam-mics', nargs='+', default=None,
@@ -800,7 +778,7 @@ def main():
                         help='Nodding-Analyse je CAM: "true" (default) oder "false". '
                              'Beispiel: "true true false" (deaktiviert für CAM3)')
     parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
-                        help='Überschreibt speaking_mode aus config.ini')
+                        help='Überschreibt speaking_mode aus params.json')
     parser.add_argument('--mic-cam1', type=int, default=None,
                         help='MIC-Index für CAM1 (Legacy, nutze --cam-mics)')
     parser.add_argument('--mic-cam2', type=int, default=None,
@@ -864,6 +842,23 @@ def main():
     cam_mic_map = _parse_cam_mics(_cam_mics_arg,   n_cams, len(mic_paths))
     cam_types   = _parse_cam_list(args.cam_types,   n_cams, 'close')
     cam_nodding = _parse_cam_nodding(args.cam_nodding, n_cams)
+    # Parameter laden (JSON aus UI oder leeres Dict als Fallback)
+    _params = {}
+    if args.params:
+        _params = json.loads(Path(args.params).read_text())
+
+    # Debug-Settings aus config.ini mergen (einzige Sektion die dort verbleibt)
+    _debug_ini = ROOT / 'config' / 'config.ini'
+    if _debug_ini.exists():
+        import configparser as _cp
+        _dbg_cfg = _cp.ConfigParser()
+        _dbg_cfg.read(str(_debug_ini), encoding='utf-8')
+        if _dbg_cfg.has_section('Debug'):
+            _params.setdefault('debug_limit_frames',
+                               _dbg_cfg.getboolean('Debug', 'limit_frames', fallback=False))
+            _params.setdefault('debug_max_analysis_frames',
+                               _dbg_cfg.getint('Debug', 'max_analysis_frames', fallback=10000))
+
     import hashlib
     _src_hash = hashlib.md5(cam1_path.encode()).hexdigest()[:12]
     work_dir = Path(f'/tmp/resolve-toolkit/{_src_hash}')
@@ -871,7 +866,7 @@ def main():
     try:
         final_edl = run_analysis(
             [cam1_path, cam2_path], mic_paths, offsets,
-            args.fps, work_dir, Path(args.config),
+            args.fps, work_dir, _params,
             args.skip_analysis, args.skip_base_edl,
             cam_mic_map=cam_mic_map,
             cam_types=cam_types,
@@ -901,11 +896,6 @@ def main():
         return 1
 
     # ── Pause-Trimming anwenden (auf finale cut_events, nach Cutaway-Einfügung) ──
-    import configparser
-    _cfg = configparser.ConfigParser()
-    _cfg.read(str(args.config), encoding='utf-8')
-    _pt_cfg = _cfg['PauseTrim'] if 'PauseTrim' in _cfg else {}
-
     audio_trims_path = work_dir / 'audio_trims.json'
     audio_keeps = None
     if audio_trims_path.exists():
@@ -915,8 +905,8 @@ def main():
             if pauses:
                 cut_events, audio_keeps = apply_pauses_to_cut_events(
                     cut_events, pauses, args.fps,
-                    max_pause_s=float(_pt_cfg.get('max_pause', '1.0')),
-                    cut_mode=_pt_cfg.get('cut_mode', 'middle'),
+                    max_pause_s=float(_params.get('max_pause', 1.0)),
+                    cut_mode=_params.get('pause_cut_mode', 'middle'),
                 )
                 if audio_keeps:
                     # Audio-Keeps als JSON speichern für build_cut_timeline
@@ -929,6 +919,34 @@ def main():
         except Exception as e:
             print(f"  ⚠️  Pause-Trim Fehler: {e}")
             audio_trims_path.unlink(missing_ok=True)
+
+    # ── Gate-WAVs in Media Pool importieren (Debug: gefilterte Audio in Timeline) ──
+    _gate_enabled = bool(_params.get('crossbleed_gate_enabled', False))
+    _gate_use_filtered = bool(_params.get('gate_use_filtered', False))
+    _gate_wav_json = work_dir / 'gate_wavs.json'
+
+    if _gate_enabled and _gate_use_filtered and _gate_wav_json.exists():
+        try:
+            _gw = json.loads(_gate_wav_json.read_text())
+            _gated_paths = [_gw['mic1'], _gw['mic2']]
+            for _gp in _gated_paths:
+                if not Path(_gp).exists():
+                    raise FileNotFoundError(f"Gate-WAV nicht gefunden: {_gp}")
+            print(f"\n  🔇 Gate-Debug: Importiere gefilterte WAVs in Media Pool...")
+            print(f"    {[Path(p).name for p in _gated_paths]}")
+            mp.SetCurrentFolder(bin_folder)
+            _imported = mp.ImportMedia(_gated_paths)
+            print(f"    ImportMedia returned: {_imported} (type={type(_imported).__name__})")
+            if _imported and isinstance(_imported, list) and len(_imported) >= 2:
+                mics = list(_imported[:2])
+                print(f"    Gate-MICs ersetzt: {[m.GetName() for m in mics]}")
+            else:
+                print(f"  ⚠️  Gate-WAV Import fehlgeschlagen (result={_imported}), nutze Original-MICs")
+        except Exception as e:
+            import traceback
+            print(f"  ⚠️  Gate-WAV Fehler: {e}")
+            traceback.print_exc()
+            print(f"  Nutze Original-MICs")
 
     cut_tl = build_cut_timeline(
         mp, args.output, cut_events, mics,
@@ -943,8 +961,7 @@ def main():
     print(f"  '{args.output}' angelegt, aktiviert und gespeichert.")
 
     print(f"\nWorkflow abgeschlossen.")
-    print(f"  Sync-Timeline: {sync_name}")
-    print(f"  Cut-Timeline:  {args.output}")
+    print(f"  Cut-Timeline: {args.output}")
     return 0
 
 

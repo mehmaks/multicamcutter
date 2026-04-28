@@ -127,6 +127,37 @@ elif time.time() - st.session_state.get("license_checked_at", 0) > _LIC_RECHECK_
     st.session_state.license_checked_at = time.time()
 _license: _lic.LicenseInfo = st.session_state.license_info
 
+# ── Beta-Disclaimer ───────────────────────────────────────────────────────────
+
+@st.dialog("Beta-Version")
+def _beta_disclaimer():
+    st.markdown(
+        "Dieses Tool befindet sich in der **Beta-Phase**. "
+        "Eine fehlerfreie Nutzung kann nicht gewährleistet werden.\n\n"
+        "Bitte melde auftretende Fehler oder Verbesserungsvorschläge "
+        "unter **Bugs & Feedback** (Button in der Sidebar)."
+    )
+    dismiss = st.checkbox("Diesen Hinweis nicht mehr anzeigen")
+    if st.button("Verstanden", type="primary", use_container_width=True):
+        if dismiss:
+            import configparser as _cp_beta
+            _cfg_beta = _cp_beta.ConfigParser()
+            _cfg_beta.read(str(CONFIG_INI), encoding="utf-8")
+            if not _cfg_beta.has_section("UI"):
+                _cfg_beta.add_section("UI")
+            _cfg_beta.set("UI", "beta_disclaimer_dismissed", "true")
+            with open(str(CONFIG_INI), "w", encoding="utf-8") as _f_beta:
+                _cfg_beta.write(_f_beta)
+        st.rerun()
+
+if "beta_shown" not in st.session_state:
+    st.session_state.beta_shown = True
+    import configparser as _cp_bd
+    _cfg_bd = _cp_bd.ConfigParser()
+    _cfg_bd.read(str(CONFIG_INI), encoding="utf-8")
+    if not _cfg_bd.getboolean("UI", "beta_disclaimer_dismissed", fallback=False):
+        _beta_disclaimer()
+
 # ── Feedback-Dialog ────────────────────────────────────────────────────────────
 
 @st.dialog("Bugs & Feedback", width="large")
@@ -305,10 +336,16 @@ with st.sidebar:
         try:
             _git("fetch", "--tags", "--quiet")
             _tags = _git("tag", "--list", "v*", "--sort=-version:refname")
-            _latest = _tags.splitlines()[0] if _tags else ""
-            if not _latest or _latest == _current_version():
+            if not _tags:
                 return False, None, ""
-            return True, _latest, _fetch_release_notes(_latest)
+
+            # Nur Updates innerhalb der lizenzierten Hauptversion anzeigen
+            _lic_major = _license.major_version or _current_version().split(".")[0]
+            _current = _current_version()
+            for _t in _tags.splitlines():
+                if _t.split(".")[0] == _lic_major and _t != _current:
+                    return True, _t, _fetch_release_notes(_t)
+            return False, None, ""
         except Exception:
             return False, None, ""
 
