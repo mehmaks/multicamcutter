@@ -47,8 +47,9 @@ tools/
 .idea/
 *.swp
 
-# Lizenz-System (komplett lokal, nie ins Repo)
-licensing/
+# Lizenz-System — Private Key und generierte Lizenzen nie ins Repo
+licensing/license_private.key
+licensing/licenses/
 
 # UI-Fonts (werden via setup.sh geladen, nicht versioniert)
 ui/static/*.ttf
