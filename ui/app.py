@@ -340,11 +340,15 @@ with st.sidebar:
                 return False, None, ""
 
             # Nur Updates innerhalb der lizenzierten Hauptversion anzeigen
+            # Tags sind absteigend sortiert → erster Match ist der neueste
             _lic_major = _license.major_version or _current_version().split(".")[0]
             _current = _current_version()
             for _t in _tags.splitlines():
-                if _t.split(".")[0] == _lic_major and _t != _current:
-                    return True, _t, _fetch_release_notes(_t)
+                if _t.split(".")[0] == _lic_major:
+                    # Erster Tag der Hauptversion = neuester. Nur melden wenn neuer als aktuell.
+                    if _t != _current:
+                        return True, _t, _fetch_release_notes(_t)
+                    return False, None, ""
             return False, None, ""
         except Exception:
             return False, None, ""
