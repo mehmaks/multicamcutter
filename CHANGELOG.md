@@ -1,5 +1,37 @@
 # Changelog
 
+## v0.6.0 — Architektur-Refactoring & neue Features  (2026-04-28)
+
+### Architektur
+- **config.ini → JSON-Params** — Modul-Parameter werden nicht mehr über config.ini übergeben, sondern als temporäre JSON-Dateien via `--params`. config.ini hält nur noch UI-State (Feedback, UI, Auphonic, Debug).
+- **Projekt-Restrukturierung** — Backend-Extraktion, Pfad-Zentralisierung, Cleanup. Config- und Doc-Dateien aus Untermodulen in zentrale Ordner verschoben.
+
+### Neu
+- **Expert-Mode** — Einfach/Experten-Aufteilung der UI-Parameter. Im Einfachmodus werden nur die wichtigsten Einstellungen angezeigt, per Toggle umschaltbar.
+- **Schema-basierter UI-Renderer** — Parameter-Widgets werden aus `multicam_params.json` generiert statt hardcoded.
+- **Crossbleed-Filter** — Intelligentes Noise Gate unterdrückt Übersprechen zwischen Mikrofonen vor der Sprechererkennung. Konfigurierbar mit Dämpfung, Hysterese, Attack/Release.
+- **Pause-Cutaways** — Schneidet während Sprechpausen automatisch auf die zuhörende Person.
+- **CLIP Ignore-Filter** — Prüft per Bilderkennung (OpenAI CLIP), ob ein Cutaway eine unerwünschte Szene zeigt, und verschiebt ihn automatisch.
+- **Pausen-Trimming** — Kürzt überlange Sprechpausen an Wechselpunkten automatisch. Unterstützt Middle, L-Cut, J-Cut und Zufalls-Modus.
+- **RMS-Gate & Diarization-Stille-Gate** — Zusätzliche Audio-Gates für sauberere Sprechererkennung.
+- **Beta-Disclaimer** — Einmaliger Hinweis beim Session-Start mit "nicht mehr anzeigen"-Option.
+- **Lizenz-Versionsbindung** — Lizenzen sind an die Hauptversion gebunden (v0, v1, ...). Update-Benachrichtigungen nur innerhalb der lizenzierten Version.
+- **Nodding-Detection: Tilt+Yaw-Korrektur** — Kompensiert Kopfneigung und -drehung für genauere Nickerkennung.
+- **Slow Oscillation Pattern** — Neues Nodding-Pattern für langsames, bedächtiges Nicken.
+- **Sequencer** — Modulares Pipeline-System mit 22 Modulen (experimentell, noch nicht für Beta freigegeben).
+
+### Fixes
+- **max_time Cutaways** — Werden jetzt in der Segmentmitte platziert statt am Rand.
+- **Diarization-Cleanup-Schutz** — Verhindert, dass der Cleanup-Pass Diarization-Segmente entfernt.
+- **Pause-Trim-Sync** — Audio und Video trimmen exakt synchron.
+
+### Docs
+- Dokumentation an aktuelle Standardwerte angepasst (min_shot 3.0, max_shot 14.0, cleanup_dur 1.8, reaction_dur 1.8).
+- Neue Dokumentation für Pausen-Trimming, Crossbleed-Filter, Stille-Cutaways und CLIP-Filter.
+- Whisper-Modellgröße in Silence Cutter Docs korrigiert (75 MB → 39 MB).
+
+---
+
 ## v0.5.0 — Pattern-basierte Nodding-Detection  (2026-04-23)
 
 ### Neu
