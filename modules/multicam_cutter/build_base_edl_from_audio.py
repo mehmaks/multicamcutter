@@ -17,48 +17,7 @@ import wave
 import numpy as np
 from pathlib import Path
 
-
-
-# ─── Timecode-Hilfsfunktionen (unverändert aus add_reactions_to_edl.py) ───────
-
-def timecode_to_frames(tc: str, fps: float = 25.0) -> int:
-    parts = tc.split(':')
-    hours, minutes, seconds, frames = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-    return int((hours * 3600 + minutes * 60 + seconds) * fps + frames)
-
-
-def frames_to_timecode(frames: int, fps: float = 25.0) -> str:
-    if frames < 0:
-        frames = 0
-    total_seconds = frames / fps
-    hours   = int(total_seconds // 3600)
-    minutes = int((total_seconds % 3600) // 60)
-    seconds = int(total_seconds % 60)
-    frame   = int(frames % fps)
-    return f"{hours:02d}:{minutes:02d}:{seconds:02d}:{frame:02d}"
-
-
-def get_reference_frame(video_path: str, fps: float) -> int:
-    """Liest embedded TC via ffprobe → Reference Frame (identisch zu add_reactions_to_edl.py)"""
-    try:
-        cmd = ['ffprobe', '-v', 'quiet', '-print_format', 'json',
-               '-show_format', '-show_streams', str(video_path)]
-        result = subprocess.run(cmd, capture_output=True, text=True)
-        data = json.loads(result.stdout)
-
-        # format tags zuerst
-        tc = data.get('format', {}).get('tags', {}).get('timecode')
-        if not tc:
-            for stream in data.get('streams', []):
-                tc = stream.get('tags', {}).get('timecode')
-                if tc:
-                    break
-
-        if tc:
-            return timecode_to_frames(tc, fps), tc
-    except Exception as e:
-        print(f"  ⚠️  ffprobe Fehler ({Path(video_path).name}): {e}")
-    return None, None
+from frame_utils import timecode_to_frames, frames_to_timecode, get_reference_frame
 
 
 # ─── Audio-Analyse ─────────────────────────────────────────────────────────────
@@ -543,7 +502,6 @@ def detect_speaking_reactions(
     lookback_s: float      = 1.0,
     sustain_margin_db: float = 1.5,
     on_pauses: dict = None,
-    crossbleed_ratio: float = 0.5,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -578,8 +536,6 @@ def detect_speaking_reactions(
     # CAM2 spricht → MIC1-Bursts = CAM1-Reaktionen
     cam1_reactions, cam2_reactions = [], []
 
-    crossbleed_filtered = 0
-
     for seg in segments:
         seg_start_sample = int(seg['start_s'] * sr)
         seg_end_sample   = int(seg['end_s'] * sr)
@@ -587,12 +543,10 @@ def detect_speaking_reactions(
 
         if seg['speaker'] == 'CAM1':
             seg_audio = audio2[seg_start_sample:seg_end_sample]
-            seg_on    = audio1[seg_start_sample:seg_end_sample]
             cam_tz = cam2_timeline_zero_video
             target = cam2_reactions
         elif seg['speaker'] == 'CAM2':
             seg_audio = audio1[seg_start_sample:seg_end_sample]
-            seg_on    = audio2[seg_start_sample:seg_end_sample]
             cam_tz = cam1_timeline_zero_video
             target = cam1_reactions
         else:
@@ -633,35 +587,10 @@ def detect_speaking_reactions(
             freeze_mask=seg_freeze,
         )
 
-        # Crossbleed-Filter: On-Mic-Rise im selben Zeitfenster prüfen.
-        # Wenn der On-Speaker zeitgleich einen ähnlichen Pegelanstieg hat,
-        # ist der Off-Mic-Rise wahrscheinlich Crossbleed, keine echte Reaktion.
-        if bursts and crossbleed_ratio > 0:
-            on_db = _level_windows(seg_on, sr, window_s, mode=mode)
-            lookback_n = max(1, int(lookback_s / window_s))
-            filtered_bursts = []
-            for b in bursts:
-                # Burst-Start in lokale Window-Indizes umrechnen
-                win_start = int(b['start_s'] / window_s)
-                win_lo = max(0, win_start - lookback_n)
-                if win_start < len(on_db) and win_lo < len(on_db):
-                    on_rise = on_db[win_start] - on_db[win_lo]
-                    # Off-Mic-Rise aus Burst-Confidence rekonstruieren
-                    off_rise = b['conf'] * rise_db
-                    if on_rise >= off_rise * crossbleed_ratio:
-                        crossbleed_filtered += 1
-                        continue
-                filtered_bursts.append(b)
-            bursts = filtered_bursts
-
         for b in bursts:
             r = _to_reaction(b, cam_tz)
             if r:
                 target.append(r)
-
-    if crossbleed_filtered:
-        print(f"  Crossbleed-Filter: {crossbleed_filtered} Speaking-Reactions "
-              f"als Crossbleed verworfen (ratio={crossbleed_ratio})")
 
     return cam1_reactions, cam2_reactions
 
@@ -858,8 +787,6 @@ def main():
                         help='Min. Pausenlänge des On-Sprechers für Baseline-Freeze (s)')
     parser.add_argument('--speaking-mask-padding',   type=float, default=0.15,
                         help='Padding um On-Speaker-Pausen für Baseline-Freeze (s)')
-    parser.add_argument('--speaking-crossbleed-ratio', type=float, default=0.5,
-                        help='Crossbleed-Filter: On-Mic-Rise / Off-Mic-Rise Schwelle (0=aus)')
     # Off-sections output (für Nodding-Analyse Optimierung)
     parser.add_argument('--cam1-off-sections-out', default=None,
                         help='JSON-Ausgabe: Video-Frame-Ranges in denen CAM1 die Off-Kamera ist')
@@ -1282,7 +1209,6 @@ def main():
             hold_s=args.speaking_hold,
             mode=args.speaking_mode,
             on_pauses=_on_pauses,
-            crossbleed_ratio=args.speaking_crossbleed_ratio,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
         if args.speaking_reactions_cam1_out:

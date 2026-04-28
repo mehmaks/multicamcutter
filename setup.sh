@@ -148,8 +148,8 @@ fi
 
 # ── Config anlegen ────────────────────────────────────────────────────────────
 
-CONFIG="$SCRIPT_DIR/modules/multicam_cutter/config.ini"
-CONFIG_TEMPLATE="$SCRIPT_DIR/modules/multicam_cutter/config.template.ini"
+CONFIG="$SCRIPT_DIR/config/config.ini"
+CONFIG_TEMPLATE="$SCRIPT_DIR/config/config.template.ini"
 
 if [ ! -f "$CONFIG" ] && [ -f "$CONFIG_TEMPLATE" ]; then
     info "config.ini aus Template erstellen..."

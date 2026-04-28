@@ -62,7 +62,7 @@ def main():
     )
     parser.add_argument("--output", "-o", default="final_resolve.edl",
                         help="Ausgabe-EDL (default: final_resolve.edl)")
-    parser.add_argument("--config", default=str(SCRIPT_DIR / "config.ini"),
+    parser.add_argument("--config", default=str(ROOT / "config" / "config.ini"),
                         help="Pfad zur config.ini")
     parser.add_argument("--skip-analysis", action="store_true",
                         help="Nodding-Analyse überspringen (JSONs müssen existieren)")

@@ -5,9 +5,8 @@ Fully automated multicam EDL workflow starting from a raw media bin.
 Steps:
   1. Scan bin for CAM + MIC files
   2. Waveform sync → frame offsets
-  3. Build sync timeline (V1/V2 + A1/A2 camera ref + A3/A4+ mics, all mono)
-  4. Run RMS diarization + nodding analysis
-  5. Build cut timeline: V1 with assembled segments, A1/A2 continuous MICs
+  3. Run RMS diarization + nodding analysis
+  4. Build cut timeline: V1 with assembled segments, A1/A2 continuous MICs
 
 Usage:
     python run_from_bin.py --bin "30 - Ebra" --output "JU 30 Final"
@@ -105,98 +104,6 @@ def _create_timeline(mp, name: str, bin_folder=None):
 
     raise RuntimeError(f"Timeline '{name}' konnte nicht erstellt werden.")
 
-
-def build_sync_timeline(mp, name: str, cams: list, mics: list,
-                        offsets: dict, fps: float, bin_folder=None):
-    """
-    Builds the sync reference timeline:
-      V1: CAM1        V2: CAM2
-      A1: CAM1 audio  A2: CAM2 audio   (camera reference, mono)
-      A3: MIC1        A4: MIC2 ...     (zoom recorder, mono)
-    """
-    print(f"\nErstelle Sync-Timeline: '{name}'")
-
-    tl, actual_name = _create_timeline(mp, name, bin_folder)
-    # starts with V1 (stereo) + A1 (stereo)
-
-    # Add V2
-    tl.AddTrack('video')
-    # Reconfigure A1 to mono — can't change existing, so add A2 mono and note
-    # A1 stays as created (stereo default). We add the rest as mono.
-    tl.AddTrack('audio', 'mono')   # A2 — CAM2 ref
-    tl.AddTrack('audio', 'mono')   # A3 — MIC1
-    if len(mics) > 1:
-        tl.AddTrack('audio', 'mono')  # A4 — MIC2
-
-    def clip_frames(clip):
-        """Frame count via Resolve API, with ffprobe fallback for audio-only files."""
-        try:
-            n = int(clip.GetClipProperty('Frames'))
-            if n > 0:
-                return n
-        except (TypeError, ValueError):
-            pass
-        path = clip.GetClipProperty('File Path') or ''
-        if path:
-            try:
-                probe = subprocess.run(
-                    ['ffprobe', '-v', 'error', '-show_entries', 'format=duration',
-                     '-of', 'default=noprint_wrappers=1:nokey=1', path],
-                    capture_output=True, text=True,
-                )
-                return round(float(probe.stdout.strip()) * fps)
-            except Exception:
-                pass
-        return 0
-
-    # ── Shift all record frames so nothing lands below 0 ─────────────────────
-    all_offsets = [0, offsets.get('CAM2', 0)] + [offsets.get(f'MIC{i+1}', offsets.get('MIC1', 0)) for i in range(len(mics))]
-    shift = max(0, -min(all_offsets))  # >= 0; pushes everything right if any offset is negative
-
-    append_list = []
-
-    # V1: CAM1
-    cam1_frames = clip_frames(cams[0])
-    append_list.append({
-        'mediaPoolItem': cams[0],
-        'startFrame': 0, 'endFrame': cam1_frames,
-        'mediaType': 1, 'trackIndex': 1, 'recordFrame': shift,
-    })
-    # V2: CAM2
-    cam2_offset = offsets.get('CAM2', 0)
-    cam2_frames = clip_frames(cams[1])
-    append_list.append({
-        'mediaPoolItem': cams[1],
-        'startFrame': 0, 'endFrame': cam2_frames,
-        'mediaType': 1, 'trackIndex': 2, 'recordFrame': cam2_offset + shift,
-    })
-    # A1: CAM1 embedded audio
-    append_list.append({
-        'mediaPoolItem': cams[0],
-        'startFrame': 0, 'endFrame': cam1_frames,
-        'mediaType': 2, 'trackIndex': 1, 'recordFrame': shift,
-    })
-    # A2: CAM2 embedded audio
-    append_list.append({
-        'mediaPoolItem': cams[1],
-        'startFrame': 0, 'endFrame': cam2_frames,
-        'mediaType': 2, 'trackIndex': 2, 'recordFrame': cam2_offset + shift,
-    })
-    # A3+: MIC files
-    for i, mic in enumerate(mics):
-        mic_label  = f'MIC{i+1}'
-        mic_offset = offsets.get(mic_label, offsets.get('MIC1', 0))
-        mic_frames = clip_frames(mic)
-        append_list.append({
-            'mediaPoolItem': mic,
-            'startFrame': 0, 'endFrame': mic_frames,
-            'mediaType': 2, 'trackIndex': 3 + i, 'recordFrame': mic_offset + shift,
-        })
-
-    mp.AppendToTimeline(append_list)
-    print(f"  V-Tracks: {tl.GetTrackCount('video')}, "
-          f"A-Tracks: {tl.GetTrackCount('audio')}")
-    return tl
 
 
 def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
@@ -462,28 +369,13 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
 
 # ── EDL parser ───────────────────────────────────────────────────────────────
 
-def _tc_to_frames(tc: str, fps: float) -> int:
-    h, m, s, f = (int(x) for x in tc.split(':'))
-    return int((h * 3600 + m * 60 + s) * fps + f)
+from frame_utils import timecode_to_frames as _tc_to_frames, get_reference_frame as _get_ref_frame
 
 
 def _get_embedded_tc_frames(video_path: str, fps: float) -> int:
     """Returns the embedded start timecode of a video file as frame number."""
-    probe = subprocess.run(
-        ['ffprobe', '-v', 'quiet', '-print_format', 'json',
-         '-show_format', '-show_streams', video_path],
-        capture_output=True, text=True
-    )
-    data = json.loads(probe.stdout)
-    tc = data.get('format', {}).get('tags', {}).get('timecode')
-    if not tc:
-        for stream in data.get('streams', []):
-            tc = stream.get('tags', {}).get('timecode')
-            if tc:
-                break
-    if tc:
-        return _tc_to_frames(tc, fps)
-    return 0
+    ref_frame, _ = _get_ref_frame(video_path, fps)
+    return ref_frame or 0
 
 
 def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
@@ -721,7 +613,6 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--speaking-mode',           'peak',
                 '--speaking-mask-min-pause', sr_cfg.get('mask_min_pause', '0.3'),
                 '--speaking-mask-padding',   sr_cfg.get('mask_padding',   '0.15'),
-                '--speaking-crossbleed-ratio', sr_cfg.get('crossbleed_ratio', '0.5'),
             ]
         # Totale-Cam: erste Kamera mit type='wide' (falls vorhanden)
         totale_idx = next(
@@ -840,7 +731,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     if pause_cutaway_enabled and pause_cutaways_json.exists():
         add_reactions_args += ['--pause-cutaways', str(pause_cutaways_json)]
     if clip_filter_enabled:
-        add_reactions_args += ['--clip-filter-config', str(SCRIPT_DIR / 'clip_ignore_prompts.json')]
+        add_reactions_args += ['--clip-filter-config', str(ROOT / 'config' / 'clip_ignore_prompts.json')]
     run(add_reactions_args, "Cutaways einfügen")
 
     return final_edl
@@ -895,11 +786,9 @@ def main():
     parser.add_argument('--bin',    required=True, help='Media Pool Bin-Name')
     parser.add_argument('--output', required=True, help='Name der fertigen Cut-Timeline')
     parser.add_argument('--fps',    type=float, default=25.0)
-    parser.add_argument('--config', default=str(SCRIPT_DIR / 'config.ini'))
+    parser.add_argument('--config', default=str(ROOT / 'config' / 'config.ini'))
     parser.add_argument('--skip-analysis', action='store_true')
     parser.add_argument('--skip-base-edl', action='store_true')
-    parser.add_argument('--sync-timeline', default=None,
-                        help='Name der Sync-Timeline (default: <output> Sync)')
     parser.add_argument('--cam-mics', nargs='+', default=None,
                         help='MIC-Zuordnung pro Kamera als "INDEX[,INDEX]" je CAM. '
                              'Reihenfolge = CAM1, CAM2, ... '
@@ -963,13 +852,7 @@ def main():
         print(f"\nFEHLER: {e}")
         return 1
 
-    # 3. Sync-Timeline aufbauen
-    sync_name = args.sync_timeline or f"{args.output} Sync"
-    sync_tl = build_sync_timeline(mp, sync_name, cams, mics, offsets, args.fps,
-                                   bin_folder=bin_folder)
-    project.SetCurrentTimeline(sync_tl)
-
-    # 4. Analyse-Pipeline
+    # 3. Analyse-Pipeline
     n_cams      = len(cams)
     # --mic-cam1/--mic-cam2 als Fallback wenn --cam-mics nicht gesetzt
     _cam_mics_arg = args.cam_mics
@@ -981,8 +864,10 @@ def main():
     cam_mic_map = _parse_cam_mics(_cam_mics_arg,   n_cams, len(mic_paths))
     cam_types   = _parse_cam_list(args.cam_types,   n_cams, 'close')
     cam_nodding = _parse_cam_nodding(args.cam_nodding, n_cams)
-    work_dir = Path(cam1_path).parent / 'analyse'
-    work_dir.mkdir(exist_ok=True)
+    import hashlib
+    _src_hash = hashlib.md5(cam1_path.encode()).hexdigest()[:12]
+    work_dir = Path(f'/tmp/resolve-toolkit/{_src_hash}')
+    work_dir.mkdir(parents=True, exist_ok=True)
     try:
         final_edl = run_analysis(
             [cam1_path, cam2_path], mic_paths, offsets,

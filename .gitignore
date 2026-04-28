@@ -1,5 +1,6 @@
 # Logs
 logs/
+*.log
 
 # Python
 __pycache__/
@@ -22,14 +23,14 @@ venv/
 
 # Output files (generated, not source)
 *.edl
-*.json
-!modules/multicam_cutter/presets/*.json
-!modules/multicam_cutter/nodding_patterns.json
-!modules/multicam_cutter/clip_ignore_prompts.json
-!ui/pages/presets/**/*.json
-!ui/schemas/*.json
 *.html
 *.csv
+
+# Benutzerspezifische Projekt-Settings (pro Rechner verschieden)
+config/project_settings/
+
+# Config mit persönlichen Tokens — Template liegt im Repo, nicht die echte config.ini
+config/config.ini
 
 # Streamlit-Config (wird beim Start aus config.template.toml erzeugt)
 .streamlit/config.toml
@@ -46,19 +47,8 @@ tools/
 .idea/
 *.swp
 
-# Logs
-*.log
-venv/
-
-# Config mit persönlichen Tokens — Template liegt im Repo, nicht die echte config.ini
-modules/multicam_cutter/config.ini
-
-# Lizenz-Schlüssel und Signing-Tools (lokal, nie ins Repo)
-*.key
-license_cache.json
-keygen.py
-keysign.py
-license_*.json
+# Lizenz-System (komplett lokal, nie ins Repo)
+licensing/
 
 # UI-Fonts (werden via setup.sh geladen, nicht versioniert)
 ui/static/*.ttf

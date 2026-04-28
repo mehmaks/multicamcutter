@@ -7,6 +7,8 @@ import sys
 import os
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from shared.paths import CONFIG_INI, CONFIG_TEMPLATE
+
 import time
 import queue as _queue
 from concurrent.futures import ThreadPoolExecutor, TimeoutError as FuturesTimeout
@@ -15,7 +17,7 @@ from pathlib import Path
 import shutil
 
 import streamlit as st
-import license as _lic
+import licensing.license as _lic
 import ui.app_logger as _rtk_log
 
 # ── Streamlit config.toml Bootstrap ──────────────────────────────────────────
@@ -53,10 +55,9 @@ def _migrate_config() -> int:
     überschrieben. Gibt die Anzahl neu hinzugefügter Keys zurück.
     """
     import configparser as _cp
-    _root     = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _cfg_dir  = os.path.join(_root, "modules", "multicam_cutter")
-    _cfg_path = os.path.join(_cfg_dir, "config.ini")
-    _tpl_path = os.path.join(_cfg_dir, "config.template.ini")
+    from shared.paths import CONFIG_INI, CONFIG_TEMPLATE
+    _cfg_path = str(CONFIG_INI)
+    _tpl_path = str(CONFIG_TEMPLATE)
 
     if not os.path.exists(_tpl_path) or not os.path.exists(_cfg_path):
         return 0
@@ -132,8 +133,7 @@ _license: _lic.LicenseInfo = st.session_state.license_info
 def _feedback_dialog():
     import subprocess as _sp_fb, requests as _rq_fb, configparser as _fcp_fb
     _fcfg_fb = _fcp_fb.ConfigParser()
-    _fcfg_fb.read(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))),
-                               "modules", "multicam_cutter", "config.ini"))
+    _fcfg_fb.read(str(CONFIG_INI))
     _token_fb = _fcfg_fb.get("Feedback", "github_token", fallback="").strip()
     _repo_fb  = _fcfg_fb.get("Feedback", "github_repo",  fallback="").strip()
 
@@ -287,7 +287,7 @@ with st.sidebar:
     def _fetch_release_notes(_tag: str) -> str:
         import requests as _rq2, configparser as _cp2
         _fcfg2 = _cp2.ConfigParser()
-        _fcfg2.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"))
+        _fcfg2.read(str(CONFIG_INI))
         _tok2 = _fcfg2.get("Feedback", "github_token", fallback="").strip()
         _h = {"Accept": "application/vnd.github+json"}
         if _tok2:
@@ -314,7 +314,7 @@ with st.sidebar:
 
     import subprocess as _sp, requests as _rq, configparser as _fcp
     _fcfg = _fcp.ConfigParser()
-    _fcfg.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"))
+    _fcfg.read(str(CONFIG_INI))
     _token = _fcfg.get("Feedback", "github_token", fallback="").strip()
     _repo  = _fcfg.get("Feedback", "github_repo",  fallback="").strip()
 
@@ -357,7 +357,7 @@ with st.sidebar:
     # ── Tab-Sichtbarkeit + Seitenliste ────────────────────────────────────────
 
     _ui_cfg = _fcp.ConfigParser()
-    _ui_cfg.read(os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini"),
+    _ui_cfg.read(str(CONFIG_INI),
                  encoding="utf-8")
 
     def _tab_visible(config_key: str, module: str) -> bool:
@@ -455,7 +455,7 @@ with st.sidebar:
                 st.page_link(_p, use_container_width=True)
 
     # Expert-Mode Toggle — persistent in config.ini [UI]
-    _expert_cfg_path = os.path.join(_REPO_ROOT, "modules", "multicam_cutter", "config.ini")
+    _expert_cfg_path = str(CONFIG_INI)
     if "expert_mode" not in st.session_state:
         st.session_state["expert_mode"] = _ui_cfg.getboolean("UI", "expert_mode", fallback=False)
 

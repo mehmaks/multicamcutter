@@ -14,9 +14,11 @@ import numpy as np
 from pathlib import Path
 
 try:
-    from .build_base_edl_from_audio import compute_rms_db, timecode_to_frames, frames_to_timecode
+    from .build_base_edl_from_audio import compute_rms_db
+    from .frame_utils import timecode_to_frames, frames_to_timecode
 except ImportError:
-    from build_base_edl_from_audio import compute_rms_db, timecode_to_frames, frames_to_timecode
+    from build_base_edl_from_audio import compute_rms_db
+    from frame_utils import timecode_to_frames, frames_to_timecode
 
 
 def detect_pause_at_boundary(audio1: np.ndarray, audio2: np.ndarray, sr: int,

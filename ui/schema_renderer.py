@@ -13,7 +13,9 @@ from typing import Any
 
 import streamlit as st
 
-_SCHEMAS_DIR = Path(__file__).parent / "schemas"
+from shared.paths import SCHEMAS_DIR, NODDING_PATTERNS
+
+_SCHEMAS_DIR = SCHEMAS_DIR
 
 # ---------------------------------------------------------------------------
 # Schema laden
@@ -121,7 +123,7 @@ def _render_widget(param: dict, prefix: str, expert: bool) -> None:
 
 def _render_nodding_patterns(prefix: str) -> None:
     """Dynamische Nodding-Pattern-Toggles aus nodding_patterns.json."""
-    patterns_path = Path(__file__).parent.parent / "modules" / "multicam_cutter" / "nodding_patterns.json"
+    patterns_path = NODDING_PATTERNS
     if not patterns_path.is_file():
         return
     pat_data = json.loads(patterns_path.read_text(encoding="utf-8"))

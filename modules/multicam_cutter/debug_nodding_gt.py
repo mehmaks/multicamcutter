@@ -39,7 +39,7 @@ GT_REGIONS = [
 # Analyse-Fenster: N Frames vor GT-Start bis N Frames nach GT-Ende
 PADDING = 75  # 3 Sekunden vor/nach
 
-PATTERNS_PATH = Path(__file__).parent / "nodding_patterns.json"
+PATTERNS_PATH = Path(__file__).resolve().parent.parent.parent / "config" / "nodding_patterns.json"
 
 def load_patterns():
     data = json.loads(PATTERNS_PATH.read_text())

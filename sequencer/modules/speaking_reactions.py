@@ -60,14 +60,6 @@ class SpeakingReactionsModule(Module):
                          "label": "Warmup (s)", "expert": True, "column": 2},
                     ],
                 },
-                {
-                    "columns": 1,
-                    "params": [
-                        {"name": "crossbleed_ratio", "widget": "number_input", "default": 0.5,
-                         "label": "Crossbleed-Ratio", "expert": True, "column": 0,
-                         "help": "Max. Verhaeltnis Off/On-Mic fuer Crossbleed-Filter"},
-                    ],
-                },
             ],
         }],
     }
@@ -131,7 +123,6 @@ class SpeakingReactionsModule(Module):
             release_window_s=params.get("release_window", 20.0),
             warmup_s=params.get("warmup", 3.0),
             on_pauses=on_pauses,
-            crossbleed_ratio=params.get("crossbleed_ratio", 0.5),
         )
 
         print(f"  {cam_names[0]}: {len(cam1_reactions)} Reaktionen")

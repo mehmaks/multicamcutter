@@ -51,7 +51,7 @@ def main():
     )
     parser.add_argument('--folder',   required=True, help='Ordner mit CAM- und MIC-Dateien')
     parser.add_argument('--fps',      type=float, default=25.0)
-    parser.add_argument('--config',   default=str(SCRIPT_DIR / 'config.ini'))
+    parser.add_argument('--config',   default=str(ROOT / 'config' / 'config.ini'))
     parser.add_argument('--skip-analysis',  action='store_true',
                         help='Nodding-Analyse überspringen (JSONs müssen bereits existieren)')
     parser.add_argument('--skip-base-edl',  action='store_true',
@@ -129,8 +129,10 @@ def main():
     cam_mic_map = _parse_cam_mics(args.cam_mics,    n_cams, len(mics))
     cam_types   = _parse_cam_list(args.cam_types,   n_cams, 'close')
     cam_nodding = _parse_cam_nodding(args.cam_nodding, n_cams)
-    work_dir = folder / 'analyse'
-    work_dir.mkdir(exist_ok=True)
+    import hashlib
+    _src_hash = hashlib.md5(str(folder).encode()).hexdigest()[:12]
+    work_dir = Path(f'/tmp/resolve-toolkit/{_src_hash}')
+    work_dir.mkdir(parents=True, exist_ok=True)
     try:
         final_edl = run_analysis(
             cam_paths, mic_paths, offsets,
@@ -157,7 +159,7 @@ def main():
             offsets=offsets,
             edl_path=final_edl,
             fps=args.fps,
-            output=work_dir / 'final.aaf',
+            output=folder / 'final.aaf',
             cam_types=cam_types,
             wide_zoom=wide_zoom,
         )

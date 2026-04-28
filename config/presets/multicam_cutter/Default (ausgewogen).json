@@ -22,6 +22,5 @@
   "pause_cut_mode": "middle",
   "pause_cutaway_enabled": false,
   "pause_cutaway_min_pause": 2.0,
-  "crossbleed_ratio": 0.5,
   "clip_filter_enabled": false
 }

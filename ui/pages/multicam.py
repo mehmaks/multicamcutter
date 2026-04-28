@@ -23,10 +23,11 @@ st.caption("Schneidet automatisch zwischen mehreren Kameras, basierend darauf we
 if "_pending_toast" in st.session_state:
     st.toast(st.session_state.pop("_pending_toast"))
 
-SCRIPT_DIR   = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter"
-_cfg_path    = SCRIPT_DIR / "config.ini"
-_nod_patterns_path = SCRIPT_DIR / "nodding_patterns.json"
-_builtin_presets_dir = SCRIPT_DIR / "presets"
+from shared.paths import CONFIG_INI, NODDING_PATTERNS, PRESETS_DIR, MULTICAM_DIR
+SCRIPT_DIR   = MULTICAM_DIR
+_cfg_path    = CONFIG_INI
+_nod_patterns_path = NODDING_PATTERNS
+_builtin_presets_dir = PRESETS_DIR / "multicam_cutter"
 _presets_dir = Path.home() / ".resolve-toolkit" / "multicam_presets"
 _presets_dir.mkdir(parents=True, exist_ok=True)
 
@@ -680,7 +681,6 @@ def _save_settings_to_config(v):
         ('CutawayTiming',    'pre_roll_frames',      v['pre_roll']),
         ('SpeakingReaction', 'rise_db',              v['rise_db']),
         ('SpeakingReaction', 'max_duration',         v['speaking_max_dur']),
-        ('SpeakingReaction', 'crossbleed_ratio',     v.get('crossbleed_ratio', 0.5)),
         ('TotaleLogic',      'simul_min_duration',   v['totale_simul_dur']),
     ]:
         if sec not in save:
@@ -829,10 +829,6 @@ if tab_bin is not None:
         skip_analysis_b       = st.toggle("Nodding-Analyse überspringen (JSONs existieren)")
         skip_base_edl_b       = st.toggle("Base-EDL überspringen (base.edl existiert)")
     with col_b:
-        sync_tl_name = st.text_input(
-            "Sync-Timeline Name (optional)",
-            placeholder="Standard: '<Cut-Name> Sync'",
-        )
         mic_cam1_idx = st.selectbox(
             f"MIC für {cam_labels[0]}",
             options=_mic_options,
@@ -933,14 +929,12 @@ if tab_bin is not None:
             "--bin",    bin_name,
             "--output", output_name_bin,
             "--fps",    str(fps_bin),
-            "--config", str(SCRIPT_DIR / "config.ini"),
+            "--config", str(_cfg_path),
         ]
         if skip_analysis_b:
             cmd.append("--skip-analysis")
         if skip_base_edl_b:
             cmd.append("--skip-base-edl")
-        if sync_tl_name.strip():
-            cmd += ["--sync-timeline", sync_tl_name.strip()]
         cmd += ["--mic-cam1", str(mic_cam1_idx), "--mic-cam2", str(mic_cam2_idx)]
         # Peak-Mode ist jetzt immer aktiv (hardcoded in run_from_bin.py)
         if st.session_state.get("s_auto_accuracy", False):
@@ -1316,7 +1310,7 @@ with tab_folder:
             str(SCRIPT_DIR / "run_from_folder.py"),
             "--folder", folder_path,
             "--fps",    str(fps_folder),
-            "--config", str(SCRIPT_DIR / "config.ini"),
+            "--config", str(_cfg_path),
             "--cam-types", *_fd_cam_types,
             "--cam-mics",  *_fd_cam_mics_args,
         ]

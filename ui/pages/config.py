@@ -8,11 +8,12 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspa
 
 import streamlit as st
 import configparser
-import license as _lic
+import licensing.license as _lic
 from pathlib import Path
 from streamlit_sortables import sort_items
 
-CONFIG_PATH = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter" / "config.ini"
+from shared.paths import CONFIG_INI, CLIP_IGNORE
+CONFIG_PATH = CONFIG_INI
 
 st.title(":material/settings: Config")
 
@@ -103,7 +104,7 @@ st.divider()
 
 # ── CLIP Ignore Prompts Editor ───────────────────────────────────────────────
 
-CLIP_PROMPTS_PATH = CONFIG_PATH.parent / "clip_ignore_prompts.json"
+CLIP_PROMPTS_PATH = CLIP_IGNORE
 
 if CLIP_PROMPTS_PATH.exists():
     st.subheader("CLIP Ignore Prompts")

@@ -26,11 +26,19 @@ import subprocess
 _log = logging.getLogger("rtk")
 import time
 import json
+
+from modules.voice_leveler import (
+    build_filterchain as _build_filterchain_backend,
+    measure_loudness,
+    run_ffmpeg_processing as _run_ffmpeg_maxxvolume_backend,
+)
+from shared.ffmpeg_utils import get_audio_frames as _get_audio_frames
 from pathlib import Path
 
 # ── Preset constants ──────────────────────────────────────────────────────────
 
-_VL_BUILTIN_DIR = Path(__file__).parent / "presets" / "voice_leveler"
+from shared.paths import PRESETS_DIR
+_VL_BUILTIN_DIR = PRESETS_DIR / "voice_leveler"
 _VL_PRESETS_DIR = Path.home() / ".resolve-toolkit" / "voiceleveler_presets"
 
 _VL_DEFAULTS: dict = {
@@ -508,76 +516,9 @@ else:
 
 _render_vl_preset_expander()
 
-# ── Filter chain builder ──────────────────────────────────────────────────────
+# ── Filter chain builder (Backend in modules/voice_leveler.py) ───────────────
 
-def _build_filterchain(
-    gate_db, gate_on,
-    llt_db, ll_gain, ll_on,
-    hlt_db, hl_gain_db, hl_on,
-    leveler_lufs, leveler_on,
-    ceiling_dbfs,
-    loud,
-):
-    """
-    Baut die Dynamics-Kette (ohne Loudnorm) und gibt ein Tupel zurück:
-      (dynamics_chain, leveler_lufs_or_None, ceiling_dbfs)
-
-    Loudnorm wird als Zwei-Pass in _run_ffmpeg_maxxvolume behandelt —
-    dynamics_chain enthält nur compand + alimiter.
-    """
-    limit_linear = round(min(max(10 ** (ceiling_dbfs / 20), 0.001), 1.0), 6)
-
-    # Build compand points (input_dB/output_dB)
-    pts = []
-
-    if ll_on:
-        ll_out_at_90 = -90.0 + ll_gain  # LL comp output at -90 dBFS (max boost point)
-        if gate_on and ll_out_at_90 < gate_db and gate_db < llt_db:
-            # Normal 3-point curve: gate_db is strictly between -90 and llt_db,
-            # so input values stay monotone.
-            t = (gate_db - (-90.0)) / (llt_db - (-90.0))
-            gate_ll_out = round(ll_out_at_90 + t * (llt_db - ll_out_at_90), 1)
-            floor_out = round(gate_ll_out + 2.0 * (-90.0 - gate_db), 1)
-            pts.append(f"-90/{floor_out}")
-            pts.append(f"{gate_db}/{gate_ll_out}")
-        elif gate_on and gate_db >= llt_db:
-            # Gate threshold is at or above LLT — gate covers the entire LL range.
-            # Use 2:1 expansion from llt_db down to -90 (no LL boost possible).
-            floor_out = round(llt_db + 2.0 * (-90.0 - llt_db), 1)
-            pts.append(f"-90/{floor_out}")
-        else:
-            # No gate, or LL boost already exceeds gate threshold at -90.
-            pts.append(f"-90/{round(ll_out_at_90, 1)}")
-        pts.append(f"{llt_db}/{llt_db}")
-    elif gate_on:
-        # Gate only (no LL comp): 2:1 downward expansion below gate threshold.
-        gate_floor = round(gate_db - 2.0 * (gate_db + 90.0), 1)
-        pts.append(f"-90/{gate_floor}")
-        pts.append(f"{gate_db}/{gate_db}")
-    else:
-        pts.append("-90/-90")
-
-    if hl_on:
-        # Only insert the HLT anchor if it is strictly above LLT — otherwise
-        # the input sequence would not be monotone and compand would reject it.
-        if hlt_db > llt_db:
-            pts.append(f"{hlt_db}/{hlt_db}")
-        pts.append(f"0/{hl_gain_db}")
-    else:
-        pts.append("0/0")
-
-    compand_pts = "|".join(pts)
-
-    # Loud/Soft: affects compand release (decays) time constant
-    attacks = 0.02
-    decays  = 0.15 if loud else 0.8
-
-    dynamics = ", ".join([
-        f"compand=attacks={attacks}:decays={decays}:points={compand_pts}:soft-knee=4",
-        f"alimiter=level_in=1:level_out=1:limit={limit_linear}:attack=5:release=50:level=disabled",
-    ])
-
-    return dynamics, (leveler_lufs if leveler_on else None), ceiling_dbfs
+_build_filterchain = _build_filterchain_backend
 
 st.divider()
 
@@ -749,125 +690,12 @@ elif source_mode == "Ordner abarbeiten":
         selected_path_files = [(n, p) for n, p in st.session_state.mv_scanned if n in chosen]
         st.caption(f"{len(selected_path_files)} Datei(en) ausgew\xe4hlt")
 
-# ── Processing functions ──────────────────────────────────────────────────────
+# ── Processing functions (Backend in modules/voice_leveler.py) ────────────────
 
-def _measure_loudness(src_path, leveler_lufs, ceiling_dbfs):
-    """
-    Erster Pass: Integrierte Lautheit der Quelldatei messen (EBU R128).
-    Gibt einen fertigen loudnorm-Filterstring mit gemessenen Werten zurück
-    (Zwei-Pass-Modus), oder einen Single-Pass-Fallback bei Fehler.
-    """
-    _fallback = f"loudnorm=I={leveler_lufs}:TP={ceiling_dbfs}:LRA=9:linear=true"
-    try:
-        _r = subprocess.run(
-            ["ffmpeg", "-i", src_path,
-             "-af", f"loudnorm=I={leveler_lufs}:TP={ceiling_dbfs}:LRA=9:print_format=json",
-             "-f", "null", "-"],
-            capture_output=True, encoding="utf-8", errors="replace",
-        )
-        # loudnorm schreibt JSON ans Ende von stderr
-        _m = None
-        for _line in reversed(_r.stderr.splitlines()):
-            if _line.strip() == "}":
-                # Suche rückwärts nach dem öffnenden {
-                _stderr = _r.stderr
-                _end = _stderr.rfind("}")
-                _start = _stderr.rfind("{", 0, _end)
-                if _start >= 0:
-                    _m = json.loads(_stderr[_start:_end + 1])
-                break
-        if not _m:
-            return _fallback
-        return (
-            f"loudnorm=I={leveler_lufs}:TP={ceiling_dbfs}:LRA=9"
-            f":measured_I={_m['input_i']}"
-            f":measured_TP={_m['input_tp']}"
-            f":measured_LRA={_m['input_lra']}"
-            f":measured_thresh={_m['input_thresh']}"
-            f":linear=true"
-        )
-    except Exception:
-        return _fallback
+_measure_loudness = measure_loudness
 
 
-def _run_ffmpeg_maxxvolume(src_path, out_path, dynamics_chain, leveler_lufs, ceiling_dbfs, q):
-    _warmup = 3
-    _proc_tmp = tempfile.mktemp(suffix=".wav")
-    try:
-        # Probe channel count so anullsrc matches the source audio layout.
-        _channels = 2
-        try:
-            _pr = subprocess.run(
-                ["ffprobe", "-v", "quiet", "-print_format", "json",
-                 "-show_streams", src_path],
-                capture_output=True, encoding="utf-8", errors="replace",
-            )
-            for _s in json.loads(_pr.stdout).get("streams", []):
-                if _s.get("codec_type") == "audio":
-                    _channels = int(_s.get("channels", 2))
-                    break
-        except Exception:
-            pass
-        _cl = "mono" if _channels == 1 else "stereo"
-
-        # Zwei-Pass Loudnorm: erst messen, dann mit gemessenen Werten verarbeiten.
-        if leveler_lufs is not None:
-            q.put("  Lautheit messen (Pass 1) \u2026")
-            _loudnorm = _measure_loudness(src_path, leveler_lufs, ceiling_dbfs)
-            _filterchain = f"{_loudnorm}, {dynamics_chain}"
-        else:
-            _filterchain = dynamics_chain
-
-        # Pass 2: filter_complex mit Warmup-Stille + vollständiger Kette.
-        # Beide Eingänge werden auf fltp+48kHz+Layout normalisiert vor concat.
-        _fc = (
-            "[0:a]aformat=sample_fmts=fltp[sil];"
-            f"[1:a]aformat=sample_fmts=fltp:sample_rates=48000"
-            f":channel_layouts={_cl}[aud];"
-            "[sil][aud]concat=n=2:v=0:a=1[cat];"
-            f"[cat]{_filterchain}[out]"
-        )
-        _r1 = subprocess.run([
-            "ffmpeg", "-y",
-            "-f", "lavfi", "-t", str(_warmup),
-            "-i", f"anullsrc=r=48000:cl={_cl}",
-            "-i", src_path,
-            "-filter_complex", _fc,
-            "-map", "[out]",
-            "-ar", "48000", "-acodec", "pcm_s24le", _proc_tmp,
-        ], capture_output=True, encoding="utf-8", errors="replace")
-        if _r1.returncode != 0:
-            raise RuntimeError(_r1.stderr[-300:])
-
-        # Warmup-Stille aus dem Ergebnis herausschneiden.
-        _r2 = subprocess.run(
-            ["ffmpeg", "-y", "-ss", str(_warmup), "-i", _proc_tmp,
-             "-acodec", "copy", out_path],
-            capture_output=True, encoding="utf-8", errors="replace",
-        )
-        if _r2.returncode != 0:
-            raise RuntimeError(_r2.stderr[-200:])
-
-        return True
-
-    except RuntimeError as _e:
-        q.put(f"  Fehler (ffmpeg): {_e}")
-        return False
-    finally:
-        Path(_proc_tmp).unlink(missing_ok=True)
-
-
-def _get_audio_frames(wav_path, fps):
-    try:
-        r = subprocess.run(
-            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", wav_path],
-            capture_output=True, encoding="utf-8", errors="replace",
-        )
-        data = json.loads(r.stdout)
-        duration = float(data["streams"][0]["duration"])
-        return max(1, int(duration * fps) - 1)
-    except Exception:
-        return 0
+_run_ffmpeg_maxxvolume = _run_ffmpeg_maxxvolume_backend
 
 
 def _process_files(files, dynamics_chain, leveler_lufs, ceiling_dbfs, q, resolve_import=None):

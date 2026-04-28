@@ -118,9 +118,7 @@ def _probe_embedded_tc_frames(path: str, fps: float) -> int:
     return 0
 
 
-def _tc_to_frames(tc: str, fps: float) -> int:
-    h, m, s, f = (int(x) for x in tc.split(':'))
-    return int((h * 3600 + m * 60 + s) * fps + f)
+from frame_utils import timecode_to_frames as _tc_to_frames
 
 
 # ── AAF helpers ───────────────────────────────────────────────────────────────

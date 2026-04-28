@@ -27,7 +27,8 @@ _MODEL_URL = (
     "face_landmarker/face_landmarker/float16/1/face_landmarker.task"
 )
 _MODEL_PATH = Path(__file__).parent / "face_landmarker.task"
-_PATTERNS_PATH = Path(__file__).parent / "nodding_patterns.json"
+_ROOT = Path(__file__).resolve().parent.parent.parent
+_PATTERNS_PATH = _ROOT / "config" / "nodding_patterns.json"
 
 
 def _load_nod_patterns(path=None):
@@ -51,9 +52,10 @@ def load_config(config_path='config.ini'):
     """Lädt Konfiguration aus config.ini"""
     config = configparser.ConfigParser()
     
-    # Suche config.ini im aktuellen Verzeichnis oder im Skript-Verzeichnis
+    # Suche config.ini: expliziter Pfad, config/, Skript-Verzeichnis, cwd
     search_paths = [
         config_path,
+        os.path.join(str(_ROOT), 'config', os.path.basename(config_path)),
         os.path.join(os.path.dirname(__file__), config_path),
         os.path.join(os.getcwd(), config_path)
     ]

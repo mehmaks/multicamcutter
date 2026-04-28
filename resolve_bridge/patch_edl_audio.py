@@ -12,19 +12,10 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from resolve_bridge.timeline_reader import read_timeline, get_primary_wav_clip
 
 
-def frames_to_tc(frames: int, fps: float = 25.0) -> str:
-    total_s = int(frames // fps)
-    fr = int(frames % fps)
-    h = total_s // 3600
-    m = (total_s % 3600) // 60
-    s = total_s % 60
-    return f"{h:02d}:{m:02d}:{s:02d}:{fr:02d}"
-
-
-def tc_to_frames(tc: str, fps: float = 25.0) -> int:
-    parts = tc.replace(";", ":").split(":")
-    h, m, s, fr = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-    return int((h * 3600 + m * 60 + s) * fps + fr)
+from shared.frame_utils import (
+    frames_to_timecode as frames_to_tc,
+    timecode_to_frames as tc_to_frames,
+)
 
 
 def build_audio_edl_entries(tl, start_event_num: int, fps: float) -> list[str]:

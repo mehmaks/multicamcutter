@@ -56,9 +56,7 @@ def _frames_to_time(frames: int, fps: float) -> str:
     return f"{frames * p}/{q}s"
 
 
-def _tc_to_frames(tc: str, fps: float) -> int:
-    h, m, s, f = (int(x) for x in tc.split(':'))
-    return int((h * 3600 + m * 60 + s) * fps + f)
+from frame_utils import timecode_to_frames as _tc_to_frames
 
 
 # ── ffprobe helpers ───────────────────────────────────────────────────────────

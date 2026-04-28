@@ -27,7 +27,8 @@ st.caption("Schickt Audiodateien zur Verarbeitung an den Cloud-Dienst Auphonic u
 
 # ── Config ────────────────────────────────────────────────────────────────────
 
-CONFIG_PATH = Path(__file__).parent.parent.parent / "modules" / "multicam_cutter" / "config.ini"
+from shared.paths import CONFIG_INI
+CONFIG_PATH = CONFIG_INI
 
 def _load_config():
     cfg = configparser.ConfigParser()

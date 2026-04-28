@@ -28,8 +28,9 @@ if _is_dark_docs:
         unsafe_allow_html=True,
     )
 
+from shared.paths import DOCS_DIR
 _REPO_ROOT  = Path(__file__).parent.parent.parent
-_DOCS_DIR   = Path(__file__).parent.parent / "docs"
+_DOCS_DIR   = DOCS_DIR
 _ASSETS_DIR = _DOCS_DIR / "assets"
 
 

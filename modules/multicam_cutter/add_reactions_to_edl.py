@@ -28,9 +28,12 @@ import os
 import subprocess
 
 
+_ROOT = Path(__file__).resolve().parent.parent.parent
+
 def load_config(config_path='config.ini'):
     config = configparser.ConfigParser()
-    for path in [config_path, Path(__file__).parent / 'config.ini', Path.cwd() / 'config.ini']:
+    for path in [config_path, _ROOT / 'config' / Path(config_path).name,
+                 Path(__file__).parent / 'config.ini', Path.cwd() / 'config.ini']:
         if os.path.exists(path):
             config.read(path)
             print(f"✓ Config geladen: {path}")
@@ -39,43 +42,10 @@ def load_config(config_path='config.ini'):
     return None
 
 
-def timecode_to_frames(tc: str, fps: float = 25.0) -> int:
-    parts = tc.split(':')
-    total = (int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])) * fps + int(parts[3])
-    return int(total)
-
-
-def frames_to_timecode(frames: int, fps: float = 25.0) -> str:
-    if frames < 0:
-        frames = 0
-    total_seconds = frames / fps
-    h = int(total_seconds // 3600)
-    m = int((total_seconds % 3600) // 60)
-    s = int(total_seconds % 60)
-    f = int(frames % fps)
-    return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
-
-
-def get_video_timecode_with_ffprobe(video_path: str) -> Optional[str]:
-    try:
-        result = subprocess.run(
-            ['ffprobe', '-v', 'quiet', '-print_format', 'json',
-             '-show_format', '-show_streams', str(video_path)],
-            capture_output=True, text=True,
-        )
-        data = json.loads(result.stdout)
-        if 'format' in data and 'tags' in data['format']:
-            tc = data['format']['tags'].get('timecode')
-            if tc:
-                return tc
-        for stream in data.get('streams', []):
-            tc = stream.get('tags', {}).get('timecode')
-            if tc:
-                return tc
-        return None
-    except Exception as e:
-        print(f"    ⚠️  ffprobe Fehler: {e}")
-        return None
+from frame_utils import (
+    timecode_to_frames, frames_to_timecode,
+    get_embedded_timecode as get_video_timecode_with_ffprobe,
+)
 
 
 class EDLEvent:

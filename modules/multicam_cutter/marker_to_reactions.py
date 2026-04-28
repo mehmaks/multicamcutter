@@ -14,22 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2]))
 from resolve_bridge.connection import get_resolve
-
-
-def frames_to_tc(frames: int, fps: float) -> str:
-    total_frames = int(frames)
-    f = total_frames % int(fps)
-    total_s = total_frames // int(fps)
-    s = total_s % 60
-    m = (total_s // 60) % 60
-    h = total_s // 3600
-    return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
-
-
-def tc_to_frames(tc: str, fps: float) -> int:
-    parts = tc.strip().split(':')
-    h, m, s, f = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-    return int((h * 3600 + m * 60 + s) * fps + f)
+from frame_utils import frames_to_timecode as frames_to_tc, timecode_to_frames as tc_to_frames
 
 
 def find_clip_at_frame(clips, frame):
@@ -96,8 +81,11 @@ def main():
     # ── Analyse-Dir ermitteln ────────────────────────────────────────────────
     analyse_dir = args.analyse_dir
     if not analyse_dir:
+        import hashlib
         for clip in video_clips:
-            candidate = Path(clip['file_path']).parent / "analyse"
+            _src = clip['file_path']
+            _hash = hashlib.md5(_src.encode()).hexdigest()[:12]
+            candidate = Path(f'/tmp/resolve-toolkit/{_hash}')
             if candidate.exists():
                 analyse_dir = str(candidate)
                 break

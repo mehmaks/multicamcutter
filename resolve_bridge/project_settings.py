@@ -18,7 +18,8 @@ import json
 import re
 from pathlib import Path
 
-_SETTINGS_DIR = Path(__file__).parent.parent / "modules" / "multicam_cutter" / "project_settings"
+from shared.paths import PROJECT_SETTINGS
+_SETTINGS_DIR = PROJECT_SETTINGS
 
 
 def _safe_filename(name: str) -> str:
