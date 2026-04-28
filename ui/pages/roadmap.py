@@ -44,10 +44,9 @@ with tab_roadmap:
         """
 - **Totale bei Max. Shotlänge — Toggle** — Wenn aktiv, wird nach Erreichen der Max. Shotlänge immer auf die Totale geschnitten statt auf eine zufällige Kamera.
 - **Multi-Gäste-Schnittlogik bei >2 Mikrofonen** — Fallback-Logik für "alle reden gleichzeitig" und "niemand redet"-Segmente.
-- **Easy/Advanced-Mode** — Easy-Mode zeigt nur die 4–5 wichtigsten Parameter; Advanced-Mode alle aktuellen Einstellungen, per Button umschaltbar.
 - **DeepFilterNet Audio-Enhancement** — MIC-WAVs vor der RMS-Analyse durch DeepFilterNet laufen lassen, um Rauschen und Hall zu reduzieren.
 - **Speaker-Profil-basierter Crossbleed-Filter** — Persistentes Sprecher-Embedding für den Moderator zur Crossbleed-Erkennung auf dem Off-Mic.
-- **CLIP/LLM-basierte Custom Reaktionserkennung** — Nutzerdefinierte Trigger- und Ignore-Listen, erkannt per CLIP und optionaler LLM-Validierung.
+- **LLM-basierte Custom Reaktionserkennung** — Nutzerdefinierte Trigger-Listen per optionaler LLM-Validierung zusätzlich zum bestehenden CLIP-Filter.
 """
     )
 
