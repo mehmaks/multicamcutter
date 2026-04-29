@@ -401,10 +401,14 @@ with st.sidebar:
     _ui_cfg.read(str(CONFIG_INI),
                  encoding="utf-8")
 
+    _is_dev = _lic.MODE == "dummy"
+
     def _tab_visible(config_key: str, module: str) -> bool:
-        if module in _lic.BETA_BLOCKED:
-            return False
+        """Prüft ob ein Modul in der Sidebar angezeigt werden soll.
+        Dev (dummy-Lizenz) sieht BETA_BLOCKED Module mit 🔴-Markierung."""
         cfg_on = _ui_cfg.getboolean("UI", config_key, fallback=True)
+        if module in _lic.BETA_BLOCKED:
+            return _is_dev and cfg_on
         lic_on = _license.has_module(module)
         return cfg_on and lic_on
 
@@ -416,6 +420,7 @@ with st.sidebar:
         "show_silence":    ("pages/silence.py",       "Silence Cutter",  ":material/volume_off:",   "silence"),
         "show_takes":      ("pages/takes.py",         "Take Selector",   ":material/theaters:","takes"),
         "show_sequencer":  ("pages/sequencer.py",     "Sequencer",       ":material/view_list:",    "sequencer"),
+        "show_social":     ("pages/social_cutter.py", "Social Cutter",   ":material/movie:",        "social"),
     }
     _mod_order_raw = _ui_cfg.get("UI", "module_order", fallback="")
     _mod_order = ([k.strip() for k in _mod_order_raw.split(",") if k.strip() in _MOD_PAGE_DEFS]
@@ -428,8 +433,11 @@ with st.sidebar:
     _pages = [] if _license.valid else [_license_page]
     for _cfg_key in _mod_order:
         _pg_file, _pg_title, _pg_icon, _pg_lic = _MOD_PAGE_DEFS[_cfg_key]
-        if _tab_visible(_cfg_key, _pg_lic):
-            _pages.append(st.Page(_pg_file, title=_pg_title, icon=_pg_icon))
+        if not _tab_visible(_cfg_key, _pg_lic):
+            continue
+        _blocked = _pg_lic in _lic.BETA_BLOCKED
+        _title = f"{_pg_title} 🔴" if _blocked and _is_dev else _pg_title
+        _pages.append(st.Page(_pg_file, title=_title, icon=_pg_icon))
     _pages.append(st.Page("pages/docs.py",    title="Dokumentation", icon=":material/menu_book:"))
     if _license.valid:
         _pages.append(_license_page)
@@ -470,16 +478,13 @@ with st.sidebar:
     # 2. Modul-Liste mit Sections
     _tool_pages    = []
     _setting_pages = []
-    _tool_titles   = {"Multicam Cutter", "Audio Enhance", "Auphonic",
-                      "Voice Leveler", "Silence Cutter", "Take Selector",
-                      "Sequencer"}
     _setting_titles = {"Dokumentation", "Lizenz", "Roadmap", "Config"}
 
     for _p in _pages:
-        if _p.title in _tool_titles:
-            _tool_pages.append(_p)
-        elif _p.title in _setting_titles:
+        if _p.title in _setting_titles:
             _setting_pages.append(_p)
+        elif _p not in (_license_page,):
+            _tool_pages.append(_p)
 
     if _tool_pages:
         st.caption("TOOLS")
