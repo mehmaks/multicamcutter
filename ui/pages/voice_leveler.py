@@ -265,42 +265,26 @@ _loaded: dict = st.session_state.get("_vl_loaded", _VL_DEFAULTS)
 
 # ── Parameters ────────────────────────────────────────────────────────────────
 
-if "vl_expert_mode" not in st.session_state:
-    st.session_state["vl_expert_mode"] = False
+_expert = st.session_state.get("expert_mode", False)
 
-_expert = st.session_state["vl_expert_mode"]
-
-# Gate-Konfigurationen für den Einfachmodus (vor Button-Check definiert,
-# damit der Handler beim Moduswechsel die Werte übertragen kann)
+# Gate-Konfigurationen für den Einfachmodus
 _GATE_EASY = {
     "Studio":      {"threshold": -39.1, "enabled": True},
     "Lavalier":    {"threshold": -55.0, "enabled": True},
     "Kameramikro": {"threshold": -39.1, "enabled": False},
 }
 
-_ph1, _ph2 = st.columns([5, 1])
-with _ph1:
-    st.subheader("Parameter")
-with _ph2:
-    st.write("")
-    if st.button(
-        "Expertenmodus" if not _expert else "Einfachmodus",
-        icon=":material/tune:" if not _expert else ":material/close:",
-        use_container_width=True,
-        key="vl_toggle_expert",
-    ):
-        if not _expert:
-            # Easy → Expert: Radio-Wahl in session_state schreiben, bevor st.rerun()
-            # den Easy-Mode-Block überspringt (der diese Werte sonst schreiben würde).
-            # Außerdem in Non-Widget-Key sichern, damit der Radio-Button beim
-            # Rückwechsel zu Easy korrekt wiederhergestellt werden kann.
-            _cur_radio = st.session_state.get("vl_gate_preset", "Studio")
-            st.session_state["_vl_gate_preset_saved"] = _cur_radio
-            _cur_gp = _GATE_EASY.get(_cur_radio, _GATE_EASY["Studio"])
-            st.session_state["vl_gate_threshold"] = _cur_gp["threshold"]
-            st.session_state["vl_gate_enabled"]   = _cur_gp["enabled"]
-        st.session_state["vl_expert_mode"] = not _expert
-        st.rerun()
+# Beim Wechsel Easy → Expert: Gate-Werte aus Preset übertragen
+_was_expert = st.session_state.get("_vl_was_expert", False)
+if _expert and not _was_expert:
+    _cur_radio = st.session_state.get("vl_gate_preset", "Studio")
+    st.session_state["_vl_gate_preset_saved"] = _cur_radio
+    _cur_gp = _GATE_EASY.get(_cur_radio, _GATE_EASY["Studio"])
+    st.session_state["vl_gate_threshold"] = _cur_gp["threshold"]
+    st.session_state["vl_gate_enabled"]   = _cur_gp["enabled"]
+st.session_state["_vl_was_expert"] = _expert
+
+st.subheader("Parameter")
 
 if not _expert:
     # ── Einfachmodus ──────────────────────────────────────────────────────────
