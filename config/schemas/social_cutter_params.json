@@ -1,0 +1,364 @@
+{
+  "page": "social_cutter",
+  "expanders": [
+    {
+      "key": "silence",
+      "label": "Silence Cut",
+      "expanded": true,
+      "rows": [
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "silence_threshold_db",
+              "widget": "number_input",
+              "default": -38,
+              "label": "Schwellwert (dB)",
+              "help": "Lautstärke-Grenze für Stille-Erkennung. Signale unter diesem Wert gelten als Stille.",
+              "expert": false,
+              "config": { "min_value": -60, "max_value": -10, "step": 1 },
+              "column": 0
+            },
+            {
+              "name": "silence_min_s",
+              "widget": "number_input",
+              "default": 0.5,
+              "label": "Mindestdauer (s)",
+              "help": "Pausen kürzer als dieser Wert werden nicht als Stille gewertet.",
+              "expert": false,
+              "config": { "min_value": 0.1, "step": 0.1, "format": "%.1f" },
+              "column": 1
+            }
+          ]
+        },
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "silence_pre_pad_ms",
+              "widget": "number_input",
+              "default": 100,
+              "label": "Pre-Pad (ms)",
+              "help": "Schutzabstand vor dem Sprachbeginn. Verhindert abgeschnittene Wortanfänge.",
+              "expert": true,
+              "config": { "min_value": 0, "max_value": 500, "step": 10 },
+              "column": 0
+            },
+            {
+              "name": "silence_post_pad_ms",
+              "widget": "number_input",
+              "default": 100,
+              "label": "Post-Pad (ms)",
+              "help": "Schutzabstand nach dem Sprachende. Verhindert abgeschnittene Wortenden.",
+              "expert": true,
+              "config": { "min_value": 0, "max_value": 500, "step": 10 },
+              "column": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "phrase",
+      "label": "Phrasenerkennung",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "prefer_falls",
+              "widget": "toggle",
+              "default": true,
+              "label": "Satzenden bevorzugen",
+              "help": "Schnitte an fallender Intonation (natürliches Satzende) bevorzugen. Deaktivieren für aggressiveren Social-Media-Stil mit Schnitten mitten im Gedanken.",
+              "expert": false,
+              "column": 0
+            },
+            {
+              "name": "whisper_model",
+              "widget": "selectbox",
+              "default": "medium",
+              "label": "Whisper-Modell",
+              "help": "Größeres Modell = bessere Interpunktion und Fachbegriffe, aber langsamer. Medium empfohlen.",
+              "expert": true,
+              "config": {
+                "options": ["tiny", "small", "medium"]
+              },
+              "column": 1
+            }
+          ]
+        },
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "min_gap_ms",
+              "widget": "number_input",
+              "default": 300,
+              "label": "Min. Wortlücke (ms)",
+              "help": "Pausen zwischen Wörtern ab dieser Länge werden als Phrasengrenzen erkannt, auch ohne Interpunktion.",
+              "expert": true,
+              "config": { "min_value": 100, "max_value": 1000, "step": 50 },
+              "column": 0
+            },
+            {
+              "name": "phrase_min_confidence",
+              "widget": "slider",
+              "default": 0.5,
+              "label": "Min. Konfidenz",
+              "help": "Phrasengrenzen unter diesem Konfidenz-Wert werden ignoriert.",
+              "expert": true,
+              "config": { "min_value": 0.1, "max_value": 0.9, "step": 0.05 },
+              "column": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "redundancy",
+      "label": "Redundanz-Erkennung",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 1,
+          "params": [
+            {
+              "name": "similarity_threshold",
+              "widget": "slider",
+              "default": 0.75,
+              "label": "Ähnlichkeits-Schwelle",
+              "help": "Ab welcher semantischen Ähnlichkeit zwei Sätze als inhaltliche Wiederholung gelten. Höher = weniger Treffer, dafür genauer.",
+              "expert": false,
+              "config": { "min_value": 0.5, "max_value": 0.95, "step": 0.05 },
+              "column": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "assembly",
+      "label": "Segment-Montage",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "target_duration_s",
+              "widget": "number_input",
+              "default": 30.0,
+              "label": "Zieldauer (s)",
+              "help": "Gewünschte Gesamtlänge des fertigen Clips. Bei Überschreitung wird eine Warnung angezeigt.",
+              "expert": false,
+              "config": { "min_value": 10.0, "max_value": 120.0, "step": 5.0, "format": "%.0f" },
+              "column": 0
+            },
+            {
+              "name": "tail_ms",
+              "widget": "number_input",
+              "default": 100,
+              "label": "Tail nach letztem Wort (ms)",
+              "help": "Natürlicher Auslauf nach dem letzten Wort jedes Segments. Verhindert abrupte Schnitte.",
+              "expert": true,
+              "config": { "min_value": 0, "max_value": 500, "step": 10 },
+              "column": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "zoom",
+      "label": "Zoom / Reframing",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 4,
+          "params": [
+            {
+              "name": "zoom_wide",
+              "widget": "number_input",
+              "default": 1.0,
+              "label": "Wide",
+              "help": "Standardeinstellung, kein Zoom.",
+              "expert": false,
+              "config": { "min_value": 1.0, "max_value": 1.5, "step": 0.02, "format": "%.2f" },
+              "column": 0
+            },
+            {
+              "name": "zoom_medium",
+              "widget": "number_input",
+              "default": 1.18,
+              "label": "Medium",
+              "help": "Leichter Zoom, dezente Veränderung.",
+              "expert": false,
+              "config": { "min_value": 1.0, "max_value": 1.5, "step": 0.02, "format": "%.2f" },
+              "column": 1
+            },
+            {
+              "name": "zoom_close",
+              "widget": "number_input",
+              "default": 1.30,
+              "label": "Close",
+              "help": "Deutlicher Zoom für betonte Passagen.",
+              "expert": false,
+              "config": { "min_value": 1.0, "max_value": 1.8, "step": 0.02, "format": "%.2f" },
+              "column": 2
+            },
+            {
+              "name": "zoom_tight",
+              "widget": "number_input",
+              "default": 1.45,
+              "label": "Tight",
+              "help": "Engster Zoom für Höhepunkte und direkte Ansprache.",
+              "expert": false,
+              "config": { "min_value": 1.0, "max_value": 2.0, "step": 0.02, "format": "%.2f" },
+              "column": 3
+            }
+          ]
+        },
+        {
+          "divider": true,
+          "section_label": "Safe Area"
+        },
+        {
+          "columns": 4,
+          "params": [
+            {
+              "name": "safe_x",
+              "widget": "number_input",
+              "default": 0.05,
+              "label": "Links",
+              "help": "Linker Rand der Safe Area (normalisiert 0–1).",
+              "expert": true,
+              "config": { "min_value": 0.0, "max_value": 0.3, "step": 0.01, "format": "%.2f" },
+              "column": 0
+            },
+            {
+              "name": "safe_y",
+              "widget": "number_input",
+              "default": 0.12,
+              "label": "Oben",
+              "help": "Oberer Rand der Safe Area (normalisiert 0–1).",
+              "expert": true,
+              "config": { "min_value": 0.0, "max_value": 0.3, "step": 0.01, "format": "%.2f" },
+              "column": 1
+            },
+            {
+              "name": "safe_w",
+              "widget": "number_input",
+              "default": 0.90,
+              "label": "Breite",
+              "help": "Breite der Safe Area (normalisiert 0–1).",
+              "expert": true,
+              "config": { "min_value": 0.5, "max_value": 1.0, "step": 0.01, "format": "%.2f" },
+              "column": 2
+            },
+            {
+              "name": "safe_h",
+              "widget": "number_input",
+              "default": 0.76,
+              "label": "Höhe",
+              "help": "Höhe der Safe Area (normalisiert 0–1).",
+              "expert": true,
+              "config": { "min_value": 0.5, "max_value": 1.0, "step": 0.01, "format": "%.2f" },
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "broll",
+      "label": "B-Roll",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "max_broll_density",
+              "widget": "slider",
+              "default": 0.4,
+              "label": "Max. B-Roll-Anteil",
+              "help": "Maximaler Anteil der Timeline, der mit B-Roll bedeckt sein darf. Verhindert, dass der Sprecher zu selten sichtbar ist.",
+              "expert": false,
+              "config": { "min_value": 0.1, "max_value": 0.8, "step": 0.05 },
+              "column": 0
+            },
+            {
+              "name": "enable_splitscreen",
+              "widget": "toggle",
+              "default": false,
+              "label": "Splitscreens erlauben",
+              "help": "Bei längeren B-Roll-Segmenten oder Aufzählungen automatisch Splitscreen verwenden (Sprecher + B-Roll nebeneinander).",
+              "expert": false,
+              "column": 1
+            }
+          ]
+        },
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "min_broll_segment_s",
+              "widget": "number_input",
+              "default": 2.0,
+              "label": "Min. Segmentdauer für B-Roll (s)",
+              "help": "Segmente kürzer als dieser Wert bekommen kein B-Roll-Overlay.",
+              "expert": true,
+              "config": { "min_value": 0.5, "max_value": 5.0, "step": 0.5, "format": "%.1f" },
+              "column": 0
+            },
+            {
+              "name": "splitscreen_threshold_s",
+              "widget": "number_input",
+              "default": 3.0,
+              "label": "Splitscreen ab (s)",
+              "help": "B-Roll-Segmente länger als dieser Wert werden als Splitscreen statt Fullscreen angezeigt.",
+              "expert": true,
+              "config": { "min_value": 1.0, "max_value": 10.0, "step": 0.5, "format": "%.1f" },
+              "column": 1
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "key": "voice_leveler",
+      "label": "Voice Leveler",
+      "expanded": false,
+      "rows": [
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "run_voice_leveler",
+              "widget": "toggle",
+              "default": true,
+              "label": "Voice Leveler aktivieren",
+              "help": "Talking-Head-Audio automatisch leveln (Dynamics + Loudness-Normalisierung).",
+              "expert": false,
+              "column": 0
+            },
+            {
+              "name": "leveler_preset",
+              "widget": "selectbox",
+              "default": "loud",
+              "label": "Preset",
+              "help": "Voreinstellung für den Voice Leveler.",
+              "expert": false,
+              "config": {
+                "options": ["loud", "natural", "broadcast"]
+              },
+              "column": 1
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

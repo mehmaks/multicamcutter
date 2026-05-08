@@ -37,6 +37,7 @@ config/config.ini
 
 # Sandbox-Tools (lokale Entwicklung, nicht versioniert)
 tools/
+**/sandbox/
 
 # macOS
 .DS_Store
@@ -53,3 +54,12 @@ licensing/licenses/
 
 # UI-Fonts (werden via setup.sh geladen, nicht versioniert)
 ui/static/*.ttf
+
+# venv-Backups (lokale Python-Umgebungen)
+venv_py39_backup/
+
+# MediaPipe-Modell (wird per _ensure_model() bei Bedarf heruntergeladen)
+modules/multicam_cutter/face_landmarker.task
+
+# Auto-Memory von Claude Code (Session-spezifisch, gehört nicht ins Repo)
+memory/

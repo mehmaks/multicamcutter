@@ -1,0 +1,72 @@
+{
+  "global": {
+    "nod_threshold": 65,
+    "cooldown_s": 3.0,
+    "auto_accuracy_ref": 0.31,
+    "analysis_width": 1280,
+    "smooth_kernel": 3,
+    "calibration_height": 2160
+  },
+  "patterns": [
+    {
+      "name": "oscillation",
+      "description": "Typisches Nicken — gedämpfte Schwingung mit mehreren Richtungswechseln",
+      "enabled": true,
+      "window_s": 2.0,
+
+      "filters": {
+        "min_reversals": 2,
+        "max_reversals": null,
+        "max_reversal_gap": 7,
+        "min_damping": 0.3,
+        "min_correlation": 0.85,
+        "x_drift_ratio": 0.7,
+        "amplitude_factor": 1.0,
+        "dynamic_threshold": { "enabled": true, "max_reduction": 0.4 },
+        "return_to_baseline": null,
+        "max_v_duration_s": null
+      },
+
+      "confidence": {
+        "weights": {
+          "reversals": 0.20,
+          "frequency": 0.20,
+          "damping": 0.20,
+          "correlation": 0.15,
+          "amplitude": 0.25
+        },
+        "multiplier": 1.0,
+        "max": 1.0
+      }
+    },
+    {
+      "name": "single_nod",
+      "description": "Einzelne V-förmige Nickbewegung ohne Nachschwingen",
+      "enabled": true,
+      "window_s": 2.0,
+
+      "filters": {
+        "min_reversals": 1,
+        "max_reversals": 1,
+        "max_reversal_gap": null,
+        "min_damping": null,
+        "min_correlation": 0.95,
+        "x_drift_ratio": 0.7,
+        "amplitude_factor": 2.0,
+        "dynamic_threshold": null,
+        "return_to_baseline": 0.45,
+        "max_v_duration_s": 1.0
+      },
+
+      "confidence": {
+        "weights": {
+          "correlation": 0.35,
+          "amplitude": 0.30,
+          "return_to_baseline": 0.35
+        },
+        "multiplier": 0.5,
+        "max": 0.5
+      }
+    }
+  ]
+}

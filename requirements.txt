@@ -31,6 +31,12 @@ requests>=2.31.0
 # Take Selector — Transkription
 openai-whisper>=20231117
 
+# Social Cutter — Whisper auf Apple Silicon (80x schneller als CPU)
+mlx-whisper>=0.4.0
+
+# Social Cutter — Redundanz-Erkennung
+sentence-transformers>=5.0.0
+
 # Lizenz-Signaturprüfung (Ed25519)
 cryptography>=42.0.0
 GitPython>=3.1.0

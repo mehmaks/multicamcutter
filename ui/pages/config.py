@@ -37,7 +37,8 @@ _license: _lic.LicenseInfo = st.session_state.get("license_info") or _lic.valida
 st.subheader("Tabs")
 st.caption("Reihenfolge per Drag & Drop ändern. In **Aktiviert** = in der Sidebar sichtbar.")
 
-# Nur lizenzierte Module anzeigen
+# Nur lizenzierte Module anzeigen (Dev sieht auch BETA_BLOCKED mit 🔴)
+_is_dev = _lic.MODE == "dummy"
 _ALL_MODULES_DEFS = [
     ("show_multicam",   "Multicam Cutter", "multicam"),
     ("show_enhance",    "Audio Enhance",   "enhance"),
@@ -45,8 +46,14 @@ _ALL_MODULES_DEFS = [
     ("show_maxxvolume", "Voice Leveler",   "maxxvolume"),
     ("show_silence",    "Silence Cutter",  "silence"),
     ("show_takes",      "Take Selector",   "takes"),
+    ("show_sequencer",  "Sequencer",       "sequencer"),
+    ("show_social",     "Social Cutter",   "social"),
 ]
-_ALL_MODULES = [(k, label) for k, label, mod in _ALL_MODULES_DEFS if _license.has_module(mod)]
+_ALL_MODULES = [
+    (k, f"{label} 🔴" if mod in _lic.BETA_BLOCKED and _is_dev else label)
+    for k, label, mod in _ALL_MODULES_DEFS
+    if _license.has_module(mod) or (mod in _lic.BETA_BLOCKED and _is_dev)
+]
 _KEY_TO_LABEL = dict(_ALL_MODULES)
 _LABEL_TO_KEY = {v: k for k, v in _ALL_MODULES}
 _DEFAULT_ORDER = [k for k, _ in _ALL_MODULES]

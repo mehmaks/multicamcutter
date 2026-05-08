@@ -147,7 +147,8 @@ def _has_visible_params(expander: dict, expert: bool) -> bool:
     return False
 
 
-def render_settings_panel(schema: dict, prefix: str, expert: bool) -> None:
+def render_settings_panel(schema: dict, prefix: str, expert: bool,
+                          filter_keys: list[str] | None = None) -> None:
     """Alle Expander und Widgets aus dem Schema rendern.
 
     Parameters
@@ -155,8 +156,11 @@ def render_settings_panel(schema: dict, prefix: str, expert: bool) -> None:
     schema : Schema-Dict (aus ``load_schema``)
     prefix : Widget-Key-Prefix (z.B. ``"s"`` oder ``"f"``)
     expert : True → alle Parameter anzeigen, False → nur expert=false
+    filter_keys : Nur Expander mit diesen Keys rendern (None = alle)
     """
     for exp in schema.get("expanders", []):
+        if filter_keys and exp.get("key") not in filter_keys:
+            continue
         if not _has_visible_params(exp, expert):
             continue
 

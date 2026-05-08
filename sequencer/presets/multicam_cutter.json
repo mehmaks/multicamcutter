@@ -1,0 +1,28 @@
+{
+  "name": "Multicam Cutter",
+  "description": "Automatischer Multicam-Schnitt basierend auf Sprecher-Erkennung, Reaktions-Analyse und Pausen-Trimming",
+  "steps": [
+    {"module": "ingest"},
+    {"module": "waveform_sync"},
+    {"module": "sync_timeline_build", "optional": true},
+    {"module": "audio_load"},
+    {"module": "crossbleed_gate", "optional": true},
+    {"module": "rms_diarize"},
+    {"module": "base_edl_build"},
+    {"module": "simultaneous_speech", "optional": true},
+    {"module": "off_sections_export"},
+    {"module": "speaking_reactions", "optional": true},
+    {"module": "pause_detect", "optional": true},
+    {"module": "pause_cutaway_candidates", "optional": true},
+    {"module": "nodding_analysis", "optional": true},
+    {"module": "cameras_json_build"},
+    {"module": "cutaway_insertion"},
+    {"module": "pause_cutaway_insert", "optional": true},
+    {"module": "cleanup_short_events"},
+    {"module": "split_long_shots"},
+    {"module": "clip_filter", "optional": true},
+    {"module": "edl_parse"},
+    {"module": "pause_trim", "optional": true},
+    {"module": "cut_timeline_build"}
+  ]
+}

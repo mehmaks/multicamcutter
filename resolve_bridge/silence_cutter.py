@@ -13,8 +13,8 @@ _VIDEO_EXT = {".mp4", ".mov", ".mxf", ".r3d", ".braw", ".avi", ".mkv", ".mts", "
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
-def _tc_start_frames(path: str, fps: float) -> int:
-    """Returns embedded start timecode as frame count, or 0 if not found."""
+def _probe_source_fps(path: str) -> float:
+    """Returns the video stream's frame rate from ffprobe, or 0.0 if unavailable."""
     import json as _json
     try:
         r = subprocess.run(
@@ -22,10 +22,34 @@ def _tc_start_frames(path: str, fps: float) -> int:
             capture_output=True, text=True,
         )
         for stream in _json.loads(r.stdout).get("streams", []):
+            if stream.get("codec_type") == "video":
+                rfr = stream.get("r_frame_rate", "")
+                if "/" in rfr:
+                    num, den = rfr.split("/")
+                    if int(den) > 0:
+                        return int(num) / int(den)
+    except Exception:
+        pass
+    return 0.0
+
+
+def _tc_start_frames(path: str, fps: float) -> int:
+    """Returns embedded start timecode as frame count, or 0 if not found."""
+    import json as _json, re
+    try:
+        r = subprocess.run(
+            ["ffprobe", "-v", "quiet", "-print_format", "json", "-show_streams", path],
+            capture_output=True, text=True,
+        )
+        for stream in _json.loads(r.stdout).get("streams", []):
             tc = stream.get("tags", {}).get("timecode", "")
-            if tc and tc.count(":") == 3:
-                h, m, s, f = (int(x) for x in tc.split(":"))
-                return (h * 3600 + m * 60 + s) * int(round(fps)) + f
+            if not tc:
+                continue
+            # Support both non-drop "HH:MM:SS:FF" and drop-frame "HH:MM:SS;FF"
+            m = re.match(r"(\d+):(\d+):(\d+)[:;](\d+)", tc)
+            if m:
+                h, mn, s, f = (int(x) for x in m.groups())
+                return (h * 3600 + mn * 60 + s) * int(round(fps)) + f
     except Exception:
         pass
     return 0
@@ -94,29 +118,26 @@ def analyze_composite_silence(
                 if path.suffix.lower() in _VIDEO_EXT:
                     # Extract only the clip's portion with -ss/-t so that
                     # start_sample=0 always maps to the clip's in-point.
-                    # This avoids end_sample > total_samp bugs and handles
-                    # audio/video PTS offsets transparently via ffmpeg.
                     #
-                    # IMPORTANT: GetSourceEndFrame() is in SOURCE fps, which may
-                    # differ from the timeline fps (e.g. 25fps source on 50fps TL).
-                    # Use the *timeline* duration for clip_dur_s so we extract the
-                    # correct amount of audio regardless of the fps difference.
-                    # For clip_start_s, derive source time via the fps ratio so that
-                    # clips starting mid-file seek to the right position.
+                    # Use source fps from ffprobe for the seek calculation.
+                    # Deriving source fps from tl_duration/source_duration
+                    # introduces a ~5 frame error because Resolve's
+                    # GetEnd()-GetStart() and GetSourceEndFrame()-GetSourceStartFrame()
+                    # can differ by 1 frame (exclusive/inclusive boundary).
+                    #
+                    # GetSourceStartFrame() is 0-based (does NOT include
+                    # the file's embedded start timecode).
                     clip_tl_dur_s    = (clip.timeline_end - clip.timeline_start) / fps
-                    source_dur_fr    = clip.source_end_frame - clip.source_start_frame
-                    clip_start_s = (
-                        clip.source_start_frame * clip_tl_dur_s / source_dur_fr
-                        if source_dur_fr > 0 else 0.0
-                    )
-                    clip_dur_s = clip_tl_dur_s
+                    source_fps       = _probe_source_fps(str(path)) or fps
+                    clip_start_s     = clip.source_start_frame / source_fps
+                    clip_dur_s       = clip_tl_dur_s
                     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
                     tmp.close()
                     tmp_wav = Path(tmp.name)
                     subprocess.run(
                         ["ffmpeg", "-y",
-                         "-ss", f"{clip_start_s:.6f}",
                          "-i", str(path),
+                         "-ss", f"{clip_start_s:.6f}",
                          "-t",  f"{clip_dur_s:.6f}",
                          "-map", "0:a:0", "-acodec", "pcm_s16le",
                          "-ar", "16000", "-ac", "1", str(tmp_wav)],

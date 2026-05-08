@@ -30,12 +30,13 @@ ALL_MODULES = [
     "silence",
     "takes",
     "sequencer",
+    "social",
 ]
 
 # Module, die noch nicht für Beta freigegeben sind.
 # Hier gelistete Module werden in der UI ausgeblendet,
 # auch wenn die Lizenz sie enthält.
-BETA_BLOCKED: set[str] = {"auphonic", "sequencer"}
+BETA_BLOCKED: set[str] = {"auphonic", "sequencer", "social"}
 # Beispiel: BETA_BLOCKED = {"takes", "silence"}
 
 _DATA_DIR    = os.path.expanduser("~/.resolve-toolkit")

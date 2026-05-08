@@ -38,6 +38,7 @@ if _license.valid:
         "maxxvolume": "Voice Leveler",
         "silence":    "Silence Cutter",
         "takes":      "Take Selector",
+        "social":     "Social Cutter",
     }
     for mod, label in module_labels.items():
         if mod in _license.modules and mod not in _lic.BETA_BLOCKED:
