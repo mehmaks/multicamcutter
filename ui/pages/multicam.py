@@ -897,6 +897,7 @@ if tab_bin is not None:
             cmd.append("--skip-base-edl")
         cmd += ["--mic-cam1", str(mic_cam1_idx), "--mic-cam2", str(mic_cam2_idx)]
         # Peak-Mode ist jetzt immer aktiv (hardcoded in run_from_bin.py)
+        # --auto-accuracy ist OBSOLET (Face-Size-Adaption ist immer aktiv); Forward bleibt für UI-Kompatibilität.
         if st.session_state.get("s_auto_accuracy", False):
             cmd.append("--auto-accuracy")
         _lut_bin = st.session_state.get("s_lut_path", "")
@@ -1279,6 +1280,7 @@ with tab_folder:
         if skip_base_edl_f:
             cmd.append("--skip-base-edl")
         # Peak-Mode ist jetzt immer aktiv (hardcoded in run_from_bin.py)
+        # --auto-accuracy ist OBSOLET (Face-Size-Adaption ist immer aktiv); Forward bleibt für UI-Kompatibilität.
         if st.session_state.get("f_auto_accuracy", False):
             cmd.append("--auto-accuracy")
         _lut_folder = st.session_state.get("f_lut_path", "")

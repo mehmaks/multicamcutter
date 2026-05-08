@@ -784,7 +784,7 @@ def main():
     parser.add_argument('--mic-cam2', type=int, default=None,
                         help='MIC-Index für CAM2 (Legacy, nutze --cam-mics)')
     parser.add_argument('--auto-accuracy', action='store_true',
-                        help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
+                        help='OBSOLET — Face-Size-Adaption ist immer aktiv. Flag wird ignoriert.')
     parser.add_argument('--lut', default=None,
                         help='Pfad zu einer .cube LUT-Datei für die Mediapipe-Analyse')
     args = parser.parse_args()

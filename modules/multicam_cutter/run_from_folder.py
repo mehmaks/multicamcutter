@@ -70,7 +70,7 @@ def main():
     parser.add_argument('--speaking-mode', choices=['rms', 'peak'], default=None,
                         help='Überschreibt speaking_mode aus params.json')
     parser.add_argument('--auto-accuracy', action='store_true',
-                        help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
+                        help='OBSOLET — Face-Size-Adaption ist immer aktiv. Flag wird ignoriert.')
     parser.add_argument('--lut', default=None,
                         help='Pfad zu einer .cube LUT-Datei für die Mediapipe-Analyse')
     args = parser.parse_args()

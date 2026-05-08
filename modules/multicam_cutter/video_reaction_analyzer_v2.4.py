@@ -60,6 +60,7 @@ def load_params(params_path: str = None) -> dict:
 class AdvancedReactionDetector:
     """Verbesserte Reaktionserkennung mit mehr Features"""
     
+    # auto_accuracy: OBSOLET — Flag wirkt nicht mehr, Face-Size-Adaption ist immer aktiv (siehe Zeile 461/495).
     def __init__(self, sensitivity='medium', fps=25.0, params=None, auto_accuracy=False):
         if params is None:
             params = {}
@@ -715,6 +716,7 @@ def _write_preview_frame(frame, detector, reactions, cam_label: str, preview_pat
         pass
 
 
+# auto_accuracy: OBSOLET — wird nur durchgereicht, hat keinen Effekt mehr.
 def analyze_video(video_path, output_json=None, sensitivity='medium', show_preview=False,
                   params=None, off_sections=None, preview_path=None, auto_accuracy=False,
                   lut_path=None):
@@ -758,7 +760,10 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     # Decode-Auflösung bestimmen (ffmpeg skaliert direkt beim Dekodieren)
     if params is None:
         params = {}
-    analysis_width = int(params.get('analysis_width', 0))
+    # analysis_width kommt aus nodding_patterns.json (global). params überschreibt nur
+    # wenn explizit gesetzt (z.B. CLI-Override).
+    _nod_globals_for_width, _ = _load_nod_patterns()
+    analysis_width = int(params.get('analysis_width', _nod_globals_for_width.get('analysis_width', 0)))
 
     # Video-Filter zusammenbauen (LUT + optionales Resize)
     _vf_filters = []
@@ -1060,7 +1065,7 @@ def main():
     parser.add_argument('--preview-path', default=None,
                         help='Pfad für Live-Preview-JPEG (wird jede Sekunde überschrieben)')
     parser.add_argument('--auto-accuracy', action='store_true',
-                        help='Nodding-Threshold dynamisch an erkannte Gesichtsgröße anpassen')
+                        help='OBSOLET — Face-Size-Adaption ist immer aktiv. Flag wird ignoriert.')
     parser.add_argument('--lut', default=None,
                         help='Pfad zu einer .cube LUT-Datei (wird per lut3d auf die Frames angewendet)')
 

@@ -661,19 +661,10 @@ with st.sidebar:
             _log_ph.code("\n".join(st.session_state.mv_log[-50:]), language=None)
             time.sleep(0.05)
 
-    elif _active == "auphonic" and "auphonic_queue" in st.session_state:
-        _log_ph = st.empty()
-        while st.session_state.auphonic_running:
-            try:
-                _line = st.session_state.auphonic_queue.get(timeout=0.1)
-                if _line.startswith("__DONE__"):
-                    st.session_state.auphonic_running = False
-                    break
-                st.session_state.auphonic_log.append(_line)
-            except _queue.Empty:
-                pass
-            _log_ph.code("\n".join(st.session_state.auphonic_log[-50:]), language=None)
-            time.sleep(0.05)
+    elif _active == "auphonic" and "auphonic_log" in st.session_state:
+        # Log-Anzeige: auphonic_log wird vom Dialog-Fragment befüllt
+        if st.session_state.get("auphonic_log"):
+            st.code("\n".join(st.session_state.auphonic_log[-50:]), language=None)
 
     if _last_log and not _active:
         st.subheader("Letzter Log")
