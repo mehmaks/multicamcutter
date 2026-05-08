@@ -1,5 +1,38 @@
 # Changelog
 
+## v0.6.4  (2026-05-08)
+
+### Neu
+- **Auphonic — Timeline-Modus** — Audio direkt zwischen In/Out-Markern aus einer Resolve-Audiospur extrahieren, an Auphonic schicken und das Ergebnis automatisch in den Quell-Bin importieren. Optional: Originalspur ersetzen statt neue Spur anzulegen.
+- **Auphonic — Live-Fortschritt** — Modaler Dialog zeigt während der Cloud-Verarbeitung Status und Ergebnis-Track-Index. Auphonic-Parameter sind in einen Expander gewandert.
+
+### Fixes
+- **MediaPipe `analysis_width`** — Wert aus `nodding_patterns.json` wurde nicht gelesen, sodass MediaPipe Videos in Originalauflösung (4K) statt 1280px analysierte. Detail u.a. sichtbar an winzigen Landmarks im Live-Preview.
+- **Auphonic-Dialog blockierte UI** — Sidebar-Queue-Consumer in `app.py` las parallel aus derselben Queue wie der Dialog, filterte Steuer-Messages nicht und blockierte das Page-Rendering. Dialog läuft jetzt in `@st.fragment(run_every=2s)`.
+- **`DeleteClips` Replace-Track** — Erwartete eine Liste statt einzelner Items.
+
+### Sonstiges
+- `auto_accuracy`-Flag (CLI + Code-Pfade) als OBSOLET markiert — Face-Size-Adaption ist ohnehin immer aktiv.
+- Social-Cutter-Modul-Skelett (BETA_BLOCKED, im Repo).
+- `.gitignore`: `venv_py39_backup/`, `face_landmarker.task`, `memory/`.
+
+---
+
+## v0.6.3  (2026-04-29)
+
+### Fixes
+- **Voice Leveler — Expertenmodus** — Modul-eigener "Expertenmodus"-Button entfernt; Anzeige ist jetzt an den globalen Sidebar-Toggle gekoppelt.
+
+---
+
+## v0.6.2  (2026-04-29)
+
+### Fixes
+- **Beta-blocked Module in Sidebar** — Im Dev-Modus wieder sichtbar (mit 🔴-Indikator).
+- **Doppelter Expertenmodus-Toggle** — Im Social Cutter wurde der Expert-Toggle doppelt angezeigt; modul-interner Toggle entfernt.
+
+---
+
 ## v0.6.1  (2026-04-28)
 
 ### Fixes
