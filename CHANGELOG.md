@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.6.5  (2026-05-18)
+
+### Fixes
+- **UnicodeEncodeError beim Schreiben von `cameras.json`** — Multicam-Läufe brachen nach erfolgreicher Reaction-Analyse ab, wenn Pfade Umlaute enthielten (z.B. "Stützer"). `Path.write_text()` fiel ohne explizites `encoding=` auf System-Locale zurück. Alle `write_text(json.dumps(...))`-Aufrufe im Multicam-Produktivpfad und in den UI-Preset-Speicherungen verwenden jetzt explizit `encoding='utf-8'`.
+
+---
+
 ## v0.6.4  (2026-05-08)
 
 ### Neu
