@@ -359,7 +359,8 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
     if audio_trims_path:
         manifest_path = audio_trims_path.parent / 'timeline_manifest.json'
         try:
-            manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False))
+            manifest_path.write_text(json.dumps(manifest, indent=2, ensure_ascii=False),
+                                     encoding='utf-8')
             print(f"  ✓ Manifest: {manifest_path.name} ({len(manifest)} Events)")
         except Exception:
             pass
@@ -647,7 +648,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     }
     # params.json für Subprozesse schreiben (Analyzer, etc.)
     params_json_path = work_dir / 'params.json'
-    params_json_path.write_text(json.dumps(params, indent=2))
+    params_json_path.write_text(json.dumps(params, indent=2), encoding='utf-8')
 
     if not skip_analysis:
         analyzer = str(SCRIPT_DIR / 'video_reaction_analyzer_v2.4.py')
@@ -692,7 +693,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
 
     cameras_json_path = work_dir / 'cameras.json'
     cameras_json_path.write_text(
-        __import__('json').dumps(cameras_config, indent=2, ensure_ascii=False)
+        __import__('json').dumps(cameras_config, indent=2, ensure_ascii=False),
+        encoding='utf-8',
     )
 
     final_edl = work_dir / 'final.edl'
@@ -910,7 +912,7 @@ def main():
                 )
                 if audio_keeps:
                     # Audio-Keeps als JSON speichern für build_cut_timeline
-                    audio_trims_path.write_text(json.dumps(audio_keeps))
+                    audio_trims_path.write_text(json.dumps(audio_keeps), encoding='utf-8')
                     print(f"  Audio-Keeps: {len(audio_keeps)} Segmente")
                 else:
                     # Keine Trims nötig — Pauses-JSON entfernen damit

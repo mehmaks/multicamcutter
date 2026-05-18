@@ -1114,7 +1114,8 @@ def main():
     write_edl(final_events, args.output)
 
     colors_path = Path(args.output).with_suffix('.colors.json')
-    colors_path.write_text(json.dumps([{'reason': e.reason} for e in final_events], indent=2))
+    colors_path.write_text(json.dumps([{'reason': e.reason} for e in final_events], indent=2),
+                           encoding='utf-8')
     print(f"✓ Colors-Metadaten: {colors_path.name}")
 
     print(f"\n{'=' * 70}\n✓ FERTIG! {len(final_events)} Events → {args.output}\n{'=' * 70}")

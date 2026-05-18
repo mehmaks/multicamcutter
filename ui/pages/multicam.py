@@ -56,7 +56,8 @@ def _save_lut_to_history(new_path: str) -> None:
     history.insert(0, new_path)
     try:
         _LUT_HISTORY_FILE.parent.mkdir(exist_ok=True)
-        _LUT_HISTORY_FILE.write_text(json.dumps(history[:10]))
+        _LUT_HISTORY_FILE.write_text(json.dumps(history[:10], ensure_ascii=False),
+                                     encoding='utf-8')
     except Exception:
         pass
 
@@ -519,7 +520,8 @@ def _confirm_overwrite_preset_dialog() -> None:
                      use_container_width=True):
             pdata = {n: st.session_state[f"{prefix}_{n}"]
                      for n in _PARAM_NAMES if f"{prefix}_{n}" in st.session_state}
-            (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
+            (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2),
+                                                       encoding='utf-8')
             for k in ("_overwrite_preset_prefix", "_overwrite_preset_name", "_overwrite_preset_safe"):
                 st.session_state.pop(k, None)
             st.session_state["_clear_preset_name"] = prefix
@@ -627,7 +629,8 @@ def _render_preset_expander(prefix: str) -> None:
                 else:
                     pdata = {n: st.session_state[f"{prefix}_{n}"]
                              for n in _PARAM_NAMES if f"{prefix}_{n}" in st.session_state}
-                    (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2))
+                    (_presets_dir / f"{safe}.json").write_text(json.dumps(pdata, indent=2),
+                                                               encoding='utf-8')
                     st.session_state["_clear_preset_name"] = prefix
                     st.session_state["_pending_toast"] = f"Preset '{safe}' gespeichert"
                     st.rerun()

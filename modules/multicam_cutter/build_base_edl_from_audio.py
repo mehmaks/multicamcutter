@@ -1016,7 +1016,7 @@ def main():
             gate_out.write_text(json.dumps({
                 'mic1': str(Path(args.mic_cam1[0]).parent / f"{Path(args.mic_cam1[0]).stem}_gated.wav"),
                 'mic2': str(Path(args.mic_cam2[0]).parent / f"{Path(args.mic_cam2[0]).stem}_gated.wav"),
-            }))
+            }, ensure_ascii=False), encoding='utf-8')
 
     print(f"\n📊 RMS-Diarization (threshold={args.threshold_db:.1f} dB)...")
     segments = rms_diarize(
@@ -1198,11 +1198,11 @@ def main():
                 if v_s >= 0 and v_e > v_s:
                     cam2_off.append([int(v_s), int(v_e)])
         if args.cam1_off_sections_out:
-            Path(args.cam1_off_sections_out).write_text(json.dumps(cam1_off))
+            Path(args.cam1_off_sections_out).write_text(json.dumps(cam1_off), encoding='utf-8')
             total_off_s = sum(e - s for s, e in cam1_off) / args.fps
             print(f"  CAM1 Off-Sektionen: {len(cam1_off)} Segmente ({total_off_s/60:.1f} min)")
         if args.cam2_off_sections_out:
-            Path(args.cam2_off_sections_out).write_text(json.dumps(cam2_off))
+            Path(args.cam2_off_sections_out).write_text(json.dumps(cam2_off), encoding='utf-8')
             total_off_s = sum(e - s for s, e in cam2_off) / args.fps
             print(f"  CAM2 Off-Sektionen: {len(cam2_off)} Segmente ({total_off_s/60:.1f} min)")
 
@@ -1262,11 +1262,13 @@ def main():
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
         if args.speaking_reactions_cam1_out:
             Path(args.speaking_reactions_cam1_out).write_text(
-                json.dumps({'fps': args.fps, 'reactions': cam1_sr}, indent=2)
+                json.dumps({'fps': args.fps, 'reactions': cam1_sr}, indent=2),
+                encoding='utf-8',
             )
         if args.speaking_reactions_cam2_out:
             Path(args.speaking_reactions_cam2_out).write_text(
-                json.dumps({'fps': args.fps, 'reactions': cam2_sr}, indent=2)
+                json.dumps({'fps': args.fps, 'reactions': cam2_sr}, indent=2),
+                encoding='utf-8',
             )
 
     # ── 9. Pause-Cutaway-Kandidaten exportieren (optional) ─────────────────
@@ -1317,7 +1319,8 @@ def main():
                 })
         pause_list.sort(key=lambda p: p['start_frame'])
         Path(args.pause_cutaway_json_out).write_text(
-            json.dumps({'fps': args.fps, 'pauses': pause_list}, indent=2)
+            json.dumps({'fps': args.fps, 'pauses': pause_list}, indent=2),
+            encoding='utf-8',
         )
         print(f"  {len(pause_list)} Pause-Cutaway-Kandidaten exportiert")
 

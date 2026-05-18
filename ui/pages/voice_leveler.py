@@ -128,7 +128,8 @@ def _vl_confirm_overwrite_preset_dialog():
             vals = st.session_state.get("_vl_overwrite_values", {})
             if path and vals:
                 _VL_PRESETS_DIR.mkdir(parents=True, exist_ok=True)
-                Path(path).write_text(json.dumps(vals, indent=2, ensure_ascii=False))
+                Path(path).write_text(json.dumps(vals, indent=2, ensure_ascii=False),
+                                      encoding='utf-8')
             st.session_state["_pending_toast"] = f'Preset "{name}" gespeichert.'
             st.session_state["_vl_clear_preset_name"] = True
             st.rerun()
@@ -222,7 +223,8 @@ def _render_vl_preset_expander():
             else:
                 _VL_PRESETS_DIR.mkdir(parents=True, exist_ok=True)
                 out = _VL_PRESETS_DIR / f"{name}.json"
-                out.write_text(json.dumps(values, indent=2, ensure_ascii=False))
+                out.write_text(json.dumps(values, indent=2, ensure_ascii=False),
+                               encoding='utf-8')
                 st.session_state["_pending_toast"]         = f'Preset "{name}" gespeichert.'
                 st.session_state["_vl_clear_preset_name"] = True
                 st.rerun()

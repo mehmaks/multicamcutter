@@ -188,7 +188,7 @@ def detect_pauses(events: list, audio1: np.ndarray, audio2: np.ndarray,
 
 def save_pauses(pauses: list, output_path: str):
     """Speichert Pause-Daten als JSON."""
-    Path(output_path).write_text(json.dumps(pauses, indent=2))
+    Path(output_path).write_text(json.dumps(pauses, indent=2), encoding='utf-8')
     print(f"  Pause-Daten: {output_path}")
 
 
