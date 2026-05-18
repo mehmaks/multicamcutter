@@ -373,10 +373,26 @@ def build_cut_timeline(mp, name: str, cut_events: list, mics: list,
 from frame_utils import timecode_to_frames as _tc_to_frames, get_reference_frame as _get_ref_frame
 
 
-def _get_embedded_tc_frames(video_path: str, fps: float) -> int:
-    """Returns the embedded start timecode of a video file as frame number."""
+def _get_embedded_tc_frames(video_path: str, fps: float, item=None) -> int:
+    """Returns the embedded start timecode of a video file as frame number.
+
+    Versucht zuerst ffprobe (kanonischer Weg). Wenn das in dieser Umgebung
+    fehlschlägt (z.B. UnicodeDecodeError im stdout-Decode), fragt es als
+    Fallback Resolves MediaPoolItem direkt über 'Start TC'. Beide Pfade
+    schlagen nur dann komplett fehl, wenn die Quelldatei wirklich keinen
+    TC hat — dann return 0.
+    """
     ref_frame, _ = _get_ref_frame(video_path, fps)
-    return ref_frame or 0
+    if ref_frame:
+        return ref_frame
+    if item is not None:
+        tc = item.GetClipProperty('Start TC') or ''
+        if tc:
+            try:
+                return _tc_to_frames(tc, fps)
+            except (ValueError, IndexError):
+                pass
+    return 0
 
 
 def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
@@ -396,8 +412,13 @@ def parse_edl(edl_path: Path, cam_items: dict, fps: float) -> list:
     # Pre-compute embedded TC frames per camera
     ref_frames = {}
     for label, (item, path) in cam_items.items():
-        ref_frames[label] = _get_embedded_tc_frames(path, fps)
+        ref_frames[label] = _get_embedded_tc_frames(path, fps, item=item)
         print(f"  {label} embedded TC: {ref_frames[label]} frames")
+        if ref_frames[label] == 0:
+            print(f"  ⚠️  {label}: Embedded TC = 0 für '{path}'. "
+                  f"Source-Frames in der finalen Timeline werden falsch aufgelöst "
+                  f"(Standbild + leere Audiospuren). Pfad-Existenz: "
+                  f"{Path(path).exists() if path else 'leer/None'}")
 
     # Build clip-name → cam label lookup (filename without extension)
     name_to_label = {}

@@ -42,25 +42,47 @@ def get_embedded_timecode(video_path: str) -> Optional[str]:
     """Liest den eingebetteten Start-Timecode aus einer Videodatei via ffprobe.
 
     Sucht zuerst in format.tags.timecode, dann in den Stream-Tags.
-    Returns None wenn kein TC gefunden oder ffprobe fehlschlägt.
+    Returns None wenn kein TC gefunden oder ffprobe fehlschlägt — schreibt in
+    diesem Fall einen Hinweis auf stderr, damit Probleme nicht stillschweigend
+    durchrutschen (siehe TC-Auflösung in run_from_bin.parse_edl).
     """
+    import sys
     try:
         result = subprocess.run(
-            ['ffprobe', '-v', 'quiet', '-print_format', 'json',
+            ['ffprobe', '-v', 'error', '-print_format', 'json',
              '-show_format', '-show_streams', str(video_path)],
             capture_output=True, text=True,
+            encoding='utf-8', errors='replace',
         )
+    except FileNotFoundError:
+        print(f"⚠️  ffprobe nicht im PATH (TC-Read für {video_path} übersprungen)",
+              file=sys.stderr)
+        return None
+    except Exception as e:
+        print(f"⚠️  ffprobe-Aufruf fehlgeschlagen für {video_path}: {e!r}",
+              file=sys.stderr)
+        return None
+
+    if result.returncode != 0:
+        print(f"⚠️  ffprobe returncode={result.returncode} für {video_path}: "
+              f"{result.stderr.strip()[:300]}", file=sys.stderr)
+        return None
+
+    try:
         data = json.loads(result.stdout)
-        tc = data.get('format', {}).get('tags', {}).get('timecode')
+    except json.JSONDecodeError as e:
+        print(f"⚠️  ffprobe-Output für {video_path} nicht parsebar: {e!r}",
+              file=sys.stderr)
+        return None
+
+    tc = data.get('format', {}).get('tags', {}).get('timecode')
+    if tc:
+        return tc
+    for stream in data.get('streams', []):
+        tc = stream.get('tags', {}).get('timecode')
         if tc:
             return tc
-        for stream in data.get('streams', []):
-            tc = stream.get('tags', {}).get('timecode')
-            if tc:
-                return tc
-        return None
-    except Exception:
-        return None
+    return None
 
 
 def get_reference_frame(video_path: str, fps: float) -> Tuple[int, Optional[str]]:
