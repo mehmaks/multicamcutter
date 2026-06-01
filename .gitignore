@@ -63,3 +63,6 @@ modules/multicam_cutter/face_landmarker.task
 
 # Auto-Memory von Claude Code (Session-spezifisch, gehört nicht ins Repo)
 memory/
+
+# Lokale Brain-Files für Claude Code (Kontext-Hints pro Ordner, nicht versioniert)
+CLAUDE.md
