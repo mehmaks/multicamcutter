@@ -790,6 +790,9 @@ def main():
                         help='Pfad zur params.json mit Modul-Parametern')
     parser.add_argument('--skip-analysis', action='store_true')
     parser.add_argument('--skip-base-edl', action='store_true')
+    parser.add_argument('--sync-from-timeline', action='store_true',
+                        help='Sync-Offsets aus der aktuell aktiven Resolve-Timeline lesen, '
+                             'statt sie per Waveform-Cross-Correlation zu bestimmen.')
     parser.add_argument('--cam-mics', nargs='+', default=None,
                         help='MIC-Zuordnung pro Kamera als "INDEX[,INDEX]" je CAM. '
                              'Reihenfolge = CAM1, CAM2, ... '
@@ -837,21 +840,33 @@ def main():
     print(f"  Kameras: {[c.GetName() for c in cams]}")
     print(f"  Mics:    {[m.GetName() for m in mics]}")
 
-    # 2. Waveform-Sync
+    # 2. Sync — entweder aus aktiver Resolve-Timeline oder per Waveform-Korrelation
     cam1_path = cams[0].GetClipProperty('File Path')
     cam2_path = cams[1].GetClipProperty('File Path')
     mic_paths = [m.GetClipProperty('File Path') for m in mics]
+    cam_paths_all = [c.GetClipProperty('File Path') for c in cams]
 
     print()
-    try:
-        offsets = sync_sources(
-            cam1_path, cam2_path, mic_paths[0],
-            fps=args.fps,
-            additional_mics=mic_paths[1:],
-        )
-    except SyncError as e:
-        print(f"\nFEHLER: {e}")
-        return 1
+    if args.sync_from_timeline:
+        from resolve_bridge.timeline_reader import read_offsets_from_timeline
+        try:
+            offsets = read_offsets_from_timeline(cam_paths_all, mic_paths)
+        except RuntimeError as e:
+            print(f"\nFEHLER beim Lesen der Sync-Timeline: {e}")
+            return 1
+        print("Sync aus aktiver Resolve-Timeline:")
+        for label, frames in offsets.items():
+            print(f"  {label}: {frames:+d} frames ({frames / args.fps:+.3f}s)")
+    else:
+        try:
+            offsets = sync_sources(
+                cam1_path, cam2_path, mic_paths[0],
+                fps=args.fps,
+                additional_mics=mic_paths[1:],
+            )
+        except SyncError as e:
+            print(f"\nFEHLER: {e}")
+            return 1
 
     # 3. Analyse-Pipeline
     n_cams      = len(cams)

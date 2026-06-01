@@ -172,3 +172,52 @@ def get_primary_wav_clip(clips: list[TrackClip]) -> Optional[TrackClip]:
         if _is_audio_file(clip.file_path):
             return clip
     return None
+
+
+def read_offsets_from_timeline(cam_paths: list[str], mic_paths: list[str]) -> dict[str, int]:
+    """
+    Liest Sync-Offsets aus der aktuell aktiven Resolve-Timeline.
+
+    Mappt die gegebenen Bin-Files (cam_paths, mic_paths) per File-Path auf
+    Clips der Timeline und liefert ein Offsets-Dict wie sync_sources():
+      {'CAM1': 0, 'CAM2': int, 'MIC1': int, 'MIC2': int, ...}
+    Alle Werte in Frames, relativ zu CAM1.
+
+    Erwartete Timeline-Struktur: für jedes Bin-File mindestens ein Clip an
+    der vom User platzierten Sync-Position. Bei mehreren Clips desselben
+    Files wird der erste verwendet. Pfade werden zum Vergleich NFC-normalisiert
+    und absolut aufgelöst, um macOS-HFS/APFS-Encoding-Unterschiede zu glätten.
+    """
+    import unicodedata
+
+    def _norm(p: str) -> str:
+        return unicodedata.normalize('NFC', os.path.realpath(p)) if p else ''
+
+    data = read_timeline()
+
+    # Build path → (timeline_start - source_start) lookup from all clips
+    path_to_abs_offset: dict[str, int] = {}
+    for clips in list(data.video_tracks.values()) + list(data.audio_tracks.values()):
+        for clip in clips:
+            key = _norm(clip.file_path)
+            if key and key not in path_to_abs_offset:
+                path_to_abs_offset[key] = clip.timeline_start - clip.source_start_frame
+
+    def _lookup(label: str, path: str) -> int:
+        key = _norm(path)
+        if key not in path_to_abs_offset:
+            raise RuntimeError(
+                f"{label}: Datei nicht in der aktuellen Resolve-Timeline gefunden: {path}. "
+                f"Bitte den Clip in der Sync-Timeline platzieren."
+            )
+        return path_to_abs_offset[key]
+
+    cam1_abs = _lookup('CAM1', cam_paths[0])
+
+    offsets: dict[str, int] = {'CAM1': 0}
+    for i, cp in enumerate(cam_paths[1:], start=2):
+        offsets[f'CAM{i}'] = _lookup(f'CAM{i}', cp) - cam1_abs
+    for i, mp in enumerate(mic_paths, start=1):
+        offsets[f'MIC{i}'] = _lookup(f'MIC{i}', mp) - cam1_abs
+
+    return offsets

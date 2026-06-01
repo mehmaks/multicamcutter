@@ -740,7 +740,7 @@ if tab_bin is not None:
         )
 
     st.divider()
-    st.subheader("Optionen")
+    st.subheader("Mikrofon-Zuordnung")
 
     _VIDEO_EXT = {'.mp4', '.mov', '.mxf', '.r3d', '.ari'}
     _AUDIO_EXT = {'.wav', '.aif', '.aiff'}
@@ -786,26 +786,45 @@ if tab_bin is not None:
     def _mic_name(idx):
         return mic_labels[idx] if idx < len(mic_labels) else f"MIC{idx + 1}"
 
-    col_a, col_b = st.columns(2)
-    with col_a:
-        fps_bin               = st.number_input("FPS", value=25.0, step=1.0, format="%.1f")
-        skip_analysis_b       = st.toggle("Nodding-Analyse überspringen (JSONs existieren)")
-        skip_base_edl_b       = st.toggle("Base-EDL überspringen (base.edl existiert)")
-    with col_b:
-        mic_cam1_idx = st.selectbox(
-            f"MIC für {cam_labels[0]}",
-            options=_mic_options,
-            format_func=_mic_name,
-            index=min(1, _n_mics - 1),
-            help="Welches Mikrofon gehört zu Kamera 1?",
-        )
-        mic_cam2_idx = st.selectbox(
-            f"MIC für {cam_labels[1]}",
-            options=_mic_options,
-            format_func=_mic_name,
-            index=0,
-            help="Welches Mikrofon gehört zu Kamera 2?",
-        )
+    # ── Mikrofon-Zuordnung (Multi-MIC pro Cam möglich) ────────────────────────
+    if mic_labels:
+        _bin_cam_names = cam_labels
+        _n_mic_cols = min(len(mic_labels), 4)
+        _mic_cols = st.columns(_n_mic_cols)
+        for _mi, _mname in enumerate(mic_labels):
+            with _mic_cols[_mi % _n_mic_cols]:
+                st.caption(f"🎙️ {_mname}")
+                # Heuristik: Mic 0 → Cam 2, Mic 1 → Cam 1, Rest → Cam 1
+                _default_cam_idx = 1 if _mi == 0 else 0
+                _default_cam = _bin_cam_names[min(_default_cam_idx, len(_bin_cam_names) - 1)]
+                _key = f"b_mic_assign_{_mi}"
+                if _key not in st.session_state:
+                    st.session_state[_key] = _default_cam
+                if st.session_state.get(_key) not in _bin_cam_names:
+                    st.session_state[_key] = _default_cam
+                st.selectbox(
+                    "Zuordnung",
+                    options=_bin_cam_names,
+                    key=_key,
+                    label_visibility="collapsed",
+                )
+    else:
+        st.caption("Keine Mikrofon-Clips im Bin gefunden.")
+
+    # cam_mics: pro Cam Liste der zugeordneten Mic-Indizes
+    _bin_cam_mics: dict[int, list[int]] = {_ci: [] for _ci in range(len(cam_labels))}
+    for _mi in range(len(mic_labels)):
+        _assigned = st.session_state.get(f"b_mic_assign_{_mi}")
+        if _assigned in cam_labels:
+            _bin_cam_mics[cam_labels.index(_assigned)].append(_mi)
+    # Fallback: leere Cams kriegen Mic 0
+    for _ci in range(len(cam_labels)):
+        if not _bin_cam_mics[_ci]:
+            _bin_cam_mics[_ci] = [0]
+    _bin_cam_mics_args = [
+        ",".join(str(m) for m in _bin_cam_mics[_ci])
+        for _ci in range(len(cam_labels))
+    ]
 
     # ── Analyse-Einstellungen ─────────────────────────────────────────────────
     st.divider()
@@ -861,6 +880,19 @@ if tab_bin is not None:
         for _bare, _val in _pending_s.items():
             st.session_state[f"s_{_bare}"] = _val
     _render_settings_panel('s')
+
+    with st.expander("Optionen", expanded=False):
+        fps_bin               = st.number_input("FPS", value=25.0, step=1.0, format="%.1f")
+        skip_analysis_b       = st.toggle("Nodding-Analyse überspringen (JSONs existieren)")
+        skip_base_edl_b       = st.toggle("Base-EDL überspringen (base.edl existiert)")
+        sync_from_timeline_b  = st.toggle(
+            "Sync aus aktiver Resolve-Timeline",
+            help="Statt Waveform-Cross-Correlation werden die Clip-Positionen der "
+                 "aktuell aktiven Resolve-Timeline als Sync-Offsets übernommen. "
+                 "Praktisch bei niedriger Waveform-Confidence — Sync-Timeline vor dem "
+                 "Start manuell in Resolve aufbauen.",
+        )
+
     _render_preset_expander('s')
     if st.session_state.get("_overwrite_preset_prefix") == 's':
         _confirm_overwrite_preset_dialog()
@@ -898,7 +930,9 @@ if tab_bin is not None:
             cmd.append("--skip-analysis")
         if skip_base_edl_b:
             cmd.append("--skip-base-edl")
-        cmd += ["--mic-cam1", str(mic_cam1_idx), "--mic-cam2", str(mic_cam2_idx)]
+        if sync_from_timeline_b:
+            cmd.append("--sync-from-timeline")
+        cmd += ["--cam-mics", *_bin_cam_mics_args]
         # Peak-Mode ist jetzt immer aktiv (hardcoded in run_from_bin.py)
         # --auto-accuracy ist OBSOLET (Face-Size-Adaption ist immer aktiv); Forward bleibt für UI-Kompatibilität.
         if st.session_state.get("s_auto_accuracy", False):
