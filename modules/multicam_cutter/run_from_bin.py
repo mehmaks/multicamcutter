@@ -684,6 +684,11 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             if off_sec and off_sec.exists():
                 args_list += ['--off-sections', str(off_sec)]
             args_list += ['--preview-path', f'/tmp/multicam_preview_cam{i + 1}.jpg']
+            # max_faces aus MIC-Zuordnung ableiten: Cam mit 2 zugewiesenen Mics →
+            # 2 Personen erwartet → MediaPipe darf 2 Gesichter parallel tracken.
+            mic_idxs_for_cam = cam_mic_map[i] if i < len(cam_mic_map) else []
+            cam_max_faces = max(1, len(mic_idxs_for_cam))
+            args_list += ['--max-faces', str(cam_max_faces)]
             if auto_accuracy:
                 args_list += ['--auto-accuracy']
             if lut_path:

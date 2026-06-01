@@ -1068,11 +1068,17 @@ def main():
                         help='OBSOLET — Face-Size-Adaption ist immer aktiv. Flag wird ignoriert.')
     parser.add_argument('--lut', default=None,
                         help='Pfad zu einer .cube LUT-Datei (wird per lut3d auf die Frames angewendet)')
+    parser.add_argument('--max-faces', type=int, default=None,
+                        help='Maximale Anzahl gleichzeitig erkannter Gesichter pro Frame. '
+                             'Überschreibt params.max_faces (Default 1). '
+                             'Typisch von run_from_bin.py pro Cam aus der MIC-Zuordnung abgeleitet.')
 
     args = parser.parse_args()
-    
+
     # Lade Params
     params = load_params(args.params)
+    if args.max_faces is not None:
+        params['max_faces'] = args.max_faces
 
     # Validiere Video-Pfad
     video_path = Path(args.video)
