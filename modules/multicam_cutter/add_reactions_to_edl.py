@@ -135,10 +135,17 @@ def calculate_reference_frames(
             timeline_zero_video_frames[clip_name] = tzvf
             print(f"    {clip_name}: TC={embedded_tc} ({ref} f), tl0={tzvf}")
         else:
-            ref = event.source_in_frame - event.record_in_frame
+            # Kein embedded TC: build_base_edl_from_audio hat die EDL mit ref=0
+            # geschrieben. Damit gilt: source_in = 0 + video_frame und
+            # video_frame = tzvf + record_in_frame → tzvf = source_in - record_in.
+            # Vorher wurde dieser Wert fälschlich als ref gespeichert und tzvf=0
+            # gesetzt — was alle Cutaways auf dieser Cam um den Sync-Offset
+            # (typisch ~250 Frames bei +10s-Cam-Start) verschoben hat.
+            ref = 0
+            tzvf = event.source_in_frame - event.record_in_frame
             reference_frames[clip_name] = ref
-            timeline_zero_video_frames[clip_name] = 0
-            print(f"    {clip_name}: {ref} (kein embedded TC ⚠️)")
+            timeline_zero_video_frames[clip_name] = tzvf
+            print(f"    {clip_name}: kein embedded TC ⚠️ (Fallback: ref=0, tl0={tzvf})")
 
     return reference_frames, timeline_zero_video_frames
 
@@ -761,8 +768,16 @@ def clip_filter_cutaways(
         device = 'cuda'
 
     print(f"  Lade CLIP-Modell auf {device}...")
-    model = CLIPModel.from_pretrained("openai/clip-vit-base-patch32").to(device)
-    processor = CLIPProcessor.from_pretrained("openai/clip-vit-base-patch32")
+    # Erst aus lokalem HF-Cache laden (umgeht httpx-Race bei HF-Hub-Metadaten-Calls).
+    # Nur bei Cache-Miss zum Netzwerk-Download fallen.
+    _model_id = "openai/clip-vit-base-patch32"
+    try:
+        model     = CLIPModel.from_pretrained(_model_id, local_files_only=True).to(device)
+        processor = CLIPProcessor.from_pretrained(_model_id, local_files_only=True)
+    except (OSError, ValueError):
+        print(f"  Cache-Miss — lade {_model_id} von HuggingFace Hub...")
+        model     = CLIPModel.from_pretrained(_model_id).to(device)
+        processor = CLIPProcessor.from_pretrained(_model_id)
 
     all_prompts = ignore_prompts + neutral_prompts
     n_ignore = len(ignore_prompts)
