@@ -1,5 +1,24 @@
 # Changelog
 
+## v0.7.0  (2026-06-03)
+
+### Neu
+- **Sync-Timeline-Modus im Bin-Workflow** — Toggle „Sync aus aktiver Resolve-Timeline" im Optionen-Expander. Statt Waveform-Cross-Correlation werden die Clip-Positionen einer manuell in Resolve aufgebauten Sync-Timeline als Offsets übernommen. Praktischer Rettungsanker bei niedriger Waveform-Confidence, die zuvor zu vollständig asynchronen Cuts geführt hat.
+- **Multi-MIC pro Kamera im Bin-Workflow** — UI übernimmt das Folder-Workflow-Pattern: pro Mic eine Selectbox „Zuordnung zu Cam X", mehrere Mics dürfen dieselbe Cam wählen. Use-Case: 2 Gäste auf einer Kamera mit je eigenem Lavalier. CLI wechselt von Single-Index auf `--cam-mics`-Listen.
+- **`max_faces` pro Cam automatisch aus MIC-Zuordnung abgeleitet** — Cams mit mehreren zugewiesenen Mics bekommen entsprechend mehr gleichzeitige Gesichts-Tracks bei MediaPipe. Endlich Nodding/Reaction-Erkennung für jeden Gast einzeln, auch wenn mehrere im selben Bild sitzen.
+- **FPS-Konsistenz-Check + Inline-Konvertierung** — Beim Bin-Scan prüft die UI, ob alle Kameras die Timeline-FPS haben. Bei Mismatch: roter Banner mit Liste der betroffenen Files, gesperrter Start-Button, und ein „Konvertieren"-Button startet ffmpeg im Background-Thread mit Live-Log. Ziel-Codec H.264 4:2:2 10-bit (praktisch verlustfrei), embedded Timecode wird erhalten. Verhindert die Klasse von Bugs, die sich aus FPS-Mismatch + Resolve-Auto-Speed-Adaption ergibt.
+- **CLI-Flag `--skip-clip-filter`** — Überspringt den CLIP-Bilderkennungs-Pass (Cutaway-Filter für „trinkt aus Glas" o.ä.) für diesen Lauf. Spart ~30 min bei Test-Läufen, ohne das persistente Schema-Setting zu ändern. UI-Toggle im Optionen-Expander.
+
+### Fixes
+- **Cam-Cutaways auf einer Cam systematisch um den Sync-Offset verschoben (~250 Frames)** — `calculate_reference_frames()` vertauschte im Fallback (Cam-Datei ohne embedded TC) `reference_frame` und `timeline_zero_video`. Effekt: Cutaways auf der betroffenen Cam landeten konstant um den Sync-Offset versetzt — das Nick-Pattern lag dann außerhalb des Cutaway-Fensters. In der Praxis sichtbar als „Cutaway auf Host, aber Host bewegt sich nicht". Tritt nur auf, wenn eine Cam keinen embedded TC hat (z.B. nach fps-Konvertierung).
+- **ffprobe-TC-Read mit Diagnose & Resolve-Fallback** — `get_embedded_timecode()` schluckte Fehler stillschweigend und lieferte `None`. Jetzt explizite Fehlermeldungen auf stderr (FileNotFoundError, returncode, JSON-Parse). Zusätzlich Resolve-Fallback über `item.GetClipProperty('Start TC')` falls ffprobe transient ausfällt.
+
+### Sonstiges
+- **PASS 4 Split-Logik überarbeitet** — Statt eines einzelnen Mittelschnitts werden jetzt N Cutaways gleichmäßig verteilt, sodass jedes Speaker-Stück unter dem Threshold bleibt. Bei threshold=17s, cutaway=1.7s: 30s-Event → 1 Cutaway, 90s-Event → 4 Cutaways (vorher 1), 180s-Event → 9. Off-Cam-Check pro einzelnem Cutaway-Slot.
+- Lokale `CLAUDE.md`-Brain-Files via `.gitignore` ausgeschlossen.
+
+---
+
 ## v0.6.5  (2026-05-18)
 
 ### Fixes
