@@ -437,6 +437,89 @@ def _run_script(cmd, log_queue):
     log_queue.put(f"__EXIT__{process.returncode}")
 
 
+def _run_ffmpeg_conversions(targets, target_fps, log_queue):
+    """Konvertiert mehrere Video-Files sequentiell auf target_fps.
+
+    targets: list of (display_name, source_path).
+    Schreibt pro Source-File eine neue Datei mit Suffix _{target_fps}fps
+    neben das Original. Streamt ffmpeg-Output (stderr) live in log_queue.
+    Sendet am Ende __EXIT__<code> (0 = alle ok, sonst Anzahl Fehler).
+    """
+    errors = 0
+    outputs = []
+    for name, src in targets:
+        from pathlib import Path as _P
+        src_p = _P(src)
+        out_p = src_p.with_stem(src_p.stem + f'_{int(target_fps)}fps')
+        log_queue.put(f"")
+        log_queue.put(f"━━━ Konvertiere {name}")
+        log_queue.put(f"  Quelle: {src}")
+        log_queue.put(f"  Ziel:   {out_p}")
+
+        # Original-TC auslesen — muss erhalten bleiben, sonst kollidiert die
+        # spätere Source-Frame-Berechnung in der EDL-Pipeline (siehe modules/
+        # multicam_cutter/CLAUDE.md "Gotchas").
+        import json as _json
+        _probe = subprocess.run(
+            ['ffprobe', '-v', 'error', '-print_format', 'json',
+             '-show_format', '-show_streams', str(src_p)],
+            capture_output=True, text=True, encoding='utf-8', errors='replace',
+        )
+        _src_tc = None
+        try:
+            _meta = _json.loads(_probe.stdout)
+            _src_tc = _meta.get('format', {}).get('tags', {}).get('timecode')
+            if not _src_tc:
+                for _stream in _meta.get('streams', []):
+                    _src_tc = _stream.get('tags', {}).get('timecode')
+                    if _src_tc:
+                        break
+        except Exception:
+            pass
+        log_queue.put(f"  Embedded TC im Original: {_src_tc or '(keiner)'}")
+        log_queue.put(f"")
+
+        cmd = [
+            'ffmpeg', '-y', '-i', str(src_p),
+            '-vf', f'fps={target_fps}',
+            # H.264 4:2:2 10-bit, CRF 14 — praktisch verlustfrei, behält die
+            # Pro-Color-Reserve der Quelle (vermeidet Chroma-/Bittiefe-Reduktion).
+            '-c:v', 'libx264', '-pix_fmt', 'yuv422p10le',
+            '-profile:v', 'high422', '-crf', '14',
+            '-preset', 'medium',
+            '-c:a', 'aac', '-b:a', '192k',
+        ]
+        # Embedded TC erhalten: als Container-Metadata + auf der Video-Spur
+        if _src_tc:
+            cmd += ['-metadata', f'timecode={_src_tc}',
+                    '-metadata:s:v:0', f'timecode={_src_tc}']
+        cmd += [
+            '-stats', '-loglevel', 'info',
+            str(out_p),
+        ]
+        process = subprocess.Popen(
+            cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
+            text=True,
+            encoding='utf-8',
+            errors='replace',
+            bufsize=1,
+        )
+        for line in process.stdout:
+            log_queue.put(line.rstrip())
+        process.wait()
+        if process.returncode != 0:
+            log_queue.put(f"  ✗ FEHLER (Exit {process.returncode}) bei {name}")
+            errors += 1
+            break
+        else:
+            log_queue.put(f"  ✓ Fertig: {out_p}")
+            outputs.append(str(out_p))
+    log_queue.put(f"__OUTPUTS__{'|'.join(outputs)}")
+    log_queue.put(f"__EXIT__{errors}")
+
+
 def _seed_preset_values(prefix: str) -> None:
     """Seed session_state with preset values for missing params.
 
@@ -750,6 +833,7 @@ if tab_bin is not None:
 
     if resolve_ok and bin_name:
         _cache_key = f"_bin_clips_{bin_name}"
+        _cache_key_meta = f"_bin_clips_meta_{bin_name}"
         if _cache_key not in st.session_state:
             def _find_bin_folder(folder, name):
                 if folder.GetName() == name:
@@ -762,20 +846,29 @@ if tab_bin is not None:
             found = _find_bin_folder(mp.GetRootFolder(), bin_name)
             if found:
                 _clips = found.GetClipList() or []
-                _cams = sorted([
-                    c.GetName() for c in _clips
-                    if 'Video' in (c.GetClipProperty('Type') or '')
-                ])
+                _cam_clips = sorted(
+                    [c for c in _clips if 'Video' in (c.GetClipProperty('Type') or '')],
+                    key=lambda c: c.GetName(),
+                )
                 _mics = sorted([
                     c.GetName() for c in _clips
                     if 'Audio' in (c.GetClipProperty('Type') or '')
                     and 'Video' not in (c.GetClipProperty('Type') or '')
                 ])
+                _cams = [c.GetName() for c in _cam_clips]
+                _cams_meta = [{
+                    'name': c.GetName(),
+                    'path': c.GetClipProperty('File Path') or '',
+                    'fps':  c.GetClipProperty('FPS') or '',
+                } for c in _cam_clips]
                 st.session_state[_cache_key] = (_cams, _mics)
+                st.session_state[_cache_key_meta] = _cams_meta
             else:
                 st.session_state[_cache_key] = ([], [])
+                st.session_state[_cache_key_meta] = []
 
         _scanned_cams, _scanned_mics = st.session_state[_cache_key]
+        _scanned_cams_meta = st.session_state.get(_cache_key_meta, [])
         if len(_scanned_cams) >= 2:
             cam_labels = [Path(_scanned_cams[0]).stem, Path(_scanned_cams[1]).stem]
         mic_labels  = [Path(m).stem for m in _scanned_mics]
@@ -885,6 +978,13 @@ if tab_bin is not None:
         fps_bin               = st.number_input("FPS", value=25.0, step=1.0, format="%.1f")
         skip_analysis_b       = st.toggle("Nodding-Analyse überspringen (JSONs existieren)")
         skip_base_edl_b       = st.toggle("Base-EDL überspringen (base.edl existiert)")
+        skip_clip_filter_b    = st.toggle(
+            "CLIP-Bilderkennungs-Filter überspringen",
+            help="Überspringt den CLIP-basierten Filter, der ungünstige Cutaways "
+                 "(Trinken etc.) erkennt und verschiebt. Spart ~30 min pro Lauf. "
+                 "Nützlich für Test-Läufe; lässt das Schema-Setting "
+                 "'Ungünstige Cutaways verschieben' unverändert.",
+        )
         sync_from_timeline_b  = st.toggle(
             "Sync aus aktiver Resolve-Timeline",
             help="Statt Waveform-Cross-Correlation werden die Clip-Positionen der "
@@ -900,10 +1000,139 @@ if tab_bin is not None:
     st.divider()
     st.subheader("Workflow")
 
+    # ── FPS-Konsistenz-Check (verhindert den Resolve-Auto-Speed-Adaption-Bug) ──
+    _fps_mismatches = []
+    for _meta in _scanned_cams_meta:
+        try:
+            _cam_fps = float(_meta.get('fps') or 0)
+        except ValueError:
+            _cam_fps = 0
+        if not _cam_fps or abs(_cam_fps - fps_bin) > 0.01:
+            _fps_mismatches.append(_meta)
+
+    if _fps_mismatches:
+        st.error(
+            f"**FPS-Mismatch** — folgende Kamera(s) haben nicht die Timeline-FPS "
+            f"({fps_bin}). Resolve würde sonst automatisch Speed-Adaption machen, "
+            f"was zu Audio/Video-Drift und Standbild am Timeline-Ende führt:"
+        )
+        for _meta in _fps_mismatches:
+            st.markdown(f"- **{_meta['name']}** — FPS={_meta['fps'] or '?'} "
+                        f"(`{_meta['path']}`)")
+
+        _conv_running = st.session_state.get('_fps_conv_running', False)
+
+        # Live-Log aus Queue ziehen (drain) — non-blocking
+        _q = st.session_state.get('_fps_conv_queue')
+        if _q is not None:
+            _log_lines = st.session_state.get('_fps_conv_log', [])
+            try:
+                while True:
+                    _line = _q.get_nowait()
+                    if _line.startswith('__OUTPUTS__'):
+                        st.session_state['_fps_conv_outputs'] = (
+                            _line[len('__OUTPUTS__'):].split('|') if _line[len('__OUTPUTS__'):] else []
+                        )
+                        continue
+                    if _line.startswith('__EXIT__'):
+                        _code = int(_line[len('__EXIT__'):])
+                        st.session_state['_fps_conv_running'] = False
+                        st.session_state['_fps_conv_result_ok'] = (_code == 0)
+                        # Bin-Cache invalidieren, damit nach Re-Import frische FPS gelesen werden
+                        if _code == 0:
+                            for _k in list(st.session_state.keys()):
+                                if str(_k).startswith('_bin_clips'):
+                                    del st.session_state[_k]
+                        continue
+                    _log_lines.append(_line)
+            except queue.Empty:
+                pass
+            st.session_state['_fps_conv_log'] = _log_lines
+
+        if not _conv_running:
+            if st.button(
+                "Datei(en) auf Timeline-FPS konvertieren",
+                icon=":material/transform:",
+                type="primary",
+                use_container_width=True,
+            ):
+                _new_q = queue.Queue()
+                st.session_state['_fps_conv_queue']   = _new_q
+                st.session_state['_fps_conv_log']     = []
+                st.session_state['_fps_conv_running'] = True
+                st.session_state['_fps_conv_result_ok'] = None
+                _targets = [(m['name'], m['path']) for m in _fps_mismatches]
+                threading.Thread(
+                    target=_run_ffmpeg_conversions,
+                    args=(_targets, fps_bin, _new_q),
+                    daemon=True,
+                ).start()
+                st.rerun()
+
+        if _conv_running:
+            st.info(
+                f"Konvertierung läuft im Hintergrund — kann je nach Dateigröße "
+                f"längere Zeit dauern (10er-Minuten-Bereich pro GB). Live-Log wird "
+                f"automatisch aktualisiert."
+            )
+
+            from datetime import timedelta
+            @st.fragment(run_every=timedelta(seconds=2))
+            def _fps_conv_live_log():
+                _qf = st.session_state.get('_fps_conv_queue')
+                _ll = list(st.session_state.get('_fps_conv_log', []))
+                if _qf is not None:
+                    try:
+                        while True:
+                            _line = _qf.get_nowait()
+                            if _line.startswith('__OUTPUTS__'):
+                                st.session_state['_fps_conv_outputs'] = (
+                                    _line[len('__OUTPUTS__'):].split('|') if _line[len('__OUTPUTS__'):] else []
+                                )
+                                continue
+                            if _line.startswith('__EXIT__'):
+                                _code = int(_line[len('__EXIT__'):])
+                                st.session_state['_fps_conv_running'] = False
+                                st.session_state['_fps_conv_result_ok'] = (_code == 0)
+                                if _code == 0:
+                                    for _k in list(st.session_state.keys()):
+                                        if str(_k).startswith('_bin_clips'):
+                                            del st.session_state[_k]
+                                st.rerun()
+                                return
+                            _ll.append(_line)
+                    except queue.Empty:
+                        pass
+                    st.session_state['_fps_conv_log'] = _ll
+                # Zeige die letzten ~25 Zeilen (ffmpeg-Output kann lang werden)
+                _tail = "\n".join(_ll[-25:]) if _ll else "(wartet auf ffmpeg-Output …)"
+                st.code(_tail, language=None)
+            _fps_conv_live_log()
+        else:
+            _log_lines = st.session_state.get('_fps_conv_log', [])
+            if _log_lines:
+                with st.expander(f"Konvertierungs-Log ({len(_log_lines)} Zeilen)",
+                                 expanded=False):
+                    st.code("\n".join(_log_lines[-200:]), language=None)
+            if st.session_state.get('_fps_conv_result_ok') is True:
+                _outs = st.session_state.get('_fps_conv_outputs', [])
+                st.success(
+                    f"Konvertierung abgeschlossen. **Nächste Schritte:**\n\n"
+                    f"1. In Resolve den Media-Pool-Bin öffnen\n"
+                    f"2. Die alte(n) Kameradatei(en) durch die neue(n) ersetzen — "
+                    f"rechtsklick auf den Clip → **Replace Selected Clip…** und die "
+                    f"neue `_{int(fps_bin)}fps`-Datei wählen\n"
+                    f"3. Diese Seite neu laden (Browser-Refresh), dann erneut starten\n\n"
+                    + ("**Neue Datei(en):**\n" + "\n".join(f"- `{o}`" for o in _outs)
+                       if _outs else "")
+                )
+            elif st.session_state.get('_fps_conv_result_ok') is False:
+                st.error("Konvertierung fehlgeschlagen — siehe Log oben.")
+
     start_bin = st.button(
         "Bin-Workflow starten", icon=":material/play_arrow:",
         type="primary",
-        disabled=st.session_state.bin_running or not bin_name,
+        disabled=st.session_state.bin_running or not bin_name or bool(_fps_mismatches),
         use_container_width=True,
     )
 
@@ -930,6 +1159,8 @@ if tab_bin is not None:
             cmd.append("--skip-analysis")
         if skip_base_edl_b:
             cmd.append("--skip-base-edl")
+        if skip_clip_filter_b:
+            cmd.append("--skip-clip-filter")
         if sync_from_timeline_b:
             cmd.append("--sync-from-timeline")
         cmd += ["--cam-mics", *_bin_cam_mics_args]

@@ -795,6 +795,9 @@ def main():
                         help='Pfad zur params.json mit Modul-Parametern')
     parser.add_argument('--skip-analysis', action='store_true')
     parser.add_argument('--skip-base-edl', action='store_true')
+    parser.add_argument('--skip-clip-filter', action='store_true',
+                        help='CLIP-Bilderkennungs-Filter für ungünstige Cutaways überspringen '
+                             '(spart ~30 min CPU/GPU bei Test-Läufen, überschreibt params.clip_filter_enabled).')
     parser.add_argument('--sync-from-timeline', action='store_true',
                         help='Sync-Offsets aus der aktuell aktiven Resolve-Timeline lesen, '
                              'statt sie per Waveform-Cross-Correlation zu bestimmen.')
@@ -844,6 +847,37 @@ def main():
 
     print(f"  Kameras: {[c.GetName() for c in cams]}")
     print(f"  Mics:    {[m.GetName() for m in mics]}")
+
+    # 1b. FPS-Konsistenz prüfen — alle Cams müssen die Timeline-FPS haben.
+    # Bei Mismatch entstehen sonst durch Resolves Auto-Speed-Adaption
+    # Source/Record-Drifts (siehe modules/multicam_cutter/CLAUDE.md "Gotchas").
+    fps_mismatches = []
+    for cam in cams:
+        cam_fps_str = cam.GetClipProperty('FPS') or ''
+        try:
+            cam_fps = float(cam_fps_str)
+        except ValueError:
+            cam_fps = None
+        if cam_fps is None or abs(cam_fps - args.fps) > 0.01:
+            fps_mismatches.append((cam.GetName(),
+                                   cam.GetClipProperty('File Path') or '',
+                                   cam_fps_str))
+    if fps_mismatches:
+        print(f"\n✗ FPS-MISMATCH — Abbruch.")
+        print(f"  Timeline-FPS: {args.fps}")
+        print(f"  Folgende Kamera(s) haben abweichende Source-FPS:")
+        for name, path, fps in fps_mismatches:
+            print(f"    • {name} ({path}): FPS={fps}")
+        print(f"\n  Resolve macht bei FPS-Mismatch eine automatische Speed-Adaption,")
+        print(f"  die Source-/Record-Frames inkonsistent macht und zu Drift sowie")
+        print(f"  Standbild am Timeline-Ende führt.")
+        print(f"\n  Lösung: betroffene Datei(en) auf {args.fps} fps konvertieren, z.B.:")
+        for _, path, _ in fps_mismatches:
+            from pathlib import Path as _P
+            out = str(_P(path).with_stem(_P(path).stem + f'_{int(args.fps)}fps'))
+            print(f"    ffmpeg -i \"{path}\" -vf \"fps={args.fps}\" -c:v libx264 "
+                  f"-crf 18 -c:a aac \"{out}\"")
+        return 42  # Spezial-Exit-Code: FPS-Mismatch (UI kann das abfangen)
 
     # 2. Sync — entweder aus aktiver Resolve-Timeline oder per Waveform-Korrelation
     cam1_path = cams[0].GetClipProperty('File Path')
@@ -901,6 +935,12 @@ def main():
                                _dbg_cfg.getboolean('Debug', 'limit_frames', fallback=False))
             _params.setdefault('debug_max_analysis_frames',
                                _dbg_cfg.getint('Debug', 'max_analysis_frames', fallback=10000))
+
+    # CLI-Override: CLIP-Filter für diesen Lauf überspringen
+    if args.skip_clip_filter:
+        if _params.get('clip_filter_enabled'):
+            print("  ℹ️  --skip-clip-filter aktiv: CLIP-Filter wird übersprungen.")
+        _params['clip_filter_enabled'] = False
 
     import hashlib
     _src_hash = hashlib.md5(cam1_path.encode()).hexdigest()[:12]
