@@ -574,29 +574,47 @@ def split_long_shots(
     cam_types_dict: Dict[str, str] = None,  # {clip_name: 'close'|'wide'}
 ) -> List[EDLEvent]:
     print(f"\n✂️  PASS 4: Split zu lange Shots")
+    import math
     threshold_frames = int((max_shot_duration + 3.0) * fps)
     cutaway_frames   = int(cutaway_duration * fps)
     new_events = []
     split_count = 0
+    cutaway_count = 0
     types = cam_types_dict or {}
+
+    def _emit_speaker(parent, rec_in, rec_out):
+        """Speaker-Teilstück aus einem Parent-Event mit korrigierten Source-Frames."""
+        vi = timeline_zero_video_frames[parent.clip_name] + rec_in
+        vo = timeline_zero_video_frames[parent.clip_name] + rec_out
+        return EDLEvent(
+            event_num=0, clip_name=parent.clip_name,
+            source_in=frames_to_timecode(reference_frames[parent.clip_name] + vi, fps),
+            source_out=frames_to_timecode(reference_frames[parent.clip_name] + vo, fps),
+            record_in=frames_to_timecode(rec_in, fps),
+            record_out=frames_to_timecode(rec_out, fps),
+            fps=fps, reason=getattr(parent, 'reason', 'speaker'),
+        )
+
+    def _emit_cutaway(off_clip_name, cut_start, cut_end):
+        """max_time-Cutaway auf der Off-Cam, oder None wenn die Cam noch nicht gestartet ist."""
+        off_vi = timeline_zero_video_frames[off_clip_name] + cut_start
+        off_vo = timeline_zero_video_frames[off_clip_name] + cut_end
+        if off_vi < 0:
+            return None
+        return EDLEvent(
+            event_num=0, clip_name=off_clip_name,
+            source_in=frames_to_timecode(reference_frames[off_clip_name] + off_vi, fps),
+            source_out=frames_to_timecode(reference_frames[off_clip_name] + off_vo, fps),
+            record_in=frames_to_timecode(cut_start, fps),
+            record_out=frames_to_timecode(cut_end, fps),
+            fps=fps, reason="max_time",
+        )
 
     for idx, event in enumerate(events):
         duration = event.duration_frames()
         if duration <= threshold_frames:
             new_events.append(event)
             continue
-
-        # Wenn das nächste Event bereits ein Sprecherwechsel ist und der
-        # Split in der zweiten Hälfte landen würde, ist er überflüssig.
-        next_ev = events[idx + 1] if idx + 1 < len(events) else None
-        if next_ev and next_ev.clip_name != event.clip_name:
-            # Abstand vom geplanten Split-Ende zum Event-Ende
-            middle = event.record_in_frame + (duration // 2)
-            cut_end = middle + (cutaway_frames // 2)
-            remaining_after_split = event.record_out_frame - cut_end
-            if remaining_after_split < threshold_frames:
-                new_events.append(event)
-                continue
 
         # Wide-Kamera bevorzugt als Split-Ziel (Reset-Schnitt); Fallback: erste andere Close-Kamera
         wide_others  = [c for c in all_cam_names if c != event.clip_name and types.get(c, 'close') == 'wide']
@@ -606,49 +624,68 @@ def split_long_shots(
             new_events.append(event)
             continue
 
-        split_count += 1
-        middle    = event.record_in_frame + (duration // 2)
-        cut_start = middle - (cutaway_frames // 2)
-        cut_end   = cut_start + cutaway_frames
+        # Anzahl Cutaways berechnen, sodass jedes Speaker-Stück ≤ threshold bleibt.
+        # Bei N Cutaways entstehen N+1 Speaker-Stücke. Damit jedes ≤ threshold:
+        #   (duration - N · cutaway_frames) / (N+1) ≤ threshold
+        # → N ≥ (duration - threshold) / (threshold + cutaway_frames)
+        n_cutaways = max(1, math.ceil(
+            (duration - threshold_frames) / (threshold_frames + cutaway_frames)
+        ))
 
-        for (on_in, on_out, rec_in, rec_out, reason) in [
-            (event.record_in_frame, cut_start, event.record_in_frame, cut_start, getattr(event, 'reason', 'speaker')),
-            (cut_end, event.record_out_frame, cut_end, event.record_out_frame, getattr(event, 'reason', 'speaker')),
-        ]:
-            vi = timeline_zero_video_frames[event.clip_name] + on_in
-            vo = timeline_zero_video_frames[event.clip_name] + on_out
-            new_events.append(EDLEvent(
-                event_num=0, clip_name=event.clip_name,
-                source_in=frames_to_timecode(reference_frames[event.clip_name] + vi, fps),
-                source_out=frames_to_timecode(reference_frames[event.clip_name] + vo, fps),
-                record_in=frames_to_timecode(rec_in, fps),
-                record_out=frames_to_timecode(rec_out, fps),
-                fps=fps, reason=reason,
-            ))
-            if on_in == event.record_in_frame:
-                # Insert cutaway between first and second ON-segment
-                off_vi = timeline_zero_video_frames[other_clip] + cut_start
-                off_vo = timeline_zero_video_frames[other_clip] + cut_end
-                if off_vi >= 0:
-                    new_events.append(EDLEvent(
-                        event_num=0, clip_name=other_clip,
-                        source_in=frames_to_timecode(reference_frames[other_clip] + off_vi, fps),
-                        source_out=frames_to_timecode(reference_frames[other_clip] + off_vo, fps),
-                        record_in=frames_to_timecode(cut_start, fps),
-                        record_out=frames_to_timecode(cut_end, fps),
-                        fps=fps, reason="max_time",
-                    ))
-                else:
-                    # Kamera noch nicht gestartet — kein Split, Event ungeteilt lassen
-                    new_events.pop()  # Ersten ON-Teil wieder entfernen
-                    new_events.append(event)  # Original-Event beibehalten
-                    print(f"  ⚠️  Split-Cutaway auf {other_clip} übersprungen @ EDL {cut_start}: "
-                          f"Kamera startet erst {-off_vi} Frames später")
-                    break  # Zweiten ON-Teil nicht hinzufügen
+        # Sprecherwechsel-Skip: wenn nächstes Event eine andere Cam ist und
+        # nur EIN Split nötig wäre, der letzte Speaker-Rest aber sowieso schon
+        # unter threshold liegt, lieber ungeteilt lassen.
+        next_ev = events[idx + 1] if idx + 1 < len(events) else None
+        if n_cutaways == 1 and next_ev and next_ev.clip_name != event.clip_name:
+            middle = event.record_in_frame + (duration // 2)
+            cut_end = middle + (cutaway_frames // 2)
+            if event.record_out_frame - cut_end < threshold_frames:
+                new_events.append(event)
+                continue
 
-        print(f"  ✂️  Split: @ {event.record_in} ({duration/fps:.1f}s)")
+        # Speaker-Chunk-Länge: gleichmäßig verteilen
+        total_speaker_frames = duration - n_cutaways * cutaway_frames
+        chunk_frames = total_speaker_frames // (n_cutaways + 1)
 
-    print(f"  ✓ {split_count} gesplittet, {len(new_events)} Events total")
+        # Sequenz aus (speaker)(cutaway)(speaker)…(cutaway)(speaker) bauen.
+        # Bei Off-Cam-Fail (cut_start zu früh): Cutaway weglassen → die
+        # umliegenden Speaker-Stücke werden zum nächsten Chunk gemerged.
+        segments = []  # list of EDLEvent (in record-Reihenfolge)
+        pending_speaker_start = event.record_in_frame
+        skipped_cutaways = 0
+        for i in range(n_cutaways):
+            chunk_end = event.record_in_frame + (i + 1) * (chunk_frames + cutaway_frames) - cutaway_frames
+            cut_start = chunk_end
+            cut_end   = cut_start + cutaway_frames
+            cutaway_ev = _emit_cutaway(other_clip, cut_start, cut_end)
+            if cutaway_ev is None:
+                # Off-Cam noch nicht gestartet → diesen Slot überspringen, Speaker läuft weiter
+                skipped_cutaways += 1
+                continue
+            segments.append(_emit_speaker(event, pending_speaker_start, cut_start))
+            segments.append(cutaway_ev)
+            pending_speaker_start = cut_end
+        # Finaler Speaker-Rest bis Event-Ende
+        if pending_speaker_start < event.record_out_frame:
+            segments.append(_emit_speaker(event, pending_speaker_start, event.record_out_frame))
+
+        # Wenn ALLE Cutaways geskippt wurden → original Event unverändert behalten
+        if skipped_cutaways == n_cutaways:
+            new_events.append(event)
+            print(f"  ⚠️  Alle {n_cutaways} Split-Cutaways auf {other_clip} übersprungen "
+                  f"(Kamera noch nicht aktiv), Event ungeteilt: @ {event.record_in} ({duration/fps:.1f}s)")
+            continue
+
+        new_events.extend(segments)
+        applied_cutaways = n_cutaways - skipped_cutaways
+        split_count   += 1
+        cutaway_count += applied_cutaways
+        skip_note = f" ({skipped_cutaways} übersprungen weil {other_clip} noch nicht aktiv)" if skipped_cutaways else ""
+        print(f"  ✂️  Split: @ {event.record_in} ({duration/fps:.1f}s) → "
+              f"{applied_cutaways} Cutaway(s), {applied_cutaways + 1} Speaker-Stücke{skip_note}")
+
+    print(f"  ✓ {split_count} Events gesplittet, {cutaway_count} max_time-Cutaways eingefügt, "
+          f"{len(new_events)} Events total")
     return new_events
 
 
