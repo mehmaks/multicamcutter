@@ -1,7 +1,7 @@
 {
   "global": {
     "nod_threshold": 45,
-    "cooldown_s": 4.0,
+    "cooldown_s": 3.0,
     "settle_s": 3.0,
     "auto_accuracy_ref": 0.31,
     "analysis_width": 1280,

@@ -223,7 +223,9 @@ def build_aaf(
     fps: float,
     output: Path,
     cam_types: list = None,
-    wide_zoom: float = 1.5,
+    wide_zoom: float = 1.0,
+    audio_keeps: list = None,
+    trimmed_events: list = None,
 ) -> Path:
     """
     Erzeugt eine AAF-Timeline aus final.edl + synchronisierten Medien.
@@ -234,14 +236,19 @@ def build_aaf(
 
     offsets:   {'CAM1': 0, 'CAM2': N, ..., 'MIC1': N, 'MIC2': N, ...}
     cam_types: ['close', 'close', 'wide', ...] — Wide-Cams bekommen wide_zoom
-    wide_zoom: Skalierungsfaktor für Wide-Cam-Cutaways (Default 1.5 = 150%)
+    wide_zoom: Skalierungsfaktor für Wide-Cam-Cutaways (Default 1.0 = kein Zoom)
     """
     print("\nErstelle AAF...")
 
-    events = _parse_edl(edl_path, cam_paths, fps)
+    if trimmed_events is not None:
+        events = trimmed_events
+        print(f"  {len(events)} Cut-Events (pause-trimmed)")
+    else:
+        events = _parse_edl(edl_path, cam_paths, fps)
     if not events:
         raise RuntimeError("Keine Cut-Events in EDL — AAF-Generierung abgebrochen")
-    print(f"  {len(events)} Cut-Events")
+    if trimmed_events is None:
+        print(f"  {len(events)} Cut-Events")
 
     fps_int  = int(round(fps))
 
@@ -372,13 +379,23 @@ def build_aaf(
         comp.usage = 'Usage_TopLevel'
         f.content.mobs.append(comp)
 
+        # Metadaten
+        from datetime import datetime as _dt
+        comp.comments["_AUTHOR"] = "Multicam Cutter"
+        comp.comments["_DESCRIPTION"] = f"Automatischer Multicam-Schnitt — {len(events)} Cuts"
+        comp.comments["_CREATION_DATE"] = _dt.now().isoformat(timespec="seconds")
+        comp.comments["_APP_VERSION"] = "0.1.0"
+
         # TC-Slot — gibt Resolve die korrekte FPS der Timeline
         _make_timecode_slot(f, comp, edit_rate=fps_int, fps=fps_int,
                             start=0, length=total_frames)
 
         # V1 — Videoschnitte (ggf. Wide-Cam-Cutaways mit Zoom)
+        # Zoom nur, wenn explizit ein Faktor != 1.0 gewuenscht ist. Default ist 1.0
+        # (= aus): Die Cams sind sauber eingerichtet, und ob eine Totale herangeholt
+        # wird, entscheidet der Editor im Feinschnitt — das gehoert nicht vorgegeben.
         wide_indices = {i for i, t in enumerate(cam_types or []) if t == 'wide'}
-        has_zoom     = bool(wide_indices)
+        has_zoom     = bool(wide_indices) and abs(wide_zoom - 1.0) > 0.001
         if has_zoom:
             _register_scale_op(f)
 
@@ -405,27 +422,49 @@ def build_aaf(
         else:
             v_slot.segment = v_seq
 
-        # A1 / A2 — kontinuierliche MIC-Clips
+        # A1 / A2 — MIC-Clips (segmentiert bei Pause-Trim, sonst kontinuierlich)
         for i, (mic_data, mic_off, mic_dur) in enumerate(
                 zip(mic_masters, mic_offsets, mic_durs)):
             master, m_slot = mic_data
             mic_start  = max(0, abs_start0 - mic_off)
-            actual_dur = min(total_frames, max(0, mic_dur - mic_start))
-            if actual_dur <= 0:
-                continue
 
             a_slot = comp.create_sound_slot(edit_rate=fps_int)
             a_slot['PhysicalTrackNumber'].value = i + 1
             a_slot.name = f'A{i + 1}'
 
-            sc = master.create_source_clip(
-                slot_id=m_slot.slot_id, start=mic_start, length=actual_dur)
-            a_slot.segment.components.append(sc)
+            if audio_keeps:
+                # Segmentierte Platzierung: Keep-Regionen mit Fillern dazwischen
+                first_orig = audio_keeps[0][0]
+                cursor = 0
+                for orig_s, orig_e, rec_frame in audio_keeps:
+                    # Filler vor dem Segment (Luecke durch Pause-Trim)
+                    if rec_frame > cursor:
+                        gap = rec_frame - cursor
+                        filler = f.create.Filler(media_kind='sound', length=gap)
+                        a_slot.segment.components.append(filler)
+                        cursor += gap
+                    seg_src_start = mic_start + (orig_s - first_orig)
+                    seg_dur = orig_e - orig_s
+                    if seg_src_start < 0:
+                        seg_dur += seg_src_start
+                        seg_src_start = 0
+                    if seg_dur > 0:
+                        sc = master.create_source_clip(
+                            slot_id=m_slot.slot_id, start=seg_src_start, length=seg_dur)
+                        a_slot.segment.components.append(sc)
+                        cursor += seg_dur
+            else:
+                actual_dur = min(total_frames, max(0, mic_dur - mic_start))
+                if actual_dur <= 0:
+                    continue
+                sc = master.create_source_clip(
+                    slot_id=m_slot.slot_id, start=mic_start, length=actual_dur)
+                a_slot.segment.components.append(sc)
 
-            tail = total_frames - actual_dur
-            if tail > 0:
-                filler = f.create.Filler(media_kind='sound', length=tail)
-                a_slot.segment.components.append(filler)
+                tail = total_frames - actual_dur
+                if tail > 0:
+                    filler = f.create.Filler(media_kind='sound', length=tail)
+                    a_slot.segment.components.append(filler)
 
     print(f"  → {output.name}  ({len(events)} Cuts, {len(mic_masters)} MIC-Spur(en))")
     return output

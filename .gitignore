@@ -66,3 +66,15 @@ memory/
 
 # Lokale Brain-Files für Claude Code (Kontext-Hints pro Ordner, nicht versioniert)
 CLAUDE.md
+
+# Statische ffmpeg/ffprobe (arm64, osxexperts.net) — Build-Input, nicht versionieren
+apps/multicam-cutter/scripts/ffmpeg
+apps/multicam-cutter/scripts/ffprobe
+
+# MultiCamCutter Build-Artefakte (generiert — mehrere GB, nie versionieren)
+apps/multicam-cutter/dist/
+apps/multicam-cutter/build/
+apps/multicam-cutter/release/
+**/.build/
+**/.swiftpm/
+*.dmg

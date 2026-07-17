@@ -3,14 +3,15 @@ resolve-toolkit — License validation
 =====================================
 Modes (set via env var TOOLKIT_LICENSE_MODE):
   dummy   — Dev/testing: always valid, all modules unlocked (default)
-  local   — Beta: reads ~/.resolve-toolkit/license.json, verifies Ed25519 signature
-  remote  — Production: validates key against server, caches with grace period
+  local   — reads ~/.resolve-toolkit/license.json, verifies Ed25519 signature
+  remote  — Abo: Lizenzschlüssel gegen Backend prüfen, das eine kurze signierte
+            Lease ausstellt. Offline greift die gecachte Lease bis zu ihrem
+            Ablauf (Grace). Siehe apps/multicam-cutter/brain/Lizenz-API.md.
 """
 
 import base64
 import json
 import os
-import time
 import uuid
 from dataclasses import dataclass, field
 from datetime import date
@@ -39,14 +40,18 @@ ALL_MODULES = [
 BETA_BLOCKED: set[str] = {"auphonic", "sequencer", "social"}
 # Beispiel: BETA_BLOCKED = {"takes", "silence"}
 
-_DATA_DIR    = os.path.expanduser("~/.resolve-toolkit")
-_KEY_FILE    = os.path.join(_DATA_DIR, "license.key")
-_CACHE_FILE  = os.path.join(_DATA_DIR, "license_cache.json")
-_LOCAL_FILE  = os.path.join(_DATA_DIR, "license.json")
-GRACE_DAYS   = 7
+_DATA_DIR          = os.path.expanduser("~/.resolve-toolkit")
+_KEY_FILE          = os.path.join(_DATA_DIR, "license.key")       # eingegebener Lizenzschlüssel
+_ACTIVATION_FILE   = os.path.join(_DATA_DIR, "activation.json")   # LS instance_id (activation_id)
+_LOCAL_FILE        = os.path.join(_DATA_DIR, "license.json")      # signierte Lease (Cache)
+_SUBSCRIPTION_FILE = os.path.join(_DATA_DIR, "subscription.json") # Abo-Anzeigedaten (unsigniert)
 
-# Remote endpoint — replace with real URL before going to production
-_VALIDATE_URL = "https://api.resolve-toolkit.com/v1/license/validate"
+# Backend-API (Abo-Validierung). Über TOOLKIT_LICENSE_API überschreibbar
+# (Staging/Test ohne Code-Änderung). Pfade: Next.js-Routen unter /api/.
+_API_BASE       = os.environ.get("TOOLKIT_LICENSE_API", "https://multicamcutter-web.vercel.app")
+_ACTIVATE_URL   = _API_BASE + "/api/license/activate"
+_VALIDATE_URL   = _API_BASE + "/api/license/validate"
+_DEACTIVATE_URL = _API_BASE + "/api/license/deactivate"
 
 # Ed25519 Public Key — generated via keygen.py (private key never in repo)
 _PUBLIC_KEY_B64 = "S2CGURNQQPlj2HUCo6hB+kZ/8eRU9VBkQ46TVhcTgcY="
@@ -58,11 +63,16 @@ _PUBLIC_KEY_B64 = "S2CGURNQQPlj2HUCo6hB+kZ/8eRU9VBkQ46TVhcTgcY="
 class LicenseInfo:
     valid: bool
     modules: List[str] = field(default_factory=list)
-    expires: Optional[str] = None   # ISO date, e.g. "2026-12-31"
+    expires: Optional[str] = None   # ISO date der LEASE (rollendes Fenster, NICHT Abo-Ende)
     email: Optional[str] = None
     major_version: Optional[str] = None  # e.g. "v0"
-    grace: bool = False             # True if running on cached/offline grace period
+    grace: bool = False             # True if running on cached lease (offline/abgelaufenes Abo)
     error: Optional[str] = None     # Human-readable reason when not valid
+    status: Optional[str] = None    # Server-Status: active|inactive|invalid|activation_limit
+    # Informative Abo-Daten aus LemonSqueezy (nur Anzeige, unsigniert):
+    sub_status: Optional[str] = None  # active | on_trial | cancelled | past_due
+    renews_at: Optional[str] = None   # nächste Verlängerung (ISO date)
+    ends_at: Optional[str] = None     # Zugriffsende bei Kündigung (ISO date)
 
     def has_module(self, module: str) -> bool:
         """Return True if this license grants access to the given module."""
@@ -74,6 +84,15 @@ class LicenseInfo:
 def _device_id() -> str:
     """Stable, anonymous hardware identifier based on MAC address."""
     return str(uuid.UUID(int=uuid.getnode()))
+
+
+def _device_name() -> str:
+    """Menschlich lesbarer Gerätename für die LemonSqueezy-Instance."""
+    try:
+        import socket
+        return socket.gethostname()
+    except Exception:
+        return "Unbekanntes Gerät"
 
 
 def _canonical(data: dict) -> str:
@@ -91,7 +110,6 @@ def _verify_signature(data: dict) -> bool:
     """Prüft die Ed25519-Signatur der Lizenzdaten. Gibt False bei ungültiger Signatur."""
     try:
         from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PublicKey
-        from cryptography.hazmat.primitives.serialization import Encoding, PublicFormat
         from cryptography.exceptions import InvalidSignature
     except ImportError:
         return False  # cryptography-Paket fehlt
@@ -136,10 +154,11 @@ def _get_major_version() -> str:
 
 
 def _check_major_version(data: dict) -> Optional[str]:
-    """Prüft ob die lizenzierte Hauptversion zur App passt."""
+    """Prüft ob die lizenzierte Hauptversion zur App passt.
+    Abo-Leases enthalten kein major_version-Feld → kein Gating (versionsübergreifend)."""
     licensed = data.get("major_version")
     if not licensed:
-        return None  # Alte Lizenzen ohne Feld → kein Check
+        return None  # Leases/alte Lizenzen ohne Feld → kein Check
     app_major = _get_major_version()
     if licensed != app_major:
         return (f"Diese Lizenz gilt für Version {licensed}.x — "
@@ -147,39 +166,106 @@ def _check_major_version(data: dict) -> Optional[str]:
     return None
 
 
-def _write_cache(info: LicenseInfo) -> None:
-    os.makedirs(_DATA_DIR, exist_ok=True)
-    with open(_CACHE_FILE, "w") as f:
-        json.dump({
-            "valid":      info.valid,
-            "modules":    info.modules,
-            "expires":    info.expires,
-            "email":      info.email,
-            "cached_at":  time.time(),
-        }, f, indent=2)
+def _check_device(data: dict) -> Optional[str]:
+    """Prüft Gerätebindung — nur wenn die Lizenz ein device_id-Feld trägt
+    (Abo-Leases). Alte Lizenzen ohne Feld werden nicht geräte-gebunden."""
+    bound = data.get("device_id")
+    if bound and bound != _device_id():
+        return "Diese Lizenz ist an ein anderes Gerät gebunden."
+    return None
 
 
-def _read_cache_with_grace() -> LicenseInfo:
+def _lease_to_info(data: dict, grace: bool = False) -> LicenseInfo:
+    """Verifiziert eine signierte Lizenz/Lease (Signatur → Gerät → Ablauf →
+    Hauptversion) und baut daraus eine LicenseInfo. valid=False mit Grund beim
+    ersten fehlgeschlagenen Check."""
+    if not _verify_signature(data):
+        return LicenseInfo(valid=False, error="Lizenz ungültig oder manipuliert.")
+    for problem in (_check_device(data),
+                    _check_expiry(data.get("expires")),
+                    _check_major_version(data)):
+        if problem:
+            return LicenseInfo(valid=False, error=problem)
+    return LicenseInfo(
+        valid=True,
+        modules=data.get("modules", []),
+        expires=data.get("expires"),
+        email=data.get("email"),
+        major_version=data.get("major_version"),
+        grace=grace,
+    )
+
+
+def _read_activation_id() -> Optional[str]:
     try:
-        with open(_CACHE_FILE) as f:
+        with open(_ACTIVATION_FILE) as f:
+            return json.load(f).get("activation_id")
+    except Exception:
+        return None
+
+
+def _write_activation_id(activation_id: str) -> None:
+    os.makedirs(_DATA_DIR, exist_ok=True)
+    with open(_ACTIVATION_FILE, "w") as f:
+        json.dump({"activation_id": activation_id}, f)
+
+
+def _persist_lease(lease: dict) -> None:
+    """Signierte Lease als Cache ablegen (für spätere Offline-Verifikation)."""
+    os.makedirs(_DATA_DIR, exist_ok=True)
+    with open(_LOCAL_FILE, "w") as f:
+        json.dump(lease, f, indent=2)
+
+
+def _write_subscription(sub: dict) -> None:
+    """Abo-Anzeigedaten cachen (für Offline-Anzeige). Unsigniert — reine Info."""
+    if not sub:
+        return
+    os.makedirs(_DATA_DIR, exist_ok=True)
+    with open(_SUBSCRIPTION_FILE, "w") as f:
+        json.dump(sub, f)
+
+
+def _read_subscription() -> dict:
+    try:
+        with open(_SUBSCRIPTION_FILE) as f:
+            return json.load(f)
+    except Exception:
+        return {}
+
+
+def _apply_subscription(info: LicenseInfo, sub: dict) -> None:
+    """Überträgt die informativen Abo-Felder in die LicenseInfo."""
+    if not sub:
+        return
+    info.sub_status = sub.get("status")
+    info.renews_at = sub.get("renews_at")
+    info.ends_at = sub.get("ends_at")
+
+
+def _validate_cached_lease(grace: bool = True) -> LicenseInfo:
+    """Verifiziert die zwischengespeicherte Lease (Offline-Grace bis zu ihrem
+    Ablauf). expires der Lease ist die Grace-Grenze — keine separate Frist."""
+    try:
+        with open(_LOCAL_FILE) as f:
             data = json.load(f)
-        age_days = (time.time() - data.get("cached_at", 0)) / 86400
-        if age_days <= GRACE_DAYS:
-            return LicenseInfo(
-                valid=data.get("valid", False),
-                modules=data.get("modules", []),
-                expires=data.get("expires"),
-                email=data.get("email"),
-                grace=True,
-            )
-        return LicenseInfo(
-            valid=False,
-            error=f"Keine Verbindung zum Lizenzserver. Grace Period ({GRACE_DAYS} Tage) abgelaufen.",
-        )
     except FileNotFoundError:
-        return LicenseInfo(valid=False, error="Kein Lizenzschlüssel gefunden.")
-    except Exception as e:
-        return LicenseInfo(valid=False, error=f"Lizenz-Cache fehlerhaft: {e}")
+        return LicenseInfo(valid=False, error="Keine zwischengespeicherte Lizenz.")
+    except json.JSONDecodeError:
+        return LicenseInfo(valid=False, error="Zwischengespeicherte Lizenz beschädigt.")
+    info = _lease_to_info(data, grace=grace)
+    if info.valid:
+        _apply_subscription(info, _read_subscription())  # letzte bekannte Abo-Daten
+    return info
+
+
+def _status_message(status: Optional[str]) -> str:
+    return {
+        "inactive":         "Abo abgelaufen oder gekündigt. Bitte verlängern.",
+        "invalid":          "Lizenzschlüssel ungültig.",
+        "activation_limit": "Lizenz auf zu vielen Geräten aktiv.",
+        "device_mismatch":  "Aktivierung passt nicht zu diesem Gerät.",
+    }.get(status, "Lizenz konnte nicht validiert werden.")
 
 
 # ── Validation modes ──────────────────────────────────────────────────────────
@@ -197,98 +283,170 @@ def _validate_dummy() -> LicenseInfo:
 
 def _validate_local() -> LicenseInfo:
     """
-    Beta mode — reads ~/.resolve-toolkit/license.json und prüft Ed25519-Signatur.
-    Die JSON muss mit keysign.py erstellt worden sein.
+    Liest ~/.resolve-toolkit/license.json und verifiziert sie (Signatur, Gerät,
+    Ablauf, Hauptversion). Nützlich für Offline-Tests mit einer signierten Datei.
     """
     try:
         with open(_LOCAL_FILE) as f:
             data = json.load(f)
     except FileNotFoundError:
-        return LicenseInfo(
-            valid=False,
-            error=f"Keine Lizenzdatei gefunden ({_LOCAL_FILE}).",
-        )
+        return LicenseInfo(valid=False, error=f"Keine Lizenzdatei gefunden ({_LOCAL_FILE}).")
     except json.JSONDecodeError:
         return LicenseInfo(valid=False, error="Lizenzdatei ist kein gültiges JSON.")
     except Exception as e:
         return LicenseInfo(valid=False, error=f"Lizenzfehler: {e}")
-
-    # Signatur prüfen — schlägt fehl wenn Datei manipuliert wurde
-    if not _verify_signature(data):
-        return LicenseInfo(
-            valid=False,
-            error="Lizenzdatei ungültig oder manipuliert.",
-        )
-
-    # Ablaufdatum prüfen
-    expiry_error = _check_expiry(data.get("expires"))
-    if expiry_error:
-        return LicenseInfo(valid=False, error=expiry_error)
-
-    # Hauptversion prüfen
-    version_error = _check_major_version(data)
-    if version_error:
-        return LicenseInfo(valid=False, error=version_error)
-
-    return LicenseInfo(
-        valid=True,
-        modules=data.get("modules", []),
-        expires=data.get("expires"),
-        email=data.get("email"),
-        major_version=data.get("major_version"),
-    )
+    return _lease_to_info(data, grace=False)
 
 
 def _validate_remote() -> LicenseInfo:
     """
-    Production mode — validates key against remote server.
-    Falls back to local cache with grace period on network errors.
+    Abo-Modus — Lizenzschlüssel gegen das Backend prüfen, das eine kurze
+    signierte Lease ausstellt (siehe brain/Lizenz-API.md). Erststart aktiviert
+    (verbraucht einen Slot), danach wird validiert. Offline oder bei negativem
+    Status greift die gecachte Lease bis zu ihrem Ablauf.
     """
-    import requests  # optional dependency — only needed in remote mode
+    import requests  # optional dependency — nur im Remote-Modus
 
     try:
         with open(_KEY_FILE) as f:
             key = f.read().strip()
     except FileNotFoundError:
-        return LicenseInfo(
-            valid=False,
-            error=f"Kein Lizenzschlüssel gefunden. Bitte Schlüssel in {_KEY_FILE} ablegen.",
-        )
+        return LicenseInfo(valid=False, error="Kein Lizenzschlüssel hinterlegt.")
+
+    activation_id = _read_activation_id()
+    payload = {"key": key, "device_id": _device_id()}
+    if activation_id:
+        payload["activation_id"] = activation_id
+        url = _VALIDATE_URL
+    else:
+        payload["device_name"] = _device_name()
+        url = _ACTIVATE_URL
 
     try:
-        resp = requests.post(
-            _VALIDATE_URL,
-            json={"key": key, "device_id": _device_id()},
-            timeout=5,
-        )
+        resp = requests.post(url, json=payload, timeout=8)
         resp.raise_for_status()
         data = resp.json()
-        info = LicenseInfo(
-            valid=bool(data.get("valid", False)),
-            modules=data.get("modules", []),
-            expires=data.get("expires"),
-            email=data.get("email"),
-            error=data.get("error"),
-        )
-        _write_cache(info)
-        return info
-
     except Exception:
-        # Network error — fall back to cached result with grace period
-        return _read_cache_with_grace()
+        # Server nicht erreichbar → Offline-Grace über die gecachte Lease
+        return _validate_cached_lease(grace=True)
+
+    if data.get("status") == "active":
+        lease = data.get("lease") or {}
+        info = _lease_to_info(lease, grace=False)
+        if info.valid:
+            _persist_lease(lease)
+            if data.get("activation_id"):
+                _write_activation_id(data["activation_id"])
+            sub = data.get("subscription") or {}
+            _write_subscription(sub)
+            _apply_subscription(info, sub)
+            info.status = "active"
+            return info
+        # Frische Lease unbrauchbar (Signatur/Gerät) → wenigstens gecachte weiter
+        cached = _validate_cached_lease(grace=True)
+        return cached if cached.valid else info
+
+    # Negativ (inactive/invalid/activation_limit): gecachte Lease bis Ablauf ehren
+    cached = _validate_cached_lease(grace=True)
+    if cached.valid:
+        return cached
+    status = data.get("status")
+    return LicenseInfo(valid=False, status=status,
+                       error=data.get("message") or _status_message(status))
 
 
 # ── Public API ────────────────────────────────────────────────────────────────
 
+def set_license_key(key: str) -> LicenseInfo:
+    """
+    Speichert den Lizenzschlüssel und validiert sofort (erzwingt Neu-Aktivierung).
+    Von der App bei der Key-Eingabe aufgerufen.
+    """
+    os.makedirs(_DATA_DIR, exist_ok=True)
+    with open(_KEY_FILE, "w") as f:
+        f.write(key.strip())
+    # Alte Aktivierung verwerfen → nächster validate() aktiviert neu
+    try:
+        os.remove(_ACTIVATION_FILE)
+    except FileNotFoundError:
+        pass
+    return validate()
+
+
+def migrate_license_key(key: str) -> LicenseInfo:
+    """
+    Zieht die Lizenz auf DIESES Gerät um: gibt zuerst alle anderen Geräte-
+    Aktivierungen frei (Takeover via device_id), dann aktiviert neu. Für den Fall
+    `activation_limit` bei set_license_key (Lizenz noch auf altem Gerät aktiv).
+    """
+    key = key.strip()
+    os.makedirs(_DATA_DIR, exist_ok=True)
+    with open(_KEY_FILE, "w") as f:
+        f.write(key)
+    _server_takeover(key)              # andere Geräte freigeben
+    try:
+        os.remove(_ACTIVATION_FILE)    # eigene Aktivierung erzwingen
+    except FileNotFoundError:
+        pass
+    return validate()
+
+
+def _server_deactivate() -> None:
+    """Best-effort: gibt die Aktivierung serverseitig frei (LemonSqueezy-Slot,
+    Self-Leave via activation_id). Fehler/Offline werden ignoriert — die lokale
+    Deaktivierung passiert trotzdem."""
+    try:
+        import requests
+        with open(_KEY_FILE) as f:
+            key = f.read().strip()
+        if not key:
+            return
+        payload = {"key": key, "device_id": _device_id()}
+        activation_id = _read_activation_id()
+        if activation_id:
+            payload["activation_id"] = activation_id
+        requests.post(_DEACTIVATE_URL, json=payload, timeout=8)
+    except Exception:
+        pass
+
+
+def _server_takeover(key: str) -> None:
+    """Best-effort Takeover: gibt alle ANDEREN Geräte-Aktivierungen frei
+    (deactivate NUR mit device_id → Instanzen mit name != device_id werden
+    freigegeben). Für den Umzug auf dieses Gerät."""
+    try:
+        import requests
+        requests.post(_DEACTIVATE_URL,
+                      json={"key": key, "device_id": _device_id()}, timeout=8)
+    except Exception:
+        pass
+
+
+def clear_license() -> LicenseInfo:
+    """
+    Deaktiviert die Lizenz: gibt best-effort den Server-Slot frei (Self-Leave)
+    und entfernt die lokale Lizenz (Key, Aktivierung, Lease, Abo-Cache) → App
+    wird unlizenziert. Lokale Löschung passiert auch bei Server-Fehler/Offline.
+    """
+    _server_deactivate()
+    for path in (_KEY_FILE, _ACTIVATION_FILE, _LOCAL_FILE, _SUBSCRIPTION_FILE):
+        try:
+            os.remove(path)
+        except FileNotFoundError:
+            pass
+        except Exception:
+            pass
+    return LicenseInfo(valid=False)
+
+
 def install_license(src_path: str) -> LicenseInfo:
     """
-    Kopiert die Lizenzdatei von src_path nach ~/.resolve-toolkit/license.json
-    und validiert sie sofort. Gibt LicenseInfo mit valid=True bei Erfolg zurück,
-    sonst LicenseInfo mit error-Beschreibung (Datei wird NICHT kopiert wenn ungültig).
+    Kopiert eine signierte license.json von src_path nach
+    ~/.resolve-toolkit/license.json und validiert sie sofort. Datei wird NICHT
+    kopiert wenn ungültig. (Manueller Datei-Import; Abo läuft über set_license_key.)
     """
     import shutil
 
-    # Datei lesen und prüfen bevor sie kopiert wird
     try:
         with open(src_path) as f:
             data = json.load(f)
@@ -299,31 +457,21 @@ def install_license(src_path: str) -> LicenseInfo:
     except Exception as e:
         return LicenseInfo(valid=False, error=f"Datei konnte nicht gelesen werden: {e}")
 
-    if not _verify_signature(data):
-        return LicenseInfo(valid=False, error="Lizenzdatei ungültig oder manipuliert.")
+    info = _lease_to_info(data, grace=False)
+    if not info.valid:
+        return info
 
-    expiry_error = _check_expiry(data.get("expires"))
-    if expiry_error:
-        return LicenseInfo(valid=False, error=expiry_error)
-
-    version_error = _check_major_version(data)
-    if version_error:
-        return LicenseInfo(valid=False, error=version_error)
-
-    # Erst jetzt kopieren — nur gültige Dateien landen im Zielordner
     try:
         os.makedirs(_DATA_DIR, exist_ok=True)
         shutil.copy2(src_path, _LOCAL_FILE)
     except Exception as e:
         return LicenseInfo(valid=False, error=f"Lizenzdatei konnte nicht installiert werden: {e}")
+    return info
 
-    return LicenseInfo(
-        valid=True,
-        modules=data.get("modules", []),
-        expires=data.get("expires"),
-        email=data.get("email"),
-        major_version=data.get("major_version"),
-    )
+
+def is_dev_mode() -> bool:
+    """True when running with dummy/dev license (TOOLKIT_LICENSE_MODE=dummy)."""
+    return MODE == "dummy"
 
 
 def validate() -> LicenseInfo:

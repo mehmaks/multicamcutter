@@ -562,9 +562,37 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
 
     def run(cmd, desc):
         print(f"\n  {desc}...")
-        result = subprocess.run([sys.executable] + cmd)
-        if result.returncode != 0:
-            raise RuntimeError(f"Fehlgeschlagen: {desc}")
+        if getattr(sys, 'frozen', False):
+            # PyInstaller Bundle: Scripts in-process ausfuehren via runpy.
+            # Subprocesses funktionieren nicht weil sys.executable auf das
+            # frozen Binary zeigt, nicht auf einen Python-Interpreter.
+            import runpy
+            script_path = cmd[0]
+            old_argv = sys.argv
+            sys.argv = [script_path] + cmd[1:]
+            try:
+                runpy.run_path(script_path, run_name='__main__')
+            except SystemExit as e:
+                if e.code not in (None, 0):
+                    raise RuntimeError(f"Fehlgeschlagen: {desc}")
+            finally:
+                sys.argv = old_argv
+        elif hasattr(sys.stdout, '_log'):
+            # Dev/App-Modus: Subprocess-Output pipen und durch TeeWriter leiten
+            proc = subprocess.Popen(
+                [sys.executable, '-u'] + cmd,
+                stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+                bufsize=1, text=True, encoding='utf-8', errors='replace',
+            )
+            for line in proc.stdout:
+                sys.stdout.write(line)
+            proc.wait()
+            if proc.returncode != 0:
+                raise RuntimeError(f"Fehlgeschlagen: {desc}")
+        else:
+            result = subprocess.run([sys.executable] + cmd)
+            if result.returncode != 0:
+                raise RuntimeError(f"Fehlgeschlagen: {desc}")
 
     speaking_enabled = bool(params.get('speaking_enabled', False))
     pause_cutaway_enabled = bool(params.get('pause_cutaway_enabled', False))
@@ -946,6 +974,41 @@ def main():
     _src_hash = hashlib.md5(cam1_path.encode()).hexdigest()[:12]
     work_dir = Path(f'/tmp/resolve-toolkit/{_src_hash}')
     work_dir.mkdir(parents=True, exist_ok=True)
+
+    # ── Dev-Modus: Console-Capture starten ──────────────────────────────────
+    _dev_console_log = None
+    try:
+        from licensing.license import is_dev_mode
+        if is_dev_mode():
+            _console_log_path = work_dir / 'console.log'
+            _dev_console_log = open(_console_log_path, 'w', encoding='utf-8')
+
+            class _TeeWriter:
+                """Schreibt gleichzeitig auf Original-Stream und Log-Datei."""
+                def __init__(self, original, log_file):
+                    self._original = original
+                    self._log = log_file
+                def write(self, text):
+                    self._original.write(text)
+                    self._log.write(text)
+                def flush(self):
+                    self._original.flush()
+                    self._log.flush()
+
+            sys.stdout = _TeeWriter(sys.stdout, _dev_console_log)
+            sys.stderr = _TeeWriter(sys.stderr, _dev_console_log)
+    except ImportError:
+        pass
+
+    def _close_dev_console():
+        """Stellt stdout/stderr wieder her und schliesst das Console-Log."""
+        if _dev_console_log is not None and not _dev_console_log.closed:
+            if hasattr(sys.stdout, '_original'):
+                sys.stdout = sys.stdout._original
+            if hasattr(sys.stderr, '_original'):
+                sys.stderr = sys.stderr._original
+            _dev_console_log.close()
+
     try:
         final_edl = run_analysis(
             [cam1_path, cam2_path], mic_paths, offsets,
@@ -960,6 +1023,7 @@ def main():
         )
     except RuntimeError as e:
         print(f"\nFEHLER in Analyse: {e}")
+        _close_dev_console()
         return 1
 
     # 5. Cut-Timeline via AppendToTimeline aufbauen
@@ -972,36 +1036,41 @@ def main():
         cut_events, skipped_gap_frames = parse_edl(final_edl, cam_items, args.fps)
     except (ValueError, Exception) as e:
         print(f"FEHLER beim EDL-Parsen: {e}")
+        _close_dev_console()
         return 1
 
     if not cut_events:
         print("FEHLER: Keine Cut-Events aus EDL gelesen.")
+        _close_dev_console()
         return 1
 
     # ── Pause-Trimming anwenden (auf finale cut_events, nach Cutaway-Einfügung) ──
     audio_trims_path = work_dir / 'audio_trims.json'
+    audio_keeps_path = work_dir / 'audio_keeps.json'
     audio_keeps = None
     if audio_trims_path.exists():
         try:
             from pause_trim_edl import load_pauses, apply_pauses_to_cut_events
-            pauses = load_pauses(str(audio_trims_path))
+            raw = json.loads(audio_trims_path.read_text())
+            # Nur Pause-Dicts verarbeiten (nicht versehentlich audio_keeps)
+            if isinstance(raw, list) and raw and isinstance(raw[0], dict):
+                pauses = raw
+            else:
+                pauses = None
             if pauses:
                 cut_events, audio_keeps = apply_pauses_to_cut_events(
                     cut_events, pauses, args.fps,
                     max_pause_s=float(_params.get('max_pause', 1.0)),
                     cut_mode=_params.get('pause_cut_mode', 'middle'),
+                    min_event_s=float(_params.get('cleanup_dur', 1.5)),
                 )
                 if audio_keeps:
-                    # Audio-Keeps als JSON speichern für build_cut_timeline
-                    audio_trims_path.write_text(json.dumps(audio_keeps), encoding='utf-8')
+                    # Audio-Keeps in separate Datei speichern (nicht audio_trims ueberschreiben!)
+                    audio_keeps_path.write_text(json.dumps(audio_keeps), encoding='utf-8')
                     print(f"  Audio-Keeps: {len(audio_keeps)} Segmente")
-                else:
-                    # Keine Trims nötig — Pauses-JSON entfernen damit
-                    # build_cut_timeline es nicht als audio_keeps interpretiert
-                    audio_trims_path.unlink(missing_ok=True)
         except Exception as e:
             print(f"  ⚠️  Pause-Trim Fehler: {e}")
-            audio_trims_path.unlink(missing_ok=True)
+            audio_keeps_path.unlink(missing_ok=True)
 
     # ── Gate-WAVs in Media Pool importieren (Debug: gefilterte Audio in Timeline) ──
     _gate_enabled = bool(_params.get('crossbleed_gate_enabled', False))
@@ -1036,7 +1105,7 @@ def main():
         offsets=offsets, cam_items=cam_items, fps=args.fps,
         skipped_gap_frames=skipped_gap_frames,
         bin_folder=bin_folder,
-        audio_trims_path=audio_trims_path,
+        audio_trims_path=audio_keeps_path,
     )
     project.SetCurrentTimeline(cut_tl)
     time.sleep(0.3)
@@ -1045,6 +1114,25 @@ def main():
 
     print(f"\nWorkflow abgeschlossen.")
     print(f"  Cut-Timeline: {args.output}")
+
+    # ── Dev-Modus: Console-Capture beenden + Episode-Archiv erstellen ────────
+    _close_dev_console()
+    if _dev_console_log is not None:
+        import shutil
+        from datetime import date
+        _safe_name = re.sub(r'[^\w\-]', '_', args.output or 'unnamed')
+        _archive_dir = Path(os.path.expanduser(
+            f'~/.resolve-toolkit/runs/{date.today().isoformat()}_{_safe_name}'
+        ))
+        _archive_dir.mkdir(parents=True, exist_ok=True)
+        _archived = 0
+        for f in work_dir.iterdir():
+            if f.suffix in ('.edl', '.json', '.log'):
+                shutil.copy2(f, _archive_dir / f.name)
+                _archived += 1
+        print(f"\n  Dev: Episode-Archiv -> {_archive_dir}")
+        print(f"       {_archived} Dateien archiviert")
+
     return 0
 
 

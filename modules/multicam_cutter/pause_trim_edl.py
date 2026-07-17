@@ -201,7 +201,8 @@ def load_pauses(path: str) -> list:
 
 def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
                                 max_pause_s: float = 1.0,
-                                cut_mode: str = 'middle'):
+                                cut_mode: str = 'middle',
+                                min_event_s: float = 0.0):
     """
     Kürzt überlange Pausen in frame-basierten cut_events.
 
@@ -226,6 +227,7 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         return cut_events, None
 
     max_pause_frames = int(max_pause_s * fps)
+    min_event_frames = int(min_event_s * fps)
     snap_frames = int(0.2 * fps)
 
     # Clip-Grenzen in den finalen cut_events ermitteln.
@@ -254,7 +256,6 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
                      if ev.get('reason', 'speaker') != 'speaker']
 
     # ── Pausen verarbeiten (Sandbox-Ansatz) ─────────────────────────────
-    audio_trims = []
     trimmed_count = 0
     total_saved_frames = 0
     skipped_no_boundary = 0
@@ -314,8 +315,11 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         for ev in cut_events:
             if abs(ev['record_out'] - matched_cb) <= boundary_tolerance:
                 trim = ev['record_out'] - p1_end
-                # Cap: Event darf nicht negativ werden
-                max_trim = ev['source_out'] - ev['source_in']
+                # Cap: Event darf nicht negativ oder zu kurz werden
+                ev_dur = ev['source_out'] - ev['source_in']
+                max_trim = ev_dur - min_event_frames
+                if max_trim <= 0:
+                    break  # Event bereits zu kurz → nicht trimmen
                 if trim > max_trim:
                     trim = max_trim
                 ev['source_out'] -= trim
@@ -328,8 +332,11 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         for ev in cut_events:
             if abs(ev['record_in'] - matched_cb) <= boundary_tolerance:
                 delta = p2_start - ev['record_in']
-                # Cap: Event darf nicht negativ werden
-                max_delta = ev['source_out'] - ev['source_in']
+                # Cap: Event darf nicht negativ oder zu kurz werden
+                ev_dur = ev['source_out'] - ev['source_in']
+                max_delta = ev_dur - min_event_frames
+                if max_delta <= 0:
+                    break  # Event bereits zu kurz → nicht trimmen
                 if delta > max_delta:
                     delta = max_delta
                 ev['source_in'] += delta
@@ -337,22 +344,47 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
                 actual_trim_after = delta
                 break
 
-        # Audio-Trim = tatsächlich entfernte Frames (symmetrisch um Pausenmitte)
         actual_total = actual_trim_before + actual_trim_after
-        if actual_total > 0:
-            at_half = actual_total // 2
-            at_half2 = actual_total - at_half
-            pause_center = (ps + pe) // 2
-            at_start = pause_center - at_half2
-            at_end = pause_center + at_half
-            audio_trims.append((at_start, at_end))
-
         if actual_total > 0:
             trimmed_count += 1
             total_saved_frames += actual_total
 
     # Leere Events entfernen
     cut_events = [ev for ev in cut_events if ev['source_out'] > ev['source_in']]
+
+    # Same-Speaker-Cuts mergen (entstandene Nachbar-Events gleichen Clips).
+    # Nur Events mit gleichem Reason mergen, sonst verschluckt ein
+    # pause_cutaway/nodding-Event den nachfolgenden Speaker-Part.
+    merged = [cut_events[0]] if cut_events else []
+    for ev in cut_events[1:]:
+        prev = merged[-1]
+        if (ev.get('clip') is prev.get('clip')
+                and ev['source_in'] == prev['source_out']
+                and ev.get('reason', 'speaker') == prev.get('reason', 'speaker')):
+            prev['source_out'] = ev['source_out']
+            prev['record_out'] = ev['record_out']
+        else:
+            merged.append(ev)
+    cut_events = merged
+
+    # Audio-Keeps direkt aus den getrimmten Video-Events ableiten (VOR
+    # Kompaktierung). Benachbarte Events ohne Luecke werden zu einem
+    # Keep-Segment zusammengefasst. Dadurch Audio-Video-Sync garantiert.
+    audio_keeps = []
+    if trimmed_count > 0:
+        rec_cursor = 0
+        for ev in cut_events:
+            orig_in = ev['record_in']
+            orig_out = ev['record_out']
+            dur = ev['source_out'] - ev['source_in']
+            if dur <= 0:
+                continue
+            # Benachbarte Segmente zusammenfassen (kein Gap dazwischen)
+            if audio_keeps and orig_in == audio_keeps[-1][1]:
+                audio_keeps[-1] = (audio_keeps[-1][0], orig_out, audio_keeps[-1][2])
+            else:
+                audio_keeps.append((orig_in, orig_out, rec_cursor))
+            rec_cursor += dur
 
     # Record-Positionen kompaktieren (lückenlos)
     cursor = 0
@@ -361,19 +393,6 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         ev['record_in'] = cursor
         ev['record_out'] = cursor + dur
         cursor += dur
-
-    # Audio-Keeps berechnen (aus Audio-Trim-Regionen)
-    audio_keeps = []
-    if audio_trims:
-        pos = orig_start
-        rec_cursor = 0
-        for at_start, at_end in sorted(audio_trims):
-            if pos < at_start:
-                audio_keeps.append((pos, at_start, rec_cursor))
-                rec_cursor += at_start - pos
-            pos = at_end
-        if pos < orig_end:
-            audio_keeps.append((pos, orig_end, rec_cursor))
 
     # Statistik
     if skipped_no_boundary:

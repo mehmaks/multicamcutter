@@ -21,6 +21,7 @@ import json
 import argparse
 import re
 import random
+import sys
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 import os
@@ -159,6 +160,7 @@ def build_events_with_cutaways(
     cutaway_cams: List[Dict],  # [{'name', 'type', 'reference_frame', 'timeline_zero_video', 'reactions'}]
     config: Dict,
     fps: float,
+    decision_log: Optional[List] = None,
 ) -> List[EDLEvent]:
     """
     Baut Events für eine Section mit Cutaways von einer oder mehreren OFF-Kameras.
@@ -247,6 +249,16 @@ def build_events_with_cutaways(
         cutaway_frame = max(cluster_start - pre_roll_frames, section_start)
 
         if cutaway_frame - last_cut_frame < min_shot_frames:
+            if decision_log is not None:
+                decision_log.append({
+                    "pass": "2", "action": "skip", "reason": "min_shot_spacing",
+                    "timecode": frames_to_timecode(cutaway_frame, fps),
+                    "on_clip": on_clip, "off_clip": reaction['cam']['name'],
+                    "reaction_type": rtype,
+                    "gap_frames": cutaway_frame - last_cut_frame,
+                    "min_shot_frames": min_shot_frames,
+                    "detail": f"Abstand zum letzten Cut nur {cutaway_frame - last_cut_frame} Frames (min {min_shot_frames})",
+                })
             continue
 
         # OFF-Cutaway: Multi-Person → Wide-Kamera; Single-Person → beste Close-Kamera
@@ -266,6 +278,14 @@ def build_events_with_cutaways(
         if off_vi_check < 0:
             print(f"  ⚠️  Cutaway auf {off_clip} übersprungen @ EDL {cutaway_frame}: "
                   f"Kamera startet erst {-off_vi_check} Frames später")
+            if decision_log is not None:
+                decision_log.append({
+                    "pass": "2", "action": "skip", "reason": "off_cam_not_ready",
+                    "timecode": frames_to_timecode(cutaway_frame, fps),
+                    "on_clip": on_clip, "off_clip": off_clip,
+                    "reaction_type": rtype,
+                    "detail": f"Off-Cam startet {-off_vi_check} Frames spaeter",
+                })
             continue
 
         # ON-Clip bis Cutaway
@@ -365,6 +385,13 @@ def build_events_with_cutaways(
                     else:
                         print(f"  ⚠️  Max-Time Reset auf {reset_cam['name']} übersprungen @ EDL {cut_start}: "
                               f"Kamera startet erst {-off_vi} Frames später")
+                        if decision_log is not None:
+                            decision_log.append({
+                                "pass": "2", "action": "skip", "reason": "off_cam_not_ready",
+                                "timecode": frames_to_timecode(cut_start, fps),
+                                "on_clip": on_clip, "off_clip": reset_cam['name'],
+                                "detail": f"Max-Time Reset: Off-Cam startet {-off_vi} Frames spaeter",
+                            })
                         current_pos = segment_end
                 else:
                     current_pos = segment_end
@@ -405,7 +432,8 @@ def _is_diarization_switch(event, prev, next_event) -> bool:
     return True
 
 
-def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float) -> List[EDLEvent]:
+def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float,
+                         decision_log: Optional[List] = None) -> List[EDLEvent]:
     print(f"\n🧹 PASS 3: Cleanup kurzer Events")
     print(f"  Min Duration: {min_duration}s ({int(min_duration * fps)} Frames)")
     min_frames = int(min_duration * fps)
@@ -421,6 +449,7 @@ def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float
                 skipped_diarization += 1
                 print(f"  ⏭ Sprecherwechsel beibehalten: {event.clip_name} @ {event.record_in} ({event.duration_frames()} Frames)")
                 continue
+            prev_old_out = prev.record_out
             source_offset = prev.source_in_frame - prev.record_in_frame
             prev.record_out       = event.record_out
             prev.record_out_frame = event.record_out_frame
@@ -428,6 +457,19 @@ def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float
             prev.source_out       = frames_to_timecode(prev.source_out_frame, fps)
             removed += 1
             print(f"  ✗ Entfernt: Event @ {event.record_in} ({event.duration_frames()} Frames)")
+            if decision_log is not None:
+                decision_log.append({
+                    "pass": "3", "action": "remove", "reason": "too_short",
+                    "timecode": event.record_in,
+                    "event_clip": event.clip_name,
+                    "event_reason": getattr(event, 'reason', ''),
+                    "duration_frames": event.duration_frames(),
+                    "extended_prev_clip": prev.clip_name,
+                    "extended_prev_from": prev_old_out,
+                    "extended_prev_to": prev.record_out,
+                    "prev_new_duration_frames": prev.duration_frames(),
+                    "detail": f"{event.clip_name} ({event.duration_frames()} Frames) entfernt, {prev.clip_name} auf {prev.duration_frames()} Frames verlaengert",
+                })
         else:
             cleaned.append(event)
     print(f"  ✓ {removed} entfernt, {skipped_diarization} Sprecherwechsel beibehalten, {len(cleaned)} verbleiben")
@@ -442,6 +484,7 @@ def insert_pause_cutaways(
     timeline_zero_video_frames: Dict[str, int],
     min_shot_frames: int,
     fps: float,
+    decision_log: Optional[List] = None,
 ) -> List[EDLEvent]:
     """Pass 2b: Fügt Cutaways in On-Speaker-Pausen ein.
 
@@ -475,6 +518,7 @@ def insert_pause_cutaways(
 
         # Finde das Event, das die Pause komplett enthält
         host_idx = None
+        skip_reason = "no_host_event"
         for i, ev in enumerate(result):
             if (ev.clip_name == on_clip
                     and ev.reason == "speaker"
@@ -485,8 +529,22 @@ def insert_pause_cutaways(
                         and ev.record_out_frame - pe >= min_shot_frames):
                     host_idx = i
                     break
+                else:
+                    skip_reason = "min_shot_margin"
 
         if host_idx is None:
+            if decision_log is not None:
+                pause_dur = (pe - ps) / fps
+                detail = ("Pause liegt nicht komplett in einem Speaker-Event"
+                          if skip_reason == "no_host_event"
+                          else f"Mindestabstand zum Event-Rand nicht eingehalten (min {min_shot_frames} Frames)")
+                decision_log.append({
+                    "pass": "2b", "action": "skip", "reason": skip_reason,
+                    "timecode": frames_to_timecode(ps, fps),
+                    "pause_duration_s": round(pause_dur, 1),
+                    "speaker": spk, "on_clip": on_clip,
+                    "detail": detail,
+                })
             continue
 
         ev = result[host_idx]
@@ -500,6 +558,14 @@ def insert_pause_cutaways(
                 off_cam = cam
                 break
         if not off_cam or off_cam['name'] not in reference_frames:
+            if decision_log is not None:
+                decision_log.append({
+                    "pass": "2b", "action": "skip", "reason": "no_off_cam",
+                    "timecode": frames_to_timecode(ps, fps),
+                    "pause_duration_s": round((pe - ps) / fps, 1),
+                    "speaker": spk, "on_clip": on_clip,
+                    "detail": "Keine Off-Kamera verfuegbar",
+                })
             continue
 
         off_clip = off_cam['name']
@@ -509,6 +575,14 @@ def insert_pause_cutaways(
         # Prüfe ob Off-Kamera zum Pause-Zeitpunkt bereits aufnimmt
         off_vi_check = off_tzvf + ps
         if off_vi_check < 0:
+            if decision_log is not None:
+                decision_log.append({
+                    "pass": "2b", "action": "skip", "reason": "off_cam_not_ready",
+                    "timecode": frames_to_timecode(ps, fps),
+                    "pause_duration_s": round((pe - ps) / fps, 1),
+                    "speaker": spk, "on_clip": on_clip, "off_clip": off_clip,
+                    "detail": f"Off-Cam startet {-off_vi_check} Frames spaeter",
+                })
             continue
 
         # Source-Offset des Host-Events beibehalten
@@ -558,6 +632,13 @@ def insert_pause_cutaways(
         inserted += 1
         print(f"  🔇 Pause-Cutaway: {on_clip}→{off_clip} @ {frames_to_timecode(ps, fps)} "
               f"({(pe - ps) / fps:.1f}s)")
+        if decision_log is not None:
+            decision_log.append({
+                "pass": "2b", "action": "insert", "reason": "pause_cutaway",
+                "timecode": frames_to_timecode(ps, fps),
+                "pause_duration_s": round((pe - ps) / fps, 1),
+                "speaker": spk, "on_clip": on_clip, "off_clip": off_clip,
+            })
 
     print(f"  ✓ {inserted} Pause-Cutaways eingefügt, {len(result)} Events total")
     return result
@@ -572,6 +653,7 @@ def split_long_shots(
     all_cam_names: List[str],
     fps: float,
     cam_types_dict: Dict[str, str] = None,  # {clip_name: 'close'|'wide'}
+    decision_log: Optional[List] = None,
 ) -> List[EDLEvent]:
     print(f"\n✂️  PASS 4: Split zu lange Shots")
     import math
@@ -633,15 +715,22 @@ def split_long_shots(
         ))
 
         # Sprecherwechsel-Skip: wenn nächstes Event eine andere Cam ist und
-        # nur EIN Split nötig wäre, der letzte Speaker-Rest aber sowieso schon
-        # unter threshold liegt, lieber ungeteilt lassen.
+        # nur EIN Split nötig wäre UND das Event nur knapp über dem Threshold
+        # liegt (max 20% drüber), lieber ungeteilt lassen.
         next_ev = events[idx + 1] if idx + 1 < len(events) else None
-        if n_cutaways == 1 and next_ev and next_ev.clip_name != event.clip_name:
-            middle = event.record_in_frame + (duration // 2)
-            cut_end = middle + (cutaway_frames // 2)
-            if event.record_out_frame - cut_end < threshold_frames:
-                new_events.append(event)
-                continue
+        if (n_cutaways == 1 and next_ev and next_ev.clip_name != event.clip_name
+                and duration <= threshold_frames * 1.2):
+            if decision_log is not None:
+                decision_log.append({
+                    "pass": "4", "action": "skip", "reason": "speaker_switch_heuristic",
+                    "timecode": event.record_in,
+                    "event_clip": event.clip_name,
+                    "duration_s": round(duration / fps, 1),
+                    "next_clip": next_ev.clip_name,
+                    "detail": f"Nur 1 Split noetig, naechstes Event ist Sprecherwechsel zu {next_ev.clip_name} — ungeteilt belassen",
+                })
+            new_events.append(event)
+            continue
 
         # Speaker-Chunk-Länge: gleichmäßig verteilen
         total_speaker_frames = duration - n_cutaways * cutaway_frames
@@ -661,6 +750,14 @@ def split_long_shots(
             if cutaway_ev is None:
                 # Off-Cam noch nicht gestartet → diesen Slot überspringen, Speaker läuft weiter
                 skipped_cutaways += 1
+                if decision_log is not None:
+                    decision_log.append({
+                        "pass": "4", "action": "skip_slot", "reason": "off_cam_not_ready",
+                        "timecode": frames_to_timecode(cut_start, fps),
+                        "event_clip": event.clip_name, "off_clip": other_clip,
+                        "slot": i + 1, "total_slots": n_cutaways,
+                        "detail": f"Split-Slot {i+1}/{n_cutaways}: Off-Cam noch nicht aktiv",
+                    })
                 continue
             segments.append(_emit_speaker(event, pending_speaker_start, cut_start))
             segments.append(cutaway_ev)
@@ -683,6 +780,16 @@ def split_long_shots(
         skip_note = f" ({skipped_cutaways} übersprungen weil {other_clip} noch nicht aktiv)" if skipped_cutaways else ""
         print(f"  ✂️  Split: @ {event.record_in} ({duration/fps:.1f}s) → "
               f"{applied_cutaways} Cutaway(s), {applied_cutaways + 1} Speaker-Stücke{skip_note}")
+        if decision_log is not None:
+            decision_log.append({
+                "pass": "4", "action": "split", "reason": "max_time",
+                "timecode": event.record_in,
+                "event_clip": event.clip_name,
+                "duration_s": round(duration / fps, 1),
+                "cutaways_applied": applied_cutaways,
+                "cutaways_skipped": skipped_cutaways,
+                "off_clip": other_clip,
+            })
 
     print(f"  ✓ {split_count} Events gesplittet, {cutaway_count} max_time-Cutaways eingefügt, "
           f"{len(new_events)} Events total")
@@ -841,6 +948,13 @@ def clip_filter_cutaways(
                 continue
 
             checked += 1
+            # Fortschritt fuer die UI: __PROGRESS__ wird vom JsonLineWriter geparst
+            # (gleicher Mechanismus wie die MediaPipe-Analyse). Jeder Check, sonst
+            # oszilliert die Progressbar minutenlang ohne echten Wert.
+            if total_cutaways:
+                print(f"__PROGRESS__ {checked / total_cutaways * 100:.1f} "
+                      f"{checked}/{total_cutaways}", flush=True)
+            # Lesbare Log-Zeile bleibt grob — sonst flutet sie das Log.
             if checked % 50 == 0 or checked == total_cutaways:
                 print(f"  … {checked}/{total_cutaways} geprüft", flush=True)
 
@@ -1033,6 +1147,15 @@ def main():
         'cutaway_randomness':     cutaway_randomness,
     }
 
+    # Decision Log: nur im Dev-Modus aktiv
+    decision_log = None
+    try:
+        from licensing.license import is_dev_mode
+        if is_dev_mode():
+            decision_log = []
+    except ImportError:
+        pass
+
     print(f"\n⚙️  Kameras: {[c['name'] for c in cameras]}")
     print(f"⚙️  Min Shot: {min_shot_duration}s  Reaction: {reaction_min_duration}s  Max: {max_shot_duration}s")
 
@@ -1122,6 +1245,7 @@ def main():
                 sec['timeline_start'], sec['timeline_end'], sec['video_start'],
                 on_name, reference_frames[on_name],
                 cutaway_cams, settings, args.fps,
+                decision_log=decision_log,
             )
             all_events.extend(evs)
             cam_cutaways += sum(1 for e in evs if e.clip_name != on_name)
@@ -1141,10 +1265,12 @@ def main():
             all_events, pause_data, cameras,
             reference_frames, timeline_zero_video_frames,
             min_shot_frames, args.fps,
+            decision_log=decision_log,
         )
 
     # Pass 3: Cleanup
-    final_events = cleanup_short_events(all_events, cleanup_min_duration, args.fps)
+    final_events = cleanup_short_events(all_events, cleanup_min_duration, args.fps,
+                                        decision_log=decision_log)
 
     # Pass 4: Split zu lange Shots
     all_cam_names  = [cam['name'] for cam in cameras]
@@ -1153,6 +1279,7 @@ def main():
         final_events, max_shot_duration, cleanup_min_duration,
         reference_frames, timeline_zero_video_frames, all_cam_names, args.fps,
         cam_types_dict=cam_types_dict,
+        decision_log=decision_log,
     )
 
     # Pass 5: CLIP Ignore-Filter
@@ -1170,9 +1297,16 @@ def main():
                            encoding='utf-8')
     print(f"✓ Colors-Metadaten: {colors_path.name}")
 
+    # Decision Log schreiben (nur Dev-Modus)
+    if decision_log is not None:
+        dl_path = Path(args.output).with_name('decision_log.json')
+        dl_path.write_text(json.dumps(decision_log, indent=2, ensure_ascii=False),
+                           encoding='utf-8')
+        print(f"✓ Decision Log: {dl_path.name} ({len(decision_log)} Eintraege)")
+
     print(f"\n{'=' * 70}\n✓ FERTIG! {len(final_events)} Events → {args.output}\n{'=' * 70}")
     return 0
 
 
 if __name__ == '__main__':
-    exit(main())
+    sys.exit(main())

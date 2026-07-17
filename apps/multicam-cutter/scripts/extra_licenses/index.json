@@ -1,0 +1,62 @@
+[
+  {
+    "name": "FFmpeg",
+    "version": "8.1",
+    "license": "GPL-2.0-or-later",
+    "url": "https://ffmpeg.org/",
+    "note": "Unveränderter statischer arm64-Build (osxexperts.net), eingebunden als separates Kommandozeilen-Programm (Subprozess). Konfiguriert mit --enable-gpl sowie libx264/libx265. Vollständiger Quellcode: https://ffmpeg.org/download.html",
+    "file": "ffmpeg-GPLv2.txt"
+  },
+  {
+    "name": "Sparkle",
+    "version": "2.9.4",
+    "license": "MIT",
+    "url": "https://sparkle-project.org/",
+    "file": "sparkle-MIT.txt"
+  },
+  {
+    "name": "MediaPipe",
+    "version": "0.10.33",
+    "license": "Apache-2.0",
+    "url": "https://ai.google.dev/edge/mediapipe",
+    "file": "mediapipe-Apache2.txt"
+  },
+  {
+    "name": "OpenCV",
+    "version": "4.13.0",
+    "license": "Apache-2.0 (Bibliothek) / MIT (Python-Packaging)",
+    "url": "https://opencv.org/",
+    "note": "Die OpenCV-Bibliothek selbst steht unter Apache-2.0. Der hier gezeigte Lizenztext gilt für das Python-Wheel-Packaging (opencv-contrib-python).",
+    "file": "opencv-Apache2.txt"
+  },
+  {
+    "name": "Requests",
+    "version": "2.33.1",
+    "license": "Apache-2.0",
+    "url": "https://requests.readthedocs.io/",
+    "file": "requests-Apache2.txt"
+  },
+  {
+    "name": "pyaaf2",
+    "version": "1.7.1",
+    "license": "MIT",
+    "url": "https://github.com/markreidvfx/pyaaf2",
+    "file": "pyaaf2.txt"
+  },
+  {
+    "name": "SoundFile",
+    "version": "0.13.1",
+    "license": "BSD-3-Clause",
+    "url": "https://python-soundfile.readthedocs.io/",
+    "note": "Bindet die libsndfile-Bibliothek ein (LGPL-2.1-or-later). Quelle: https://libsndfile.github.io/libsndfile/",
+    "file": "soundfile.txt"
+  },
+  {
+    "name": "Python",
+    "version": "3.12",
+    "license": "PSF-2.0",
+    "url": "https://www.python.org/",
+    "note": "Python-Laufzeitumgebung, eingebettet via PyInstaller.",
+    "file": "python-PSF.txt"
+  }
+]

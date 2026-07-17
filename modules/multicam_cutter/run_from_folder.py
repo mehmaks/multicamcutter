@@ -138,7 +138,7 @@ def main():
             _params.setdefault('debug_max_analysis_frames',
                                _dbg_cfg.getint('Debug', 'max_analysis_frames', fallback=10000))
 
-    wide_zoom = float(_params.get('wide_zoom', 1.5))
+    wide_zoom = float(_params.get('wide_zoom', 1.0))
 
     n_cams      = len(cams)
     cam_mic_map = _parse_cam_mics(args.cam_mics,    n_cams, len(mics))
@@ -165,7 +165,53 @@ def main():
         print(f"\nFEHLER in Analyse-Pipeline: {e}")
         return 1
 
+    # ── 3b. Pause-Trimming ────────────────────────────────────────────────────
+    audio_trims_path = work_dir / 'audio_trims.json'
+    audio_keeps = None
+    if audio_trims_path.exists():
+        try:
+            import json as _json2
+            from pause_trim_edl import load_pauses, apply_pauses_to_cut_events
+            raw = _json2.loads(audio_trims_path.read_text())
+            if isinstance(raw, list) and raw and isinstance(raw[0], dict):
+                pauses = raw
+            else:
+                pauses = None
+            if pauses:
+                # final.edl parsen in cut_events Format für apply_pauses_to_cut_events
+                from modules.multicam_cutter.build_aaf import _parse_edl as _aaf_parse_edl
+                _trim_events = _aaf_parse_edl(final_edl, cam_paths, args.fps)
+                if _trim_events:
+                    # clip-Sentinels für Identity-Vergleich (pause_trim nutzt 'is')
+                    _cam_sentinels = [object() for _ in cam_paths]
+                    for ev in _trim_events:
+                        ev['clip'] = _cam_sentinels[ev['cam_index']]
+                        dur = ev['source_out'] - ev['source_in']
+                        ev.setdefault('record_in', 0)
+                        ev.setdefault('record_out', 0)
+                        ev.setdefault('reason', 'speaker')
+                    # Record-Positionen aus Source-Dauern berechnen
+                    _cursor = 0
+                    for ev in _trim_events:
+                        dur = ev['source_out'] - ev['source_in']
+                        ev['record_in'] = _cursor
+                        ev['record_out'] = _cursor + dur
+                        _cursor += dur
+                    _trim_events, audio_keeps = apply_pauses_to_cut_events(
+                        _trim_events, pauses, args.fps,
+                        max_pause_s=float(_params.get('max_pause', 1.0)),
+                        cut_mode=_params.get('pause_cut_mode', 'middle'),
+                        min_event_s=float(_params.get('cleanup_dur', 1.5)),
+                    )
+                    if audio_keeps:
+                        _trimmed_aaf_events = _trim_events
+                        print(f"  Pause-Trim: {len(audio_keeps)} Audio-Keeps")
+        except Exception as e:
+            print(f"  ⚠️  Pause-Trim Fehler: {e}")
+            audio_keeps = None
+
     # ── 4. AAF generieren ────────────────────────────────────────────────────
+    _trimmed_events = locals().get('_trimmed_aaf_events')
     final_aaf = None
     try:
         final_aaf = build_aaf(
@@ -177,6 +223,8 @@ def main():
             output=folder / 'final.aaf',
             cam_types=cam_types,
             wide_zoom=wide_zoom,
+            audio_keeps=audio_keeps,
+            trimmed_events=_trimmed_events,
         )
     except Exception as e:
         print(f"\nWarnung: AAF-Generierung fehlgeschlagen: {e}")
