@@ -285,9 +285,13 @@
   ALLE positionalen Args nutzen diese Ordnung (verändert nur die AAF-Track-Reihenfolge).
   **Bekannte Engine-Grenze (vorbestehend, nicht neu):** Basis-EDL ist 2-Sprecher-binär;
   3+ Personen bzw. 2-Shot-ohne-Solo-Cam haben inhärente Grenzen → späteres Engine-Thema.
-  **Noch offen Phase 4:** alten Code entfernen (SetupView, InspectorPanel/PersonsInspector/
-  SourcesInspector, CameraCard, MicPill, ParameterForm/ParameterRow, PresetPicker,
-  `isWide`/`setCamWide`) — ERST nach einem echten End-to-End-Analyse-Test aus dem Wizard.
+  **✅ Phase 4 ERLEDIGT (18.07.):** Alter toter Code entfernt (~850 Zeilen) — SetupView,
+  InspectorPanel/PersonsInspector/SourcesInspector, CameraCard, MicPill, ParameterForm/
+  ParameterRow, PresetPicker (ContentView 1403→555 Zeilen), sowie `isWide`/`setCamWide`/
+  `sharedWideCams`/`ignoredCams` + is_wide-Persistenz aus EngineController. Build grün.
+  Commits: `95ecfed` (Wizard) + `64be61b` (Cleanup).
+  ⚠️ **Doku-Schuld:** `brain/UI-Komponenten.md` beschreibt noch die entfernten Views
+  (SetupView, Inspector, CameraCard, MicPill) → müsste auf den Wizard umgeschrieben werden.
   **Phase 5 OFFEN:** Wizard bei vorhandener `.multicam`-Zuordnung überspringen → Übersicht.
 
   **🔒 GELOCKTE DESIGN-ENTSCHEIDUNG (17.07., mit User) — Zuordnungs-Wizard (KISS):**
