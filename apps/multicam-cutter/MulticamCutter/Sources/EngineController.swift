@@ -34,10 +34,6 @@ struct CameraInfo: Identifiable, Hashable {
     var included: Bool = true
     /// Source-FPS aus dem Scan (ffprobe r_frame_rate). 0 = nicht lesbar.
     var fps: Double = 0
-    /// Als Totale markiert. Eine Totale wird bei Simultan-Reaktionen (≥2 Cams)
-    /// geschnitten (add_reactions_to_edl.py, `totale_simul_dur`) und braucht kein Mic.
-    var isWide: Bool = false
-
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: CameraInfo, rhs: CameraInfo) -> Bool { lhs.id == rhs.id }
 }
@@ -441,14 +437,11 @@ class EngineController: ObservableObject {
         return activeCams.filter { $0.durationSeconds > 0 && $0.durationSeconds < ref * 0.5 }
     }
 
-    /// Kameras, die tatsaechlich analysiert werden: aktiviert UND (Mic zugeordnet
-    /// ODER als Totale getaggt). Eine Cam ohne Mic und ohne Totale-Tag hat in der
-    /// Analyse keine Rolle und wird der Engine gar nicht uebergeben.
-    ///
-    /// Der Canvas zeigt weiterhin ALLE aktivierten Cams (man muss sie ja taggen
-    /// koennen) — nur die Engine bekommt diese gefilterte Liste.
+    /// Kameras, die tatsaechlich analysiert werden: aktiviert UND mindestens eine
+    /// Person (Mic) zugeordnet. Eine Cam ohne Person hat in der Analyse keine Rolle
+    /// und wird der Engine gar nicht uebergeben.
     var analysisCams: [CameraInfo] {
-        activeCams.filter { !$0.assignedMics.isEmpty || $0.isWide }
+        activeCams.filter { !$0.assignedMics.isEmpty }
     }
 
     /// analysisCams in ENGINE-Reihenfolge: Close-Cams zuerst (nach Personenzahl
@@ -470,12 +463,6 @@ class EngineController: ObservableObject {
         }
     }
 
-    /// Aktivierte Cams, die aus der Analyse fallen (kein Mic, keine Totale).
-    /// Die UI weist darauf hin — sonst waere es wieder stille Magie.
-    var ignoredCams: [CameraInfo] {
-        activeCams.filter { $0.assignedMics.isEmpty && !$0.isWide }
-    }
-
     // MARK: - Personen (abgeleitet)
 
     /// Eine Person je aktivem Mic. Name = Mic-Anzeigename, Kameras = alle aktiven
@@ -487,11 +474,6 @@ class EngineController: ObservableObject {
             return Person(id: mic.id, name: mic.displayName, micId: mic.id,
                           camIds: cams.map { $0.id })
         }
-    }
-
-    /// Totalen ohne Mic-Zuordnung: geteilte Wide-Shots, die keiner Person gehoeren.
-    var sharedWideCams: [CameraInfo] {
-        activeCams.filter { $0.isWide && $0.assignedMics.isEmpty }
     }
 
     // MARK: - Bildgrößen-Ableitung (Wizard — „Close gewinnt")
@@ -563,12 +545,6 @@ class EngineController: ObservableObject {
     func setCamShowsAllPersons(_ camId: Int) {
         guard let idx = cameraInfos.firstIndex(where: { $0.id == camId }) else { return }
         cameraInfos[idx].assignedMics = activeMics.map { $0.id }
-        saveSession()
-    }
-
-    func setCamWide(_ camId: Int, _ isWide: Bool) {
-        guard let idx = cameraInfos.firstIndex(where: { $0.id == camId }) else { return }
-        cameraInfos[idx].isWide = isWide
         saveSession()
     }
 
@@ -693,8 +669,7 @@ class EngineController: ObservableObject {
             "fps": fps,
             "cameras": cameraInfos.map { cam in
                 ["id": cam.id, "filename": cam.filename, "display_name": cam.displayName,
-                 "assigned_mics": cam.assignedMics, "included": cam.included,
-                 "is_wide": cam.isWide] as [String: Any]
+                 "assigned_mics": cam.assignedMics, "included": cam.included] as [String: Any]
             },
             "mics": micInfos.map { mic in
                 ["id": mic.id, "filename": mic.filename, "display_name": mic.displayName,
@@ -737,12 +712,6 @@ class EngineController: ObservableObject {
                 // Aeltere Sessions kennen "included"/"tag" nicht → Defaults beibehalten.
                 if let included = saved["included"] as? Bool {
                     cameraInfos[idx].included = included
-                }
-                if let isWide = saved["is_wide"] as? Bool {
-                    cameraInfos[idx].isWide = isWide
-                } else if let tagRaw = saved["tag"] as? String {
-                    // Migration alter Sessions: nur „wide" hatte je Funktion.
-                    cameraInfos[idx].isWide = (tagRaw == "wide")
                 }
             }
         }
