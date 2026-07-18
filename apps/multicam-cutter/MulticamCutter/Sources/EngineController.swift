@@ -586,9 +586,10 @@ class EngineController: ObservableObject {
         episodeName = url.lastPathComponent
         cameraInfos = []
         micInfos = []
-        wizardStep = .persons        // frischer Ordner → Wizard von vorn
         state = .scanning
 
+        // wizardStep entscheidet runScan nach loadSession (Phase 5: schon zugeordnet
+        // → Übersicht, sonst Schritt 1).
         Task {
             await runScan(folder: url)
         }
@@ -1119,7 +1120,9 @@ class EngineController: ObservableObject {
         cameraInfos = []
         micInfos = []
         state = .scanning
-        await runScan(folder: folder)
+        // Nach der Konvertierung NICHT zur Übersicht springen — der User war auf dem
+        // Kameras-Schritt und muss die neu konvertierte Cam evtl. neu zuordnen.
+        await runScan(folder: folder, decideWizardStep: false)
 
         guard state == .ready else { return }   // Scan-Fehler → nichts anfassen
         let originalPaths = Set(originals)
@@ -1196,7 +1199,7 @@ class EngineController: ObservableObject {
 
     // MARK: - Scan (Engine --scan)
 
-    private func runScan(folder: URL) async {
+    private func runScan(folder: URL, decideWizardStep: Bool = true) async {
         guard let (execPath, baseArgs) = engineCommand(extraArgs: ["--folder", folder.path, "--scan"]) else {
             errorMessage = "Engine oder Python nicht gefunden"
             state = .error
@@ -1322,6 +1325,12 @@ class EngineController: ObservableObject {
         // Gespeicherte Session laden (Labels, Zuordnungen, Parameter)
         if loadSession() {
             logMessages.append("Session wiederhergestellt (.multicam)")
+        }
+
+        // Phase 5: Existiert schon eine Zuordnung (Person auf Cam), direkt zur
+        // Übersicht springen statt den Wizard von Schritt 1 zu starten.
+        if decideWizardStep {
+            wizardStep = cameraInfos.contains { !$0.assignedMics.isEmpty } ? .overview : .persons
         }
 
         state = .ready
