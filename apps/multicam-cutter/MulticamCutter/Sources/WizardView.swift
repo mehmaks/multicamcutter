@@ -1,0 +1,1085 @@
+import SwiftUI
+import UniformTypeIdentifiers
+
+// MARK: - Zuordnungs-Wizard
+//
+// Ersetzt den alten Canvas + rechten Inspector + linke Sidebar durch einen
+// geführten 3-Schritt-Fluss (siehe Klick-Dummy / brain/TODOs.md → Personen):
+//   1 Personen benennen · 2 Personen auf Kameras ziehen · 3 Übersicht & Start
+// Reine Präsentationsschicht über demselben Modell (persons/camRoles).
+
+// ── Personen-Identitätsfarben (gedämpft, konkurrieren nicht mit Lime/Flieder) ──
+private let personPalette: [Color] = [
+    Color(.sRGB, red: 120/255, green: 166/255, blue: 230/255, opacity: 1),  // blau
+    Color(.sRGB, red: 230/255, green: 143/255, blue: 176/255, opacity: 1),  // rosé
+    Color(.sRGB, red: 224/255, green: 177/255, blue:  92/255, opacity: 1),  // amber
+    Color(.sRGB, red: 134/255, green: 179/255, blue: 154/255, opacity: 1),  // teal
+    Color(.sRGB, red: 176/255, green: 150/255, blue: 230/255, opacity: 1),  // lavendel
+    Color(.sRGB, red: 224/255, green: 138/255, blue: 110/255, opacity: 1),  // terracotta
+]
+
+@MainActor
+private func personColor(_ personId: Int, _ engine: EngineController) -> Color {
+    let idx = engine.activeMics.firstIndex { $0.id == personId } ?? 0
+    return personPalette[idx % personPalette.count]
+}
+
+private func personInitials(_ name: String) -> String {
+    let parts = name.split { $0 == " " || $0 == "_" || $0 == "-" }
+    let a = parts.first?.first.map(String.init) ?? "?"
+    let b = parts.count > 1 ? (parts[1].first.map(String.init) ?? "") : ""
+    return (a + b).uppercased()
+}
+
+@MainActor
+private func avatar(_ personId: Int, _ name: String, size: CGFloat, _ engine: EngineController) -> some View {
+    ZStack {
+        Circle().fill(personColor(personId, engine)).frame(width: size, height: size)
+        Text(personInitials(name))
+            .font(.system(size: size * 0.36, weight: .bold))
+            .foregroundStyle(.black)
+    }
+}
+
+// MARK: - Container
+
+struct WizardView: View {
+    @EnvironmentObject var engine: EngineController
+
+    var body: some View {
+        VStack(spacing: 0) {
+            header
+            Rectangle().fill(Color.wizBorder).frame(height: 1)
+            ScrollView {
+                Group {
+                    switch engine.wizardStep {
+                    case .persons:  PersonsStep()
+                    case .cameras:  CamerasStep()
+                    case .overview: OverviewStep()
+                    }
+                }
+                .frame(maxWidth: .infinity)          // Steps setzen eigene Breite + werden zentriert
+                .padding(.horizontal, 28)
+                .padding(.vertical, 24)
+            }
+            Rectangle().fill(Color.wizBorder).frame(height: 1)
+            WizardFooter()
+        }
+        .background(wizBackground)
+        .foregroundStyle(Color.wizText)
+        .sheet(isPresented: $engine.isConverting) {
+            FpsConversionSheet().environmentObject(engine)
+        }
+        .alert("Konvertierung fehlgeschlagen",
+               isPresented: Binding(get: { engine.convertError != nil },
+                                    set: { if !$0 { engine.convertError = nil } })) {
+            Button("OK", role: .cancel) { engine.convertError = nil }
+        } message: { Text(engine.convertError ?? "") }
+    }
+
+    // Kein flaches Schwarz: sanfter Verlauf + dezente Lime/Flieder-Radials wie im
+    // Dummy — dadurch wirkt der Grund weniger dunkel und deutlich harmonischer.
+    private var wizBackground: some View {
+        ZStack {
+            LinearGradient(colors: [Color.wizBg2, Color.wizBg], startPoint: .top, endPoint: .bottom)
+            RadialGradient(colors: [Color.brandAccent.opacity(0.05), .clear],
+                           center: .topTrailing, startRadius: 0, endRadius: 620)
+            RadialGradient(colors: [Color.brandSecondary.opacity(0.045), .clear],
+                           center: .bottomLeading, startRadius: 0, endRadius: 560)
+        }
+        .ignoresSafeArea()
+    }
+
+    private var header: some View {
+        VStack(spacing: 0) {
+            // Episodenname (editierbar) direkt unter der Titelleiste. Der App-Titel
+            // steht in der Leiste selbst. Feedback-Button liegt oben rechts.
+            HStack(spacing: 10) {
+                EditableLabel(text: $engine.episodeName, icon: "film.stack")
+                    .font(.headline)
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 11)
+
+            Rectangle().fill(Color.wizBorder).frame(height: 1)
+
+            // Stepper als eigene, linksbündige Zeile (wie im Dummy).
+            HStack {
+                WizardStepBar()
+                Spacer()
+            }
+            .padding(.horizontal, 24)
+            .padding(.vertical, 11)
+        }
+    }
+}
+
+// MARK: - Stepper
+
+struct WizardStepBar: View {
+    @EnvironmentObject var engine: EngineController
+    private let steps: [(WizardStep, String)] = [
+        (.persons, "Personen"), (.cameras, "Kameras"), (.overview, "Übersicht"),
+    ]
+
+    var body: some View {
+        HStack(spacing: 8) {
+            ForEach(Array(steps.enumerated()), id: \.offset) { i, item in
+                if i > 0 {
+                    Rectangle().fill(Color.wizBorder).frame(width: 34, height: 1)
+                }
+                stepButton(index: i, step: item.0, label: item.1)
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func stepButton(index: Int, step: WizardStep, label: String) -> some View {
+        let active = engine.wizardStep == step
+        let done = engine.wizardStep.rawValue > step.rawValue
+        Button { engine.wizardStep = step } label: {
+            HStack(spacing: 8) {
+                ZStack {
+                    Circle()
+                        .fill(active ? Color.brandAccent
+                              : (done ? Color.brandAccent.opacity(0.16) : Color.wizSurface))
+                        .overlay(Circle().stroke(done ? Color.brandAccent.opacity(0.5) : Color.wizBorder, lineWidth: 1))
+                        .frame(width: 25, height: 25)
+                    if done {
+                        Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.brandAccent)
+                    } else {
+                        Text("\(index + 1)").font(.system(size: 13, weight: .semibold))
+                            .foregroundStyle(active ? Color.black : Color.wizMuted)
+                    }
+                }
+                Text(label).font(.subheadline).fontWeight(active ? .semibold : .regular)
+                    .foregroundStyle(active ? Color.wizText : Color.wizMuted)
+            }
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Intro-Kopf je Screen
+
+struct WizardIntro: View {
+    let title: String
+    let text: String
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title).font(.system(size: 22, weight: .semibold))
+            Text(text).font(.system(size: 15)).lineSpacing(3).foregroundStyle(.wizMuted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: 640, alignment: .leading)
+    }
+}
+
+// MARK: - Screen 1: Personen
+
+struct PersonsStep: View {
+    @EnvironmentObject var engine: EngineController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            WizardIntro(title: "Benenne deine Sprecher:innen",
+                        text: "Aus jeder Tonspur haben wir automatisch eine Person angelegt. Gib ihnen "
+                            + "Namen, wie du sie im Schnitt wiedererkennst. Spuren, die kein Sprecher-"
+                            + "Mikrofon sind (Raumklang, Musik), wirf einfach weg.")
+
+            VStack(spacing: 10) {
+                ForEach(engine.activeMics) { mic in
+                    PersonRow(mic: mic)
+                }
+            }
+
+            if engine.activeMics.isEmpty {
+                Text("Keine aktiven Tonspuren.").foregroundStyle(.wizMuted)
+            } else {
+                let n = engine.activeMics.count
+                Text("\(n) Person\(n == 1 ? "" : "en") — eine je Tonspur.")
+                    .font(.callout).foregroundStyle(.wizMuted)
+            }
+
+            if !engine.excludedMics.isEmpty {
+                WizRestoreChips(title: "Ausgeblendete Spuren",
+                                items: engine.excludedMics.map { (id: $0.id, name: $0.displayName) },
+                                restore: { engine.setMicIncluded($0, true) })
+                    .padding(.top, 6)
+            }
+        }
+        .frame(maxWidth: 720, alignment: .leading)
+    }
+}
+
+struct PersonRow: View {
+    let mic: MicInfo
+    @EnvironmentObject var engine: EngineController
+    @State private var draft = ""
+    @FocusState private var focused: Bool
+
+    private var isPlaying: Bool { engine.playingMicId == mic.id }
+    private var liveName: String { engine.micInfos.first { $0.id == mic.id }?.displayName ?? mic.displayName }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            avatar(mic.id, liveName, size: 44, engine)
+
+            VStack(alignment: .leading, spacing: 1) {
+                TextField("Name", text: $draft)
+                    .textFieldStyle(.plain)
+                    .font(.system(size: 16, weight: .semibold))
+                    .focused($focused)
+                    .onSubmit { commit() }
+                    .onChange(of: focused) { _, f in if !f { commit() } }
+                Text(mic.filename)
+                    .font(.system(.caption2, design: .monospaced))
+                    .foregroundStyle(.wizFaint)
+            }
+
+            Spacer()
+
+            Button { engine.toggleMicPreview(mic) } label: {
+                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle")
+                    .font(.title3)
+                    .foregroundStyle(isPlaying ? Color.brandAccent : Color.secondary)
+            }
+            .buttonStyle(.plain)
+            .help("Ab erster lauter Stelle anhören")
+
+            Button { engine.deletePerson(mic.id) } label: {
+                Image(systemName: "trash").font(.system(size: 15)).foregroundStyle(.wizMuted)
+            }
+            .buttonStyle(.plain)
+            .help("Diese Spur ist kein Sprecher — entfernen")
+        }
+        .padding(12)
+        .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.wizBorder, lineWidth: 1))
+        .onAppear { draft = liveName }
+        // Sicherheitsnetz: Verlässt man Screen 1 (z. B. „Weiter"), ohne mit Enter zu
+        // bestätigen, geht die Umbenennung sonst verloren — beim Verschwinden committen.
+        .onDisappear { commit() }
+    }
+
+    private func commit() {
+        let trimmed = draft.trimmingCharacters(in: .whitespaces)
+        if trimmed.isEmpty { draft = liveName } else if trimmed != liveName { engine.renameMic(mic.id, to: trimmed) }
+    }
+}
+
+// MARK: - Screen 2: Kameras
+
+struct CamerasStep: View {
+    @EnvironmentObject var engine: EngineController
+    @State private var selectedPerson: Int?
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 22) {
+            WizardIntro(title: "Wer ist auf welcher Kamera zu sehen?",
+                        text: "Zieh jede Person auf jede Kamera, die sie zeigt (oder Person antippen, dann "
+                            + "Kamera). Ob eine Kamera eine Nahaufnahme oder eine Totale ist, erkennt die "
+                            + "App von selbst — du musst nichts labeln.")
+
+            if !engine.fpsMismatches.isEmpty { FpsMismatchBanner() }
+            if !engine.suspiciouslyShortCams.isEmpty { ShortCamBanner() }
+
+            HStack(alignment: .top, spacing: 26) {
+                VStack(alignment: .leading, spacing: 12) {
+                    railTitle("Personen")
+                    ForEach(engine.persons) { p in
+                        PersonToken(person: p, selected: selectedPerson == p.id) {
+                            selectedPerson = (selectedPerson == p.id ? nil : p.id)
+                        }
+                    }
+                    Text("Ziehen & Ablegen — oder antippen, dann Kamera klicken. Mehrfach erlaubt.")
+                        .font(.caption2).foregroundStyle(.wizFaint)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.top, 4)
+                }
+                .frame(width: 200)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    railTitle("Kameras")
+                    LazyVGrid(columns: [GridItem(.adaptive(minimum: 210, maximum: 260), spacing: 16)],
+                              alignment: .leading, spacing: 16) {
+                        ForEach(engine.activeCams) { cam in
+                            WizardCamCard(cam: cam, selectedPerson: $selectedPerson)
+                        }
+                    }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            if !engine.excludedCams.isEmpty {
+                WizRestoreChips(title: "Ausgeblendete Kameras",
+                                items: engine.excludedCams.map { (id: $0.id, name: $0.displayName) },
+                                restore: { engine.setCamIncluded($0, true) })
+            }
+        }
+        .frame(maxWidth: 1080, alignment: .leading)
+    }
+
+    private func railTitle(_ t: String) -> some View {
+        Text(t.uppercased()).font(.caption2).fontWeight(.bold)
+            .foregroundStyle(.wizFaint).tracking(1)
+    }
+}
+
+struct PersonToken: View {
+    let person: Person
+    var selected: Bool
+    var onTap: () -> Void
+    @EnvironmentObject var engine: EngineController
+
+    private var placed: Bool { engine.activeCams.contains { $0.assignedMics.contains(person.id) } }
+
+    var body: some View {
+        HStack(spacing: 9) {
+            avatar(person.id, person.name, size: 26, engine)
+            Text(person.name).font(.system(size: 14)).lineLimit(1)
+            if !placed { Text("· frei").font(.caption2).foregroundStyle(.brandSecondary) }
+            Spacer(minLength: 0)
+        }
+        .padding(.vertical, 6).padding(.horizontal, 8)
+        .background(Color.wizSurface, in: Capsule())
+        .overlay(Capsule().stroke(
+            selected ? Color.brandAccent
+                     : (placed ? Color.wizBorder : Color.brandSecondary.opacity(0.5)),
+            lineWidth: selected ? 2 : 1))
+        .contentShape(Capsule())
+        .onTapGesture(perform: onTap)
+        .onDrag { NSItemProvider(object: String(person.id) as NSString) }
+    }
+}
+
+struct WizardCamCard: View {
+    let cam: CameraInfo
+    @Binding var selectedPerson: Int?
+    @EnvironmentObject var engine: EngineController
+    @State private var targeted = false
+
+    private var role: EngineController.CamRole { engine.camRoles()[cam.id] ?? .unused }
+    private var assigned: [Person] {
+        // LIVE aus dem Engine-State lesen, NICHT aus dem `cam`-Snapshot: CameraInfo ist
+        // per id gleich (custom `==`), daher frischt SwiftUI den Snapshot nicht auf,
+        // wenn sich nur assignedMics ändert → Pills erschienen sonst erst nach Rückkehr.
+        let live = engine.cameraInfos.first { $0.id == cam.id }?.assignedMics ?? []
+        return live.compactMap { pid in engine.persons.first { $0.id == pid } }
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            ScrubbableThumbnail(videoPath: cam.path,
+                                initialThumbnailPath: cam.thumbnailPath,
+                                durationSeconds: cam.durationSeconds)
+                .overlay(alignment: .topTrailing) { rolePill }
+
+            VStack(alignment: .leading, spacing: 8) {
+                HStack(spacing: 6) {
+                    Text(cam.displayName).font(.subheadline).fontWeight(.medium).lineLimit(1)
+                    Spacer(minLength: 4)
+                    Button { engine.setCamIncluded(cam.id, false) } label: {
+                        Image(systemName: "trash").font(.system(size: 12)).foregroundStyle(.wizMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Diese Kamera gehört nicht zum Projekt — entfernen")
+                }
+
+                if assigned.isEmpty {
+                    Text("Person hierher ziehen").font(.caption).foregroundStyle(.wizFaint).padding(.vertical, 2)
+                } else {
+                    FlowLayout(spacing: 6) {
+                        ForEach(assigned) { p in personChip(p) }
+                    }
+                }
+
+                Button { engine.setCamShowsAllPersons(cam.id) } label: {
+                    Text("zeigt alle").font(.caption2).frame(maxWidth: .infinity)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.wizMuted)
+                .padding(.vertical, 5)
+                .overlay(RoundedRectangle(cornerRadius: 7)
+                    .stroke(Color.wizBorder, style: StrokeStyle(lineWidth: 1, dash: [3])))
+            }
+            .padding(11)
+        }
+        .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14)
+            .stroke(targeted ? Color.brandAccent : Color.wizBorder, lineWidth: targeted ? 2 : 0.5))
+        .contentShape(Rectangle())
+        .onTapGesture {
+            if let pid = selectedPerson { engine.addPersonToCam(pid, cam.id); selectedPerson = nil }
+        }
+        .onDrop(of: [UTType.plainText], isTargeted: $targeted) { providers in
+            guard let provider = providers.first else { return false }
+            provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
+                guard let data = item as? Data,
+                      let str = String(data: data, encoding: .utf8),
+                      let pid = Int(str) else { return }
+                DispatchQueue.main.async { engine.addPersonToCam(pid, cam.id) }
+            }
+            return true
+        }
+    }
+
+    @ViewBuilder private var rolePill: some View {
+        switch role {
+        case .wide:
+            Label("Totale", systemImage: "rectangle.split.2x1")
+                .font(.caption2.weight(.medium)).lineLimit(1).fixedSize()
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Color.brandSecondary).foregroundStyle(.black)
+                .clipShape(Capsule()).padding(6)
+        case .close:
+            Text("Nah").font(.caption2.weight(.medium))
+                .padding(.horizontal, 7).padding(.vertical, 3)
+                .background(Color.brandAccent.opacity(0.18)).foregroundStyle(Color.brandAccent)
+                .clipShape(Capsule()).padding(6)
+        case .unused:
+            EmptyView()
+        }
+    }
+
+    private func personChip(_ p: Person) -> some View {
+        HStack(spacing: 5) {
+            avatar(p.id, p.name, size: 18, engine)
+            Text(p.name).font(.caption2).lineLimit(1)
+            Button { engine.removePersonFromCam(p.id, cam.id) } label: {
+                Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(.wizMuted)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.leading, 3).padding(.trailing, 6).padding(.vertical, 3)
+        .background(Color.wizSurface2, in: Capsule())
+    }
+}
+
+// (WizardRoleLegend entfernt — die Nah/Totale-Pills auf den Cards sagen es bereits.)
+
+// MARK: - FPS-Mismatch-Banner (eigenständig — auch vom Wizard genutzt)
+
+struct FpsMismatchBanner: View {
+    @EnvironmentObject var engine: EngineController
+
+    private func fpsText(_ v: Double) -> String {
+        v <= 0 ? "?" : (v.rounded() == v ? String(Int(v)) : String(format: "%.2f", v))
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text("FPS-Mismatch").fontWeight(.semibold)
+            }
+            .foregroundStyle(.brandSecondary)
+
+            Text("Diese Kameras haben nicht die Timeline-Framerate (\(fpsText(engine.fps))). Ohne "
+                 + "Korrektur driften Bild und Ton auseinander und am Ende der Timeline steht ein Standbild.")
+                .font(.caption).foregroundStyle(.wizMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(engine.fpsMismatches) { cam in
+                Text("• \(cam.displayName) — \(fpsText(cam.fps)) fps")
+                    .font(.system(.caption, design: .monospaced))
+            }
+
+            Button { engine.convertMismatchedFps() } label: {
+                Label("Datei(en) auf \(fpsText(engine.fps)) fps konvertieren",
+                      systemImage: "arrow.triangle.2.circlepath")
+            }
+            .buttonStyle(.borderedProminent).controlSize(.small)
+
+            Text("Erzeugt Kopien neben den Originalen (praktisch verlustfrei, Timecode bleibt erhalten). "
+                 + "Dauert je nach Dateigröße — grob im 10-Minuten-Bereich pro GB.")
+                .font(.caption2).foregroundStyle(.wizFaint)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.brandSecondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandSecondary.opacity(0.4), lineWidth: 1))
+    }
+}
+
+// MARK: - Warnung: auffällig kurze Kamera (abgebrochene Konvertierung)
+
+struct ShortCamBanner: View {
+    @EnvironmentObject var engine: EngineController
+
+    private func mins(_ s: Double) -> String {
+        let m = Int(s) / 60, sec = Int(s) % 60
+        return m > 0 ? "\(m):\(String(format: "%02d", sec)) min" : "\(sec) s"
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text("Auffällig kurze Kamera").fontWeight(.semibold)
+            }
+            .foregroundStyle(.brandSecondary)
+
+            Text("Diese Kamera ist viel kürzer als die anderen Quellen — meist eine "
+                 + "abgebrochene Konvertierung, deren Teildatei liegen blieb. So entstehen "
+                 + "Video-Sync-Versatz und eine AAF, die in Resolve nicht verlinkt. Bitte die "
+                 + "Datei löschen und erneut konvertieren (diesmal nicht abbrechen).")
+                .font(.caption).foregroundStyle(.wizMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ForEach(engine.suspiciouslyShortCams) { cam in
+                Text("• \(cam.displayName) — \(mins(cam.durationSeconds))")
+                    .font(.system(.caption, design: .monospaced))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.brandSecondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandSecondary.opacity(0.4), lineWidth: 1))
+    }
+}
+
+// MARK: - Screen 3: Übersicht & Start
+
+struct OverviewStep: View {
+    @EnvironmentObject var engine: EngineController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            WizardIntro(title: "Passt alles?",
+                        text: "Das hat die App aus deinen Zuordnungen abgeleitet — Bildgrößen inklusive. "
+                            + "Stimmt etwas nicht, geh einen Schritt zurück und korrigier es. Sonst: Analyse starten.")
+
+            HStack(alignment: .top, spacing: 22) {
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionTitle("Bildgrößen je Person")
+                    if engine.persons.isEmpty {
+                        Text("Keine Personen.").font(.callout).foregroundStyle(.wizMuted)
+                    }
+                    ForEach(engine.persons) { p in LadderRow(person: p) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+
+                VStack(alignment: .leading, spacing: 12) {
+                    sectionTitle("Kameras")
+                    ForEach(engine.activeCams) { cam in CamSummaryRow(cam: cam) }
+                }
+                .frame(maxWidth: .infinity, alignment: .leading)
+            }
+
+            derivedNote
+
+            WizardSettings()
+        }
+        .frame(maxWidth: 1080, alignment: .leading)
+    }
+
+    private var derivedNote: some View {
+        let totalen = engine.activeCams.filter { engine.camRoles()[$0.id] == .wide }.count
+        let n = engine.persons.count
+        let c = engine.activeCams.count
+        return (
+            Text("Automatisch erkannt: ").fontWeight(.semibold).foregroundStyle(Color.brandSecondary)
+            + Text("\(n) Sprecher:in\(n == 1 ? "" : "nen"), \(c) Kamera\(c == 1 ? "" : "s"), "
+                 + "\(totalen) Totale\(totalen == 1 ? "" : "n"). Eine Kamera mit mehreren Personen bleibt "
+                 + "eine Nahaufnahme, solange sie für eine davon die engste Einstellung ist — erst wenn "
+                 + "alle woanders enger sind, wird sie zur Totale.").foregroundStyle(Color.wizMuted)
+        )
+        .font(.callout)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.brandSecondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandSecondary.opacity(0.25), lineWidth: 1))
+    }
+
+    private func sectionTitle(_ t: String) -> some View {
+        Text(t.uppercased()).font(.caption2).fontWeight(.bold)
+            .foregroundStyle(.wizFaint).tracking(1)
+    }
+}
+
+struct LadderRow: View {
+    let person: Person
+    @EnvironmentObject var engine: EngineController
+
+    var body: some View {
+        let ladder = engine.shotLadder(for: person.id)
+        let roles = engine.camRoles()
+        HStack(alignment: .top, spacing: 12) {
+            HStack(spacing: 9) {
+                avatar(person.id, person.name, size: 30, engine)
+                Text(person.name).font(.system(size: 14.5, weight: .semibold))
+            }
+            .frame(width: 150, alignment: .leading)
+
+            if ladder.isEmpty {
+                Text("keine Kamera").font(.caption).foregroundStyle(.brandSecondary)
+            } else {
+                FlowLayout(spacing: 7) {
+                    ForEach(Array(ladder.enumerated()), id: \.offset) { i, cam in
+                        shotChip(cam, wide: roles[cam.id] == .wide, tag: tag(i, ladder.count))
+                    }
+                }
+            }
+            Spacer(minLength: 0)
+        }
+        .padding(11)
+        .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.wizBorder, lineWidth: 1))
+    }
+
+    private func tag(_ i: Int, _ count: Int) -> String {
+        if i == 0 { return "engste" }
+        if i == count - 1 { return "weiteste" }
+        return "weiter"
+    }
+
+    private func shotChip(_ cam: CameraInfo, wide: Bool, tag: String) -> some View {
+        HStack(spacing: 5) {
+            Text(cam.displayName).font(.system(.caption2, design: .monospaced)).lineLimit(1)
+            Text(tag).font(.system(size: 9)).opacity(0.7)
+        }
+        .padding(.horizontal, 8).padding(.vertical, 4)
+        .background((wide ? Color.brandSecondary : Color.brandAccent).opacity(0.14),
+                    in: RoundedRectangle(cornerRadius: 8))
+        .foregroundStyle(wide ? Color.brandSecondary : Color.brandAccent)
+        .overlay(RoundedRectangle(cornerRadius: 8)
+            .stroke((wide ? Color.brandSecondary : Color.brandAccent).opacity(0.3), lineWidth: 1))
+    }
+}
+
+struct CamSummaryRow: View {
+    let cam: CameraInfo
+    @EnvironmentObject var engine: EngineController
+
+    var body: some View {
+        let role = engine.camRoles()[cam.id] ?? .unused
+        let who = cam.assignedMics
+            .compactMap { pid in engine.persons.first { $0.id == pid }?.name }
+            .joined(separator: ", ")
+        HStack(spacing: 10) {
+            Text(cam.displayName).font(.system(.caption, design: .monospaced)).frame(width: 96, alignment: .leading)
+            Text(who.isEmpty ? "—" : who).font(.caption).foregroundStyle(.wizMuted)
+                .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            rolePill(role)
+        }
+        .padding(.horizontal, 12).padding(.vertical, 9)
+        .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 9))
+        .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.wizBorder, lineWidth: 1))
+    }
+
+    @ViewBuilder private func rolePill(_ role: EngineController.CamRole) -> some View {
+        switch role {
+        case .wide:
+            Text("Totale").font(.caption2.weight(.semibold))
+                .padding(.horizontal, 8).padding(.vertical, 2)
+                .background(Color.brandSecondary).foregroundStyle(.black).clipShape(Capsule())
+        case .close:
+            Text("Nah").font(.caption2.weight(.semibold))
+                .padding(.horizontal, 8).padding(.vertical, 2)
+                .background(Color.brandAccent.opacity(0.16)).foregroundStyle(Color.brandAccent).clipShape(Capsule())
+        case .unused:
+            Text("ungenutzt").font(.caption2)
+                .padding(.horizontal, 8).padding(.vertical, 2)
+                .foregroundStyle(.wizFaint)
+                .overlay(Capsule().stroke(Color.wizBorder, lineWidth: 1))
+        }
+    }
+}
+
+// MARK: - Footer-Navigation
+
+struct WizardFooter: View {
+    @EnvironmentObject var engine: EngineController
+
+    /// Warum der Start (noch) nicht geht — nil = bereit.
+    private var startBlockedReason: String? {
+        if engine.activeCams.count < 2 { return "Mindestens 2 Kameras nötig" }
+        if engine.persons.isEmpty { return "Mindestens eine Person nötig" }
+        if engine.analysisCams.count < 2 { return "Mindestens 2 Kameras brauchen eine Person" }
+        if !engine.fpsMismatches.isEmpty { return "FPS-Mismatch — bitte oben beheben" }
+        if !engine.unassignedMics.isEmpty { return "Jede Person braucht mindestens eine Kamera" }
+        return nil
+    }
+
+    var body: some View {
+        HStack(spacing: 14) {
+            Button("Zurück") { go(-1) }
+                .buttonStyle(WizSecondaryButton())
+                .disabled(engine.wizardStep == .persons)
+                .opacity(engine.wizardStep == .persons ? 0.4 : 1)
+
+            Spacer()
+
+            if engine.wizardStep == .overview {
+                if let reason = startBlockedReason {
+                    Text(reason).font(.caption).foregroundStyle(.brandSecondary)
+                }
+                WizPresetDropdown()
+                Button { engine.start() } label: {
+                    Label("Analyse starten", systemImage: "play.fill")
+                }
+                .buttonStyle(WizPrimaryButton())
+                .disabled(startBlockedReason != nil)
+                .opacity(startBlockedReason == nil ? 1 : 0.4)
+            } else {
+                Button { go(1) } label: { Text("Weiter").frame(minWidth: 70) }
+                    .buttonStyle(WizPrimaryButton())
+            }
+        }
+        .padding(.horizontal, 24).padding(.vertical, 12)
+        .background(Color.wizBg)
+    }
+
+    private func go(_ delta: Int) {
+        let next = engine.wizardStep.rawValue + delta
+        if let step = WizardStep(rawValue: next) { engine.wizardStep = step }
+    }
+}
+
+// MARK: - Einstellungen (Variante C)
+//
+// Kuratierte Einfach-Ansicht (immer sichtbar). Der Textlink „Experteneinstellungen"
+// TAUSCHT den ganzen Inhalt gegen die volle Liste in ihren Rubriken (kein Anhängen,
+// kein Experten-Toggle). Beide Ansichten schreiben in denselben `engine.params`.
+
+struct WizardSettings: View {
+    @EnvironmentObject var engine: EngineController
+    @State private var expert = false
+
+    private var columns: [GridItem] {
+        [GridItem(.flexible(), spacing: 40), GridItem(.flexible(), spacing: 40)]
+    }
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 0) {
+            Text("Einstellungen").font(.headline).padding(.bottom, 10)
+            Rectangle().fill(Color.wizBorder).frame(height: 1)
+
+            if expert { expertList } else { simpleList }
+
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { expert.toggle() }
+            } label: {
+                HStack(spacing: 6) {
+                    if expert { Image(systemName: "chevron.up").font(.system(size: 9, weight: .bold)) }
+                    Text(expert ? "Einfache Ansicht" : "Experteneinstellungen")
+                    if !expert { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)) }
+                }
+                .font(.system(size: 13.5, weight: .medium))
+                .foregroundStyle(.brandSecondary)
+            }
+            .buttonStyle(.plain)
+            .padding(.top, 12)
+        }
+        .padding(.horizontal, 18)
+        .padding(.vertical, 14)
+        .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 14))
+        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.wizBorder, lineWidth: 1))
+    }
+
+    // Kuratierte 8 Essentials
+    private var simpleList: some View {
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
+            WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s")
+            WizSlider("Reaktionslänge", $engine.params.reactionDur, 0.5...5, suffix: " s")
+            WizToggle("Sprech-Erkennung", $engine.params.speakingEnabled)
+            WizToggle("Kopfnicken erkennen", $engine.params.noddingEnabled)
+            WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled)
+            WizToggle("Pausen-Cutaways", $engine.params.pauseCutawayEnabled)
+            WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB")
+            WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s")
+        }
+    }
+
+    // Volle Liste in Rubriken (scrollbare „Bleiwand")
+    private var expertList: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 0) {
+                group("Schnittregeln") {
+                    WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s")
+                    WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s")
+                    WizSlider("Cleanup-Mindestlänge", $engine.params.cleanupDur, 0.1...5, suffix: " s")
+                    WizSlider("Reaktionslänge", $engine.params.reactionDur, 0.5...5, suffix: " s")
+                }
+                group("Sprecher-Erkennung") {
+                    WizToggle("Sprech-Erkennung", $engine.params.speakingEnabled)
+                    WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB")
+                    WizSlider("Min. Segmentlänge", $engine.params.minEdit, 0.1...5, suffix: " s")
+                    WizSlider("Wechsel-Verzögerung", $engine.params.changeDelay, 0...2, suffix: " s")
+                    WizSlider("Min. Konfidenz", Binding(
+                        get: { engine.params.minConf * 100 },
+                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f")
+                    WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB")
+                    WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s")
+                }
+                group("Pausen") {
+                    WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled)
+                    WizSlider("Max. Pause", $engine.params.maxPause, 0.1...3, suffix: " s")
+                    WizToggle("Pausen-Cutaways", $engine.params.pauseCutawayEnabled)
+                    WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s")
+                    WizSlider("Stille-Schwelle", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f")
+                }
+                group("Reaktionen & Cutaways") {
+                    WizToggle("Kopfnicken erkennen", $engine.params.noddingEnabled)
+                    WizSlider("Pre-Roll", Binding(
+                        get: { Double(engine.params.preRoll) },
+                        set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f")
+                    WizSlider("Zufallsfaktor", $engine.params.randomness, 0...0.5, format: "%.2f")
+                    WizToggle("Bilderkennung (CLIP)", $engine.params.clipFilterEnabled)
+                }
+                group("Crossbleed-Gate") {
+                    WizToggle("Crossbleed-Gate", $engine.params.crossbleedGateEnabled)
+                    WizSlider("Dämpfung", $engine.params.gateFloor, -60...(-5), suffix: " dB", format: "%.0f")
+                    WizSlider("Hysterese", $engine.params.gateHysteresis, 0.5...10, suffix: " dB")
+                    WizSlider("Fenster", $engine.params.gateWindow, 20...500, suffix: " ms", format: "%.0f")
+                    WizSlider("Attack", $engine.params.gateAttack, 1...200, suffix: " ms", format: "%.0f")
+                    WizSlider("Release", $engine.params.gateRelease, 10...500, suffix: " ms", format: "%.0f")
+                    WizSlider("Gleichzeitig-Schwelle", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB")
+                    WizToggle("Gate-Audio in Timeline", $engine.params.gateUseFiltered)
+                }
+                group("Totale") {
+                    WizSlider("Min. Simultandauer", $engine.params.totaleSimulDur, 0.5...10, suffix: " s")
+                }
+            }
+        }
+        .frame(maxHeight: 300)
+    }
+
+    @ViewBuilder
+    private func group<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+        Text(title.uppercased())
+            .font(.caption2).fontWeight(.bold).foregroundStyle(.brandSecondary).tracking(0.8)
+            .padding(.top, 16).padding(.bottom, 2)
+        LazyVGrid(columns: columns, alignment: .leading, spacing: 0) { content() }
+    }
+}
+
+// ── Slider-/Toggle-Zeilen (2-spaltig, Label nah am Wert) ──
+
+struct WizSlider: View {
+    let label: String
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+    var suffix: String = ""
+    var format: String = "%.1f"
+
+    init(_ label: String, _ value: Binding<Double>, _ range: ClosedRange<Double>,
+         suffix: String = "", format: String = "%.1f") {
+        self.label = label; self._value = value; self.range = range
+        self.suffix = suffix; self.format = format
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label).font(.system(size: 14)).lineLimit(1)
+            Spacer(minLength: 8)
+            WizSliderControl(value: $value, range: range)
+            Text(String(format: format, value).replacingOccurrences(of: ".", with: ",") + suffix)
+                .font(.system(.caption, design: .monospaced)).foregroundStyle(.wizMuted)
+                .frame(width: 54, alignment: .trailing)
+        }
+        .padding(.vertical, 9)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.wizBorder.opacity(0.5)).frame(height: 0.5)
+        }
+    }
+}
+
+struct WizToggle: View {
+    let label: String
+    @Binding var isOn: Bool
+
+    init(_ label: String, _ isOn: Binding<Bool>) { self.label = label; self._isOn = isOn }
+
+    var body: some View {
+        HStack {
+            Text(label).font(.system(size: 14)).lineLimit(1)
+            Spacer()
+            WizSwitch(isOn: $isOn)
+        }
+        .padding(.vertical, 7)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.wizBorder.opacity(0.5)).frame(height: 0.5)
+        }
+    }
+}
+
+/// Toggle im Dummy-Look: Capsule + Knopf, Lime an / graue Spur aus. Native
+/// `Toggle(.switch)` sah zu system-grau/blau aus.
+struct WizSwitch: View {
+    @Binding var isOn: Bool
+    var body: some View {
+        Capsule()
+            .fill(isOn ? Color.brandAccent : Color.wizSurface2)
+            .frame(width: 38, height: 22)
+            .overlay {
+                if !isOn { Capsule().stroke(Color.wizBorder2, lineWidth: 1) }
+            }
+            .overlay(alignment: isOn ? .trailing : .leading) {
+                Circle()
+                    .fill(isOn ? Color.black.opacity(0.85) : Color.wizMuted)
+                    .frame(width: 16, height: 16)
+                    .padding(3)
+            }
+            .contentShape(Capsule())
+            .onTapGesture { withAnimation(.easeInOut(duration: 0.15)) { isOn.toggle() } }
+            .accessibilityAddTraits(.isButton)
+    }
+}
+
+// ── Button-Formen aus dem Dummy ──
+
+struct WizPrimaryButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 15, weight: .semibold))
+            .foregroundStyle(Color.black)
+            .padding(.horizontal, 22).padding(.vertical, 11)
+            .background(Color.brandAccent, in: RoundedRectangle(cornerRadius: 11))
+            .opacity(configuration.isPressed ? 0.85 : 1)
+    }
+}
+
+struct WizSecondaryButton: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(.system(size: 14, weight: .medium))
+            .foregroundStyle(Color.wizText)
+            .padding(.horizontal, 18).padding(.vertical, 10)
+            .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 10))
+            .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.wizBorder2, lineWidth: 1))
+            .opacity(configuration.isPressed ? 0.8 : 1)
+    }
+}
+
+// ── Slider im Dummy-Look: dünne Spur, Lime-Füllung, kleiner Lime-Knopf ──
+// Native macOS-Slider ließen sich nicht auf den schlanken Look bringen.
+struct WizSliderControl: View {
+    @Binding var value: Double
+    let range: ClosedRange<Double>
+
+    var body: some View {
+        GeometryReader { geo in
+            let w = geo.size.width
+            let span = range.upperBound - range.lowerBound
+            let frac = span > 0 ? min(max((value - range.lowerBound) / span, 0), 1) : 0
+            let knobX = 6.5 + CGFloat(frac) * (w - 13)
+            ZStack(alignment: .leading) {
+                Capsule().fill(Color.wizSurface2).frame(height: 4)
+                Capsule().fill(Color.brandAccent).frame(width: knobX, height: 4)
+                Circle().fill(Color.brandAccent).frame(width: 13, height: 13)
+                    .offset(x: knobX - 6.5)
+            }
+            .frame(height: 14)
+            .contentShape(Rectangle())
+            .gesture(DragGesture(minimumDistance: 0).onChanged { g in
+                guard span > 0, w > 13 else { return }
+                let f = min(max((g.location.x - 6.5) / (w - 13), 0), 1)
+                value = range.lowerBound + Double(f) * span
+            })
+        }
+        .frame(width: 108, height: 14)
+    }
+}
+
+// ── Wiederherstellen-Chips für ausgeblendete (getrashte) Quellen ──
+// Ohne die käme man an eine einmal getrashte Kamera/Person nur noch übers Löschen
+// der `.multicam` heran (der included=false-Zustand ist persistent).
+struct WizRestoreChips: View {
+    let title: String
+    let items: [(id: Int, name: String)]
+    let restore: (Int) -> Void
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title.uppercased())
+                .font(.caption2).fontWeight(.bold).foregroundStyle(.wizFaint).tracking(1)
+            FlowLayout(spacing: 8) {
+                ForEach(items, id: \.id) { item in
+                    Button { restore(item.id) } label: {
+                        HStack(spacing: 6) {
+                            Image(systemName: "arrow.uturn.left").font(.system(size: 10, weight: .bold))
+                            Text(item.name).font(.caption)
+                        }
+                        .padding(.horizontal, 10).padding(.vertical, 5)
+                        .background(Color.wizSurface, in: Capsule())
+                        .overlay(Capsule().stroke(Color.wizBorder, lineWidth: 1))
+                        .foregroundStyle(.wizMuted)
+                    }
+                    .buttonStyle(.plain)
+                    .help("Wieder ins Projekt aufnehmen")
+                }
+            }
+        }
+    }
+}
+
+// ── Preset-Dropdown im Dummy-Look: „Preset [aktueller Name ▾]" ──
+struct WizPresetDropdown: View {
+    @EnvironmentObject var engine: EngineController
+    @State private var showSaveSheet = false
+    @State private var newName = ""
+
+    private var currentName: String {
+        PresetManager.shared.listPresets().first {
+            PresetManager.shared.loadPreset($0.id) == engine.params
+        }?.name ?? "Angepasst"
+    }
+
+    var body: some View {
+        HStack(spacing: 8) {
+            Text("Preset").font(.system(size: 13)).foregroundStyle(.wizMuted)
+
+            // Natives Menü-Dropdown: dunkle Box + aktueller Name + Chevron (wie Dummy).
+            Picker("", selection: Binding(
+                get: { PresetManager.shared.listPresets().first {
+                    PresetManager.shared.loadPreset($0.id) == engine.params }?.id },
+                set: { if let id = $0, let p = PresetManager.shared.loadPreset(id) { engine.params = p } }
+            )) {
+                if PresetManager.shared.listPresets().first(where: {
+                    PresetManager.shared.loadPreset($0.id) == engine.params }) == nil {
+                    Text("Angepasst").tag(String?.none)
+                }
+                ForEach(PresetManager.shared.listPresets()) { Text($0.name).tag(Optional($0.id)) }
+            }
+            .labelsHidden()
+            .frame(minWidth: 150)
+
+            // Speichern / Import / Export dahinter (kompaktes Overflow-Menü).
+            Menu {
+                Button("Preset speichern …") { newName = ""; showSaveSheet = true }
+                Button("Preset importieren …") {
+                    if let (_, p) = PresetManager.shared.importPreset() { engine.params = p }
+                }
+                Button("Preset exportieren …") {
+                    _ = PresetManager.shared.exportPreset(engine.params, name: "Mein Preset")
+                }
+            } label: {
+                Image(systemName: "ellipsis.circle").font(.system(size: 15)).foregroundStyle(.wizMuted)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+        }
+        .sheet(isPresented: $showSaveSheet) {
+            VStack(spacing: 16) {
+                Text("Preset speichern").font(.headline)
+                TextField("Preset-Name", text: $newName).textFieldStyle(.roundedBorder).frame(width: 250)
+                HStack {
+                    Button("Abbrechen") { showSaveSheet = false }
+                    Button("Speichern") {
+                        guard !newName.isEmpty else { return }
+                        _ = PresetManager.shared.savePreset(name: newName, params: engine.params)
+                        showSaveSheet = false
+                    }
+                    .buttonStyle(.borderedProminent).disabled(newName.isEmpty)
+                }
+            }
+            .padding(24)
+        }
+    }
+}

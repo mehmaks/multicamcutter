@@ -24,4 +24,17 @@ extension ShapeStyle where Self == Color {
     static var brandSecondary: Color {
         Color(.sRGB, red: 203 / 255, green: 166 / 255, blue: 247 / 255)
     }
+
+    // MARK: - Wizard-Palette (grün-getöntes Dunkel, 1:1 aus dem Klick-Dummy)
+    // Bewusst eigene Werte statt der System-Graustufen (controlBackgroundColor …),
+    // damit der Look exakt dem Dummy entspricht statt neutral-blaugrau zu wirken.
+    static var wizBg:       Color { Color(.sRGB, red:  14/255, green:  16/255, blue:  12/255) } // #0e100c
+    static var wizBg2:      Color { Color(.sRGB, red:  20/255, green:  23/255, blue:  15/255) } // #14170f (Verlauf-Oberkante)
+    static var wizSurface:  Color { Color(.sRGB, red:  25/255, green:  28/255, blue:  21/255) } // #191c15
+    static var wizSurface2: Color { Color(.sRGB, red:  32/255, green:  36/255, blue:  27/255) } // #20241b
+    static var wizBorder:   Color { Color(.sRGB, red:  43/255, green:  49/255, blue:  38/255) } // #2b3126
+    static var wizBorder2:  Color { Color(.sRGB, red:  58/255, green:  65/255, blue:  50/255) } // #3a4132
+    static var wizText:     Color { Color(.sRGB, red: 238/255, green: 241/255, blue: 232/255) } // #eef1e8
+    static var wizMuted:    Color { Color(.sRGB, red: 152/255, green: 160/255, blue: 140/255) } // #98a08c
+    static var wizFaint:    Color { Color(.sRGB, red: 108/255, green: 115/255, blue:  98/255) } // #6c7362
 }

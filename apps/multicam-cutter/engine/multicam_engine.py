@@ -692,6 +692,24 @@ def convert_fps_files(files, target_fps):
         except Exception:
             pass
 
+        # Gegenprobe: ist die Ausgabe wirklich VOLLSTÄNDIG? Eine abgebrochene oder
+        # unterbrochene Konvertierung erzeugt sonst eine gültig aussehende, aber
+        # ABGESCHNITTENE Datei — die später die AAF (source-TC out of range → „timecode
+        # extents do not match") UND den Sync (verkürzte CAM1-Referenz → falsche Offsets)
+        # zerlegt. Die Ausgabe-Dauer muss ~der Quelle entsprechen.
+        if dur > 0:
+            out_dur = _probe_duration(out_p)
+            if out_dur < dur * 0.98:
+                try:
+                    out_p.unlink()
+                except Exception:
+                    pass
+                raise RuntimeError(
+                    f"Konvertierung von {src_p.name} UNVOLLSTÄNDIG: Ausgabe {out_dur:.1f}s "
+                    f"statt {dur:.1f}s. Die abgeschnittene Datei wurde entfernt — bitte "
+                    f"erneut konvertieren und den Vorgang diesmal nicht abbrechen."
+                )
+
         # Balken der fertigen Datei sicher auf 100 %.
         emit("convert_progress", file_index=i + 1, file_count=total,
              label=src_p.name, done=dur, total=dur)

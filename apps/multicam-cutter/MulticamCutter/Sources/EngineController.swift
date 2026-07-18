@@ -424,6 +424,23 @@ class EngineController: ObservableObject {
     var activeCams: [CameraInfo] { cameraInfos.filter { $0.included } }
     var activeMics: [MicInfo] { micInfos.filter { $0.included } }
 
+    /// Ausgeblendete (getrashte) Quellen — für die „wieder aufnehmen"-Chips im Wizard.
+    /// Ohne die gäbe es keinen Weg zurück (der Zustand steht persistent in `.multicam`).
+    var excludedCams: [CameraInfo] { cameraInfos.filter { !$0.included } }
+    var excludedMics: [MicInfo] { micInfos.filter { !$0.included } }
+
+    /// Aktive Cams, die auffällig viel kürzer sind als die längste Quelle — fast immer
+    /// eine abgebrochene/unvollständige Konvertierung (verwaiste Teildatei, die die App
+    /// sonst still als Cam benutzt → kaputte AAF „timecode extents do not match" + Sync-
+    /// Versatz, weil CAM1 die verkürzte Referenz ist). Schwelle bewusst niedrig (50 %),
+    /// damit legitim kürzere Clips nicht fälschlich anschlagen.
+    var suspiciouslyShortCams: [CameraInfo] {
+        let ref = max(activeCams.map(\.durationSeconds).max() ?? 0,
+                      activeMics.map(\.durationSeconds).max() ?? 0)
+        guard ref > 0 else { return [] }
+        return activeCams.filter { $0.durationSeconds > 0 && $0.durationSeconds < ref * 0.5 }
+    }
+
     /// Kameras, die tatsaechlich analysiert werden: aktiviert UND (Mic zugeordnet
     /// ODER als Totale getaggt). Eine Cam ohne Mic und ohne Totale-Tag hat in der
     /// Analyse keine Rolle und wird der Engine gar nicht uebergeben.
@@ -432,6 +449,25 @@ class EngineController: ObservableObject {
     /// koennen) — nur die Engine bekommt diese gefilterte Liste.
     var analysisCams: [CameraInfo] {
         activeCams.filter { !$0.assignedMics.isEmpty || $0.isWide }
+    }
+
+    /// analysisCams in ENGINE-Reihenfolge: Close-Cams zuerst (nach Personenzahl
+    /// aufsteigend), Totalen ans Ende. Grund: Die Basis-EDL diarisiert binär die
+    /// ERSTEN ZWEI Kameras aus `--cams` (RMS CAM1 vs CAM2). Die müssen zwei disjunkte
+    /// Close-Cams sein — NIE die Totale (die alle Mics summiert und die Diarisierung
+    /// kippen ließe). Diese Ordnung garantiert das, ohne Engine-Änderung.
+    /// ALLE positionalen Args (`--cams`/`--cam-mics`/`--cam-types`/`--display-names`)
+    /// müssen dieselbe Ordnung nutzen.
+    var orderedAnalysisCams: [CameraInfo] {
+        let roles = camRoles()
+        return analysisCams.sorted { a, b in
+            let aWide = roles[a.id] == .wide
+            let bWide = roles[b.id] == .wide
+            if aWide != bWide { return !aWide }                       // Close vor Totale
+            let pa = personIds(of: a).count, pb = personIds(of: b).count
+            if pa != pb { return pa < pb }                           // wenige Personen zuerst
+            return a.id < b.id                                       // stabil
+        }
     }
 
     /// Aktivierte Cams, die aus der Analyse fallen (kein Mic, keine Totale).
@@ -503,6 +539,33 @@ class EngineController: ObservableObject {
     /// (Person == aktives Mic; Ausschließen löst zugleich alle Zuordnungen.)
     func deletePerson(_ personId: Int) { setMicIncluded(personId, false) }
 
+    // MARK: - Personen-Zuordnung (Wizard, MEHRFACH erlaubt)
+    //
+    // Anders als `assignMic` (eine Cam pro Mic) darf eine Person hier auf MEHREREN
+    // Kameras liegen — sie ist ja in Close UND Totale zu sehen. Genau daraus leitet
+    // `camRoles()` die Bildgröße ab.
+
+    func addPersonToCam(_ personId: Int, _ camId: Int) {
+        guard let idx = cameraInfos.firstIndex(where: { $0.id == camId }) else { return }
+        if !cameraInfos[idx].assignedMics.contains(personId) {
+            cameraInfos[idx].assignedMics.append(personId)
+            saveSession()
+        }
+    }
+
+    func removePersonFromCam(_ personId: Int, _ camId: Int) {
+        guard let idx = cameraInfos.firstIndex(where: { $0.id == camId }) else { return }
+        cameraInfos[idx].assignedMics.removeAll { $0 == personId }
+        saveSession()
+    }
+
+    /// „zeigt alle" auf einer Kamera → alle aktiven Personen zuordnen (Raum-Cam).
+    func setCamShowsAllPersons(_ camId: Int) {
+        guard let idx = cameraInfos.firstIndex(where: { $0.id == camId }) else { return }
+        cameraInfos[idx].assignedMics = activeMics.map { $0.id }
+        saveSession()
+    }
+
     func setCamWide(_ camId: Int, _ isWide: Bool) {
         guard let idx = cameraInfos.firstIndex(where: { $0.id == camId }) else { return }
         cameraInfos[idx].isWide = isWide
@@ -547,6 +610,7 @@ class EngineController: ObservableObject {
         episodeName = url.lastPathComponent
         cameraInfos = []
         micInfos = []
+        wizardStep = .persons        // frischer Ordner → Wizard von vorn
         state = .scanning
 
         Task {
@@ -608,7 +672,7 @@ class EngineController: ObservableObject {
     /// in `activeMics` umgerechnet werden — sonst landen Mics bei falschen Kameras.
     var camMicsArgs: [String] {
         let activeMicIds = activeMics.map { $0.id }
-        return analysisCams.map { cam in
+        return orderedAnalysisCams.map { cam in
             cam.assignedMics
                 .compactMap { micId in activeMicIds.firstIndex(of: micId) }
                 .map(String.init)
@@ -1309,18 +1373,22 @@ class EngineController: ObservableObject {
         // Nur die aktivierten Quellen explizit uebergeben — die Engine scannt dann
         // NICHT selbst. Alle folgenden Args sind positional und beziehen sich auf
         // genau diese Listen.
-        extraArgs += ["--cams"] + analysisCams.map { $0.path }
+        // orderedAnalysisCams: Close-Cams zuerst, Totalen ans Ende (siehe dort) —
+        // damit die binäre Diarisierung (erste zwei Cams) nie die Totale erwischt.
+        let ordered = orderedAnalysisCams
+        extraArgs += ["--cams"] + ordered.map { $0.path }
         extraArgs += ["--mics"] + activeMics.map { $0.path }
 
         let micArgs = camMicsArgs
         if !micArgs.isEmpty && !micArgs.allSatisfy({ $0.isEmpty }) {
             extraArgs += ["--cam-mics"] + micArgs
         }
-        // Typ kommt aus der expliziten Totale-Markierung, nicht mehr aus der
-        // Mic-Zuordnung geraten. "wide" = Totale (Simultan-Reaktionen).
-        let camTypes = analysisCams.map { $0.isWide ? "wide" : "close" }
+        // Bildgröße wird ABGELEITET (Personen-Graph, „Close gewinnt") — kein
+        // manuelles Totale-Flag mehr. "wide" = Totale (Simultan-Reaktionen).
+        let roles = camRoles()
+        let camTypes = ordered.map { roles[$0.id] == .wide ? "wide" : "close" }
         extraArgs += ["--cam-types"] + camTypes
-        let displayNames = analysisCams.map { $0.displayName }
+        let displayNames = ordered.map { $0.displayName }
         if let namesData = try? JSONSerialization.data(withJSONObject: displayNames),
            let namesStr = String(data: namesData, encoding: .utf8) {
             extraArgs += ["--display-names", namesStr]

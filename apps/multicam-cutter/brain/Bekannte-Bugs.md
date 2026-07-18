@@ -32,6 +32,27 @@
 
 ## Gefixt
 
+### Abgebrochene FPS-Konvertierung → abgeschnittene Datei → kaputte AAF + Sync-Versatz
+- **Symptom** (18.07.): In Resolve „The clip C7451_25fps failed to link because the timecode
+  extents do not match any clip in the Media Pool" (viele Zeilen), UND die Gast-Cam läuft
+  async zum Gast-Mic (Mics untereinander aber synchron). Schnitte gingen korrekt zur Cam.
+- **Ursache**: Der User hatte die FPS-Konvertierung einmal **abgebrochen** — die Abbruch-
+  Bereinigung (löscht Teildateien) kam erst DANACH in die Engine. Die abgeschnittene
+  `C7451_25fps.MP4` (94,6 s statt 99 min, TC korrekt erhalten) blieb liegen und wurde beim
+  nächsten Scan als gültige 25fps-Cam benutzt. Zwei Folgen: (1) die AAF verweist auf
+  Source-TC bis 99 min, die Datei hat aber nur 94,6 s → Link-Fehler. (2) Der Sync macht
+  `cam_paths[0]` (= diese Host-Cam) zur ALLEINIGEN Referenz (`waveform_sync.py:183`) →
+  die Gast-Cam wird gegen nur 94,6 s Referenz korreliert → falscher Offset → async.
+  MIC2/3 erben MIC1s Offset (by design) → bleiben untereinander synchron. **Nicht** die
+  Diarisierung (die entscheidet nur, WOHIN geschnitten wird — lief korrekt).
+- **Fix**: (1) Engine `convert_fps_files` prüft jetzt die **Ausgabe-Dauer ≈ Quelle**;
+  abgeschnittene Ausgabe wird gelöscht + Fehler. (2) App-Warnbanner `ShortCamBanner`
+  (`suspiciouslyShortCams`, < 50 % der längsten Quelle) fängt bereits liegende Teildateien
+  vor der Analyse ab.
+- **Dateien**: engine/multicam_engine.py (convert_fps_files), EngineController.swift
+  (suspiciouslyShortCams), WizardView.swift (ShortCamBanner).
+- **Backlog**: Sync-Anker gegen Mics statt CAM1 (s. TODOs) — die eigentliche Fragilität.
+
 ### Thumbnail laeuft ueber Mic-Pills, sobald eine Karte hoeher wird
 - **Symptom**: Ordnet man einer Cam ein zweites Mic zu (Karte waechst), laeuft das
   Video-Thumbnail nach unten ueber die Mic-Pills; die Karten einer Reihe wirken

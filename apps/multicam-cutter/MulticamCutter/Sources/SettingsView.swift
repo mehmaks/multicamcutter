@@ -26,14 +26,14 @@ struct SettingsView: View {
 // MARK: - Allgemein
 
 struct GeneralSettingsTab: View {
-    @AppStorage("expertMode") private var expertMode = false
-
+    // Expertenmodus-Toggle entfernt: obsolet, seit die Parameter im Wizard über
+    // „Experteneinstellungen" ein-/ausklappen (Variante C). Hier kommen künftig
+    // App-Einstellungen rein (z. B. Thumbnail-Kontrast, CLIP-Prompts).
     var body: some View {
         Form {
             Section {
-                Toggle("Expertenmodus", isOn: $expertMode)
-                Text("Zeigt erweiterte Parameter für die Schnitt-Analyse an.")
-                    .font(.caption)
+                Text("Hier erscheinen künftig App-Einstellungen.")
+                    .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }

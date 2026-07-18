@@ -61,6 +61,39 @@
   Laufzeit aus `LicenseConfig.apiBase`). Details: `brain/Feedback-API.md`.
 - [x] Log-View: Analysiere-Zeilen gefiltert (Progress-Bar zeigt Fortschritt)
 
+### 🔴 N-Sprecher-Diarisierung (3+ Personen) — PRIORISIERT (Engine) — Aufwand: **mittel**
+- [ ] **Basis-EDL von binär (2 Cams) auf N-fach umstellen.** User-Kontext: Podcast hat
+  **häufig Host + 2 Gäste = 3 Personen**, also kein Edge-Case.
+  **Ist-Zustand:** `build_base_edl_from_audio.py` (`rms_diarize`, ~:67-93) vergleicht nur
+  `rms1` (Mics von `cam_paths[0]`) vs `rms2` (`cam_paths[1]`) → Label `CAM1`/`CAM2`.
+  `run_from_bin.py:546-557` speist genau zwei Seiten. Personen auf Cams ab Index 2
+  werden von der Basis-EDL **nie als Sprecher** gewählt (nur als Cutaway/Totale sichtbar).
+  **Ziel:** pro Zeitfenster das **lauteste Mic** (bzw. dessen Person) bestimmen → deren
+  engste Cam (via Personen-Modell / `shotLadder`) als Sprecher-Shot. Argmax über N Mics
+  statt Differenz zweier Summen.
+  **⚠️ Berührt den geteilten Kern** (`modules/multicam_cutter`, auch Web-Modul) → sorgfältig
+  + testen. Das Personen-Modell (Person=Mic, Person→Cams) liefert die nötige Zuordnung frei Haus.
+  **Reihenfolge:** NACH der Wizard-Validierung (erst End-to-End-Analyse bestätigen).
+  **✅ Empirisch (18.07.):** 3 Personen werden KORREKT geschnitten, wenn 2 sich eine Cam
+  teilen (Host-Cam + Gast-2-Shot) — dann effektiv binär (Host-Seite vs Gast-Seite). Die
+  Grenze greift NUR bei **3+ Personen mit je EIGENER Cam**.
+
+### 🟠 Datei-Splits als EINE logische Quelle — Aufwand: **mittel**
+- [ ] **Mehrere Dateien einer Quelle nahtlos als eine behandeln.** User-Kontext: GoPro-Cams
+  und DJI-Mic-Rekorder splitten lange Aufnahmen in mehrere Dateien (z. B. 2-h-Folge → 4
+  nahtlos aneinander passende Teile). Die gehören zu EINER Person/Cam („Mic 2"), nicht zu
+  vier verschiedenen. Heute sieht die App jede Datei als eigene Quelle.
+  **Zu lösen:** Split-Gruppen erkennen (Namensschema / fortlaufender TC / Timestamps) oder
+  manuell gruppieren lassen; die Teile für die Analyse virtuell konkatenieren (Sync + EDL
+  + AAF müssen über die Segmentgrenzen stimmen). Betrifft Scan, Wizard-Zuordnung, Engine-Args.
+
+### 🟡 Sync-Robustheit: gegen Mics statt gegen CAM1 — Aufwand: **mittel**
+- [ ] **Sync-Referenz überdenken.** Heute ist `cam_paths[0]` (erste Cam) der EINZIGE
+  Sync-Anker (`shared/waveform_sync.py:183` „CAM1 is always 0"); alles hängt an Qualität/
+  Länge dieser einen Cam-Tonspur. Fragil — siehe abgeschnittener-Host-Bug (18.07., beide
+  Symptome, AAF-Link + Gast-Sync, hatten diese eine Wurzel). Robuster: gegen die sauberen,
+  vollen **Mic-Spuren** synchronisieren. Der Swift-Ordnungs-Fix (Close-Cams zuerst) entschärft.
+
 ### Performance: Nodding-Analyse parallelisieren — Aufwand: **mittel–schwer**
 - [ ] **Kameras parallel analysieren statt nacheinander.**
   **Befund**: `run_from_bin.py` → `for i, cp in enumerate(cam_paths): run(...)` und
@@ -225,6 +258,37 @@
   **Noch offen (nächste Stufen):** eigenständiger Personenname (heute = Mic-Name) ·
   Zuordnung aus der Personen-Sicht heraus · Rollen an der Person · Totale↔Person
   (schaltet Bildgrößen-Wechsel + Mehr-Totalen-Auswahl frei, s. u.).
+
+  **✅ WIZARD GEBAUT & LIVE (17.07., Phase 2+3):** `WizardView.swift` ersetzt im
+  `.ready`-Zustand den alten Canvas/Inspector/Sidebar (`SetupView` wird nur noch
+  umgangen, NICHT entfernt = Phase 4). Drei Screens im Dummy-Look: Personen (Avatar-
+  Farben, Name editierbar, Play/RMS-Vorschau, Trash = Mic ausschließen) · Kameras
+  (Drag&Drop + Klick, MEHRFACH pro Person, live abgeleitete Nah/Totale-Pill via
+  `camRoles()`, „zeigt alle", Cam-Trash) · Übersicht (Bildgrößen-Leiter je Person,
+  Kamera-Zusammenfassung, „Automatisch erkannt"-Box, Einstellungen).
+  Modell-Ergänzungen: `addPersonToCam`/`removePersonFromCam`/`setCamShowsAllPersons`
+  (Multi-Cam!), `wizardStep`, `camRoles()`/`shotLadder()`/`deletePerson()`. Engine:
+  `--cam-types` kommt jetzt aus `camRoles()`. Einstellungen (Variante C): 2-spaltige
+  Slider/Toggles + „Experteneinstellungen"-Swap auf die volle gruppierte Liste (kein
+  Expert-Toggle mehr). Eigene Palette in Theme.swift (`wizBg…wizText`, grün-getönt),
+  custom Slider/Toggle/Buttons, natives Preset-Dropdown, transparente dunkle Titelleiste
+  (App-Titel oben, Episode im Header + Stift), Fenster wächst auf Screen 3 (940px).
+  **✅ Engine-Verifikation ERLEDIGT (Phase 4, per Recherche-Agent):** Mehrfach-
+  Zuordnung (ein Mic auf mehreren Cams) ist SICHER — keine globale `mic→cam`-Map;
+  `--cam-mics` = unabhängige Liste pro Cam; `max_faces` = Mics-pro-Cam (Totale
+  korrekt); Cutaway-Pass nutzt Mics gar nicht. **ABER:** die Basis-EDL diarisiert
+  BINÄR die ERSTEN ZWEI `--cams` (RMS CAM1 vs CAM2 — run_from_bin.py:546-557 →
+  build_base_edl_from_audio.py:67-93). Die zwei müssen disjunkte Mic-Sets sein und
+  dürfen NICHT die Totale sein (summiert alle Mics → Diarisierung kippt).
+  **Fix umgesetzt (Swift, keine Engine-Änderung):** `orderedAnalysisCams` sortiert
+  Close-Cams zuerst, Totalen ans Ende → Diarisierungs-Paar = garantiert zwei Closes;
+  ALLE positionalen Args nutzen diese Ordnung (verändert nur die AAF-Track-Reihenfolge).
+  **Bekannte Engine-Grenze (vorbestehend, nicht neu):** Basis-EDL ist 2-Sprecher-binär;
+  3+ Personen bzw. 2-Shot-ohne-Solo-Cam haben inhärente Grenzen → späteres Engine-Thema.
+  **Noch offen Phase 4:** alten Code entfernen (SetupView, InspectorPanel/PersonsInspector/
+  SourcesInspector, CameraCard, MicPill, ParameterForm/ParameterRow, PresetPicker,
+  `isWide`/`setCamWide`) — ERST nach einem echten End-to-End-Analyse-Test aus dem Wizard.
+  **Phase 5 OFFEN:** Wizard bei vorhandener `.multicam`-Zuordnung überspringen → Übersicht.
 
   **🔒 GELOCKTE DESIGN-ENTSCHEIDUNG (17.07., mit User) — Zuordnungs-Wizard (KISS):**
   Der rohe Personen-Reiter ist Erst-Usern zu undurchsichtig → ersetzt durch einen

@@ -17,7 +17,7 @@ APP_BUNDLE="$BUILD_DIR/MultiCamCutter.app"
 
 # ── Versionierung ──────────────────────────────────────────────────────────
 # CFBundleShortVersionString: Marketing-Version — bewusst per Hand hochziehen.
-MARKETING_VERSION="0.3.0"
+MARKETING_VERSION="0.4.0"
 # CFBundleVersion: Build-Nummer. MUSS monoton steigen (Sparkle vergleicht DIESE,
 # nicht die Marketing-Version!) UND jeden Build unterscheidbar machen — sonst kann
 # man Bug-Reports keinem Stand zuordnen. Ein UTC-Zeitstempel erfuellt beides ohne

@@ -17,7 +17,10 @@ struct ContentView: View {
                 .padding(.top, 10)
                 .padding(.trailing, 14)
         }
-        .background(WindowAccessor { mainWindow = $0 })
+        .background(WindowAccessor { window in
+            mainWindow = window
+            configureWindowChrome(window)
+        })
         .sheet(isPresented: $engine.showingFeedback) {
             FeedbackView().environmentObject(engine)
         }
@@ -39,6 +42,36 @@ struct ContentView: View {
         .onChange(of: engine.state) { _, newState in
             animateWindowWidth(for: newState)
         }
+        .onChange(of: engine.wizardStep) { _, step in
+            growWindowForOverview(step)
+        }
+    }
+
+    /// Vereinheitlichte, dunkle Titelleiste wie im Dummy: transparent, ohne Titeltext,
+    /// Inhalt reicht unter die Leiste. Der Wizard-Header zeigt dort „MultiCamCutter ·
+    /// Episode" rechts neben den Ampel-Buttons.
+    private func configureWindowChrome(_ window: NSWindow) {
+        // Dunkle, transparente Titelleiste — aber Titel SICHTBAR und Inhalt UNTER der
+        // Leiste (kein fullSizeContentView). So steht der App-Titel sauber allein oben,
+        // der Episodenname bleibt im Header darunter.
+        window.titlebarAppearsTransparent = true
+        window.titleVisibility = .visible
+        window.title = "MultiCamCutter"
+        window.styleMask.remove(.fullSizeContentView)
+        window.backgroundColor = NSColor(srgbRed: 14/255, green: 16/255, blue: 12/255, alpha: 1)
+    }
+
+    /// Screen 3 ist höher (Übersicht + Einstellungen). Fenster bei Bedarf wachsen
+    /// lassen (Oberkante fix, nach unten), damit die Einstellungen nicht beschnitten sind.
+    private func growWindowForOverview(_ step: WizardStep) {
+        guard let window = mainWindow, step == .overview else { return }
+        let target: CGFloat = 940
+        guard window.frame.height < target else { return }
+        var f = window.frame
+        let top = f.maxY
+        f.size.height = target
+        f.origin.y = top - target
+        window.setFrame(f, display: true, animate: true)
     }
 
     /// Die Progress-View braucht deutlich weniger Breite als das Setup: beim
@@ -81,7 +114,7 @@ struct ContentView: View {
                 Spacer()
             }
         case .ready:
-            SetupView()
+            WizardView()
         case .running:
             ProgressView_()
         case .done:
@@ -723,6 +756,15 @@ struct EditableLabel: View {
                         editText = text
                         isEditing = true
                     }
+                Button {
+                    editText = text
+                    isEditing = true
+                } label: {
+                    Image(systemName: "pencil").font(.caption)
+                }
+                .buttonStyle(.plain)
+                .foregroundStyle(.secondary)
+                .help("Episode umbenennen — bestimmt den Namen der erzeugten AAF-Datei")
             }
         }
     }
@@ -1216,29 +1258,8 @@ struct ProgressView_: View {
             .buttonStyle(.bordered)
             .padding(.top, 4)
 
-            if !engine.logMessages.isEmpty {
-                DisclosureGroup("Log") {
-                    ScrollViewReader { proxy in
-                        ScrollView {
-                            LazyVStack(alignment: .leading, spacing: 2) {
-                                ForEach(Array(engine.logMessages.suffix(80).enumerated()), id: \.offset) { idx, msg in
-                                    Text(msg)
-                                        .font(.system(.caption, design: .monospaced))
-                                        .foregroundStyle(.secondary)
-                                        .textSelection(.enabled)
-                                        .id(idx)
-                                }
-                            }
-                            .padding(8)
-                        }
-                        .frame(height: 180)
-                        .onChange(of: engine.logMessages.count) { _, _ in
-                            proxy.scrollTo(engine.logMessages.count - 1, anchor: .bottom)
-                        }
-                    }
-                }
-                .frame(width: 500)
-            }
+            // Log-Expander entfernt: das Live-Log wohnt jetzt im eigenen Fenster
+            // (Menü „Fenster") mit echten Log-Dateien.
 
             Spacer()
         }
