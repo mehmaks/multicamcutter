@@ -20,6 +20,9 @@ struct SettingsView: View {
                 .tag(Tab.license)
         }
         .frame(width: 450, height: 280)
+        // Ohne das nutzen die Tab-Icons/Labels den blauen System-Akzent statt Lime
+        // (ContentView/About haben den Tint schon, der Settings-Scene fehlte er).
+        .tint(.brandAccent)
     }
 }
 
@@ -27,13 +30,17 @@ struct SettingsView: View {
 
 struct GeneralSettingsTab: View {
     // Expertenmodus-Toggle entfernt: obsolet, seit die Parameter im Wizard über
-    // „Experteneinstellungen" ein-/ausklappen (Variante C). Hier kommen künftig
-    // App-Einstellungen rein (z. B. Thumbnail-Kontrast, CLIP-Prompts).
+    // „Experteneinstellungen" ein-/ausklappen (Variante C).
+    // Denselben Key liest ScrubbableThumbnail — Umschalten wirkt live.
+    @AppStorage("thumbnailAutoContrast") private var thumbnailAutoContrast = false
+
     var body: some View {
         Form {
-            Section {
-                Text("Hier erscheinen künftig App-Einstellungen.")
-                    .font(.callout)
+            Section("Darstellung") {
+                Toggle("Kontrast der Vorschaubilder anheben", isOn: $thumbnailAutoContrast)
+                Text("Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim "
+                     + "Scrubbing). Rein kosmetisch — Analyse und Export bleiben unberührt.")
+                    .font(.caption)
                     .foregroundStyle(.secondary)
             }
         }

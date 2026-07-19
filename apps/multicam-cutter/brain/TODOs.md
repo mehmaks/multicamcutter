@@ -7,7 +7,10 @@
 - [x] "Über MulticamCutter"-Dialog: Version 0.1.0, Copyright
 - [x] Expertenmodus: Alle Parameter aus dem Web-UI Schema exposed
 - [x] Progress-View: Live Facemesh-Frame aus laufender Nodding-Analyse
-- [ ] **Toggle „Kontrastkorrektur der Thumbnails"** (Settings → Allgemein).
+- [x] **Toggle „Kontrastkorrektur der Thumbnails"** (Settings → Allgemein). UMGESETZT:
+  `@AppStorage("thumbnailAutoContrast")`, Toggle in `GeneralSettingsTab`,
+  CoreImage-`autoAdjustmentFilters` beim Bild-Entstehen in `ScrubbableThumbnail`
+  (Initial-Load off-main gecacht + Scrub-Frames), wirkt live. Rein kosmetisch.
   **Warum**: Log-Footage sieht als Thumbnail flach/tot aus. Bei aktiviertem Toggle
   eine einfache Auto-Kontrast-Korrektur auf die Thumbnails legen — **auch beim
   Scrubbing**.
@@ -182,9 +185,8 @@
   2. **Modell-Status + Nachladen**: „geladen / nicht geladen" + Button (581 MB).
      Engine-Kommandos existieren schon: `--check-clip-model` / `--download-clip-model`.
   Tab nur zeigen, wenn `@AppStorage("expertMode")` an ist.
-- [ ] **Settings-Fenster ist noch blau**: Die Tab-Icons/Labels (Allgemein/Lizenz) nutzen
-  den System-Akzent statt `.brandAccent`. Der `.tint()` fehlt auf der `Settings`-Scene
-  (ContentView/About/Acknowledgements haben ihn). Aufwand: **leicht**.
+- [x] **Settings-Fenster ist noch blau**: GELÖST — `.tint(.brandAccent)` auf dem
+  `TabView` in `SettingsView`. Tab-Icons/Labels nutzen jetzt Lime statt System-Blau.
 
 ### Multilanguage (planen)
 - [ ] **Mehrsprachigkeit konzipieren (DE/EN)**. Die Website ist bereits zweisprachig

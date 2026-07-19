@@ -1,5 +1,6 @@
 import SwiftUI
 import AVFoundation
+import CoreImage
 
 /// Video-Thumbnail das bei Mouse-Hover den Frame basierend auf der
 /// horizontalen Position scrubt. Linker Rand = erster Frame,
@@ -17,6 +18,14 @@ struct ScrubbableThumbnail: View {
     @State private var hoverFraction: Double = 0
     @State private var currentTimeLabel: String = ""
 
+    // Kosmetische Auto-Kontrast-Korrektur (Settings → Allgemein). Log-Footage sieht
+    // als Thumbnail sonst flach aus. Wirkt NUR auf die Vorschau — Analyse/Export
+    // bleiben unberührt. Gefiltert wird beim ENTSTEHEN des Bildes (extractFrame +
+    // Initial-Load) und gecacht, NICHT in displayImage (läuft bei jedem Render).
+    @AppStorage("thumbnailAutoContrast") private var autoContrast = false
+    /// Einmal geladenes (ggf. gefiltertes) Initial-Thumbnail — Cache statt Disk-Read je Render.
+    @State private var initialImage: NSImage?
+
     private var displayImage: NSImage? {
         if isHovering, let scrub = scrubImage {
             return scrub
@@ -24,10 +33,7 @@ struct ScrubbableThumbnail: View {
         if let pinned = pinnedImage {
             return pinned
         }
-        if let path = initialThumbnailPath {
-            return NSImage(contentsOfFile: path)
-        }
-        return nil
+        return initialImage
     }
 
     var body: some View {
@@ -75,6 +81,12 @@ struct ScrubbableThumbnail: View {
             }
             .aspectRatio(16/9, contentMode: .fit)
             .clipped()
+            .onAppear { loadInitial() }
+            .onChange(of: initialThumbnailPath) { _, _ in loadInitial() }
+            .onChange(of: autoContrast) { _, _ in
+                loadInitial()
+                scrubImage = nil   // nächster Hover erzeugt einen frisch gefilterten Frame
+            }
         .onContinuousHover { phase in
             switch phase {
             case .active:
@@ -133,16 +145,32 @@ struct ScrubbableThumbnail: View {
 
         let path = videoPath
         let time = timeSeconds
+        let contrast = autoContrast
 
         Task.detached(priority: .userInitiated) {
-            let image = await extractFrame(from: path, at: time)
+            let image = await extractFrame(from: path, at: time, contrast: contrast)
             await MainActor.run {
                 scrubImage = image
             }
         }
     }
 
-    private func extractFrame(from path: String, at timeSeconds: Double) async -> NSImage? {
+    /// Lädt das Initial-Thumbnail einmalig von Platte (ggf. kontrastkorrigiert) und
+    /// cacht es in `initialImage`. Disk-Read + Filter laufen off-main.
+    private func loadInitial() {
+        let path = initialThumbnailPath
+        let contrast = autoContrast
+        Task.detached(priority: .userInitiated) {
+            guard let path, let img = NSImage(contentsOfFile: path) else {
+                await MainActor.run { initialImage = nil }
+                return
+            }
+            let final = contrast ? Self.contrastEnhanced(img) : img
+            await MainActor.run { initialImage = final }
+        }
+    }
+
+    private func extractFrame(from path: String, at timeSeconds: Double, contrast: Bool) async -> NSImage? {
         let url = URL(fileURLWithPath: path)
         let asset = AVURLAsset(url: url)
         let generator = AVAssetImageGenerator(asset: asset)
@@ -155,10 +183,38 @@ struct ScrubbableThumbnail: View {
 
         do {
             let (cgImage, _) = try await generator.image(at: cmTime)
-            return NSImage(cgImage: cgImage, size: NSSize(width: cgImage.width, height: cgImage.height))
+            let finalCG = contrast ? (Self.enhancedCGImage(cgImage) ?? cgImage) : cgImage
+            return NSImage(cgImage: finalCG, size: NSSize(width: finalCG.width, height: finalCG.height))
         } catch {
             return nil
         }
+    }
+
+    // MARK: - Auto-Kontrast (CoreImage)
+
+    /// Geteilter Renderkontext (thread-safe) — pro Frame neu wäre teuer.
+    private static let ciContext = CIContext(options: [.useSoftwareRenderer: false])
+
+    /// Wendet Apples adaptive Auto-Enhance-Kette (Tone-Curve/Vibrance/Shadows) an —
+    /// passt sich pro Bild an, hebt flaches Log-Material an. Fällt auf das Original
+    /// zurück, wenn etwas schiefgeht.
+    nonisolated static func contrastEnhanced(_ image: NSImage) -> NSImage {
+        guard let tiff = image.tiffRepresentation,
+              let bitmap = NSBitmapImageRep(data: tiff),
+              let cg = bitmap.cgImage,
+              let outCG = enhancedCGImage(cg) else { return image }
+        return NSImage(cgImage: outCG, size: image.size)
+    }
+
+    nonisolated static func enhancedCGImage(_ cg: CGImage) -> CGImage? {
+        let ci = CIImage(cgImage: cg)
+        let filters = ci.autoAdjustmentFilters(options: [.enhance: true, .redEye: false])
+        var working = ci
+        for f in filters {
+            f.setValue(working, forKey: kCIInputImageKey)
+            if let out = f.outputImage { working = out }
+        }
+        return ciContext.createCGImage(working, from: ci.extent)
     }
 
     private func formatTime(_ seconds: Double) -> String {

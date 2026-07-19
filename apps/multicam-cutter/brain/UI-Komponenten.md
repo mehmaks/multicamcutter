@@ -229,10 +229,15 @@ darunter „X von Y (Z %)" (`.monospacedDigit`), Breite 460.
 
 ## Settings-Page
 
-Erreichbar über Cmd+, (SwiftUI Settings Scene). Der frühere Expertenmodus-Toggle
-ist **entfernt** (Experteneinstellungen liegen jetzt im Wizard, `WizardSettings`)
-→ `GeneralSettingsTab` ist ein Platzhalter („Hier erscheinen künftig
-App-Einstellungen."). Geplant: Lizenz-Status, weitere App-Optionen.
+Erreichbar über Cmd+, (SwiftUI Settings Scene), `.tint(.brandAccent)` auf dem
+`TabView` (sonst blaue System-Tabs). Der frühere Expertenmodus-Toggle ist
+**entfernt** (Experteneinstellungen liegen jetzt im Wizard, `WizardSettings`).
+- **Allgemein** (`GeneralSettingsTab`): Toggle „Kontrast der Vorschaubilder
+  anheben" (`@AppStorage("thumbnailAutoContrast")`) — hebt flaches Log-Material in
+  den Kamera-Vorschauen an; denselben Key liest `ScrubbableThumbnail`, wirkt live,
+  rein kosmetisch.
+- **Lizenz** (`LicenseSettingsTab`): Status, Key aktivieren/umziehen/deaktivieren.
+Geplant: CLIP-Tab (Modell-Status/Download + Prompt-Editor), weitere App-Optionen.
 
 ## About-Dialog (TODO)
 
