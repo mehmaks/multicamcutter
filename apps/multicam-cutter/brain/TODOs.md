@@ -612,10 +612,11 @@ Siehe brain/Entscheidungen.md → "Lizenzmodell: Abo via LemonSqueezy".
 - [x] Sparkle als Swift Package + Framework-Einbettung in build_app.sh
 - [x] "Auf Update prüfen"-Button im Über-Dialog (KVO-gesteuert)
 - [ ] Sparkle scharf schalten (wartet auf Website/Domain):
-  - EdDSA-Keypair via `generate_keys` — Public Key `kcPVT…` ist bereits in
-    `SUPublicEDKey`. ⚠ Private Key liegt im Login-Keychain → VOR Tester-Verteilung
-    per `generate_keys -x` exportieren + im Passwort-Manager sichern (Verlust =
-    nie wieder Auto-Updates für bestehende Installs).
+  - [x] EdDSA-Keypair via `generate_keys` — Public Key `kcPVT…` steckt in
+    `SUPublicEDKey` (verifiziert: stimmt mit dem Keychain-Key überein). **Private Key
+    ist gesichert** (per `generate_keys -x` exportiert, im Passwort-Manager abgelegt,
+    Export-Datei gelöscht). Damit ist das Risiko „Verlust = nie wieder Auto-Updates"
+    entschärft.
   - SUFeedURL steht auf `https://multicamcutter.pantake.com/appcast.xml`
     → Website-Session muss dort `appcast.xml` hosten (Details/Signier-Flow in
     `brain/Distribution-Setup.md`). Update-DMGs NICHT in Git — Objekt-Storage.
