@@ -1214,6 +1214,19 @@ def main():
     log_path = log_dir / f"{timestamp}_{safe_name}.jsonl"
     log_file = open(log_path, "w", encoding="utf-8")
 
+    # Log-Retention: nur die neuesten 20 Lauf-Logs behalten. Der Ordner wuchs sonst
+    # unbegrenzt (ein Lauf ~1,8 MB → nach Tagen zig MB). Aufräumen darf den Lauf
+    # NIE stören, daher komplett best-effort.
+    try:
+        _logs = sorted(log_dir.glob("*.jsonl"), key=lambda p: p.stat().st_mtime, reverse=True)
+        for _old in _logs[20:]:
+            try:
+                _old.unlink()
+            except OSError:
+                pass
+    except Exception:
+        pass
+
     # Display-Namen parsen (fuer Progress-Labels)
     display_names_map = {}
     if args.display_names:

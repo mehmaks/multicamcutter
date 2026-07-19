@@ -535,10 +535,10 @@ Siehe brain/Entscheidungen.md → "Lizenzmodell: Abo via LemonSqueezy".
   immer pro Lauf ein JSONL nach `~/Library/Logs/MulticamCutter/` (macOS-Standardort,
   Console.app sieht ihn) — es fehlte nur der Zugang aus der App.
   `EngineController.logDirectory` muss mit `log_dir` in multicam_engine.py übereinstimmen.
-- [ ] **Log-Retention**: `~/Library/Logs/MulticamCutter/` wächst unbegrenzt (nach
-  wenigen Tagen schon 32 Dateien / 9 MB, ein einzelner Lauf 1,8 MB). Bei Testern über
-  Monate problematisch. Vorschlag: die letzten N Läufe (z.B. 20) behalten, ältere beim
-  Engine-Start aufräumen. Aufwand: **leicht**.
+- [x] **Log-Retention**: UMGESETZT — beim Anlegen des Lauf-Logs (`multicam_engine.py`,
+  Logging-Setup) werden nur die neuesten **20** `*.jsonl` in
+  `~/Library/Logs/MulticamCutter/` behalten, ältere gelöscht. Best-effort (bricht den
+  Lauf nie). Nicht-Log-Dateien unangetastet. ⚠️ PyInstaller-Rebuild fürs Release.
 - [x] Fenster-Resize-Animation: bei `.running` schmälert sich das Fenster animiert
   zur Mitte (760 pt), danach wird die **exakte** vorherige Geometrie
   wiederhergestellt. `WindowAccessor` (NSViewRepresentable) reicht das NSWindow
