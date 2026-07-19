@@ -44,66 +44,159 @@ struct SettingsView: View {
 struct NoddingSettingsTab: View {
     @EnvironmentObject var engine: EngineController
 
-    @State private var text = ""
+    struct PatternRow: Identifiable {
+        let id = UUID()
+        let name: String
+        let description: String
+        let enabled: Bool
+    }
+
+    @State private var text = ""              // rohe JSON — SSOT für Toggles UND Editor
+    @State private var patterns: [PatternRow] = []
     @State private var source = "default"     // "user" | "default"
-    @State private var message: String?       // Fehler/Erfolg
+    @State private var showRaw = false
+    @State private var message: String?
     @State private var messageIsError = false
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            HStack {
-                Text("Nodding-Muster").font(.headline)
-                Spacer()
-                Text(source == "user" ? "Angepasst" : "Standard")
-                    .font(.caption2)
-                    .foregroundStyle(source == "user" ? .brandSecondary : .secondary)
-            }
-            Text("Rohe Detektor-Konfiguration (nodding_patterns.json) — Expertenwerte. "
-                 + "Falsche Werte verschlechtern die Nicken-Erkennung; bei defektem JSON "
-                 + "nutzt die Analyse automatisch die Defaults. Mit Zurücksetzen kommst du "
-                 + "jederzeit zurück.")
-                .font(.caption).foregroundStyle(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 12) {
+                HStack {
+                    Text("Nodding-Muster").font(.headline)
+                    Spacer()
+                    Text(source == "user" ? "Angepasst" : "Standard")
+                        .font(.caption2)
+                        .foregroundStyle(source == "user" ? .brandSecondary : .secondary)
+                }
+                Text("Aktiviere oder deaktiviere die einzelnen Erkennungsmuster für das "
+                     + "Kopfnicken. Feintuning der Schwellen unten in der rohen Konfiguration.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            TextEditor(text: $text)
-                .font(.system(.caption, design: .monospaced))
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .padding(4)
-                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                // ── Pattern-Toggles ──
+                VStack(spacing: 0) {
+                    ForEach(patterns) { p in
+                        HStack(alignment: .top, spacing: 10) {
+                            VStack(alignment: .leading, spacing: 1) {
+                                Text(p.name).font(.system(size: 13, weight: .medium))
+                                if !p.description.isEmpty {
+                                    Text(p.description).font(.caption2).foregroundStyle(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                            }
+                            Spacer(minLength: 8)
+                            Toggle("", isOn: Binding(get: { p.enabled }, set: { setEnabled(p, $0) }))
+                                .labelsHidden().toggleStyle(.switch)
+                        }
+                        .padding(.vertical, 8)
+                        .overlay(alignment: .bottom) {
+                            if p.id != patterns.last?.id {
+                                Rectangle().fill(.quaternary).frame(height: 0.5)
+                            }
+                        }
+                    }
+                    if patterns.isEmpty {
+                        Text("Keine Muster gefunden.").font(.caption).foregroundStyle(.secondary)
+                            .frame(maxWidth: .infinity, alignment: .leading).padding(.vertical, 8)
+                    }
+                }
 
-            HStack {
-                Button("Speichern") { save() }
-                    .buttonStyle(.borderedProminent)
-                Button("Auf Standard zurücksetzen") { reset() }
-                    .disabled(source != "user")
-                Spacer()
-                if let message {
-                    Label(message, systemImage: messageIsError ? "xmark.octagon.fill" : "checkmark")
-                        .font(.caption)
-                        .foregroundStyle(messageIsError ? .red : .green)
-                        .lineLimit(1)
+                // ── Rohe Konfiguration (Expert) ──
+                DisclosureGroup("Rohe Konfiguration bearbeiten", isExpanded: $showRaw) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Ganze nodding_patterns.json inkl. Globals + Filter/Confidence. "
+                             + "Bei defektem JSON nutzt die Analyse automatisch die Defaults.")
+                            .font(.caption2).foregroundStyle(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
+                        TextEditor(text: $text)
+                            .font(.system(.caption, design: .monospaced))
+                            .frame(height: 220)
+                            .padding(4)
+                            .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+                        HStack {
+                            Button("Speichern") { saveRaw() }.buttonStyle(.borderedProminent)
+                            Button("Auf Standard zurücksetzen") { reset() }.disabled(source != "user")
+                        }
+                    }
+                    .padding(.top, 4)
+                }
+                .font(.system(size: 13, weight: .medium))
+
+                HStack {
+                    if let message {
+                        Label(message, systemImage: messageIsError ? "xmark.octagon.fill" : "checkmark")
+                            .font(.caption).foregroundStyle(messageIsError ? .red : .green).lineLimit(1)
+                    }
+                    Spacer()
+                    Text("Gilt beim nächsten Analyse-Lauf.")
+                        .font(.caption2).foregroundStyle(.tertiary)
                 }
             }
-            Text("Gilt beim nächsten Analyse-Lauf.")
-                .font(.caption2).foregroundStyle(.tertiary)
+            .padding()
         }
-        .padding()
         .task { await load() }
     }
 
+    // MARK: Laden / Parsen
     private func load() async {
         if let p = await engine.getNoddingPatterns() {
             text = p.content
             source = p.source
         }
+        parsePatterns()
         message = nil
     }
 
-    private func save() {
+    private func parsePatterns() {
+        guard let data = text.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let pats = obj["patterns"] as? [[String: Any]] else { patterns = []; return }
+        patterns = pats.map {
+            PatternRow(name: $0["name"] as? String ?? "?",
+                       description: $0["description"] as? String ?? "",
+                       enabled: $0["enabled"] as? Bool ?? true)
+        }
+    }
+
+    // MARK: Toggle (formatschonende String-Chirurgie statt Neu-Serialisierung)
+    private func setEnabled(_ p: PatternRow, _ on: Bool) {
+        guard let newText = toggledJSON(text, pattern: p.name, to: on) else {
+            message = "Konnte \(p.name) nicht umschalten — bitte unten im JSON ändern."
+            messageIsError = true
+            return
+        }
+        text = newText
+        if let err = engine.saveNoddingPatterns(newText) { message = err; messageIsError = true; return }
+        source = "user"; message = nil
+        parsePatterns()
+    }
+
+    /// Flippt das ERSTE `enabled` nach `"name": "<name>"` (= das Pattern-enabled; das
+    /// dynamic_threshold.enabled kommt im JSON später) — ohne die Datei zu reformatieren.
+    private func toggledJSON(_ raw: String, pattern name: String, to on: Bool) -> String? {
+        guard let nameR = raw.range(of: "\"name\": \"\(name)\"") else { return nil }
+        guard let enKey = raw.range(of: "\"enabled\"", range: nameR.upperBound..<raw.endIndex) else { return nil }
+        let search = enKey.upperBound..<raw.endIndex
+        let tR = raw.range(of: "true", range: search)
+        let fR = raw.range(of: "false", range: search)
+        let valR: Range<String.Index>?
+        switch (tR, fR) {
+        case let (t?, f?): valR = t.lowerBound < f.lowerBound ? t : f
+        case let (t?, nil): valR = t
+        case let (nil, f?): valR = f
+        default: valR = nil
+        }
+        guard let r = valR else { return nil }
+        return raw.replacingCharacters(in: r, with: on ? "true" : "false")
+    }
+
+    // MARK: Rohe Speicherung / Reset
+    private func saveRaw() {
         if let err = engine.saveNoddingPatterns(text) {
             message = err; messageIsError = true
         } else {
             source = "user"; message = "Gespeichert"; messageIsError = false
+            parsePatterns()
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
                 if message == "Gespeichert" { message = nil }
             }

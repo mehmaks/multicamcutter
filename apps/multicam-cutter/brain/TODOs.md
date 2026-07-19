@@ -202,6 +202,16 @@
   (die galt gegen Preset/config.ini-Duplikate — die bleiben unberührt).
   ⚠️ **Braucht PyInstaller-Rebuild** fürs ausgelieferte Bundle (Dev via `swift run` sofort).
 
+### macOS-Integration
+- [x] **Dock-Fortschrittsbalken während der Analyse** — `DockProgress`
+  (`MacIntegrations.swift`), gekoppelt in `ContentView` an `engine.overallProgress`.
+  Sichtbar auch bei minimierter App.
+- [x] **System-Notification bei Analyse-Ende** — `AnalysisNotifier`
+  (`UserNotifications`): abgeschlossen / fehlgeschlagen / abgebrochen. Banner nur wenn
+  App nicht im Vordergrund. ⚠️ Nur im gebauten `.app` (Bundle-ID), im Dev übersprungen.
+- [x] **Nodding-Pattern-Toggles** im Settings-Tab „Nodding" (oben, über dem rohen
+  JSON-Editor) — Switch je `patterns[]`, flippt `enabled` formatschonend.
+
 ### Analyse-Input: LUT / Kontrast (auf Halde, niedrige Prio)
 - [ ] **LUT-Picker für die MediaPipe-Analyse in der Mac-App exponieren.** Aufwand:
   **leicht** (Backend fertig). Das `--lut`-Flag (.cube) ist bereits end-to-end

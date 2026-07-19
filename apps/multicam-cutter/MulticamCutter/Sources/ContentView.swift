@@ -39,9 +39,12 @@ struct ContentView: View {
                  + "starten — schalte dazu „Ungünstige Cutaways verschieben (CLIP)\" in "
                  + "den Experteneinstellungen aus.")
         }
-        .onChange(of: engine.state) { _, newState in
+        .onChange(of: engine.state) { oldState, newState in
             animateWindowWidth(for: newState)
+            handleMacIntegrations(from: oldState, to: newState)
         }
+        .onChange(of: engine.stepNum) { _, _ in updateDockProgress() }
+        .onChange(of: engine.stepPercent) { _, _ in updateDockProgress() }
         .onChange(of: engine.wizardStep) { _, step in
             growWindowForOverview(step)
         }
@@ -92,6 +95,38 @@ struct ContentView: View {
         } else if let restore = frameBeforeRun {
             frameBeforeRun = nil
             window.setFrame(restore, display: true, animate: true)
+        }
+    }
+
+    /// Dock-Balken bei Fortschritt aktualisieren (nur während der Analyse).
+    private func updateDockProgress() {
+        guard engine.state == .running else { return }
+        DockProgress.shared.show(engine.overallProgress)
+    }
+
+    /// Dock-Balken + System-Notification an den Analyse-Lebenszyklus koppeln.
+    private func handleMacIntegrations(from old: AppState, to new: AppState) {
+        if new == .running {
+            AnalysisNotifier.requestAuthIfNeeded()
+            DockProgress.shared.show(0)
+            return
+        }
+        // Übergänge NUR aus dem laufenden Zustand heraus melden.
+        guard old == .running else { return }
+        DockProgress.shared.hide()
+        switch new {
+        case .done:
+            AnalysisNotifier.notify(title: "Analyse abgeschlossen",
+                                    body: "\(engine.episodeName) ist fertig geschnitten.")
+        case .error:
+            AnalysisNotifier.notify(title: "Analyse fehlgeschlagen",
+                                    body: engine.errorMessage.isEmpty ? "Es ist ein Fehler aufgetreten."
+                                                                       : engine.errorMessage)
+        case .ready:   // cancel() geht auf .ready zurück
+            AnalysisNotifier.notify(title: "Analyse abgebrochen",
+                                    body: "Die Analyse wurde gestoppt.")
+        default:
+            break
         }
     }
 

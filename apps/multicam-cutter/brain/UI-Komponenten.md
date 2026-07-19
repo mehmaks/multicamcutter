@@ -208,6 +208,22 @@ Chips, LadderRow.
 - **`animateWindowWidth`**: bei `.running` einmalig auf 760px schmälern, danach
   exakt die vorherige Geometrie wiederherstellen (`frameBeforeRun`).
 
+## Dock-Fortschritt & System-Notifications (`MacIntegrations.swift`)
+
+An den Analyse-Lebenszyklus gekoppelt über `ContentView` (`handleMacIntegrations`
+in `.onChange(of: engine.state)`, plus `.onChange(of: stepNum/stepPercent)`).
+- **`DockProgress`**: zeichnet einen `NSProgressIndicator`-Balken unten auf das
+  Dock-Icon (`NSApp.dockTile.contentView` = App-Icon + Balken), `show(fraction)` /
+  `hide()`. Fortschritt = `engine.overallProgress` (0…1 über alle Schritte). So sieht
+  man den Fortschritt auch bei minimierter App. Balken bei `.running` an, beim
+  Verlassen weg.
+- **`AnalysisNotifier`** (`UserNotifications`): postet beim Übergang **aus** `.running`
+  einen Banner — `.done` „Analyse abgeschlossen", `.error` „…fehlgeschlagen"
+  (+ `errorMessage`), `.ready` (= `cancel()`) „…abgebrochen". macOS zeigt den Banner
+  standardmäßig nur, wenn die App **nicht** im Vordergrund ist. ⚠️ Braucht ein echtes
+  App-Bundle (Bundle-ID) → im Dev-Lauf via `swift run` still übersprungen (kein Crash),
+  funktioniert im gebauten `.app`.
+
 ## Fortschritts-Sheets (einheitlicher Aufbau)
 
 `ClipDownloadSheet` (CLIP-Modell) und `FpsConversionSheet` (FPS-Konvertierung)
@@ -251,12 +267,16 @@ Erreichbar über Cmd+, (SwiftUI Settings Scene), `.tint(.brandAccent)` auf dem
   Ignorieren/Neutral, ein Prompt je Zeile). Lädt via Engine `--get-clip-prompts`,
   speichert nach `~/Library/Application Support/MulticamCutter/clip_prompts.json`
   (Engine bevorzugt sie), „Auf Standard zurücksetzen" löscht sie. Immer sichtbar.
-- **Nodding** (`NoddingSettingsTab`): **roher JSON-Editor** der Detektor-Muster
-  (`nodding_patterns.json`, ganze Datei inkl. Globals — Expert). Lädt via Engine
-  `--get-nodding-patterns`, speichert **validiert** (JSON + `global`/`patterns`) nach
-  `~/Library/Application Support/MulticamCutter/nodding_patterns.json`, „Auf Standard
-  zurücksetzen" löscht sie. Engine bevorzugt die User-Datei, fällt bei defekter Datei
-  auf Defaults zurück.
+- **Nodding** (`NoddingSettingsTab`): oben **Pattern-Toggles** (ein Switch je
+  Erkennungsmuster aus `patterns[]` → flippt dessen `enabled`-Flag); darunter
+  aufklappbar (`DisclosureGroup`) der **rohe JSON-Editor** der ganzen
+  `nodding_patterns.json` (Globals + Filter/Confidence — Expert). Lädt via Engine
+  `--get-nodding-patterns`. Toggles ändern das JSON **formatschonend** (gezielte
+  String-Ersetzung des ersten `enabled` nach dem `name`, keine Neu-Serialisierung);
+  der Editor speichert **validiert** (JSON + `global`/`patterns`) nach
+  `~/Library/Application Support/MulticamCutter/nodding_patterns.json`. „Auf Standard
+  zurücksetzen" löscht sie; Engine bevorzugt die User-Datei, fällt bei defekter Datei
+  auf Defaults zurück. `text` (roh) ist SSOT, `patterns` wird daraus geparst.
 - **Lizenz** (`LicenseSettingsTab`): Status, Key aktivieren/umziehen/deaktivieren.
   Zeigt beim Öffnen **optimistisch** den letzten validierten Stand aus einem
   UserDefaults-Cache (`lic.*`-Keys) und prüft dann im Hintergrund nach — kein

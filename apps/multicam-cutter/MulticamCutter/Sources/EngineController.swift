@@ -360,6 +360,13 @@ class EngineController: ObservableObject {
     @Published var totalSteps: Int = 1
     @Published var stepPercent: Double = 0
     @Published var stepETA: String = ""
+
+    /// Gesamtfortschritt 0…1 über alle Schritte (für den Dock-Balken). stepNum ist 1-basiert.
+    var overallProgress: Double {
+        guard totalSteps > 0 else { return 0 }
+        let f = (Double(stepNum - 1) + stepPercent / 100) / Double(totalSteps)
+        return min(max(f, 0), 1)
+    }
     @Published var logMessages: [String] = []
 
     // Facemesh-Preview (wird während Nodding-Analyse periodisch aktualisiert)
