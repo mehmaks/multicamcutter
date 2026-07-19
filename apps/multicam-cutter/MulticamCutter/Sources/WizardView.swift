@@ -273,14 +273,13 @@ struct PersonRow: View {
 
 struct CamerasStep: View {
     @EnvironmentObject var engine: EngineController
-    @State private var selectedPerson: Int?
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
             WizardIntro(title: "Wer ist auf welcher Kamera zu sehen?",
-                        text: "Zieh jede Person auf jede Kamera, die sie zeigt (oder Person antippen, dann "
-                            + "Kamera). Ob eine Kamera eine Nahaufnahme oder eine Totale ist, erkennt die "
-                            + "App von selbst — du musst nichts labeln.")
+                        text: "Zieh jede Person auf jede Kamera, die sie zeigt. Ob eine Kamera eine "
+                            + "Nahaufnahme oder eine Totale ist, erkennt die App von selbst — du musst "
+                            + "nichts labeln.")
 
             if !engine.fpsMismatches.isEmpty { FpsMismatchBanner() }
             if !engine.suspiciouslyShortCams.isEmpty { ShortCamBanner() }
@@ -289,11 +288,9 @@ struct CamerasStep: View {
                 VStack(alignment: .leading, spacing: 12) {
                     railTitle("Personen")
                     ForEach(engine.persons) { p in
-                        PersonToken(person: p, selected: selectedPerson == p.id) {
-                            selectedPerson = (selectedPerson == p.id ? nil : p.id)
-                        }
+                        PersonToken(person: p)
                     }
-                    Text("Ziehen & Ablegen — oder antippen, dann Kamera klicken. Mehrfach erlaubt.")
+                    Text("Zieh eine Person auf jede Kamera, die sie zeigt. Mehrfachzuordnung erlaubt.")
                         .font(.caption2).foregroundStyle(.wizFaint)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 4)
@@ -305,7 +302,7 @@ struct CamerasStep: View {
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 210, maximum: 260), spacing: 16)],
                               alignment: .leading, spacing: 16) {
                         ForEach(engine.activeCams) { cam in
-                            WizardCamCard(cam: cam, selectedPerson: $selectedPerson)
+                            WizardCamCard(cam: cam)
                         }
                     }
                 }
@@ -329,8 +326,6 @@ struct CamerasStep: View {
 
 struct PersonToken: View {
     let person: Person
-    var selected: Bool
-    var onTap: () -> Void
     @EnvironmentObject var engine: EngineController
 
     private var placed: Bool { engine.activeCams.contains { $0.assignedMics.contains(person.id) } }
@@ -345,18 +340,14 @@ struct PersonToken: View {
         .padding(.vertical, 6).padding(.horizontal, 8)
         .background(Color.wizSurface, in: Capsule())
         .overlay(Capsule().stroke(
-            selected ? Color.brandAccent
-                     : (placed ? Color.wizBorder : Color.brandSecondary.opacity(0.5)),
-            lineWidth: selected ? 2 : 1))
+            placed ? Color.wizBorder : Color.brandSecondary.opacity(0.5), lineWidth: 1))
         .contentShape(Capsule())
-        .onTapGesture(perform: onTap)
         .onDrag { NSItemProvider(object: String(person.id) as NSString) }
     }
 }
 
 struct WizardCamCard: View {
     let cam: CameraInfo
-    @Binding var selectedPerson: Int?
     @EnvironmentObject var engine: EngineController
     @State private var targeted = false
 
@@ -409,10 +400,6 @@ struct WizardCamCard: View {
         .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14)
             .stroke(targeted ? Color.brandAccent : Color.wizBorder, lineWidth: targeted ? 2 : 0.5))
-        .contentShape(Rectangle())
-        .onTapGesture {
-            if let pid = selectedPerson { engine.addPersonToCam(pid, cam.id); selectedPerson = nil }
-        }
         .onDrop(of: [UTType.plainText], isTargeted: $targeted) { providers in
             guard let provider = providers.first else { return false }
             provider.loadItem(forTypeIdentifier: UTType.plainText.identifier, options: nil) { item, _ in
@@ -785,7 +772,7 @@ struct WizardSettings: View {
     private var simpleList: some View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
             WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s")
-            WizSlider("Reaktionslänge", $engine.params.reactionDur, 0.5...5, suffix: " s")
+            WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s")
             WizToggle("Sprech-Erkennung", $engine.params.speakingEnabled)
             WizToggle("Kopfnicken erkennen", $engine.params.noddingEnabled)
             WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled)
@@ -803,16 +790,12 @@ struct WizardSettings: View {
                     WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s")
                     WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s")
                     WizSlider("Cleanup-Mindestlänge", $engine.params.cleanupDur, 0.1...5, suffix: " s")
-                    WizSlider("Reaktionslänge", $engine.params.reactionDur, 0.5...5, suffix: " s")
                 }
                 group("Sprecher-Erkennung") {
                     WizToggle("Sprech-Erkennung", $engine.params.speakingEnabled)
                     WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB")
                     WizSlider("Min. Segmentlänge", $engine.params.minEdit, 0.1...5, suffix: " s")
                     WizSlider("Wechsel-Verzögerung", $engine.params.changeDelay, 0...2, suffix: " s")
-                    WizSlider("Min. Konfidenz", Binding(
-                        get: { engine.params.minConf * 100 },
-                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f")
                     WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB")
                     WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s")
                 }
@@ -825,6 +808,10 @@ struct WizardSettings: View {
                 }
                 group("Reaktionen & Cutaways") {
                     WizToggle("Kopfnicken erkennen", $engine.params.noddingEnabled)
+                    WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s")
+                    WizSlider("Min. Konfidenz", Binding(
+                        get: { engine.params.minConf * 100 },
+                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f")
                     WizSlider("Pre-Roll", Binding(
                         get: { Double(engine.params.preRoll) },
                         set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f")

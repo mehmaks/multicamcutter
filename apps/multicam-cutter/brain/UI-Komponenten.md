@@ -68,9 +68,10 @@ Ausgeblendete Spuren erscheinen unten als `WizRestoreChips` (Wiederherstellen).
 ## Screen 2 — CamerasStep
 
 „Wer ist auf welcher Kamera zu sehen?" Zwei Spalten:
-- **Rail links** (200px): `PersonToken` je `engine.persons`. Antippen selektiert
-  (dann Kamera klicken); alternativ per Drag&Drop. Unplatzierte Person zeigt
-  „· frei" (Flieder). Mehrfachzuordnung erlaubt.
+- **Rail links** (200px): `PersonToken` je `engine.persons`, **nur per Drag&Drop**
+  auf eine Kamera ziehbar (kein Tap-to-assign mehr — kollidierte mit dem
+  Thumbnail-Klick und war überflüssig). Unplatzierte Person zeigt „· frei"
+  (Flieder). Mehrfachzuordnung erlaubt.
 - **Grid rechts**: `WizardCamCard` je `engine.activeCams` (adaptiv 210–260px).
 
 Oben ggf. `FpsMismatchBanner` (bei `fpsMismatches`) und `ShortCamBanner` (bei
@@ -85,7 +86,9 @@ Oben ggf. `FpsMismatchBanner` (bei `fpsMismatches`) und `ShortCamBanner` (bei
 - Zugeordnete Personen als removable Chips (`removePersonFromCam`).
 - Trash (`setCamIncluded(false)` — Kamera gehört nicht zum Projekt).
 - „zeigt alle" (gestrichelt, `setCamShowsAllPersons`) — ordnet alle Personen zu.
-- Drop-Target + Tap-to-assign (`addPersonToCam`); `targeted` = Lime-Outline.
+- **Drop-Target** (`addPersonToCam`), `targeted` = Lime-Outline. Der Klick auf das
+  Thumbnail pinnt einen Frame (ScrubbableThumbnail) — die Karte hat keinen eigenen
+  Tap mehr.
 
 Die Nah/Totale-Zuordnung ist **abgeleitet, nicht gesetzt**: „Close gewinnt" —
 eine Kamera bleibt Nah, solange sie für mindestens eine ihrer Personen die engste
@@ -111,6 +114,13 @@ Kein Experten-Toggle als globale Einstellung mehr. Innerhalb der Box tauscht ein
 - **Experteneinstellungen** (`expertList`): volle Parameterliste in Rubriken
   (Schnittregeln, Sprecher-Erkennung, Pausen, Reaktionen & Cutaways,
   Crossbleed-Gate, Totale), scrollbar (`maxHeight 300`).
+
+Gruppierung folgt dem Schema (`config/schemas/multicam_params.json` → „Cutaway
+Regeln"): die **Nodding-Cutaway**-Regler liegen zusammen unter „Reaktionen &
+Cutaways" — Kopfnicken erkennen, **Cutaway-Länge** (`reactionDur`), **Min.
+Konfidenz** (`minConf`, Nodding-Konfidenz), Pre-Roll, Zufallsfaktor, CLIP. (Vorher
+waren Cutaway-Länge in „Schnittregeln" und Min. Konfidenz in „Sprecher-Erkennung"
+versteckt.)
 
 Beide schreiben in dasselbe `engine.params`. Rubrik-Titel via `@ViewBuilder
 group(_:_)`.
