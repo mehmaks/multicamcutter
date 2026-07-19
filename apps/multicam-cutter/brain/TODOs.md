@@ -91,6 +91,8 @@
   + AAF müssen über die Segmentgrenzen stimmen). Betrifft Scan, Wizard-Zuordnung, Engine-Args.
 
 ### 🟡 Sync-Robustheit: gegen Mics statt gegen CAM1 — Aufwand: **mittel**
+> 📋 **Detaillierter Umbauplan: `brain/Plan-Multicam-3plus.md`** (Sync + Schnitt-Logik,
+> Reihenfolge, Verifikation, offene Produktfragen).
 - [ ] **⚠️ Enthält einen echten Bug: Cams ab Nr. 3 werden gar nicht gesynct** (bekommen
   stumm Offset 0) — Details in `brain/Bekannte-Bugs.md` → OFFEN. Bewusst **zusammen mit
   der Multicam/Close-Totale-Session** angehen, weil die Referenzlogik davon abhängt.
