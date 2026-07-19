@@ -57,6 +57,20 @@ Exportierbar/importierbar ueber Finder-Dialoge.
 
 Built-in Presets (hardcoded): Podcast 2-Cam, Interview (schnell), Talk (entspannt).
 
+## clip_prompts.json (user-editierte CLIP-Prompts)
+
+`~/Library/Application Support/MulticamCutter/clip_prompts.json` — vom Settings-Tab
+„CLIP" geschrieben. Existiert sie, bevorzugt die Engine sie vor der gebündelten
+`config/clip_ignore_prompts.json` (`shared.paths.effective_clip_prompts_path()`).
+„Auf Standard zurücksetzen" löscht sie. Gleiches Schema wie die gebündelte Datei:
+
+```json
+{ "ignore": ["a person drinking water"], "neutral": ["a person talking"] }
+```
+
+`ignore` = Frames, die als Cutaway vermieden werden; `neutral` = ausdrücklich ok.
+Prompts englisch (CLIP-Erwartung).
+
 ## JSONL Log
 
 `~/Library/Logs/MulticamCutter/{timestamp}_{name}.jsonl`

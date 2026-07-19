@@ -175,16 +175,19 @@
   Alternative erwägen: fertiger Dienst (PostHog/Plausible) statt Eigenbau-Storage.
 
 ### CLIP-Einstellungen
-- [ ] **Settings-Tab „CLIP" — nur im Expertenmodus sichtbar.** Aufwand: **mittel**.
-  Inhalt:
-  1. **Prompt-Editor**: Text-Input zum Ändern/Erweitern der Ignore-Prompts.
-     Quelle heute: `config/clip_ignore_prompts.json` (ist im Bundle unter
-     `_internal/config/`, also **read-only** — User-Prompts müssen woanders liegen,
-     z.B. `~/Library/Application Support/MulticamCutter/clip_prompts.json`, und die
-     Engine muss die bevorzugen. Fallback: die gebündelte JSON).
-  2. **Modell-Status + Nachladen**: „geladen / nicht geladen" + Button (581 MB).
-     Engine-Kommandos existieren schon: `--check-clip-model` / `--download-clip-model`.
-  Tab nur zeigen, wenn `@AppStorage("expertMode")` an ist.
+- [x] **Settings-Tab „CLIP"** — UMGESETZT (immer sichtbar als 3. Tab; der frühere
+  „nur im Expertenmodus"-Plan ist obsolet, seit der globale Expertenmodus weg ist).
+  1. **Prompt-Editor**: zwei Editoren (Ignorieren/Neutral, ein Prompt je Zeile).
+     Speichert nach `~/Library/Application Support/MulticamCutter/clip_prompts.json`;
+     Engine bevorzugt diese Datei via `shared.paths.effective_clip_prompts_path()`
+     (in `run_from_bin.py`), sonst gebündelte `config/clip_ignore_prompts.json`.
+     „Auf Standard zurücksetzen" löscht die User-Datei.
+  2. **Modell-Status + Download**: „geladen/nicht geladen" + Button, Inline-Progress.
+     Nutzt `--check-clip-model` / `--download-clip-model` (neue `downloadClipModel()`
+     ohne Analyse-Start).
+  Neues Engine-Kommando `--get-clip-prompts` (JSON: ignore/neutral/source/user_path).
+  ⚠️ **Braucht PyInstaller-Rebuild**, bevor es im ausgelieferten App-Bundle wirkt
+  (Dev via `swift run` nutzt den Python-Quellcode → funktioniert sofort).
 - [x] **Settings-Fenster ist noch blau**: GELÖST — `.tint(.brandAccent)` auf dem
   `TabView` in `SettingsView`. Tab-Icons/Labels nutzen jetzt Lime statt System-Blau.
 

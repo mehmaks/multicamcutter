@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     private enum Tab: Hashable {
-        case general, license
+        case general, clip, license
     }
 
     var body: some View {
@@ -13,16 +13,162 @@ struct SettingsView: View {
                 }
                 .tag(Tab.general)
 
+            ClipSettingsTab()
+                .tabItem {
+                    Label("CLIP", systemImage: "sparkles")
+                }
+                .tag(Tab.clip)
+
             LicenseSettingsTab()
                 .tabItem {
                     Label("Lizenz", systemImage: "key")
                 }
                 .tag(Tab.license)
         }
-        .frame(width: 450, height: 280)
+        // Höhe am größten Tab (CLIP: Modell-Status + zwei Prompt-Editoren) orientiert;
+        // der CLIP-Tab scrollt zusätzlich, falls es doch mal eng wird.
+        .frame(width: 480, height: 470)
         // Ohne das nutzen die Tab-Icons/Labels den blauen System-Akzent statt Lime
         // (ContentView/About haben den Tint schon, der Settings-Scene fehlte er).
         .tint(.brandAccent)
+    }
+}
+
+// MARK: - CLIP (Modell-Status + Prompt-Editor)
+
+struct ClipSettingsTab: View {
+    @EnvironmentObject var engine: EngineController
+
+    @State private var ignoreText = ""
+    @State private var neutralText = ""
+    @State private var source = "default"          // "user" | "default"
+    @State private var modelInstalled: Bool?       // nil = wird geprüft
+    @State private var justSaved = false
+
+    var body: some View {
+        ScrollView {
+            VStack(alignment: .leading, spacing: 18) {
+                modelSection
+                Divider()
+                promptSection
+            }
+            .padding()
+        }
+        .task { await load() }
+        // Nach Abschluss eines Downloads (Sheet schließt) den Status neu prüfen.
+        .onChange(of: engine.isDownloadingClip) { _, downloading in
+            if !downloading { Task { modelInstalled = await engine.checkClipModel().0 } }
+        }
+    }
+
+    // ── Modell-Status + Download ──
+    private var modelSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text("Bilderkennung (CLIP)").font(.headline)
+            Text("Optionales Modell (≈ 581 MB). Filtert ungünstige Cutaway-Frames "
+                 + "(z. B. Trinken). Ohne Modell läuft alles andere normal.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack(spacing: 10) {
+                switch modelInstalled {
+                case .some(true):
+                    Label("Modell geladen", systemImage: "checkmark.circle.fill")
+                        .foregroundStyle(.green)
+                case .some(false):
+                    Label("Modell nicht geladen", systemImage: "arrow.down.circle")
+                        .foregroundStyle(.secondary)
+                    Button("Herunterladen") { engine.downloadClipModel() }
+                        .disabled(engine.isDownloadingClip)
+                case .none:
+                    SwiftUI.ProgressView().controlSize(.small)
+                    Text("wird geprüft …").font(.caption).foregroundStyle(.secondary)
+                }
+            }
+
+            if engine.isDownloadingClip {
+                SwiftUI.ProgressView(value: Double(engine.clipDone),
+                                     total: Double(max(engine.clipTotal, 1)))
+                    .frame(maxWidth: 280)
+            }
+            if let err = engine.clipError {
+                Text(err).font(.caption).foregroundStyle(.red)
+            }
+        }
+    }
+
+    // ── Prompt-Editor ──
+    private var promptSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Filter-Prompts").font(.headline)
+                Spacer()
+                Text(source == "user" ? "Angepasst" : "Standard")
+                    .font(.caption2)
+                    .foregroundStyle(source == "user" ? .brandSecondary : .secondary)
+            }
+            Text("Ein Prompt pro Zeile, auf Englisch (so erwartet es CLIP). "
+                 + "Ignorieren = solche Bilder werden als Cutaway vermieden, "
+                 + "Neutral = ausdrücklich erlaubt.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            promptEditor("IGNORIEREN", text: $ignoreText)
+            promptEditor("NEUTRAL", text: $neutralText)
+
+            HStack {
+                Button("Speichern") { save() }
+                    .buttonStyle(.borderedProminent)
+                Button("Auf Standard zurücksetzen") { reset() }
+                    .disabled(source != "user")
+                Spacer()
+                if justSaved {
+                    Label("Gespeichert", systemImage: "checkmark")
+                        .font(.caption).foregroundStyle(.green)
+                }
+            }
+            Text("Gilt beim nächsten Analyse-Lauf.")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+    }
+
+    private func promptEditor(_ title: String, text: Binding<String>) -> some View {
+        VStack(alignment: .leading, spacing: 3) {
+            Text(title).font(.caption2).fontWeight(.bold).foregroundStyle(.secondary)
+            TextEditor(text: text)
+                .font(.system(.caption, design: .monospaced))
+                .frame(height: 84)
+                .padding(4)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+        }
+    }
+
+    // ── Laden / Speichern ──
+    private func load() async {
+        if let p = await engine.getClipPrompts() {
+            ignoreText = p.ignore.joined(separator: "\n")
+            neutralText = p.neutral.joined(separator: "\n")
+            source = p.source
+        }
+        modelInstalled = await engine.checkClipModel().0
+    }
+
+    private func lines(_ s: String) -> [String] {
+        s.split(separator: "\n")
+            .map { $0.trimmingCharacters(in: .whitespaces) }
+            .filter { !$0.isEmpty }
+    }
+
+    private func save() {
+        engine.saveClipPrompts(ignore: lines(ignoreText), neutral: lines(neutralText))
+        source = "user"
+        justSaved = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) { justSaved = false }
+    }
+
+    private func reset() {
+        engine.resetClipPrompts()
+        Task { await load() }
     }
 }
 

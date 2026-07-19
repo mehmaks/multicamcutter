@@ -236,8 +236,15 @@ Erreichbar über Cmd+, (SwiftUI Settings Scene), `.tint(.brandAccent)` auf dem
   anheben" (`@AppStorage("thumbnailAutoContrast")`) — hebt flaches Log-Material in
   den Kamera-Vorschauen an; denselben Key liest `ScrubbableThumbnail`, wirkt live,
   rein kosmetisch.
+- **CLIP** (`ClipSettingsTab`): Modell-Status („geladen/nicht geladen" + Download
+  via `downloadClipModel()`, Inline-Progress) + Prompt-Editor (zwei Text-Editoren
+  Ignorieren/Neutral, ein Prompt je Zeile). Lädt via Engine `--get-clip-prompts`,
+  speichert nach `~/Library/Application Support/MulticamCutter/clip_prompts.json`
+  (Engine bevorzugt sie), „Auf Standard zurücksetzen" löscht sie. Immer sichtbar.
 - **Lizenz** (`LicenseSettingsTab`): Status, Key aktivieren/umziehen/deaktivieren.
-Geplant: CLIP-Tab (Modell-Status/Download + Prompt-Editor), weitere App-Optionen.
+
+⚠️ Die Settings-Scene muss `.environmentObject(engine)` bekommen (in
+`MulticamCutterApp.swift`) — der CLIP-Tab liest `@EnvironmentObject engine`.
 
 ## About-Dialog (TODO)
 

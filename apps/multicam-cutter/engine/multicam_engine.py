@@ -976,6 +976,9 @@ def main():
                         help="Prueft, ob das CLIP-Modell lokal vorliegt (JSON-Ausgabe)")
     parser.add_argument("--download-clip-model", action="store_true",
                         help="Laedt das CLIP-Modell einmalig in den HF-Cache")
+    parser.add_argument("--get-clip-prompts", action="store_true",
+                        help="Gibt die aktiven CLIP-Ignore/Neutral-Prompts als JSON aus "
+                             "(user-editierte Datei bevorzugt, sonst gebuendelte Defaults)")
     parser.add_argument("--convert-fps", action="store_true",
                         help="Video-Dateien aus --files auf --fps umkodieren "
                              "(behebt FPS-Mismatch, erhaelt den Embedded-TC)")
@@ -1089,6 +1092,23 @@ def main():
             }) + "\n")
         except Exception as e:
             sys.__stdout__.write(json.dumps({"valid": False, "error": str(e)}) + "\n")
+        return 0
+
+    # ── CLIP-Prompts lesen (leichtgewichtig, kein ffmpeg/torch nötig) ─────────
+    if args.get_clip_prompts:
+        from shared.paths import effective_clip_prompts_path, USER_CLIP_PROMPTS, CLIP_IGNORE
+        path = effective_clip_prompts_path()
+        try:
+            data = json.loads(path.read_text(encoding="utf-8"))
+        except Exception:
+            data = {}
+        print(json.dumps({
+            "ignore": data.get("ignore", []),
+            "neutral": data.get("neutral", []),
+            "source": "user" if path == USER_CLIP_PROMPTS else "default",
+            "user_path": str(USER_CLIP_PROMPTS),
+            "default_path": str(CLIP_IGNORE),
+        }, ensure_ascii=False))
         return 0
 
     # ── Scan-Modus (schnell, keine Analyse) ──────────────────────────────────

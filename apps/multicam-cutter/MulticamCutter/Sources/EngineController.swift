@@ -895,6 +895,15 @@ class EngineController: ObservableObject {
 
     /// Laedt das CLIP-Modell und startet danach die Analyse.
     func downloadClipModelAndStart() {
+        runClipDownload { self.startAnalysis() }   // Modell da → jetzt loslegen
+    }
+
+    /// Laedt das CLIP-Modell OHNE danach zu analysieren (Settings-Tab „CLIP").
+    func downloadClipModel() {
+        runClipDownload { }
+    }
+
+    private func runClipDownload(then completion: @escaping () -> Void) {
         showClipPrompt = false
         isDownloadingClip = true
         clipDone = 0
@@ -961,7 +970,7 @@ class EngineController: ObservableObject {
                 } else if process.terminationStatus != 0 {
                     clipError = "Download fehlgeschlagen (Code \(process.terminationStatus))."
                 } else {
-                    startAnalysis()   // Modell da → jetzt loslegen
+                    completion()
                 }
             }
         }
@@ -979,6 +988,62 @@ class EngineController: ObservableObject {
         showClipPrompt = false
         saveSession()
         startAnalysis()
+    }
+
+    // MARK: - CLIP-Prompts (Cutaway-Filter, user-editierbar)
+
+    struct ClipPrompts { var ignore: [String]; var neutral: [String]; var source: String }
+
+    /// Zielort der user-editierten Prompts — identisch mit shared.paths.USER_CLIP_PROMPTS.
+    var clipUserPromptsURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("MulticamCutter/clip_prompts.json")
+    }
+
+    /// Aktive Prompts abfragen (User-Datei bevorzugt, sonst gebündelte Defaults).
+    /// Blockiert kurz (~0,2 s Engine-Aufruf) — wie checkClipModel.
+    func getClipPrompts() async -> ClipPrompts? {
+        guard let (execPath, baseArgs) = engineCommand(extraArgs: ["--get-clip-prompts"]) else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: execPath)
+        process.arguments = baseArgs
+        process.environment = engineEnvironment()
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        // Letzte JSON-Zeile nehmen (falls die Engine Vorlauf druckt).
+        let lastLine = text.split(separator: "\n").last.map(String.init) ?? text
+        guard let jd = lastLine.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jd) as? [String: Any] else { return nil }
+        return ClipPrompts(
+            ignore: json["ignore"] as? [String] ?? [],
+            neutral: json["neutral"] as? [String] ?? [],
+            source: json["source"] as? String ?? "default"
+        )
+    }
+
+    /// User-Prompts speichern (schreibt clipUserPromptsURL). true = ok.
+    @discardableResult
+    func saveClipPrompts(ignore: [String], neutral: [String]) -> Bool {
+        let url = clipUserPromptsURL
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                    withIntermediateDirectories: true)
+            let payload: [String: Any] = ["ignore": ignore, "neutral": neutral]
+            let data = try JSONSerialization.data(withJSONObject: payload,
+                                                  options: [.prettyPrinted, .sortedKeys])
+            try data.write(to: url)
+            return true
+        } catch { return false }
+    }
+
+    /// Zurück auf die gebündelten Defaults (löscht die User-Datei).
+    func resetClipPrompts() {
+        try? FileManager.default.removeItem(at: clipUserPromptsURL)
     }
 
     // MARK: - FPS-Mismatch

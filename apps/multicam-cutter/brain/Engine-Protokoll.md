@@ -62,6 +62,21 @@ expliziten Listen stimmen die Positionen **per Konstruktion**.
 | --speaking-mode | rms/peak | Ueberschreibt speaking_mode |
 | --lut | Pfad | LUT-Datei fuer MediaPipe |
 
+## CLIP-Modi (Bilderkennung)
+
+| Flag | Ausgabe |
+|------|---------|
+| --check-clip-model | einzeiliges JSON `{"installed": bool, "download_bytes": int}` |
+| --download-clip-model | streamt `clip_download_start`/`clip_progress`/`clip_download_complete` |
+| --get-clip-prompts | einzeiliges JSON `{"ignore":[…],"neutral":[…],"source":"user"\|"default","user_path","default_path"}` |
+
+`--get-clip-prompts` liest die aktiven Cutaway-Filter-Prompts: die user-editierte
+`~/Library/Application Support/MulticamCutter/clip_prompts.json` wird bevorzugt
+(`shared.paths.effective_clip_prompts_path()`), sonst die gebündelte
+`config/clip_ignore_prompts.json`. Der Settings-Tab „CLIP" schreibt/löscht die
+User-Datei direkt (Swift), die Engine liest sie beim Analyse-Lauf über
+`run_from_bin.py` → `add_reactions_to_edl.py --clip-filter-config`.
+
 ## JSON-Lines Message Types
 
 | Type | Felder | Wann |

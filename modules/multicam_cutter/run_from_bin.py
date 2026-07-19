@@ -28,6 +28,7 @@ sys.path.insert(0, str(ROOT))
 
 from resolve_bridge.connection import get_resolve
 from shared.waveform_sync import sync_sources, SyncError
+from shared.paths import effective_clip_prompts_path
 
 SCRIPT_DIR = Path(__file__).parent
 
@@ -764,7 +765,9 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     if pause_cutaway_enabled and pause_cutaways_json.exists():
         add_reactions_args += ['--pause-cutaways', str(pause_cutaways_json)]
     if clip_filter_enabled:
-        add_reactions_args += ['--clip-filter-config', str(ROOT / 'config' / 'clip_ignore_prompts.json')]
+        # User-editierte Prompts bevorzugen (Application Support), sonst die
+        # gebündelten Defaults — Settings-Tab „CLIP" schreibt die User-Datei.
+        add_reactions_args += ['--clip-filter-config', str(effective_clip_prompts_path())]
     run(add_reactions_args, "Cutaways einfügen")
 
     return final_edl

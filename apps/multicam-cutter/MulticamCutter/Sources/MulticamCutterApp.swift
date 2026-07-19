@@ -74,6 +74,7 @@ struct MulticamCutterApp: App {
 
         Settings {
             SettingsView()
+                .environmentObject(engine)   // CLIP-Tab liest @EnvironmentObject engine
         }
     }
 }
