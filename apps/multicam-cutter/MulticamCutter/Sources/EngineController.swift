@@ -97,6 +97,11 @@ struct PipelineParams: Equatable {
     // Expert: Totale
     var totaleSimulDur: Double = 3.0
 
+    // Nodding-Pattern-Toggles PRO PRESET: pattern-name → enabled. Leer = alle
+    // Defaults aus nodding_patterns.json. Geht als "nodding_patterns" an die Engine
+    // (überschreibt dort je Pattern das enabled) und wird mit dem Preset gespeichert.
+    var noddingPatterns: [String: Bool] = [:]
+
     func toJSON() -> String {
         let dict: [String: Any] = [
             "min_shot": minShot,
@@ -129,6 +134,7 @@ struct PipelineParams: Equatable {
             "gate_use_filtered": gateUseFiltered,
             "threshold_db": thresholdDb,
             "totale_simul_dur": totaleSimulDur,
+            "nodding_patterns": noddingPatterns,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let str = String(data: data, encoding: .utf8) else { return "{}" }
@@ -154,6 +160,7 @@ struct PipelineParams: Equatable {
             "gate_release": gateRelease, "gate_both_threshold": gateBothThreshold,
             "gate_use_filtered": gateUseFiltered,
             "threshold_db": thresholdDb, "totale_simul_dur": totaleSimulDur,
+            "nodding_patterns": noddingPatterns,
         ]
     }
 
@@ -188,6 +195,10 @@ struct PipelineParams: Equatable {
         if let v = dict["gate_use_filtered"] as? Bool { gateUseFiltered = v }
         if let v = dict["threshold_db"] as? Double { thresholdDb = v }
         if let v = dict["totale_simul_dur"] as? Double { totaleSimulDur = v }
+        // Aus JSON kommen Bools als NSNumber(CFBoolean) → `as? Bool` bridged sie.
+        if let raw = dict["nodding_patterns"] as? [String: Any] {
+            noddingPatterns = raw.compactMapValues { $0 as? Bool }
+        }
     }
 }
 

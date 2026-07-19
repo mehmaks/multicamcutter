@@ -30,18 +30,27 @@ _ROOT = Path(__file__).resolve().parent.parent.parent
 _PATTERNS_PATH = _ROOT / "config" / "nodding_patterns.json"
 
 
-def _load_nod_patterns(path=None):
+def _load_nod_patterns(path=None, enabled_overrides=None):
     """Lädt Nodding-Pattern-Definitionen aus JSON.
 
     Ohne expliziten Pfad: die user-editierte Datei (Mac-App, Settings-Tab „Nodding")
     bevorzugen, sonst die gebündelten Defaults. Pfad-Konvention identisch mit
     shared.paths.USER_NODDING_PATTERNS (dort die SSOT). Bei kaputter/unvollständiger
     User-Datei auf die Defaults zurückfallen — die Analyse darf NIE daran brechen.
+
+    enabled_overrides: optionales dict {pattern_name: bool}. Überschreibt je Pattern
+    das enabled-Flag — so kommen die PRO-PRESET-Toggles der Mac-App zur Analysezeit an
+    (die Schwellen/Filter bleiben global aus der JSON). Fehlt ein Pattern → JSON-Default.
     """
     def _read(pp):
         with open(pp, 'r', encoding='utf-8') as f:
             data = json.load(f)
-        return data['global'], [pat for pat in data['patterns'] if pat.get('enabled', True)]
+        pats = data['patterns']
+        if enabled_overrides:
+            for pat in pats:
+                if pat.get('name') in enabled_overrides:
+                    pat['enabled'] = bool(enabled_overrides[pat['name']])
+        return data['global'], [pat for pat in pats if pat.get('enabled', True)]
 
     if path is None:
         _user = Path.home() / "Library" / "Application Support" / "MulticamCutter" / "nodding_patterns.json"
@@ -105,7 +114,9 @@ class AdvancedReactionDetector:
             sensitivity = params['default_sensitivity']
 
         # ── Nodding: Pattern-basierter Detektor (Parameter aus nodding_patterns.json) ──
-        self._nod_globals, self._nod_patterns = _load_nod_patterns()
+        # enabled-Flags je Pattern kommen PRO PRESET aus params['nodding_patterns'].
+        self._nod_globals, self._nod_patterns = _load_nod_patterns(
+            enabled_overrides=(params or {}).get('nodding_patterns'))
         self._nod_threshold = self._nod_globals['nod_threshold']
         self._nod_cooldown_frames = int(self._nod_globals['cooldown_s'] * fps)
         self._nod_auto_accuracy_ref = self._nod_globals['auto_accuracy_ref']

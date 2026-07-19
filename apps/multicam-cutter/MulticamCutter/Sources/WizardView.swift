@@ -736,9 +736,22 @@ struct WizardFooter: View {
 struct WizardSettings: View {
     @EnvironmentObject var engine: EngineController
     @State private var expert = false
+    /// Nicken-Muster (Name + Default-enabled) aus nodding_patterns.json — für die
+    /// Pattern-Toggles in „Cutaway Regeln". Die tatsächlichen Werte liegen PRO PRESET
+    /// in engine.params.noddingPatterns.
+    @State private var noddingPatternDefs: [(name: String, enabled: Bool)] = []
 
     private var columns: [GridItem] {
         [GridItem(.flexible(), spacing: 40), GridItem(.flexible(), spacing: 40)]
+    }
+
+    private func loadPatternDefs() async {
+        guard let np = await engine.getNoddingPatterns(),
+              let data = np.content.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let pats = obj["patterns"] as? [[String: Any]] else { return }
+        noddingPatternDefs = pats.map { (name: $0["name"] as? String ?? "?",
+                                         enabled: $0["enabled"] as? Bool ?? true) }
     }
 
     var body: some View {
@@ -766,6 +779,7 @@ struct WizardSettings: View {
         .padding(.vertical, 14)
         .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 14))
         .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.wizBorder, lineWidth: 1))
+        .task { await loadPatternDefs() }
     }
 
     // Kuratierte 8 Essentials
@@ -782,43 +796,29 @@ struct WizardSettings: View {
         }
     }
 
-    // Volle Liste in Rubriken (scrollbare „Bleiwand")
+    // Volle Liste — Rubriken/Benennung/Reihenfolge 1:1 wie die Web-UI im Expertmode
+    // (config/schemas/multicam_params.json). Ausnahme: LUT ist „auf Halde" (Brain).
     private var expertList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                group("Schnittregeln") {
-                    WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s")
-                    WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s")
+                group("Generelle Schnittregeln") {
+                    WizSlider("Min. Shotlänge", $engine.params.minShot, 0.5...10, suffix: " s")
                     WizSlider("Cleanup-Mindestlänge", $engine.params.cleanupDur, 0.1...5, suffix: " s")
+                    WizSlider("Max. Shotlänge", $engine.params.maxShot, 1...60, suffix: " s")
                 }
                 group("Sprecher-Erkennung") {
-                    WizToggle("Sprech-Erkennung", $engine.params.speakingEnabled)
                     WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB")
                     WizSlider("Min. Segmentlänge", $engine.params.minEdit, 0.1...5, suffix: " s")
                     WizSlider("Wechsel-Verzögerung", $engine.params.changeDelay, 0...2, suffix: " s")
-                    WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB")
-                    WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s")
                 }
-                group("Pausen") {
-                    WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled)
+                group("Pausen-Trimming") {
+                    WizToggle("Pausen trimmen", $engine.params.pauseTrimEnabled)
                     WizSlider("Max. Pause", $engine.params.maxPause, 0.1...3, suffix: " s")
-                    WizToggle("Pausen-Cutaways", $engine.params.pauseCutawayEnabled)
-                    WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s")
                     WizSlider("Stille-Schwelle", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f")
+                    WizPicker("Schnittmodus", $engine.params.pauseCutMode,
+                              options: [("middle", "Mitte"), ("none", "Kein"), ("end", "Ende")])
                 }
-                group("Reaktionen & Cutaways") {
-                    WizToggle("Kopfnicken erkennen", $engine.params.noddingEnabled)
-                    WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s")
-                    WizSlider("Min. Konfidenz", Binding(
-                        get: { engine.params.minConf * 100 },
-                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f")
-                    WizSlider("Pre-Roll", Binding(
-                        get: { Double(engine.params.preRoll) },
-                        set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f")
-                    WizSlider("Zufallsfaktor", $engine.params.randomness, 0...0.5, format: "%.2f")
-                    WizToggle("Bilderkennung (CLIP)", $engine.params.clipFilterEnabled)
-                }
-                group("Crossbleed-Gate") {
+                group("Crossbleed-Filter") {
                     WizToggle("Crossbleed-Gate", $engine.params.crossbleedGateEnabled)
                     WizSlider("Dämpfung", $engine.params.gateFloor, -60...(-5), suffix: " dB", format: "%.0f")
                     WizSlider("Hysterese", $engine.params.gateHysteresis, 0.5...10, suffix: " dB")
@@ -828,7 +828,36 @@ struct WizardSettings: View {
                     WizSlider("Gleichzeitig-Schwelle", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB")
                     WizToggle("Gate-Audio in Timeline", $engine.params.gateUseFiltered)
                 }
-                group("Totale") {
+                group("Cutaway Regeln") {
+                    WizToggle("Kopfnicken", $engine.params.noddingEnabled)
+                    WizToggle("Sprachreaktionen", $engine.params.speakingEnabled)
+                    WizToggle("Stille", $engine.params.pauseCutawayEnabled)
+                    WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s")
+                    WizSlider("Min. Konfidenz", Binding(
+                        get: { engine.params.minConf * 100 },
+                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f")
+                    WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB")
+                    WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s")
+                    WizSlider("Pre-Roll", Binding(
+                        get: { Double(engine.params.preRoll) },
+                        set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f")
+                    WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s")
+                    WizSlider("Zufallsfaktor", $engine.params.randomness, 0...0.5, format: "%.2f")
+                    WizToggle("Ungünstige Cutaways verschieben", $engine.params.clipFilterEnabled)
+                }
+                // Nicken-Muster — PRO PRESET (engine.params.noddingPatterns), dynamisch
+                // aus nodding_patterns.json. Gehört unter „Cutaway Regeln" → Kopfnicken.
+                if !noddingPatternDefs.isEmpty {
+                    subLabel("Nicken-Muster")
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
+                        ForEach(noddingPatternDefs, id: \.name) { pat in
+                            WizToggle(pat.name.replacingOccurrences(of: "_", with: " ").capitalized,
+                                      Binding(get: { engine.params.noddingPatterns[pat.name] ?? pat.enabled },
+                                              set: { engine.params.noddingPatterns[pat.name] = $0 }))
+                        }
+                    }
+                }
+                group("Totale-Cam Schnittlogik") {
                     WizSlider("Min. Simultandauer", $engine.params.totaleSimulDur, 0.5...10, suffix: " s")
                 }
             }
@@ -842,6 +871,13 @@ struct WizardSettings: View {
             .font(.caption2).fontWeight(.bold).foregroundStyle(.brandSecondary).tracking(0.8)
             .padding(.top, 16).padding(.bottom, 2)
         LazyVGrid(columns: columns, alignment: .leading, spacing: 0) { content() }
+    }
+
+    @ViewBuilder
+    private func subLabel(_ title: String) -> some View {
+        Text(title.uppercased())
+            .font(.caption2).fontWeight(.semibold).foregroundStyle(.wizMuted).tracking(0.8)
+            .padding(.top, 12).padding(.bottom, 2)
     }
 }
 
@@ -887,6 +923,34 @@ struct WizToggle: View {
             Text(label).font(.system(size: 14)).lineLimit(1)
             Spacer()
             WizSwitch(isOn: $isOn)
+        }
+        .padding(.vertical, 7)
+        .overlay(alignment: .bottom) {
+            Rectangle().fill(Color.wizBorder.opacity(0.5)).frame(height: 0.5)
+        }
+    }
+}
+
+/// Dropdown-Zeile im selben Stil wie WizSlider/WizToggle (Label · Picker · Unterstrich).
+struct WizPicker: View {
+    let label: String
+    @Binding var selection: String
+    let options: [(value: String, display: String)]
+
+    init(_ label: String, _ selection: Binding<String>, options: [(String, String)]) {
+        self.label = label; self._selection = selection
+        self.options = options.map { (value: $0.0, display: $0.1) }
+    }
+
+    var body: some View {
+        HStack(spacing: 12) {
+            Text(label).font(.system(size: 14)).lineLimit(1)
+            Spacer(minLength: 8)
+            Picker("", selection: $selection) {
+                ForEach(options, id: \.value) { Text($0.display).tag($0.value) }
+            }
+            .labelsHidden()
+            .frame(width: 108)
         }
         .padding(.vertical, 7)
         .overlay(alignment: .bottom) {
