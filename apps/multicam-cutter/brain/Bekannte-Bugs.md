@@ -2,6 +2,27 @@
 
 ## OFFEN
 
+### Kameras ab Nr. 3 werden nicht gesynct → stillschweigend Offset 0
+- **Symptom**: Bei **3+ Kameras** läuft die dritte (und jede weitere) zeitlich
+  versetzt zum Rest — ohne Fehlermeldung. Bei 2 Cams (bisheriger Normalfall)
+  tritt es NICHT auf.
+- **Ursache**: `sync_sources()` (`shared/waveform_sync.py`) hat eine feste Signatur
+  `(cam1, cam2, mic1, additional_mics)` und misst nur **CAM1↔CAM2** und **CAM1↔MIC1**.
+  Beide Aufrufer (`apps/multicam-cutter/engine/multicam_engine.py:825`,
+  `modules/multicam_cutter/run_from_bin.py:932`) reichen nur `cam_paths[0]` und
+  `cam_paths[1]` durch. CAM3 landet nie im Offsets-Dict; `build_aaf.py:258`
+  (`offsets.get(f'CAM{i+1}', 0)`) macht daraus **stumm eine 0**.
+- **Nebenbefund**: Zusatz-Mics werden ebenfalls nicht gemessen, sie **erben** MIC1s
+  Offset (`waveform_sync.py:206`). Unkritisch, solange alle Mics von einem Recorder
+  kommen (bisheriger Fall), falsch bei getrennten Recordern.
+- **Status**: latent, aber **schon heute erreichbar** — der Wizard erlaubt N Kameras.
+- ⚠️ **NICHT die Ursache des Gast-Async-Bugs vom 18.07.** Der Lauf hatte 3 Mics, aber
+  nur **2 Cams**; dort war allein der abgeschnittene CAM1-Clip schuld (s. „Gefixt").
+- **Fix bewusst aufgeschoben**: gehört in die große Multicam/Close-Totale-Session, weil
+  die Sync-Referenzlogik davon abhängt, wie Close/Totale künftig modelliert wird.
+  Richtung (siehe TODO „Sync-Robustheit"): alle Quellen **einzeln** gegen eine
+  **Mic-Referenz** messen, Ausgabe so normalisieren dass CAM1 = 0 bleibt.
+
 ### ffmpeg nicht gefunden in PASS 5 (CLIP-Filter) — Issue #3
 - **Symptom**: Durchlauf bricht ab mit `[Errno 2] No such file or directory: 'ffmpeg'`.
   Log (Issue #3, `mehmaks/resolve-toolkit`): Sync + Nodding liefen bis **96,9 %** durch,

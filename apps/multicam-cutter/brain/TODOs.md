@@ -91,6 +91,10 @@
   + AAF müssen über die Segmentgrenzen stimmen). Betrifft Scan, Wizard-Zuordnung, Engine-Args.
 
 ### 🟡 Sync-Robustheit: gegen Mics statt gegen CAM1 — Aufwand: **mittel**
+- [ ] **⚠️ Enthält einen echten Bug: Cams ab Nr. 3 werden gar nicht gesynct** (bekommen
+  stumm Offset 0) — Details in `brain/Bekannte-Bugs.md` → OFFEN. Bewusst **zusammen mit
+  der Multicam/Close-Totale-Session** angehen, weil die Referenzlogik davon abhängt.
+  Bei 2 Cams (bisheriger Normalfall) tritt es nicht auf.
 - [ ] **Sync-Referenz überdenken.** Heute ist `cam_paths[0]` (erste Cam) der EINZIGE
   Sync-Anker (`shared/waveform_sync.py:183` „CAM1 is always 0"); alles hängt an Qualität/
   Länge dieser einen Cam-Tonspur. Fragil — siehe abgeschnittener-Host-Bug (18.07., beide
