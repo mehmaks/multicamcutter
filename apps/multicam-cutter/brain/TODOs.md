@@ -3,6 +3,15 @@
 ## Offen
 
 ### UI / UX
+- [ ] **Hinweis-Fenster beim ersten Start: technische Voraussetzungen.** Aufwand: **leicht**.
+  Erst-Start-Sheet (einmalig, `@AppStorage`-Flag), das die Anforderungen ans Material
+  erklärt — bevor der User in einen unnötigen Fehlversuch läuft. Mindestens:
+  - **Jede Videospur braucht einen eigenen Referenzton.** Der Waveform-Sync korreliert
+    den Kamera-Ton; eine Cam ohne (brauchbare) Tonspur lässt sich nicht synchronisieren.
+  - Eine eigene Mic-/Tonspur je Sprecher:in (1 Person = 1 Mic).
+  - Alle Quellen müssen dieselbe Timeline-FPS haben (sonst greift der FPS-Konverter).
+  - Aufnahmen sollten sich zeitlich überlappen (sonst findet die Korrelation nichts).
+  Später ggf. mit den Grenzen aus `Bekannte-Bugs.md` abgleichen (z. B. aktuell max. 2 Cams).
 - [x] Settings-Page (Cmd+,): Allgemein (Expertenmodus) + Lizenz (Status, Datei laden)
 - [x] "Über MulticamCutter"-Dialog: Version 0.1.0, Copyright
 - [x] Expertenmodus: Alle Parameter aus dem Web-UI Schema exposed
@@ -89,6 +98,26 @@
   **Zu lösen:** Split-Gruppen erkennen (Namensschema / fortlaufender TC / Timestamps) oder
   manuell gruppieren lassen; die Teile für die Analyse virtuell konkatenieren (Sync + EDL
   + AAF müssen über die Segmentgrenzen stimmen). Betrifft Scan, Wizard-Zuordnung, Engine-Args.
+- [ ] **ALTERNATIVE (evtl. schneller am Ziel): AAF als Eingang statt Ordner.** Aufwand:
+  **mittel–schwer**, aber löst zwei Probleme auf einmal.
+  **Idee:** Der User sortiert und synchronisiert das Material in seinem NLE selbst und
+  exportiert eine AAF, in der alle benötigten Spuren **bereits im Sync** liegen. Die App
+  importiert diese AAF als Quelle — damit entfällt unser erster Workflow-Schritt
+  (Waveform-Sync) komplett, und fragmentiertes GoPro-/DJI-Material ist erledigt, weil der
+  User die Teile im NLE schon aneinandergelegt hat.
+  **Datenmodell-Wahrheit, die daraus folgt:** Mehrere Clips auf **einer** Spur (z. B. 3
+  Clips auf `V1`) sind für die Analyse **eine** Quelle. Ebenso muss mit **Lücken** in der
+  Spur gerechnet werden (kein Material zu dieser Zeit).
+  **Das ist der Knackpunkt:** Die gesamte Pipeline geht heute von *einer durchgehenden
+  Datei je Quelle plus einem Offset* aus. Eine „Spur aus Segmenten mit Lücken" ist ein
+  anderes Modell und betrifft die Frame-Rechnung überall (Source-TCs in der EDL,
+  `build_aaf`, Nodding-Analyse je Clip, Diarisierung über Lückenzeiten).
+  **Technisch:** AAF **lesen** können wir noch nicht (pyaaf2 kann es, wir schreiben bisher
+  nur — Referenz: `brain/…` AAF-Export). Zu extrahieren: Spuren, Clips je Spur mit
+  Timeline-Position + Source-Pfad + Source-In/Out. Spur → Kamera bzw. Mic mappen.
+  **Reiz:** umgeht Split-Erkennung UND Sync-Fragilität, weil der User beides im NLE
+  bereits verantwortet. Vor Umsetzung gegen `Plan-Multicam-3plus.md` (Teil A) abwägen —
+  ggf. ersetzt es den Sync-Umbau teilweise.
 
 ### 🟡 Sync-Robustheit: gegen Mics statt gegen CAM1 — Aufwand: **mittel**
 > 📋 **Detaillierter Umbauplan: `brain/Plan-Multicam-3plus.md`** (Sync + Schnitt-Logik,
