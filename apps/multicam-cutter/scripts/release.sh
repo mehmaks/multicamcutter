@@ -21,7 +21,9 @@ set -euo pipefail
 # Env:
 #   SIGN_IDENTITY        Developer-ID-String (Default: aus dem Schlüsselbund erkannt)
 #   NOTARY_PROFILE       notarytool-Profil (Default: MulticamNotary)
-#   DOWNLOAD_URL_PREFIX  z. B. https://downloads.example.com/  → aktiviert Appcast
+#   DOWNLOAD_URL_PREFIX  Enclosure-Prefix im Appcast
+#                        (Default: https://multicamcutter.pantake.com/downloads/ — fixer
+#                         Contract, siehe brain/Appcast-Hosting.md; R2 dahinter ist live)
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$SCRIPT_DIR/.."
@@ -61,34 +63,35 @@ DMG="$APP_DIR/release/MultiCamCutter.dmg"
 # ── 5. Appcast (optional) ──────────────────────────────────────────────────
 echo ""
 echo "───── [3/3] Appcast ─────"
-if [ -z "${DOWNLOAD_URL_PREFIX:-}" ]; then
-    echo "⏭  Übersprungen — DOWNLOAD_URL_PREFIX nicht gesetzt."
-    echo "   Sobald der Objekt-Storage steht, so aufrufen:"
-    echo "     DOWNLOAD_URL_PREFIX=https://<host>/downloads/ bash scripts/release.sh $VERSION"
-    echo "   (oder nur den Appcast-Schritt manuell, siehe brain/Appcast-Hosting.md)"
-else
-    GEN_APPCAST="$(find "$APP_DIR/MulticamCutter/.build/artifacts" -name generate_appcast -type f 2>/dev/null | head -1)"
-    [ -x "$GEN_APPCAST" ] || { echo "✗ generate_appcast nicht gefunden (erst 'swift build')"; exit 1; }
+# Prefix ist ein fixer Contract (R2 hinter multicamcutter.pantake.com/downloads/
+# ist live) — daher Default, kein Überspringen mehr. Per Env überschreibbar.
+DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://multicamcutter.pantake.com/downloads/}"
 
-    UPDATES_DIR="$APP_DIR/release/updates"
-    mkdir -p "$UPDATES_DIR"
-    # Versionierter Dateiname → keine Kollision im Storage über Releases hinweg.
-    # ALLE bisherigen Release-DMGs sollten hier liegen bleiben, damit der Appcast
-    # die komplette Update-Historie (inkl. Deltas) behält.
-    cp "$DMG" "$UPDATES_DIR/MultiCamCutter-$VERSION.dmg"
+GEN_APPCAST="$(find "$APP_DIR/MulticamCutter/.build/artifacts" -name generate_appcast -type f 2>/dev/null | head -1)"
+[ -x "$GEN_APPCAST" ] || { echo "✗ generate_appcast nicht gefunden (erst 'swift build')"; exit 1; }
 
-    echo "► generate_appcast (signiert jede DMG mit dem Sparkle-Schlüssel)..."
-    "$GEN_APPCAST" "$UPDATES_DIR" --download-url-prefix "$DOWNLOAD_URL_PREFIX"
-    echo "  ✓ $UPDATES_DIR/appcast.xml"
-fi
+UPDATES_DIR="$APP_DIR/release/updates"
+DMG_NAME="MultiCamCutter-$VERSION.dmg"
+mkdir -p "$UPDATES_DIR"
+# Versionierter Dateiname → keine Kollision im Storage über Releases hinweg.
+# ALLE bisherigen Release-DMGs sollten hier liegen bleiben, damit der Appcast
+# die komplette Update-Historie (inkl. Deltas) behält.
+cp "$DMG" "$UPDATES_DIR/$DMG_NAME"
+
+echo "► generate_appcast (signiert jede DMG mit dem Sparkle-Schlüssel)..."
+"$GEN_APPCAST" "$UPDATES_DIR" --download-url-prefix "$DOWNLOAD_URL_PREFIX"
+echo "  ✓ $UPDATES_DIR/appcast.xml"
 
 # ── 6. Nächste (manuelle) Schritte ─────────────────────────────────────────
 echo ""
 echo "=== Release $VERSION fertig ==="
-echo "  DMG: $DMG"
+echo "  DMG:     $DMG"
+echo "  Appcast: $UPDATES_DIR/appcast.xml"
 echo ""
 echo "Noch von Hand (Publish — bewusst separat):"
-echo "  1. release/updates/MultiCamCutter-$VERSION.dmg → Objekt-Storage (R2/S3/B2) hochladen"
-echo "  2. release/updates/appcast.xml → Website (Vercel public/appcast.xml)"
+echo "  1. release/updates/$DMG_NAME → Cloudflare R2 hochladen"
+echo "     · Objekt-Key EXAKT = \"$DMG_NAME\" (muss zur Enclosure-URL passen)"
+echo "     · Content-Type: application/octet-stream"
+echo "  2. release/updates/appcast.xml → Website-Repo, Vercel public/appcast.xml"
 echo "  3. Testen: Über-Dialog → „Auf Update prüfen\" bietet $VERSION an"
 echo "  Details: brain/Appcast-Hosting.md"

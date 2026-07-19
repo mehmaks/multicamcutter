@@ -1,7 +1,38 @@
 # Distribution-Setup
 
-Wie aus der gebauten App eine verteilbare Datei wird — von der jetzigen
-ad-hoc-DMG bis zur signierten/notarisierten Auslieferung.
+Wie aus der gebauten App eine verteilbare Datei wird — von der ad-hoc-DMG bis zur
+signierten/notarisierten Auslieferung inkl. Auto-Update.
+
+## Release-Checkliste (Update ausliefern)
+
+Kompletter Weg von „neue Version" bis „Nutzer bekommt das Update". Zum Aufzählen
+gedacht — wenn du danach fragst, ist das die Liste.
+
+**Auf meinem Mac (ein Befehl):**
+1. **Version festlegen** — höher als die letzte. Anzeige-Version (`0.5.0`) wählst
+   du; die für Sparkle entscheidende `CFBundleVersion` (Zeitstempel) setzt der
+   Build automatisch, steigt also immer.
+2. **Im eigenen Terminal** (nicht headless!): `bash scripts/release.sh 0.5.0`
+   → baut Developer-ID-signiert (Hardened Runtime) → notarisiert + stapelt →
+   erzeugt den signierten `appcast.xml`. Beim allerersten Mal je einmal „Immer
+   erlauben" für codesign und generate_appcast. Dauer ~10–15 min (Build + ~1 GB
+   Upload zu Apple).
+
+**Publish (von Hand, bewusst separat — geht „nach außen"):**
+3. **DMG → Cloudflare R2**: `release/updates/MultiCamCutter-<version>.dmg` hochladen.
+   · Objekt-Key **exakt** = Dateiname (muss zur Enclosure-URL im Feed passen).
+   · Content-Type `application/octet-stream`.
+4. **appcast.xml → Website**: `release/updates/appcast.xml` ins Website-Repo unter
+   `public/appcast.xml`, Vercel deployen.
+5. **Testen**: eine ältere installierte Version → „Über MultiCamCutter" → „Auf
+   Update prüfen" muss die neue Version anbieten, laden, verifizieren, installieren.
+
+Kurzform: **release.sh → DMG zu R2 → appcast.xml zur Website → testen.**
+
+Einmalige Voraussetzungen (alle erledigt): Developer-ID-Zertifikat + Notary-Profil
+`MulticamNotary` + Sparkle-Private-Key im Keychain + R2-Storage & `/downloads`-Route
+live. Detail-Referenzen: Signieren/Notarisieren unten, Hosting-Contract in
+`brain/Appcast-Hosting.md`.
 
 ## Versionierung (build_app.sh)
 

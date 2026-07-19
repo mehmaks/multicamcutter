@@ -111,10 +111,12 @@ Das ist mein Job beim Bauen — nur zur Info.
 
 ## Release-Ablauf (auf meiner Seite, zur Einordnung)
 
-1. `CFBundleVersion` hochzählen, App + DMG bauen (`build_app.sh` + `make_dmg.sh`).
-2. `generate_appcast <updates-ordner> --download-url-prefix https://<host>/downloads/`
-   → signiert die DMG mit dem Keychain-Key, schreibt `appcast.xml`.
-3. Ich gebe euch: die **DMG** (→ Objekt-Storage) + die **appcast.xml** (→ `/appcast.xml`).
+Automatisiert in **`scripts/release.sh <version>`** (baut signiert → notarisiert →
+`generate_appcast` mit fixem `--download-url-prefix
+https://multicamcutter.pantake.com/downloads/`). Ergebnis: `release/updates/appcast.xml`
++ `release/updates/MultiCamCutter-<version>.dmg`. Danach von Hand: DMG → R2,
+appcast.xml → `public/appcast.xml`. **Vollständige Schritt-für-Schritt-Checkliste:
+`brain/Distribution-Setup.md` → „Release-Checkliste".**
 
 ## Test (End-to-End)
 
