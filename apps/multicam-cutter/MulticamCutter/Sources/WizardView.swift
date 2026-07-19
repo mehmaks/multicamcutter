@@ -699,6 +699,8 @@ struct WizardFooter: View {
                 .disabled(engine.wizardStep == .persons)
                 .opacity(engine.wizardStep == .persons ? 0.4 : 1)
 
+            FeedbackButton()   // Bug/Feedback melden — jetzt im Footer neben „Zurück"
+
             Spacer()
 
             if engine.wizardStep == .overview {
@@ -801,7 +803,7 @@ struct WizardSettings: View {
     private var expertList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                group("Generelle Schnittregeln") {
+                group("Generelle Schnittregeln", first: true) {
                     WizSlider("Min. Shotlänge", $engine.params.minShot, 0.5...10, suffix: " s")
                     WizSlider("Cleanup-Mindestlänge", $engine.params.cleanupDur, 0.1...5, suffix: " s")
                     WizSlider("Max. Shotlänge", $engine.params.maxShot, 1...60, suffix: " s")
@@ -826,7 +828,6 @@ struct WizardSettings: View {
                     WizSlider("Attack", $engine.params.gateAttack, 1...200, suffix: " ms", format: "%.0f")
                     WizSlider("Release", $engine.params.gateRelease, 10...500, suffix: " ms", format: "%.0f")
                     WizSlider("Gleichzeitig-Schwelle", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB")
-                    WizToggle("Gate-Audio in Timeline", $engine.params.gateUseFiltered)
                 }
                 group("Cutaway Regeln") {
                     WizToggle("Kopfnicken", $engine.params.noddingEnabled)
@@ -857,19 +858,22 @@ struct WizardSettings: View {
                         }
                     }
                 }
-                group("Totale-Cam Schnittlogik") {
-                    WizSlider("Min. Simultandauer", $engine.params.totaleSimulDur, 0.5...10, suffix: " s")
-                }
             }
         }
         .frame(maxHeight: 300)
     }
 
     @ViewBuilder
-    private func group<C: View>(_ title: String, @ViewBuilder _ content: () -> C) -> some View {
+    private func group<C: View>(_ title: String, first: Bool = false,
+                                @ViewBuilder _ content: () -> C) -> some View {
+        // Trennlinie über jeder Rubrik (wie unter „Einstellungen") — außer der ersten,
+        // die direkt unter der Einstellungen-Trennlinie sitzt.
+        if !first {
+            Rectangle().fill(Color.wizBorder).frame(height: 1).padding(.top, 16)
+        }
         Text(title.uppercased())
             .font(.caption2).fontWeight(.bold).foregroundStyle(.brandSecondary).tracking(0.8)
-            .padding(.top, 16).padding(.bottom, 2)
+            .padding(.top, first ? 16 : 12).padding(.bottom, 2)
         LazyVGrid(columns: columns, alignment: .leading, spacing: 0) { content() }
     }
 

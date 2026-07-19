@@ -115,9 +115,19 @@ Kein Experten-Toggle als globale Einstellung mehr. Innerhalb der Box tauscht ein
   (`config/schemas/multicam_params.json`) in Benennung + Reihenfolge, scrollbar
   (`maxHeight 300`). Rubriken in Web-Reihenfolge: **Generelle Schnittregeln ·
   Sprecher-Erkennung · Pausen-Trimming** (inkl. `WizPicker` „Schnittmodus" =
-  `pauseCutMode`) **· Crossbleed-Filter · Cutaway Regeln · Totale-Cam Schnittlogik**.
-  Rubrik-Titel via `@ViewBuilder group(_:_)`, Sub-Titel via `subLabel(_:)`.
-  Bewusste Ausnahme: **LUT weggelassen** (steht als „auf Halde" im Brain/TODO).
+  `pauseCutMode`) **· Crossbleed-Filter · Cutaway Regeln**.
+  Rubrik-Titel via `group(_:first:_)`, Sub-Titel via `subLabel(_:)`. `group` zeichnet
+  über **jeder** Rubrik eine Trennlinie (`wizBorder`, wie unter „Einstellungen") —
+  außer der ersten (`first: true`), die schon unter der Einstellungen-Linie sitzt.
+
+  **Bewusst NICHT exponiert:**
+  - **LUT** — steht als „auf Halde" im TODO.
+  - **Gate-Audio in Timeline** (`gateUseFiltered`) — reine Debug-Option: exportiert nur
+    `*_gated.wav` und importiert sie **nur im Resolve/Bin-Workflow** in den Media Pool.
+    Im Ordner/AAF-Workflow ohne Wirkung (die AAF referenziert Original-Audio). Param
+    bleibt in `PipelineParams`, nur ohne UI.
+  - **Totale-Cam Schnittlogik** (`totaleSimulDur`) — Rubrik entfernt, das Thema wird in
+    einer eigenen Session neu konzipiert. Param bleibt (Default 3.0).
 
 **Nicken-Muster (pro Preset):** In „Cutaway Regeln" folgen unter dem Sub-Titel
 „Nicken-Muster" **dynamische Toggles** je Pattern (Oscillation/Slow/Strong, Namen +
@@ -142,9 +152,11 @@ daher eigene:
 
 ## WizardFooter
 
-`Zurück` (WizSecondary, im Personen-Schritt disabled) · Spacer · rechts je nach
-Schritt: **Weiter** (WizPrimary) oder — auf Übersicht — `WizPresetDropdown` +
-**Analyse starten** (`engine.start()`). Hintergrund `wizBg` (dunkler Footer).
+`Zurück` (WizSecondary, im Personen-Schritt disabled) · **`FeedbackButton`** (Bug/
+Feedback melden — sitzt hier statt global oben rechts; ErrorView + Menü haben eigene
+Einstiege) · Spacer · rechts je nach Schritt: **Weiter** (WizPrimary) oder — auf
+Übersicht — `WizPresetDropdown` + **Analyse starten** (`engine.start()`).
+Hintergrund `wizBg` (dunkler Footer).
 
 `startBlockedReason` liefert Hinweistext (Flieder) + `disabled`. Blockiert bei:
 < 2 aktive Cams · keine Person · < 2 Cams mit Person (`analysisCams`) ·

@@ -11,11 +11,10 @@ struct ContentView: View {
     private static let runWidth: CGFloat = 760
 
     var body: some View {
-        ZStack(alignment: .topTrailing) {
+        // Feedback-Button sitzt jetzt im Wizard-Footer neben „Zurück" (nicht mehr
+        // global oben rechts). ErrorView + Menü haben weiterhin eigene Einstiege.
+        ZStack {
             stateContent
-            FeedbackButton()
-                .padding(.top, 10)
-                .padding(.trailing, 14)
         }
         .background(WindowAccessor { window in
             mainWindow = window
