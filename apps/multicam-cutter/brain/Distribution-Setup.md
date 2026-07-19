@@ -65,13 +65,28 @@ Innen-Signieren die äußere Signatur:
 5. App-Bundle außen — **mit** Entitlements, **kein** `--deep`
 
 ### Release-Ablauf (pro notarisiertem Release)
-```
-# 1) Mit Developer ID signieren (baut komplett neu, Hardened Runtime)
-SIGN_IDENTITY="Developer ID Application: Maximilian Menge (6F5UGR7V25)" \
-  bash scripts/build_app.sh
 
-# 2) DMG bauen + notarisieren + stapeln + verifizieren (eine Aktion)
-bash scripts/notarize.sh
+**Ein Befehl** (`scripts/release.sh`):
+```
+bash scripts/release.sh 0.5.0
+```
+Macht: Version setzen (an build_app.sh durchgereicht) → Developer-ID-signiert bauen
+→ notarisieren (notarize.sh) → Appcast erzeugen (nur wenn `DOWNLOAD_URL_PREFIX`
+gesetzt). Die Identität wird aus dem Schlüsselbund **auto-erkannt** (oder via Env
+`SIGN_IDENTITY` gesetzt). Das Hochladen (DMG → Objekt-Storage, appcast.xml →
+Website) bleibt bewusst ein separater, bestätigter Schritt — release.sh zeigt am
+Ende genau, was zu tun ist.
+
+Mit Appcast in einem Rutsch (sobald der Storage-Host steht):
+```
+DOWNLOAD_URL_PREFIX=https://<host>/downloads/ bash scripts/release.sh 0.5.0
+```
+
+**Einzelschritte** (falls man nur bauen/notarisieren will):
+```
+SIGN_IDENTITY="Developer ID Application: Maximilian Menge (6F5UGR7V25)" \
+  bash scripts/build_app.sh      # nur signiert bauen
+bash scripts/notarize.sh         # nur notarisieren
 ```
 `notarize.sh` baut die DMG (mit schlanker LIESMICH statt Gatekeeper-Umgehung, via
 `NOTARIZED=1 make_dmg.sh`), reicht sie via `notarytool submit --wait` ein, staplet
@@ -82,8 +97,9 @@ Ablehnung zieht es automatisch das Apple-Log (`notarytool log <id>`).
 Beim ersten `codesign` mit dem privaten Schlüssel zeigt macOS einen
 Schlüsselbund-Dialog („codesign möchte den Schlüssel verwenden"). **Einmal
 „Immer erlauben"** klicken — danach laufen alle ~650 Signaturen ohne weitere
-Prompts. In einer headless-Shell (CI, Agent) hängt codesign an genau diesem
-Dialog. Alternative ohne Klick (einmalig, braucht Login-Passwort):
+Prompts. Dasselbe gilt einmalig für `generate_appcast` (greift auf den privaten
+Sparkle-Schlüssel zu). In einer headless-Shell (CI, Agent) hängen beide an genau
+diesem Dialog. Alternative ohne Klick (einmalig, braucht Login-Passwort):
 `security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <pw> ~/Library/Keychains/login.keychain-db`
 (`notarytool` und `stapler` prompten NICHT — deren Schlüsselbund-Zugriff ist über
 das gespeicherte Profil autorisiert.)
