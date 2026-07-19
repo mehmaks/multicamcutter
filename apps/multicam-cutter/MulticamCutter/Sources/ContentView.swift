@@ -94,7 +94,12 @@ struct ContentView: View {
             window.setFrame(target, display: true, animate: true)
         } else if let restore = frameBeforeRun {
             frameBeforeRun = nil
-            window.setFrame(restore, display: true, animate: true)
+            // NACH dem View-Wechsel (ProgressView_ → WizardView/ResultView) restaurieren:
+            // synchron würde SwiftUIs Content-Sizing der neuen View die Breite direkt
+            // wieder überschreiben (Abbruch ließ das Fenster sonst schmal).
+            DispatchQueue.main.async {
+                window.setFrame(restore, display: true, animate: true)
+            }
         }
     }
 
