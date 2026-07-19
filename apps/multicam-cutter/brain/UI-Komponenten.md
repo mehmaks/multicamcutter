@@ -171,7 +171,8 @@ Hintergrund `wizBg` (dunkler Footer).
 
 `startBlockedReason` liefert Hinweistext (Flieder) + `disabled`. Blockiert bei:
 < 2 aktive Cams · keine Person · < 2 Cams mit Person (`analysisCams`) ·
-FPS-Mismatch · nicht jede Person hat eine Kamera (`unassignedMics`).
+FPS-Mismatch · **> 2 Kameras** (`unsyncedCams`, Sync deckt nur zwei ab) ·
+nicht jede Person hat eine Kamera (`unassignedMics`).
 
 ## WizPresetDropdown
 
@@ -201,6 +202,11 @@ Chips, LadderRow.
   Quelle) — typisch eine abgebrochene Konvertierung, deren Teildatei liegen
   blieb → Video-Sync-Versatz + AAF verlinkt in Resolve nicht. Bitte Datei löschen
   und neu konvertieren (siehe Bekannte-Bugs: truncated conversion).
+- **`UnsyncedCamsBanner`**: warnt bei `unsyncedCams` (alles ab Position 3 in
+  `orderedAnalysisCams`). Der Waveform-Sync misst nur die ersten beiden Cams; weitere
+  bekämen stumm Offset 0. **Sperrt zusätzlich den Start** (`startBlockedReason`) —
+  bewusst laut blockieren statt still falsch schneiden. Temporärer Wächter, bis der
+  N-Cam-Sync in der Multicam-Session gebaut ist (siehe Bekannte-Bugs).
 
 ## Verbliebene Views (ContentView.swift)
 

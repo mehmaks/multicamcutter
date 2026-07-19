@@ -15,7 +15,11 @@
 - **Nebenbefund**: Zusatz-Mics werden ebenfalls nicht gemessen, sie **erben** MIC1s
   Offset (`waveform_sync.py:206`). Unkritisch, solange alle Mics von einem Recorder
   kommen (bisheriger Fall), falsch bei getrennten Recordern.
-- **Status**: latent, aber **schon heute erreichbar** — der Wizard erlaubt N Kameras.
+- **Status**: **abgesichert** (nicht behoben). Ein Wächter in der App verhindert, dass
+  der Fall still eintritt: `EngineController.unsyncedCams` (alles ab Position 3 in
+  `orderedAnalysisCams`) → `UnsyncedCamsBanner` auf Screen 2 + `startBlockedReason`
+  sperrt den Analyse-Start. Lieber laut blockieren als stumm falsch schneiden.
+  Der eigentliche Fix (N-Cam-Sync) folgt in der Multicam-Session.
 - ⚠️ **NICHT die Ursache des Gast-Async-Bugs vom 18.07.** Der Lauf hatte 3 Mics, aber
   nur **2 Cams**; dort war allein der abgeschnittene CAM1-Clip schuld (s. „Gefixt").
 - **Fix bewusst aufgeschoben**: gehört in die große Multicam/Close-Totale-Session, weil

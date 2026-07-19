@@ -283,6 +283,7 @@ struct CamerasStep: View {
 
             if !engine.fpsMismatches.isEmpty { FpsMismatchBanner() }
             if !engine.suspiciouslyShortCams.isEmpty { ShortCamBanner() }
+            if !engine.unsyncedCams.isEmpty { UnsyncedCamsBanner() }
 
             HStack(alignment: .top, spacing: 26) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -528,6 +529,39 @@ struct ShortCamBanner: View {
     }
 }
 
+// MARK: - Warnung: mehr als 2 Kameras (Sync deckt nur die ersten beiden ab)
+
+struct UnsyncedCamsBanner: View {
+    @EnvironmentObject var engine: EngineController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack(alignment: .firstTextBaseline, spacing: 6) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                Text("Mehr als 2 Kameras — noch nicht unterstützt").fontWeight(.semibold)
+            }
+            .foregroundStyle(.brandSecondary)
+
+            Text("Der Waveform-Sync misst aktuell nur die ersten beiden Kameras. Jede "
+                 + "weitere würde ohne Zeitversatz eingebaut und liefe im Schnitt "
+                 + "unsynchron — ohne dass es auffällt. Deshalb ist der Start gesperrt, "
+                 + "bis eine Kamera weniger zugeordnet ist. Der Umbau des Syncs steht an.")
+                .font(.caption).foregroundStyle(.wizMuted)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Text("Betroffen wären:").font(.caption).foregroundStyle(.wizFaint).padding(.top, 2)
+            ForEach(engine.unsyncedCams) { cam in
+                Text("• \(cam.displayName)")
+                    .font(.system(.caption, design: .monospaced))
+            }
+        }
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.brandSecondary.opacity(0.12), in: RoundedRectangle(cornerRadius: 10))
+        .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandSecondary.opacity(0.4), lineWidth: 1))
+    }
+}
+
 // MARK: - Screen 3: Übersicht & Start
 
 struct OverviewStep: View {
@@ -688,6 +722,9 @@ struct WizardFooter: View {
         if engine.persons.isEmpty { return "Mindestens eine Person nötig" }
         if engine.analysisCams.count < 2 { return "Mindestens 2 Kameras brauchen eine Person" }
         if !engine.fpsMismatches.isEmpty { return "FPS-Mismatch — bitte oben beheben" }
+        // Sync deckt nur die ersten zwei Cams ab — lieber blockieren als still falsch
+        // schneiden (siehe UnsyncedCamsBanner / brain/Bekannte-Bugs.md).
+        if !engine.unsyncedCams.isEmpty { return "Mehr als 2 Kameras — noch nicht unterstützt" }
         if !engine.unassignedMics.isEmpty { return "Jede Person braucht mindestens eine Kamera" }
         return nil
     }

@@ -481,6 +481,17 @@ class EngineController: ObservableObject {
         }
     }
 
+    /// Kameras, die die Engine NICHT zeitlich synchronisiert.
+    /// `sync_sources()` misst nur die ersten beiden aus `--cams` (CAM1↔CAM2); alles ab
+    /// Position 3 fehlt im Offsets-Dict und bekaeme in build_aaf.py stumm Offset 0 →
+    /// das Bild liefe versetzt, ohne Fehlermeldung. Bis der Sync in der Multicam-Session
+    /// umgebaut ist, blockieren wir den Start statt still falsch zu schneiden.
+    /// Siehe brain/Bekannte-Bugs.md → „Kameras ab Nr. 3 werden nicht gesynct".
+    var unsyncedCams: [CameraInfo] {
+        let ordered = orderedAnalysisCams
+        return ordered.count > 2 ? Array(ordered.dropFirst(2)) : []
+    }
+
     // MARK: - Personen (abgeleitet)
 
     /// Eine Person je aktivem Mic. Name = Mic-Anzeigename, Kameras = alle aktiven
