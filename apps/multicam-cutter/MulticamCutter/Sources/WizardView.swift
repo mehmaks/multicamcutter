@@ -817,8 +817,11 @@ struct WizardSettings: View {
                     WizToggle("Pausen trimmen", $engine.params.pauseTrimEnabled)
                     WizSlider("Max. Pause", $engine.params.maxPause, 0.1...3, suffix: " s")
                     WizSlider("Stille-Schwelle", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f")
-                    WizPicker("Schnittmodus", $engine.params.pauseCutMode,
-                              options: [("middle", "Mitte"), ("none", "Kein"), ("end", "Ende")])
+                    // Werte 1:1 aus dem Schema/der Pipeline (pause_trim_edl.py):
+                    // middle | l-cut | j-cut | random — NICHT none/end.
+                    WizSegmented("Schnittmodus", $engine.params.pauseCutMode,
+                                 options: [("middle", "Mitte"), ("l-cut", "L-Cut"),
+                                           ("j-cut", "J-Cut"), ("random", "Zufall")])
                 }
                 group("Crossbleed-Filter") {
                     WizToggle("Crossbleed-Gate", $engine.params.crossbleedGateEnabled)
@@ -829,27 +832,27 @@ struct WizardSettings: View {
                     WizSlider("Release", $engine.params.gateRelease, 10...500, suffix: " ms", format: "%.0f")
                     WizSlider("Gleichzeitig-Schwelle", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB")
                 }
+                // Allgemeine Cutaway-Regeln (gelten für ALLE Cutaway-Typen)
                 group("Cutaway Regeln") {
-                    WizToggle("Kopfnicken", $engine.params.noddingEnabled)
-                    WizToggle("Sprachreaktionen", $engine.params.speakingEnabled)
-                    WizToggle("Stille", $engine.params.pauseCutawayEnabled)
                     WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s")
-                    WizSlider("Min. Konfidenz", Binding(
-                        get: { engine.params.minConf * 100 },
-                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f")
-                    WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB")
-                    WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s")
                     WizSlider("Pre-Roll", Binding(
                         get: { Double(engine.params.preRoll) },
                         set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f")
-                    WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s")
                     WizSlider("Zufallsfaktor", $engine.params.randomness, 0...0.5, format: "%.2f")
                     WizToggle("Ungünstige Cutaways verschieben", $engine.params.clipFilterEnabled)
                 }
-                // Nicken-Muster — PRO PRESET (engine.params.noddingPatterns), dynamisch
-                // aus nodding_patterns.json. Gehört unter „Cutaway Regeln" → Kopfnicken.
+                // Je Cutaway-Typ eine eigene Rubrik: Master-Toggle + NUR die Parameter,
+                // die wirklich dazugehören.
+                group("Kopfnicken") {
+                    WizToggle("Aktiv", $engine.params.noddingEnabled)
+                    WizSlider("Min. Konfidenz", Binding(
+                        get: { engine.params.minConf * 100 },
+                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f")
+                }
+                // Muster-Toggles — PRO PRESET (engine.params.noddingPatterns), dynamisch
+                // aus nodding_patterns.json. Gehören zu „Kopfnicken".
                 if !noddingPatternDefs.isEmpty {
-                    subLabel("Nicken-Muster")
+                    subLabel("Muster")
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
                         ForEach(noddingPatternDefs, id: \.name) { pat in
                             WizToggle(pat.name.replacingOccurrences(of: "_", with: " ").capitalized,
@@ -857,6 +860,15 @@ struct WizardSettings: View {
                                               set: { engine.params.noddingPatterns[pat.name] = $0 }))
                         }
                     }
+                }
+                group("Sprachreaktionen") {
+                    WizToggle("Aktiv", $engine.params.speakingEnabled)
+                    WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB")
+                    WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s")
+                }
+                group("Stille") {
+                    WizToggle("Aktiv", $engine.params.pauseCutawayEnabled)
+                    WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s")
                 }
             }
         }
@@ -935,8 +947,10 @@ struct WizToggle: View {
     }
 }
 
-/// Dropdown-Zeile im selben Stil wie WizSlider/WizToggle (Label · Picker · Unterstrich).
-struct WizPicker: View {
+/// Mehrfachumschalter (Segmented) im Wizard-Look — statt eines System-Dropdowns.
+/// Aktives Segment in Lime mit schwarzer Schrift, Rest gedämpft. Zeilen-Stil wie
+/// WizSlider/WizToggle (Label · Control · Unterstrich).
+struct WizSegmented: View {
     let label: String
     @Binding var selection: String
     let options: [(value: String, display: String)]
@@ -950,11 +964,22 @@ struct WizPicker: View {
         HStack(spacing: 12) {
             Text(label).font(.system(size: 14)).lineLimit(1)
             Spacer(minLength: 8)
-            Picker("", selection: $selection) {
-                ForEach(options, id: \.value) { Text($0.display).tag($0.value) }
+            HStack(spacing: 2) {
+                ForEach(options, id: \.value) { opt in
+                    let active = selection == opt.value
+                    Text(opt.display)
+                        .font(.system(size: 11.5, weight: active ? .semibold : .regular))
+                        .foregroundStyle(active ? Color.black : Color.wizMuted)
+                        .padding(.horizontal, 8).padding(.vertical, 4)
+                        .background(active ? Color.brandAccent : Color.clear,
+                                    in: RoundedRectangle(cornerRadius: 6))
+                        .contentShape(Rectangle())
+                        .onTapGesture { selection = opt.value }
+                }
             }
-            .labelsHidden()
-            .frame(width: 108)
+            .padding(2)
+            .background(Color.wizSurface2, in: RoundedRectangle(cornerRadius: 8))
+            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.wizBorder2, lineWidth: 1))
         }
         .padding(.vertical, 7)
         .overlay(alignment: .bottom) {

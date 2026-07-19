@@ -111,14 +111,25 @@ Kein Experten-Toggle als globale Einstellung mehr. Innerhalb der Box tauscht ein
 **Textlink** den gesamten Inhalt:
 - **Einfache Ansicht** (`simpleList`): kuratierte 8 Essentials, 2-spaltiges
   `LazyVGrid`.
-- **Experteneinstellungen** (`expertList`): **1:1 zur Web-UI / zum Schema**
-  (`config/schemas/multicam_params.json`) in Benennung + Reihenfolge, scrollbar
-  (`maxHeight 300`). Rubriken in Web-Reihenfolge: **Generelle Schnittregeln ·
-  Sprecher-Erkennung · Pausen-Trimming** (inkl. `WizPicker` „Schnittmodus" =
-  `pauseCutMode`) **· Crossbleed-Filter · Cutaway Regeln**.
+- **Experteneinstellungen** (`expertList`): Benennung nach Schema
+  (`config/schemas/multicam_params.json`), scrollbar (`maxHeight 300`). Rubriken:
+  **Generelle Schnittregeln · Sprecher-Erkennung · Pausen-Trimming** (inkl.
+  `WizSegmented` „Schnittmodus") **· Crossbleed-Filter · Cutaway Regeln · Kopfnicken ·
+  Sprachreaktionen · Stille**.
   Rubrik-Titel via `group(_:first:_)`, Sub-Titel via `subLabel(_:)`. `group` zeichnet
   über **jeder** Rubrik eine Trennlinie (`wizBorder`, wie unter „Einstellungen") —
   außer der ersten (`first: true`), die schon unter der Einstellungen-Linie sitzt.
+
+  **Cutaway-Rubriken bewusst aufgeteilt** (Abweichung vom flachen Web-Block): „Cutaway
+  Regeln" enthält nur die **typ-übergreifenden** Parameter (Cutaway-Länge, Pre-Roll,
+  Zufallsfaktor, Ungünstige Cutaways verschieben). Jeder Cutaway-Typ bekommt eine
+  eigene Rubrik mit „Aktiv"-Toggle + NUR seinen Parametern:
+  **Kopfnicken** (Min. Konfidenz + Muster-Toggles) · **Sprachreaktionen** (Rise, Max.
+  Cutaway-Dauer) · **Stille** (Min. Pausenlänge). Vorher lagen alle in einem Block und
+  die Zuordnung Toggle→Parameter war nicht erkennbar.
+
+  ⚠️ **`pauseCutMode`-Werte**: `middle` | `l-cut` | `j-cut` | `random` (aus
+  `pause_trim_edl.py` / Schema-Transform) — **nicht** none/end.
 
   **Bewusst NICHT exponiert:**
   - **LUT** — steht als „auf Halde" im TODO.
@@ -129,8 +140,8 @@ Kein Experten-Toggle als globale Einstellung mehr. Innerhalb der Box tauscht ein
   - **Totale-Cam Schnittlogik** (`totaleSimulDur`) — Rubrik entfernt, das Thema wird in
     einer eigenen Session neu konzipiert. Param bleibt (Default 3.0).
 
-**Nicken-Muster (pro Preset):** In „Cutaway Regeln" folgen unter dem Sub-Titel
-„Nicken-Muster" **dynamische Toggles** je Pattern (Oscillation/Slow/Strong, Namen +
+**Nicken-Muster (pro Preset):** In der Rubrik „Kopfnicken" folgen unter dem Sub-Titel
+„Muster" **dynamische Toggles** je Pattern (Oscillation/Slow/Strong, Namen +
 Defaults aus `getNoddingPatterns()` → `noddingPatternDefs`). Sie schreiben in
 `engine.params.noddingPatterns` (`[name: Bool]`) → **pro Preset** gespeichert, an die
 Engine als `nodding_patterns`. Default je Pattern = `enabled` aus der JSON. (Die
