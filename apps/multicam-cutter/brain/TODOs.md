@@ -191,6 +191,21 @@
 - [x] **Settings-Fenster ist noch blau**: GELÖST — `.tint(.brandAccent)` auf dem
   `TabView` in `SettingsView`. Tab-Icons/Labels nutzen jetzt Lime statt System-Blau.
 
+### Analyse-Input: LUT / Kontrast (auf Halde, niedrige Prio)
+- [ ] **LUT-Picker für die MediaPipe-Analyse in der Mac-App exponieren.** Aufwand:
+  **leicht** (Backend fertig). Das `--lut`-Flag (.cube) ist bereits end-to-end
+  durchgereicht: `run_from_bin.py --lut` → `video_reaction_analyzer_v2.4.py`
+  (`lut3d` in der ffmpeg-`-vf`-Kette, wo die Analyseframes für MediaPipe entstehen).
+  Es fehlt nur ein Datei-Picker in den Settings + Durchreichen an die Engine.
+  Zweck: Log-Material vor MediaPipe nach Rec.709 wandeln. **War im Web-UI schon da.**
+  ⚠️ **Auf Halde**: User hat in eigenen Analysen **keinen qualitativen Unterschied**
+  bemerkt, ob MediaPipe mit oder ohne LUT lief → geringer Nutzen. Erst umsetzen, wenn
+  ein konkreter Log-Problemfall auftaucht (dann mit Vergleichs-Durchlauf: Nodding-
+  Events mit/ohne LUT).
+  Alternative ohne LUT: generischer Auto-Kontrast-Filter (`eq`/`normalize`/`curves`)
+  in dieselbe `-vf`-Kette, per Toggle — analog zum kosmetischen Thumbnail-Toggle, aber
+  Engine-seitig. Ebenfalls nur bei Bedarf. (Beides braucht PyInstaller-Rebuild fürs Release.)
+
 ### Multilanguage (planen)
 - [ ] **Mehrsprachigkeit konzipieren (DE/EN)**. Die Website ist bereits zweisprachig
   (next-intl, `src/messages/{de,en}.json`) — die App ist es **gar nicht**: alle
