@@ -6,37 +6,54 @@ import UserNotifications
 // Zeichnet einen kleinen Balken unten auf das Dock-Icon (wie Xcode/Mail), damit man
 // den Fortschritt auch bei minimierter/hintergründiger App sofort sieht.
 
+/// Selbst-zeichnende Dock-Tile-View: App-Icon + Fortschrittsbalken. Ein eingebetteter
+/// `NSProgressIndicator` rendert in einer Dock-Tile NICHT zuverlässig — daher manuell.
+private final class DockProgressView: NSView {
+    var fraction: Double = 0 { didSet { needsDisplay = true } }
+
+    override func draw(_ dirtyRect: NSRect) {
+        NSApp.applicationIconImage?.draw(in: bounds)
+
+        let h = bounds.height * 0.12
+        let inset = bounds.width * 0.14
+        let track = NSRect(x: inset, y: bounds.height * 0.10,
+                           width: bounds.width - inset * 2, height: h)
+        let radius = h / 2
+
+        let bg = NSBezierPath(roundedRect: track, xRadius: radius, yRadius: radius)
+        NSColor.black.withAlphaComponent(0.55).setFill(); bg.fill()
+        NSColor.white.withAlphaComponent(0.28).setStroke(); bg.lineWidth = 1; bg.stroke()
+
+        let f = CGFloat(min(max(fraction, 0), 1))
+        let fillW = max(h, track.width * f)   // min. rund, damit auch bei 0 % sichtbar
+        let fill = NSBezierPath(roundedRect: NSRect(x: track.minX, y: track.minY, width: fillW, height: h),
+                                xRadius: radius, yRadius: radius)
+        NSColor(srgbRed: 198/255, green: 242/255, blue: 78/255, alpha: 1).setFill()  // brandAccent
+        fill.fill()
+    }
+}
+
 @MainActor
 final class DockProgress {
     static let shared = DockProgress()
-    private var bar: NSProgressIndicator?
+    private var view: DockProgressView?
 
-    /// Fortschritt 0…1 anzeigen (legt den Balken beim ersten Aufruf an).
+    /// Fortschritt 0…1 anzeigen (legt die View beim ersten Aufruf an).
     func show(_ fraction: Double) {
         let tile = NSApp.dockTile
-        if bar == nil {
-            // Eigener Content-View ersetzt das Standard-Icon-Rendering → App-Icon selbst
-            // zeichnen und den Balken darüberlegen.
-            let host = NSImageView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
-            host.image = NSApp.applicationIconImage
-            host.imageScaling = .scaleProportionallyUpOrDown
-            let pi = NSProgressIndicator(frame: NSRect(x: 14, y: 12, width: 100, height: 14))
-            pi.isIndeterminate = false
-            pi.minValue = 0
-            pi.maxValue = 1
-            pi.style = .bar
-            host.addSubview(pi)
-            tile.contentView = host
-            bar = pi
+        if view == nil {
+            let v = DockProgressView(frame: NSRect(x: 0, y: 0, width: 128, height: 128))
+            tile.contentView = v
+            view = v
         }
-        bar?.doubleValue = min(max(fraction, 0), 1)
+        view?.fraction = fraction
         tile.display()
     }
 
     /// Balken entfernen, Standard-Icon wiederherstellen.
     func hide() {
         NSApp.dockTile.contentView = nil
-        bar = nil
+        view = nil
         NSApp.dockTile.display()
     }
 }
