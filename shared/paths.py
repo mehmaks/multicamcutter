@@ -23,12 +23,17 @@ SCHEMAS_DIR      = CONFIG_DIR / "schemas"
 # Gebündelte Configs liegen im .app read-only (_internal/config). User-Overrides
 # gehören nach Application Support — derselbe Ordner wie die Presets der Mac-App
 # (~/Library/Application Support/MulticamCutter/, siehe EngineController.presetsDir).
-USER_CONFIG_DIR   = Path.home() / "Library" / "Application Support" / "MulticamCutter"
-USER_CLIP_PROMPTS = USER_CONFIG_DIR / "clip_prompts.json"
+USER_CONFIG_DIR       = Path.home() / "Library" / "Application Support" / "MulticamCutter"
+USER_CLIP_PROMPTS     = USER_CONFIG_DIR / "clip_prompts.json"
+USER_NODDING_PATTERNS = USER_CONFIG_DIR / "nodding_patterns.json"
 
 def effective_clip_prompts_path() -> Path:
     """CLIP-Ignore-Prompts: user-editierte Datei bevorzugen, sonst gebündelte Defaults."""
     return USER_CLIP_PROMPTS if USER_CLIP_PROMPTS.exists() else CLIP_IGNORE
+
+def effective_nodding_patterns_path() -> Path:
+    """Nodding-Pattern-Config: user-editierte Datei bevorzugen, sonst gebündelte Defaults."""
+    return USER_NODDING_PATTERNS if USER_NODDING_PATTERNS.exists() else NODDING_PATTERNS
 
 # ── Dokumentation & Logs ─────────────────────────────────────────────────────
 DOCS_DIR = ROOT / "docs"

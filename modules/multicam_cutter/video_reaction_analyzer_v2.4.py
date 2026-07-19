@@ -31,11 +31,27 @@ _PATTERNS_PATH = _ROOT / "config" / "nodding_patterns.json"
 
 
 def _load_nod_patterns(path=None):
-    """Lädt Nodding-Pattern-Definitionen aus JSON."""
-    p = path or _PATTERNS_PATH
-    with open(p, 'r', encoding='utf-8') as f:
-        data = json.load(f)
-    return data['global'], [pat for pat in data['patterns'] if pat.get('enabled', True)]
+    """Lädt Nodding-Pattern-Definitionen aus JSON.
+
+    Ohne expliziten Pfad: die user-editierte Datei (Mac-App, Settings-Tab „Nodding")
+    bevorzugen, sonst die gebündelten Defaults. Pfad-Konvention identisch mit
+    shared.paths.USER_NODDING_PATTERNS (dort die SSOT). Bei kaputter/unvollständiger
+    User-Datei auf die Defaults zurückfallen — die Analyse darf NIE daran brechen.
+    """
+    def _read(pp):
+        with open(pp, 'r', encoding='utf-8') as f:
+            data = json.load(f)
+        return data['global'], [pat for pat in data['patterns'] if pat.get('enabled', True)]
+
+    if path is None:
+        _user = Path.home() / "Library" / "Application Support" / "MulticamCutter" / "nodding_patterns.json"
+        if _user.exists():
+            try:
+                return _read(_user)
+            except Exception as e:
+                print(f"⚠️  User-Nodding-Patterns defekt ({e}) — nutze Defaults")
+        path = _PATTERNS_PATH
+    return _read(path or _PATTERNS_PATH)
 
 
 def _ensure_model():

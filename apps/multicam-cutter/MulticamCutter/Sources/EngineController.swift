@@ -1046,6 +1046,60 @@ class EngineController: ObservableObject {
         try? FileManager.default.removeItem(at: clipUserPromptsURL)
     }
 
+    // MARK: - Nodding-Muster (roher Detektor-Config-Editor, Expert)
+
+    struct NoddingPatterns { var content: String; var source: String }
+
+    /// Zielort der user-editierten Patterns — identisch mit shared.paths.USER_NODDING_PATTERNS.
+    var noddingUserPatternsURL: URL {
+        FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first!
+            .appendingPathComponent("MulticamCutter/nodding_patterns.json")
+    }
+
+    /// Aktive nodding_patterns.json abfragen (User-Datei bevorzugt, sonst Defaults).
+    func getNoddingPatterns() async -> NoddingPatterns? {
+        guard let (execPath, baseArgs) = engineCommand(extraArgs: ["--get-nodding-patterns"]) else { return nil }
+        let process = Process()
+        process.executableURL = URL(fileURLWithPath: execPath)
+        process.arguments = baseArgs
+        process.environment = engineEnvironment()
+        let pipe = Pipe()
+        process.standardOutput = pipe
+        process.standardError = FileHandle.nullDevice
+        do { try process.run() } catch { return nil }
+        let data = pipe.fileHandleForReading.readDataToEndOfFile()
+        process.waitUntilExit()
+        guard let text = String(data: data, encoding: .utf8) else { return nil }
+        let lastLine = text.split(separator: "\n").last.map(String.init) ?? text
+        guard let jd = lastLine.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jd) as? [String: Any] else { return nil }
+        return NoddingPatterns(content: json["content"] as? String ?? "",
+                               source: json["source"] as? String ?? "default")
+    }
+
+    /// Rohe JSON speichern — nur wenn valide UND mit global+patterns. nil = ok, sonst Fehlertext.
+    func saveNoddingPatterns(_ raw: String) -> String? {
+        guard let data = raw.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return "Kein gültiges JSON."
+        }
+        guard obj["global"] != nil, obj["patterns"] is [Any] else {
+            return "JSON braucht die Felder 'global' und 'patterns'."
+        }
+        let url = noddingUserPatternsURL
+        do {
+            try FileManager.default.createDirectory(at: url.deletingLastPathComponent(),
+                                                    withIntermediateDirectories: true)
+            try data.write(to: url)
+            return nil
+        } catch { return "Schreiben fehlgeschlagen: \(error.localizedDescription)" }
+    }
+
+    /// Zurück auf die gebündelten Defaults (löscht die User-Datei).
+    func resetNoddingPatterns() {
+        try? FileManager.default.removeItem(at: noddingUserPatternsURL)
+    }
+
     // MARK: - FPS-Mismatch
 
     /// Aktive Kameras, deren Source-FPS nicht zur Timeline-FPS passt.

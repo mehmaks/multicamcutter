@@ -241,6 +241,12 @@ Erreichbar über Cmd+, (SwiftUI Settings Scene), `.tint(.brandAccent)` auf dem
   Ignorieren/Neutral, ein Prompt je Zeile). Lädt via Engine `--get-clip-prompts`,
   speichert nach `~/Library/Application Support/MulticamCutter/clip_prompts.json`
   (Engine bevorzugt sie), „Auf Standard zurücksetzen" löscht sie. Immer sichtbar.
+- **Nodding** (`NoddingSettingsTab`): **roher JSON-Editor** der Detektor-Muster
+  (`nodding_patterns.json`, ganze Datei inkl. Globals — Expert). Lädt via Engine
+  `--get-nodding-patterns`, speichert **validiert** (JSON + `global`/`patterns`) nach
+  `~/Library/Application Support/MulticamCutter/nodding_patterns.json`, „Auf Standard
+  zurücksetzen" löscht sie. Engine bevorzugt die User-Datei, fällt bei defekter Datei
+  auf Defaults zurück.
 - **Lizenz** (`LicenseSettingsTab`): Status, Key aktivieren/umziehen/deaktivieren.
   Zeigt beim Öffnen **optimistisch** den letzten validierten Stand aus einem
   UserDefaults-Cache (`lic.*`-Keys) und prüft dann im Hintergrund nach — kein

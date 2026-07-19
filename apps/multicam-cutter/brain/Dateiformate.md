@@ -71,6 +71,16 @@ Built-in Presets (hardcoded): Podcast 2-Cam, Interview (schnell), Talk (entspann
 `ignore` = Frames, die als Cutaway vermieden werden; `neutral` = ausdrücklich ok.
 Prompts englisch (CLIP-Erwartung).
 
+## nodding_patterns.json (user-editierte Nodding-Muster)
+
+`~/Library/Application Support/MulticamCutter/nodding_patterns.json` — vom
+Settings-Tab „Nodding" geschrieben (roher JSON-Editor, ganze Datei). Existiert sie,
+bevorzugt die Engine sie vor der gebündelten `config/nodding_patterns.json`
+(`shared.paths.effective_nodding_patterns_path()` bzw. `_load_nod_patterns()`).
+Struktur: `{ "global": {…7 Werte…}, "patterns": [ {name, enabled, window_s, filters,
+confidence}, … ] }`. Swift validiert vor dem Speichern (gültiges JSON +
+`global`/`patterns`); die Engine fällt bei defekter Datei auf die Defaults zurück.
+
 ## JSONL Log
 
 `~/Library/Logs/MulticamCutter/{timestamp}_{name}.jsonl`

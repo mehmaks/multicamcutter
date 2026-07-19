@@ -69,6 +69,7 @@ expliziten Listen stimmen die Positionen **per Konstruktion**.
 | --check-clip-model | einzeiliges JSON `{"installed": bool, "download_bytes": int}` |
 | --download-clip-model | streamt `clip_download_start`/`clip_progress`/`clip_download_complete` |
 | --get-clip-prompts | einzeiliges JSON `{"ignore":[…],"neutral":[…],"source":"user"\|"default","user_path","default_path"}` |
+| --get-nodding-patterns | einzeiliges JSON `{"content": "<rohe nodding_patterns.json>","source":"user"\|"default","user_path"}` |
 
 `--get-clip-prompts` liest die aktiven Cutaway-Filter-Prompts: die user-editierte
 `~/Library/Application Support/MulticamCutter/clip_prompts.json` wird bevorzugt
@@ -76,6 +77,13 @@ expliziten Listen stimmen die Positionen **per Konstruktion**.
 `config/clip_ignore_prompts.json`. Der Settings-Tab „CLIP" schreibt/löscht die
 User-Datei direkt (Swift), die Engine liest sie beim Analyse-Lauf über
 `run_from_bin.py` → `add_reactions_to_edl.py --clip-filter-config`.
+
+`--get-nodding-patterns` liefert den **rohen** Inhalt der aktiven
+`nodding_patterns.json` (user-editierte in Application Support bevorzugt, sonst
+gebündelt — `shared.paths.effective_nodding_patterns_path()`). Der Settings-Tab
+„Nodding" zeigt/bearbeitet ihn als Text; Swift schreibt die validierte User-Datei,
+die Engine liest sie beim Analyse-Lauf über `_load_nod_patterns()` (Fallback auf
+Defaults bei defekter Datei).
 
 ## JSON-Lines Message Types
 

@@ -979,6 +979,9 @@ def main():
     parser.add_argument("--get-clip-prompts", action="store_true",
                         help="Gibt die aktiven CLIP-Ignore/Neutral-Prompts als JSON aus "
                              "(user-editierte Datei bevorzugt, sonst gebuendelte Defaults)")
+    parser.add_argument("--get-nodding-patterns", action="store_true",
+                        help="Gibt die aktive nodding_patterns.json als JSON aus "
+                             "(roher Inhalt + source/user_path)")
     parser.add_argument("--convert-fps", action="store_true",
                         help="Video-Dateien aus --files auf --fps umkodieren "
                              "(behebt FPS-Mismatch, erhaelt den Embedded-TC)")
@@ -1108,6 +1111,20 @@ def main():
             "source": "user" if path == USER_CLIP_PROMPTS else "default",
             "user_path": str(USER_CLIP_PROMPTS),
             "default_path": str(CLIP_IGNORE),
+        }, ensure_ascii=False))
+        return 0
+
+    if args.get_nodding_patterns:
+        from shared.paths import effective_nodding_patterns_path, USER_NODDING_PATTERNS
+        path = effective_nodding_patterns_path()
+        try:
+            content = path.read_text(encoding="utf-8")
+        except Exception:
+            content = ""
+        print(json.dumps({
+            "content": content,
+            "source": "user" if path == USER_NODDING_PATTERNS else "default",
+            "user_path": str(USER_NODDING_PATTERNS),
         }, ensure_ascii=False))
         return 0
 

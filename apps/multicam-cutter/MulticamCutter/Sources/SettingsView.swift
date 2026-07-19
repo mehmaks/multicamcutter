@@ -2,7 +2,7 @@ import SwiftUI
 
 struct SettingsView: View {
     private enum Tab: Hashable {
-        case general, clip, license
+        case general, clip, nodding, license
     }
 
     var body: some View {
@@ -19,18 +19,100 @@ struct SettingsView: View {
                 }
                 .tag(Tab.clip)
 
+            NoddingSettingsTab()
+                .tabItem {
+                    Label("Nodding", systemImage: "chevron.up.chevron.down")
+                }
+                .tag(Tab.nodding)
+
             LicenseSettingsTab()
                 .tabItem {
                     Label("Lizenz", systemImage: "key")
                 }
                 .tag(Tab.license)
         }
-        // Höhe am größten Tab (CLIP: Modell-Status + zwei Prompt-Editoren) orientiert;
-        // der CLIP-Tab scrollt zusätzlich, falls es doch mal eng wird.
-        .frame(width: 480, height: 470)
+        // Höhe am größten Tab orientiert (Nodding: großer JSON-Editor).
+        .frame(width: 500, height: 520)
         // Ohne das nutzen die Tab-Icons/Labels den blauen System-Akzent statt Lime
         // (ContentView/About haben den Tint schon, der Settings-Scene fehlte er).
         .tint(.brandAccent)
+    }
+}
+
+// MARK: - Nodding (roher JSON-Editor der Detektor-Muster, Expert)
+
+struct NoddingSettingsTab: View {
+    @EnvironmentObject var engine: EngineController
+
+    @State private var text = ""
+    @State private var source = "default"     // "user" | "default"
+    @State private var message: String?       // Fehler/Erfolg
+    @State private var messageIsError = false
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack {
+                Text("Nodding-Muster").font(.headline)
+                Spacer()
+                Text(source == "user" ? "Angepasst" : "Standard")
+                    .font(.caption2)
+                    .foregroundStyle(source == "user" ? .brandSecondary : .secondary)
+            }
+            Text("Rohe Detektor-Konfiguration (nodding_patterns.json) — Expertenwerte. "
+                 + "Falsche Werte verschlechtern die Nicken-Erkennung; bei defektem JSON "
+                 + "nutzt die Analyse automatisch die Defaults. Mit Zurücksetzen kommst du "
+                 + "jederzeit zurück.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            TextEditor(text: $text)
+                .font(.system(.caption, design: .monospaced))
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .padding(4)
+                .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
+
+            HStack {
+                Button("Speichern") { save() }
+                    .buttonStyle(.borderedProminent)
+                Button("Auf Standard zurücksetzen") { reset() }
+                    .disabled(source != "user")
+                Spacer()
+                if let message {
+                    Label(message, systemImage: messageIsError ? "xmark.octagon.fill" : "checkmark")
+                        .font(.caption)
+                        .foregroundStyle(messageIsError ? .red : .green)
+                        .lineLimit(1)
+                }
+            }
+            Text("Gilt beim nächsten Analyse-Lauf.")
+                .font(.caption2).foregroundStyle(.tertiary)
+        }
+        .padding()
+        .task { await load() }
+    }
+
+    private func load() async {
+        if let p = await engine.getNoddingPatterns() {
+            text = p.content
+            source = p.source
+        }
+        message = nil
+    }
+
+    private func save() {
+        if let err = engine.saveNoddingPatterns(text) {
+            message = err; messageIsError = true
+        } else {
+            source = "user"; message = "Gespeichert"; messageIsError = false
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
+                if message == "Gespeichert" { message = nil }
+            }
+        }
+    }
+
+    private func reset() {
+        engine.resetNoddingPatterns()
+        Task { await load() }
     }
 }
 

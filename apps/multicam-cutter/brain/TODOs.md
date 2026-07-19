@@ -191,6 +191,17 @@
 - [x] **Settings-Fenster ist noch blau**: GELÖST — `.tint(.brandAccent)` auf dem
   `TabView` in `SettingsView`. Tab-Icons/Labels nutzen jetzt Lime statt System-Blau.
 
+### Nodding-Einstellungen
+- [x] **Settings-Tab „Nodding"** — UMGESETZT (4. Tab). Roher JSON-Editor der
+  `nodding_patterns.json` (ganze Datei inkl. Globals + Pattern-Filter/Confidence).
+  Speichert **validiert** nach `~/Library/Application Support/MulticamCutter/
+  nodding_patterns.json`; Engine bevorzugt sie (`effective_nodding_patterns_path()`,
+  `_load_nod_patterns()`), fällt bei defekter Datei auf Defaults zurück (Analyse bricht
+  nie). Neues Engine-Kommando `--get-nodding-patterns`. „Auf Standard zurücksetzen"
+  löscht die User-Datei. Bewusste Erweiterung der alten „UI nur enabled-Flags"-Regel
+  (die galt gegen Preset/config.ini-Duplikate — die bleiben unberührt).
+  ⚠️ **Braucht PyInstaller-Rebuild** fürs ausgelieferte Bundle (Dev via `swift run` sofort).
+
 ### Analyse-Input: LUT / Kontrast (auf Halde, niedrige Prio)
 - [ ] **LUT-Picker für die MediaPipe-Analyse in der Mac-App exponieren.** Aufwand:
   **leicht** (Backend fertig). Das `--lut`-Flag (.cube) ist bereits end-to-end
