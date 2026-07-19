@@ -242,6 +242,9 @@ Erreichbar über Cmd+, (SwiftUI Settings Scene), `.tint(.brandAccent)` auf dem
   speichert nach `~/Library/Application Support/MulticamCutter/clip_prompts.json`
   (Engine bevorzugt sie), „Auf Standard zurücksetzen" löscht sie. Immer sichtbar.
 - **Lizenz** (`LicenseSettingsTab`): Status, Key aktivieren/umziehen/deaktivieren.
+  Zeigt beim Öffnen **optimistisch** den letzten validierten Stand aus einem
+  UserDefaults-Cache (`lic.*`-Keys) und prüft dann im Hintergrund nach — kein
+  „inaktiv"-Flackern mehr. `parseLicenseResult` schreibt den Cache bei jeder Prüfung.
 
 ⚠️ Die Settings-Scene muss `.environmentObject(engine)` bekommen (in
 `MulticamCutterApp.swift`) — der CLIP-Tab liest `@EnvironmentObject engine`.

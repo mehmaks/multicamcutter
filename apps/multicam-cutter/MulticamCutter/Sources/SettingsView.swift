@@ -198,12 +198,21 @@ struct GeneralSettingsTab: View {
 // MARK: - Lizenz
 
 struct LicenseSettingsTab: View {
-    @State private var licenseStatus: String = "Wird geprüft..."
-    @State private var licenseEmail: String = ""
-    @State private var subLine: String = ""          // "Verlängert sich am ..." / "Endet am ..."
-    @State private var subIsWarning: Bool = false     // gekündigt/fällig → lila (brandSecondary)
-    @State private var isValid: Bool = false
-    @State private var isGrace: Bool = false
+    // Optimistischer Start: letzten validierten Stand aus dem Cache zeigen, damit der
+    // Tab beim Neu-Öffnen nicht erst „inaktiv, wird geprüft" flackert. Die echte
+    // Prüfung läuft in onAppear im Hintergrund und aktualisiert dann.
+    @State private var licenseStatus: String = {
+        let d = UserDefaults.standard
+        if d.bool(forKey: "lic.isValid") {
+            return d.bool(forKey: "lic.isGrace") ? "Lizenz aktiv (offline)" : "Lizenz aktiv"
+        }
+        return "Wird geprüft..."
+    }()
+    @State private var licenseEmail: String = UserDefaults.standard.string(forKey: "lic.email") ?? ""
+    @State private var subLine: String = UserDefaults.standard.string(forKey: "lic.subLine") ?? ""
+    @State private var subIsWarning: Bool = UserDefaults.standard.bool(forKey: "lic.subWarn")
+    @State private var isValid: Bool = UserDefaults.standard.bool(forKey: "lic.isValid")
+    @State private var isGrace: Bool = UserDefaults.standard.bool(forKey: "lic.isGrace")
     @State private var isChecking: Bool = false
     @State private var isActivating: Bool = false
     @State private var licenseKey: String = ""
@@ -401,6 +410,14 @@ struct LicenseSettingsTab: View {
         } else {
             subLine = ""; subIsWarning = false
         }
+
+        // Optimistischer Cache für den nächsten Tab-Aufruf (siehe @State-Defaults oben).
+        let d = UserDefaults.standard
+        d.set(isValid, forKey: "lic.isValid")
+        d.set(isGrace, forKey: "lic.isGrace")
+        d.set(licenseEmail, forKey: "lic.email")
+        d.set(subLine, forKey: "lic.subLine")
+        d.set(subIsWarning, forKey: "lic.subWarn")
     }
 
     /// ISO-Datum (yyyy-MM-dd) → deutsches "dd.MM.yyyy". Fällt auf Eingabe zurück.
