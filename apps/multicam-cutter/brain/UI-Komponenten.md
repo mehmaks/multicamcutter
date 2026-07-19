@@ -111,19 +111,22 @@ Kein Experten-Toggle als globale Einstellung mehr. Innerhalb der Box tauscht ein
 **Textlink** den gesamten Inhalt:
 - **Einfache Ansicht** (`simpleList`): kuratierte 8 Essentials, 2-spaltiges
   `LazyVGrid`.
-- **Experteneinstellungen** (`expertList`): volle Parameterliste in Rubriken
-  (Schnittregeln, Sprecher-Erkennung, Pausen, Reaktionen & Cutaways,
-  Crossbleed-Gate, Totale), scrollbar (`maxHeight 300`).
+- **Experteneinstellungen** (`expertList`): **1:1 zur Web-UI / zum Schema**
+  (`config/schemas/multicam_params.json`) in Benennung + Reihenfolge, scrollbar
+  (`maxHeight 300`). Rubriken in Web-Reihenfolge: **Generelle Schnittregeln ·
+  Sprecher-Erkennung · Pausen-Trimming** (inkl. `WizPicker` „Schnittmodus" =
+  `pauseCutMode`) **· Crossbleed-Filter · Cutaway Regeln · Totale-Cam Schnittlogik**.
+  Rubrik-Titel via `@ViewBuilder group(_:_)`, Sub-Titel via `subLabel(_:)`.
+  Bewusste Ausnahme: **LUT weggelassen** (steht als „auf Halde" im Brain/TODO).
 
-Gruppierung folgt dem Schema (`config/schemas/multicam_params.json` → „Cutaway
-Regeln"): die **Nodding-Cutaway**-Regler liegen zusammen unter „Reaktionen &
-Cutaways" — Kopfnicken erkennen, **Cutaway-Länge** (`reactionDur`), **Min.
-Konfidenz** (`minConf`, Nodding-Konfidenz), Pre-Roll, Zufallsfaktor, CLIP. (Vorher
-waren Cutaway-Länge in „Schnittregeln" und Min. Konfidenz in „Sprecher-Erkennung"
-versteckt.)
+**Nicken-Muster (pro Preset):** In „Cutaway Regeln" folgen unter dem Sub-Titel
+„Nicken-Muster" **dynamische Toggles** je Pattern (Oscillation/Slow/Strong, Namen +
+Defaults aus `getNoddingPatterns()` → `noddingPatternDefs`). Sie schreiben in
+`engine.params.noddingPatterns` (`[name: Bool]`) → **pro Preset** gespeichert, an die
+Engine als `nodding_patterns`. Default je Pattern = `enabled` aus der JSON. (Die
+globalen Schwellen bleiben im Settings→Nodding-Tab, siehe dort.)
 
-Beide schreiben in dasselbe `engine.params`. Rubrik-Titel via `@ViewBuilder
-group(_:_)`.
+Beide Ansichten schreiben in dasselbe `engine.params`.
 
 ## Custom-Controls (Dummy-Look)
 
@@ -267,16 +270,13 @@ Erreichbar über Cmd+, (SwiftUI Settings Scene), `.tint(.brandAccent)` auf dem
   Ignorieren/Neutral, ein Prompt je Zeile). Lädt via Engine `--get-clip-prompts`,
   speichert nach `~/Library/Application Support/MulticamCutter/clip_prompts.json`
   (Engine bevorzugt sie), „Auf Standard zurücksetzen" löscht sie. Immer sichtbar.
-- **Nodding** (`NoddingSettingsTab`): oben **Pattern-Toggles** (ein Switch je
-  Erkennungsmuster aus `patterns[]` → flippt dessen `enabled`-Flag); darunter
-  aufklappbar (`DisclosureGroup`) der **rohe JSON-Editor** der ganzen
-  `nodding_patterns.json` (Globals + Filter/Confidence — Expert). Lädt via Engine
-  `--get-nodding-patterns`. Toggles ändern das JSON **formatschonend** (gezielte
-  String-Ersetzung des ersten `enabled` nach dem `name`, keine Neu-Serialisierung);
-  der Editor speichert **validiert** (JSON + `global`/`patterns`) nach
-  `~/Library/Application Support/MulticamCutter/nodding_patterns.json`. „Auf Standard
-  zurücksetzen" löscht sie; Engine bevorzugt die User-Datei, fällt bei defekter Datei
-  auf Defaults zurück. `text` (roh) ist SSOT, `patterns` wird daraus geparst.
+- **Nodding** (`NoddingSettingsTab`): **roher JSON-Editor** nur der **globalen**
+  Schwellen/Filter der `nodding_patterns.json` (Globals + Filter/Confidence — Expert).
+  Lädt via `--get-nodding-patterns`, speichert **validiert** (JSON + `global`/`patterns`)
+  nach `~/Library/Application Support/MulticamCutter/nodding_patterns.json`, „Auf
+  Standard zurücksetzen" löscht sie; Engine bevorzugt die User-Datei, Fallback auf
+  Defaults bei defekt. **Das AN/AUS einzelner Muster liegt NICHT hier**, sondern pro
+  Preset im Wizard (Experteneinstellungen → Cutaway Regeln → Nicken-Muster).
 - **Lizenz** (`LicenseSettingsTab`): Status, Key aktivieren/umziehen/deaktivieren.
   Zeigt beim Öffnen **optimistisch** den letzten validierten Stand aus einem
   UserDefaults-Cache (`lic.*`-Keys) und prüft dann im Hintergrund nach — kein

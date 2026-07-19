@@ -209,8 +209,15 @@
 - [x] **System-Notification bei Analyse-Ende** — `AnalysisNotifier`
   (`UserNotifications`): abgeschlossen / fehlgeschlagen / abgebrochen. Banner nur wenn
   App nicht im Vordergrund. ⚠️ Nur im gebauten `.app` (Bundle-ID), im Dev übersprungen.
-- [x] **Nodding-Pattern-Toggles** im Settings-Tab „Nodding" (oben, über dem rohen
-  JSON-Editor) — Switch je `patterns[]`, flippt `enabled` formatschonend.
+- [x] **Nodding-Pattern-Toggles PRO PRESET** (korrigiert von „global"): Toggles im
+  Wizard (Experteneinstellungen → Cutaway Regeln → Nicken-Muster), gespeichert in
+  `PipelineParams.noddingPatterns` → Preset/.multicam. Engine wendet sie via
+  `_load_nod_patterns(enabled_overrides=params['nodding_patterns'])` an. Der
+  Settings→Nodding-Tab editiert nur noch die globalen Schwellen.
+- [x] **Wizard-Experteneinstellungen 1:1 zur Web-UI/Schema** (Benennung + Reihenfolge):
+  Generelle Schnittregeln · Sprecher-Erkennung · Pausen-Trimming (+ Schnittmodus-Picker)
+  · Crossbleed-Filter · Cutaway Regeln · Totale-Cam Schnittlogik. Neuer `WizPicker`.
+  LUT bewusst weggelassen (auf Halde).
 
 ### Analyse-Input: LUT / Kontrast (auf Halde, niedrige Prio)
 - [ ] **LUT-Picker für die MediaPipe-Analyse in der Mac-App exponieren.** Aufwand:
