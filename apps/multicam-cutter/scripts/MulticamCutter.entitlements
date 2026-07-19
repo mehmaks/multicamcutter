@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+    <!-- Hardened Runtime ist Pflicht für Notarisierung. Der eingebettete
+         PyInstaller-/PyTorch-Prozess (multicam-engine) braucht dafür drei
+         Ausnahmen — sonst startet die Engine unter dem gehärteten Runtime nicht:
+
+         disable-library-validation:  lädt die ~650 mitgelieferten .dylib/.so
+             (torch, numpy, …). Ohne diese Ausnahme verlangt macOS, dass jede
+             geladene Library dieselbe Team-ID hat wie der Prozess.
+         allow-unsigned-executable-memory:  PyTorch/OpenMP legen ausführbaren
+             Speicher an (RWX). Ohne die Ausnahme → SIGKILL beim Import.
+         allow-dyld-environment-variables:  der PyInstaller-Bootloader setzt
+             DYLD_* für den Frozen-Interpreter. Hardened Runtime blockt DYLD_*
+             sonst → Engine findet ihre Libraries nicht.
+
+         Bewusst NICHT gesetzt: Sandbox (App braucht freien Datei-/Ordnerzugriff
+         auf beliebige Projektordner), Netzwerk-Server, Kamera/Mikro-Hardware. -->
+    <key>com.apple.security.cs.disable-library-validation</key>
+    <true/>
+    <key>com.apple.security.cs.allow-unsigned-executable-memory</key>
+    <true/>
+    <key>com.apple.security.cs.allow-dyld-environment-variables</key>
+    <true/>
+</dict>
+</plist>

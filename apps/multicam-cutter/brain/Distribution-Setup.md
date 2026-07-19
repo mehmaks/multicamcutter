@@ -18,62 +18,76 @@ Der Ueber-Dialog und **jeder Bug-Report** zeigen `AppVersion.display` =
 Sparkle **nie** ein Update ausgeliefert (Build-Nummer stieg nie), und Bug-Reports
 waren keinem Stand zuzuordnen — Issue #3 hat genau daran eine Stunde gekostet.
 
-**Release-Ablauf**: `MARKETING_VERSION` bumpen → `build_app.sh` → `make_dmg.sh`.
-Den Rest macht der Build.
+## Zwei Build-Modi
 
-## Aktueller Stand (Test-Verteilung, ad-hoc)
+`build_app.sh` signiert je nach Env `SIGN_IDENTITY`:
 
-1. `scripts/build_app.sh` → `release/MultiCamCutter.app` (ad-hoc signiert)
-2. `scripts/make_dmg.sh` → `release/MultiCamCutter.dmg`
-   - enthält App + „Programme"-Symlink + Erste-Start-Anleitung (Gatekeeper-Umgehung)
-   - ad-hoc = **nicht notarisiert** → Tester müssen Quarantäne entfernen:
-     `xattr -dr com.apple.quarantine "/Applications/MultiCamCutter.app"`
+| Modus | Aufruf | Ergebnis |
+|-------|--------|----------|
+| **Ad-hoc (Dev, Default)** | `bash scripts/build_app.sh` | Läuft nur lokal, nicht notarisierbar |
+| **Developer ID (Verteilung)** | `SIGN_IDENTITY="Developer ID Application: … (TEAMID)" bash scripts/build_app.sh` | Hardened Runtime + Entitlements, inside-out signiert → bereit für `notarize.sh` |
 
-**Wichtig für lokalen Test:** Eine selbst gebaute DMG hat KEIN Quarantäne-Flag —
-auf dem eigenen Mac startet die App also ohne Warnung. Die Gatekeeper-Warnung
-sehen erst Tester, die die DMG **herunterladen**. Zum Testen des echten
-Tester-Erlebnisses das Flag manuell setzen:
+**Release-Ablauf (Dev-DMG)**: `MARKETING_VERSION` bumpen → `build_app.sh` →
+`make_dmg.sh`. **Release-Ablauf (notarisiert)**: siehe unten.
+
+### Ad-hoc-DMG testen
+Eine selbst gebaute DMG hat KEIN Quarantäne-Flag — auf dem eigenen Mac startet die
+App ohne Warnung. Die Gatekeeper-Warnung sehen erst Tester, die die DMG
+**herunterladen**. Echtes Tester-Erlebnis simulieren:
 `xattr -w com.apple.quarantine "0083;0;Safari;" release/MultiCamCutter.dmg`
+Entfernen (falls doch nötig):
+`xattr -dr com.apple.quarantine "/Applications/MultiCamCutter.app"`
 
-## Ziel-Stand (signiert + notarisiert)
+## Signiert + notarisiert (eingerichtet)
 
-Blockiert durch: **Apple Developer Program Enrollment (99 €/Jahr)** — Backlog.
+Alle Voraussetzungen sind **vorhanden** (Stand: eingerichtet):
+- **Developer Program**: enrolled, Team-ID `6F5UGR7V25` (Individual, „Maximilian Menge").
+- **Zertifikat**: `Developer ID Application: Maximilian Menge (6F5UGR7V25)` im
+  Login-Schlüsselbund (`security find-identity -v -p codesigning`).
+- **Notary-Profil**: `MulticamNotary` im Schlüsselbund (via
+  `notarytool store-credentials`, mit App-spezifischem Passwort von appleid.apple.com).
+  Verifiziert mit `xcrun notarytool history --keychain-profile MulticamNotary`.
 
-### 1. Enrollment (einmalig, User-Action)
-- developer.apple.com → „Enroll"
-- Account-Typ **Individual** genügt (Name als Entwickler). **Organization** nur
-  mit Firma + D-U-N-S-Nummer (dauert länger, nur nötig wenn Firmenname erscheinen soll).
-- Nicht App-Store-spezifisch — Developer ID gilt für Direktvertrieb per DMG.
+### Entitlements
+`scripts/MulticamCutter.entitlements` — drei Hardened-Runtime-Ausnahmen für den
+PyInstaller/torch-Prozess: `disable-library-validation`,
+`allow-unsigned-executable-memory`, `allow-dyld-environment-variables`. Ohne sie
+startet die Engine unter Hardened Runtime nicht. Bewusst **kein** App-Sandbox
+(freier Ordnerzugriff nötig).
 
-### 2. Developer-ID-Zertifikat
-- Xcode → Settings → Accounts → Apple-ID hinzufügen → „Manage Certificates"
-  → „+" → **Developer ID Application**
-- (ohne Xcode: `security`/`certutil` via developer.apple.com CSR — umständlicher)
+### Signier-Reihenfolge (in build_app.sh, inside-out)
+Zwingend von innen nach außen — signiert man die App zuerst, invalidiert jedes
+Innen-Signieren die äußere Signatur:
+1. Alle Mach-O im Engine-Bundle (~650 .dylib/.so, Mach-O-erkannt per `file`) — ohne Entitlements
+2. Engine-Executable — **mit** Entitlements
+3. ffmpeg/ffprobe
+4. Sparkle.framework: XPC-Services + Autoupdate → Updater.app → Framework
+5. App-Bundle außen — **mit** Entitlements, **kein** `--deep`
 
-### 3. Notarisierungs-Credentials hinterlegen (einmalig)
+### Release-Ablauf (pro notarisiertem Release)
 ```
-xcrun notarytool store-credentials multicam-notary \
-  --apple-id "DEINE_APPLE_ID" \
-  --team-id "DEINE_TEAM_ID" \
-  --password "APP-SPEZIFISCHES-PASSWORT"   # appleid.apple.com → Anmeldung & Sicherheit
-```
+# 1) Mit Developer ID signieren (baut komplett neu, Hardened Runtime)
+SIGN_IDENTITY="Developer ID Application: Maximilian Menge (6F5UGR7V25)" \
+  bash scripts/build_app.sh
 
-### 4. Signieren → Notarisieren → Stapeln (pro Release)
+# 2) DMG bauen + notarisieren + stapeln + verifizieren (eine Aktion)
+bash scripts/notarize.sh
 ```
-# a) Mit Developer ID signieren (Sparkle inside-out, mit Hardened Runtime)
-codesign --force --options runtime --timestamp \
-  --sign "Developer ID Application: DEIN NAME (TEAMID)" \
-  --deep release/MultiCamCutter.app
-#   Hinweis: Sparkle-Framework braucht ggf. eigene Signierung der XPC-Services
-#   ZUERST, dann die App außen. Sparkle-Doku „Signing" beachten.
+`notarize.sh` baut die DMG (mit schlanker LIESMICH statt Gatekeeper-Umgehung, via
+`NOTARIZED=1 make_dmg.sh`), reicht sie via `notarytool submit --wait` ein, staplet
+den Ticket an App **und** DMG und prüft mit `stapler validate` + `spctl`. Bei
+Ablehnung zieht es automatisch das Apple-Log (`notarytool log <id>`).
 
-# b) DMG bauen (scripts/make_dmg.sh) und die DMG notarisieren
-xcrun notarytool submit release/MultiCamCutter.dmg \
-  --keychain-profile multicam-notary --wait
+### ⚠️ Muss im eigenen Terminal laufen (nicht headless)
+Beim ersten `codesign` mit dem privaten Schlüssel zeigt macOS einen
+Schlüsselbund-Dialog („codesign möchte den Schlüssel verwenden"). **Einmal
+„Immer erlauben"** klicken — danach laufen alle ~650 Signaturen ohne weitere
+Prompts. In einer headless-Shell (CI, Agent) hängt codesign an genau diesem
+Dialog. Alternative ohne Klick (einmalig, braucht Login-Passwort):
+`security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k <pw> ~/Library/Keychains/login.keychain-db`
+(`notarytool` und `stapler` prompten NICHT — deren Schlüsselbund-Zugriff ist über
+das gespeicherte Profil autorisiert.)
 
-# c) Notarisierungs-Ticket an die DMG heften (offline-Gatekeeper)
-xcrun stapler staple release/MultiCamCutter.dmg
-```
 Danach startet die App auf fremden Macs **ohne** Warnung, ohne xattr.
 
 ## Auto-Update (Sparkle)

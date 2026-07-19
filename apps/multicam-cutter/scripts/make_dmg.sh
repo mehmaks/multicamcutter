@@ -4,8 +4,11 @@ set -euo pipefail
 # ── MultiCamCutter DMG Builder ─────────────────────────────────────────────
 # Packt release/MultiCamCutter.app in eine verteilbare .dmg mit
 # Applications-Verknüpfung + Erste-Start-Anleitung.
-# HINWEIS: Diese DMG ist ad-hoc signiert, NICHT notarisiert — Tester müssen
-# beim ersten Start die Gatekeeper-Warnung umgehen (siehe LIESMICH in der DMG).
+#
+# Env NOTARIZED=1  → schlanke Anleitung ohne Gatekeeper-Umgehung (die App ist
+#                    Developer-ID-signiert; notarize.sh notarisiert die DMG danach).
+# sonst            → Ad-hoc/Test-DMG: LIESMICH erklärt, wie man die
+#                    Gatekeeper-Warnung beim ersten Start umgeht.
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$SCRIPT_DIR/.."
@@ -22,7 +25,26 @@ mkdir -p "$STAGING"
 cp -R "$APP" "$STAGING/"
 ln -s /Applications "$STAGING/Programme"
 
-# Erste-Start-Anleitung
+# Erste-Start-Anleitung — Text hängt davon ab, ob die App notarisiert wird.
+if [ "${NOTARIZED:-0}" = "1" ]; then
+cat > "$STAGING/LIESMICH — Installation.txt" << 'EOF'
+MultiCamCutter — Installation
+==============================
+
+1) Zieh "MultiCamCutter" links in den Ordner "Programme".
+
+2) Wirf dieses DMG-Volume aus (⏏ im Finder).
+
+3) Öffne "MultiCamCutter" aus dem Ordner "Programme" — fertig.
+
+Die App ist von Apple notarisiert und signiert; beim ersten Start erscheint
+höchstens der normale Hinweis "aus dem Internet geladen".
+
+Die App arbeitet komplett lokal auf deinem Mac — nichts wird hochgeladen.
+
+Fragen / Feedback: max@pantake.com
+EOF
+else
 cat > "$STAGING/⚠️ ERSTER START — bitte lesen.txt" << 'EOF'
 MultiCamCutter — so startest du die App zum ersten Mal
 ========================================================
@@ -64,6 +86,7 @@ Die App arbeitet komplett lokal auf deinem Mac — nichts wird hochgeladen.
 
 Fragen / Feedback: max@pantake.com
 EOF
+fi
 
 echo "► DMG erstellen (komprimieren, dauert bei ~1 GB einen Moment)..."
 hdiutil create -volname "$VOL" -srcfolder "$STAGING" -ov -format UDZO "$DMG"

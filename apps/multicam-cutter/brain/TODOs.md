@@ -573,17 +573,17 @@ Siehe brain/Entscheidungen.md → "Lizenzmodell: Abo via LemonSqueezy".
     `brain/Distribution-Setup.md`). Update-DMGs NICHT in Git — Objekt-Storage.
   - `SUEnableAutomaticChecks` auf `true`
   - Releases mit `sign_update` signieren
-- [ ] Apple Developer Program Enrollment (99 €/Jahr) — **BACKLOG, User-Action**.
-  Nötig für Developer-ID-Signierung + Notarization (nicht App-Store-spezifisch).
-  Ohne: Tester müssen Gatekeeper umgehen (xattr, siehe DMG-LIESMICH). Schritte:
-  1. developer.apple.com → Enroll (Account-Typ: **Individual** reicht;
-     Organization nur mit D-U-N-S-Nummer/Firma)
-  2. Xcode → Settings → Accounts → „Manage Certificates" → „Developer ID Application"
-  3. `xcrun notarytool store-credentials multicam-notary` mit Team-ID +
-     App-spezifischem Passwort (appleid.apple.com) hinterlegen
-  Details siehe `brain/Distribution-Setup.md`.
-- [ ] Codesigning + Notarization (Developer ID, dann Sparkle inside-out signieren).
-  Blockiert durch Enrollment (s.o.). Notarize-Skript: `brain/Distribution-Setup.md`.
+- [x] Apple Developer Program Enrollment — **erledigt**. Team-ID `6F5UGR7V25`
+  (Individual, „Maximilian Menge"). Zertifikat „Developer ID Application" im
+  Schlüsselbund, Notary-Profil `MulticamNotary` via `store-credentials` hinterlegt.
+- [x] Codesigning + Notarization **verdrahtet** (nicht getestet-am-Ende): 
+  `SIGN_IDENTITY=… build_app.sh` signiert inside-out mit Hardened Runtime +
+  `scripts/MulticamCutter.entitlements`; `scripts/notarize.sh` macht DMG → submit
+  → staple → verify. Details: `brain/Distribution-Setup.md`.
+  ⚠️ Offen: **erster echter End-to-End-Lauf** muss der User im eigenen Terminal
+  starten (codesign braucht einmal „Immer erlauben" am Schlüsselbund-Dialog —
+  headless/Agent hängt daran). Danach ggf. Entitlements nachjustieren, falls die
+  notarisierte App unter Hardened Runtime beim Start crasht.
 - [x] DMG-Installer (Test-Verteilung): `scripts/make_dmg.sh` baut `MultiCamCutter.dmg`
   aus release/-App + „Programme"-Verknüpfung + Erste-Start-Anleitung (Gatekeeper-
   Umgehung für ad-hoc/unnotarisierten Build). Finale signierte DMG nach Notarization.

@@ -166,22 +166,83 @@ plutil -replace GitCommit                  -string "$GIT_COMMIT"        "$PLIST"
 # PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
 
-# 3b. Ad-hoc-Signierung (lokal). install_name_tool hat die Linker-ad-hoc-Sig
-# des Binaries invalidiert — ohne Neu-Signierung startet die App auf arm64 nicht.
-# Sparkle.framework behaelt seine eigene (gueltige) Signatur, daher KEIN --deep.
-# Der finale Developer-ID-Sign + Notarization kommt im Distributions-Schritt.
-echo "► Ad-hoc-Signierung..."
-# Fehler NICHT verschlucken und NICHT weiterbauen: Eine unsignierte App startet auf
-# anderen Macs nicht sauber — die wollen wir nicht klammheimlich ausliefern.
-# (Ist schon passiert, als ein paralleler make_dmg.sh gleichzeitig am Bundle war.)
-if ! codesign --force --sign - "$APP_BUNDLE"; then
-    echo "  ✗ Signierung FEHLGESCHLAGEN — Build abgebrochen."
-    echo "    Tipp: laeuft parallel ein make_dmg.sh/Build auf demselben Bundle?"
-    exit 1
+# 3b. Signierung. install_name_tool hat die Linker-ad-hoc-Sig des Binaries
+# invalidiert — ohne Neu-Signierung startet die App auf arm64 nicht.
+#
+# Zwei Modi (per Env SIGN_IDENTITY):
+#   - unset / "-"  → Ad-hoc (Dev-Build, laeuft nur lokal, KEINE Notarisierung)
+#   - "Developer ID Application: …"  → Distributions-Sign mit Hardened Runtime +
+#     Entitlements, inside-out. Danach kann scripts/notarize.sh die DMG notarisieren.
+SIGN_IDENTITY="${SIGN_IDENTITY:--}"
+ENTITLEMENTS="$APP_DIR/scripts/MulticamCutter.entitlements"
+ENGINE_ROOT="$APP_BUNDLE/Contents/Resources/multicam-engine"
+
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    echo "► Ad-hoc-Signierung (Dev, nicht verteilbar)..."
+    # Sparkle.framework behaelt seine eigene (gueltige) Signatur, daher KEIN --deep.
+    # Fehler NICHT verschlucken: eine kaputt signierte App startet nicht sauber.
+    # (Ist schon passiert, als ein paralleler make_dmg.sh am selben Bundle war.)
+    if ! codesign --force --sign - "$APP_BUNDLE"; then
+        echo "  ✗ Signierung FEHLGESCHLAGEN — Build abgebrochen."
+        echo "    Tipp: laeuft parallel ein make_dmg.sh/Build auf demselben Bundle?"
+        exit 1
+    fi
+else
+    echo "► Developer-ID-Signierung (Hardened Runtime): $SIGN_IDENTITY"
+    [ -f "$ENTITLEMENTS" ] || { echo "  ✗ Entitlements fehlen: $ENTITLEMENTS"; exit 1; }
+    RUNTIME_OPTS=(--options runtime --timestamp)
+
+    # Inside-out: erst alle eingebetteten Mach-O, dann Container, zuletzt die App.
+    # Reihenfolge ist zwingend — signiert man die App zuerst, invalidiert jedes
+    # spaetere Innen-Signieren die aeussere Signatur wieder.
+
+    # 1) Alle Mach-O im Engine-Bundle (torch/numpy/… ~650 .dylib/.so, teils ohne
+    #    Extension). Libraries sind keine Prozesse → KEINE Entitlements. Liste
+    #    einmal einsammeln (file je Datei), dann parallel signieren.
+    echo "  · Engine-Libraries einsammeln + signieren..."
+    MACHO_LIST="$(mktemp)"
+    find "$ENGINE_ROOT" -type f ! -path "$ENGINE_ROOT/multicam-engine" -print0 \
+      | while IFS= read -r -d '' f; do
+            file -b "$f" 2>/dev/null | grep -q "Mach-O" && printf '%s\0' "$f"
+        done > "$MACHO_LIST"
+    echo "    $(tr -cd '\0' < "$MACHO_LIST" | wc -c | tr -d ' ') Mach-O-Dateien"
+    xargs -0 -P4 -n15 codesign --force "${RUNTIME_OPTS[@]}" --sign "$SIGN_IDENTITY" < "$MACHO_LIST"
+    rm -f "$MACHO_LIST"
+
+    # 2) Engine-Executable (eigener Prozess → MIT Entitlements)
+    echo "  · Engine-Executable..."
+    codesign --force "${RUNTIME_OPTS[@]}" --entitlements "$ENTITLEMENTS" \
+        --sign "$SIGN_IDENTITY" "$ENGINE_ROOT/multicam-engine"
+
+    # 3) ffmpeg/ffprobe (eigenstaendige Executables, keine Sonder-Entitlements)
+    echo "  · ffmpeg/ffprobe..."
+    codesign --force "${RUNTIME_OPTS[@]}" --sign "$SIGN_IDENTITY" \
+        "$APP_BUNDLE/Contents/Resources/ffmpeg" "$APP_BUNDLE/Contents/Resources/ffprobe"
+
+    # 4) Sparkle.framework inside-out: XPC-Services + Autoupdate, dann Updater.app,
+    #    dann das Framework selbst. (Nicht sandboxed → keine Sonder-Entitlements.)
+    SP="$APP_BUNDLE/Contents/Frameworks/Sparkle.framework"
+    if [ -d "$SP" ]; then
+        echo "  · Sparkle.framework..."
+        codesign --force "${RUNTIME_OPTS[@]}" --sign "$SIGN_IDENTITY" \
+            "$SP/Versions/B/XPCServices/Downloader.xpc" \
+            "$SP/Versions/B/XPCServices/Installer.xpc" \
+            "$SP/Versions/B/Autoupdate"
+        codesign --force "${RUNTIME_OPTS[@]}" --sign "$SIGN_IDENTITY" "$SP/Versions/B/Updater.app"
+        codesign --force "${RUNTIME_OPTS[@]}" --sign "$SIGN_IDENTITY" "$SP"
+    fi
+
+    # 5) Zuletzt die App selbst (Hauptprozess → MIT Entitlements). KEIN --deep,
+    #    damit die eingebetteten Signaturen von oben erhalten bleiben.
+    echo "  · App-Bundle..."
+    codesign --force "${RUNTIME_OPTS[@]}" --entitlements "$ENTITLEMENTS" \
+        --sign "$SIGN_IDENTITY" "$APP_BUNDLE"
 fi
-# Gegenprobe: --force --sign kann durchlaufen und trotzdem kein Bundle-Signature
-# hinterlassen (dann bleibt nur die linker-signed Mach-O-Sig, Info.plist=not bound).
-if ! codesign --verify --strict "$APP_BUNDLE" 2>/dev/null; then
+
+# Gegenprobe (beide Modi): --force --sign kann durchlaufen und trotzdem kein
+# gueltiges Bundle-Signature hinterlassen. --deep --strict prueft auch die
+# eingebetteten Signaturen mit.
+if ! codesign --verify --deep --strict "$APP_BUNDLE" 2>/dev/null; then
     echo "  ✗ Signatur ungueltig nach dem Signieren — Build abgebrochen."
     codesign -dv "$APP_BUNDLE" 2>&1 | head -4
     exit 1
@@ -196,4 +257,9 @@ echo "  App: $APP_BUNDLE"
 echo "  Größe: $APP_SIZE"
 echo ""
 echo "Starten mit:  open $APP_BUNDLE"
-echo "DMG erstellen:  bash scripts/make_dmg.sh"
+if [ "$SIGN_IDENTITY" = "-" ]; then
+    echo "DMG (Dev):   bash scripts/make_dmg.sh"
+    echo "Verteilen:   SIGN_IDENTITY=\"Developer ID Application: …\" bash scripts/build_app.sh && bash scripts/notarize.sh"
+else
+    echo "Notarisieren + DMG:  bash scripts/notarize.sh"
+fi
