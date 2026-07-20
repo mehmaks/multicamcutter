@@ -1,0 +1,211 @@
+{
+  "episode": "ep01-mario-koch",
+  "timeline": "45 - Mario Koch MobTest",
+  "fps": 25.0,
+  "markiert": "erste ~30 min, 100 % der Sprachreaktions-Cutaways",
+  "labels": {
+    "FP": "blau",
+    "TP": "gruen",
+    "unsicher": "gelb (User tendiert zu TP)"
+  },
+  "markers": [
+    {
+      "label": "FP",
+      "marker_frame": 274,
+      "clip_name": "C9320 - Sprachreaktion",
+      "clip_start": 274,
+      "clip_duration": 42,
+      "source_start": 137,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 3553,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 3553,
+      "clip_duration": 50,
+      "source_start": 3552,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 4030,
+      "clip_name": "C9320 - Sprachreaktion",
+      "clip_start": 4030,
+      "clip_duration": 49,
+      "source_start": 3894,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 4678,
+      "clip_name": "C9320 - Sprachreaktion",
+      "clip_start": 4678,
+      "clip_duration": 46,
+      "source_start": 4542,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 6723,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 6723,
+      "clip_duration": 45,
+      "source_start": 6723,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 7203,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 7203,
+      "clip_duration": 50,
+      "source_start": 7202,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 7453,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 7453,
+      "clip_duration": 43,
+      "source_start": 7452,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 8020,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 8020,
+      "clip_duration": 46,
+      "source_start": 8007,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 11545,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 11545,
+      "clip_duration": 373,
+      "source_start": 11532,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 13538,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 13538,
+      "clip_duration": 44,
+      "source_start": 13526,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 14279,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 14279,
+      "clip_duration": 49,
+      "source_start": 14267,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 20380,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 20380,
+      "clip_duration": 43,
+      "source_start": 20371,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 21446,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 21446,
+      "clip_duration": 48,
+      "source_start": 21437,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 24941,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 24941,
+      "clip_duration": 42,
+      "source_start": 24931,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 25880,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 25880,
+      "clip_duration": 44,
+      "source_start": 25871,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 31376,
+      "clip_name": "C9320 - Sprachreaktion",
+      "clip_start": 31376,
+      "clip_duration": 47,
+      "source_start": 31230,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 31915,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 31915,
+      "clip_duration": 44,
+      "source_start": 31905,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 33260,
+      "clip_name": "C9320 - Sprachreaktion",
+      "clip_start": 33260,
+      "clip_duration": 50,
+      "source_start": 33114,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 37868,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 37868,
+      "clip_duration": 140,
+      "source_start": 37858,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 42132,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 42132,
+      "clip_duration": 49,
+      "source_start": 42123,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 45033,
+      "clip_name": "C9320 - Sprachreaktion",
+      "clip_start": 45033,
+      "clip_duration": 44,
+      "source_start": 44887,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 46305,
+      "clip_name": "C7814 - Sprachreaktion",
+      "clip_start": 46305,
+      "clip_duration": 45,
+      "source_start": 46296,
+      "note": ""
+    }
+  ]
+}

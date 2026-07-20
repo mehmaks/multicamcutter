@@ -1,0 +1,274 @@
+{
+  "episode": "ep02-sarah-jung",
+  "timeline": "48 - Sarah Jung AAF Test",
+  "fps": 25.0,
+  "markiert": "erste ~30 min, 100 % der Sprachreaktions-Cutaways",
+  "labels": {
+    "FP": "blau",
+    "TP": "gruen",
+    "unsicher": "gelb (User tendiert zu TP)"
+  },
+  "markers": [
+    {
+      "label": "FP",
+      "marker_frame": 380,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 380,
+      "clip_duration": 49,
+      "source_start": 318,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 554,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 554,
+      "clip_duration": 45,
+      "source_start": 491,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 1094,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 1094,
+      "clip_duration": 42,
+      "source_start": 1031,
+      "note": ""
+    },
+    {
+      "label": "unsicher",
+      "marker_frame": 1597,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 1597,
+      "clip_duration": 43,
+      "source_start": 1534,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 2024,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 2024,
+      "clip_duration": 42,
+      "source_start": 1961,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 2351,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 2351,
+      "clip_duration": 48,
+      "source_start": 2288,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 2580,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 2580,
+      "clip_duration": 40,
+      "source_start": 2518,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 5635,
+      "clip_name": "jena_0002 - Sprachreaktion",
+      "clip_start": 5635,
+      "clip_duration": 49,
+      "source_start": 5687,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 7507,
+      "clip_name": "jena_0002 - Sprachreaktion",
+      "clip_start": 7507,
+      "clip_duration": 84,
+      "source_start": 7560,
+      "note": ""
+    },
+    {
+      "label": "unsicher",
+      "marker_frame": 9686,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 9686,
+      "clip_duration": 46,
+      "source_start": 9624,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 10536,
+      "clip_name": "jena_0002 - Sprachreaktion",
+      "clip_start": 10536,
+      "clip_duration": 44,
+      "source_start": 10588,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 15485,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 15485,
+      "clip_duration": 49,
+      "source_start": 15422,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 16323,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 16323,
+      "clip_duration": 48,
+      "source_start": 16261,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 16677,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 16677,
+      "clip_duration": 45,
+      "source_start": 16615,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 17219,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 17219,
+      "clip_duration": 50,
+      "source_start": 17156,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 18347,
+      "clip_name": "jena_0002 - Sprachreaktion",
+      "clip_start": 18347,
+      "clip_duration": 43,
+      "source_start": 18400,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 18971,
+      "clip_name": "jena_0002 - Sprachreaktion",
+      "clip_start": 18971,
+      "clip_duration": 48,
+      "source_start": 19023,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 19696,
+      "clip_name": "jena_0002 - Sprachreaktion",
+      "clip_start": 19696,
+      "clip_duration": 46,
+      "source_start": 19748,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 21495,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 21495,
+      "clip_duration": 44,
+      "source_start": 21433,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 30698,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 30698,
+      "clip_duration": 44,
+      "source_start": 30636,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 31129,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 31129,
+      "clip_duration": 45,
+      "source_start": 31066,
+      "note": ""
+    },
+    {
+      "label": "unsicher",
+      "marker_frame": 31609,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 31609,
+      "clip_duration": 46,
+      "source_start": 31547,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 31960,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 31960,
+      "clip_duration": 42,
+      "source_start": 31897,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 42184,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 42184,
+      "clip_duration": 45,
+      "source_start": 42122,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 42359,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 42359,
+      "clip_duration": 44,
+      "source_start": 42297,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 42743,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 42743,
+      "clip_duration": 47,
+      "source_start": 42681,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 43203,
+      "clip_name": "C9730 - Sprachreaktion",
+      "clip_start": 43203,
+      "clip_duration": 46,
+      "source_start": 43140,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 46125,
+      "clip_name": "jena_0002 - Sprachreaktion",
+      "clip_start": 46125,
+      "clip_duration": 50,
+      "source_start": 46178,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 46788,
+      "clip_name": "jena_0002 - Sprachreaktion",
+      "clip_start": 46788,
+      "clip_duration": 47,
+      "source_start": 46840,
+      "note": ""
+    }
+  ]
+}
