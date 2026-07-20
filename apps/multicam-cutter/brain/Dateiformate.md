@@ -103,6 +103,43 @@ warnings, errors, log-Zeilen, result, session_end.
 - cameras.json, params.json
 - audio_trims.json (Pause-Daten), audio_keeps.json (Audio-Keeps)
 - decision_log.json (Dev-Only)
+- speaking_debug.json (Dev-Only, siehe unten)
+
+## speaking_debug.json (Dev-Only)
+
+Kurvenverlauf der Sprachreaktions-Erkennung, um FPs nachvollziehbar zu machen
+(Crossbleed-Rückkehr, Freeze-Aussetzer). Nur wenn `is_dev_mode()` — beim Kunden
+entsteht die Datei nicht. Geschrieben neben der EDL.
+
+```json
+{
+  "schema": 1, "fps": 25.0, "window_s": 0.05, "wav_edl_frame": 0,
+  "params":     { "rise_db": 6.0, "attack_window_s": 0.2, ... },
+  "thresholds": { "pause_db_cam1": -31.0, "kmeans_cam1": {
+                    "noise_floor": -52.0, "quiet_speech": -34.0,
+                    "confidence": "hoch" }, ... },
+  "segments": [
+    { "speaker": "CAM1", "reaction_cam": "CAM2", "off_mic": "MIC2",
+      "start_s": 132.4, "end_s": 148.95, "start_edl_frame": 3310,
+      "db": [...], "baseline": [...], "rise": [...], "freeze": [0,0,1,1,0,...],
+      "bursts":   [{ "start_s": 6.15, "tl_frame": 3464, "conf": 0.83,
+                     "emitted": true }],
+      "rejected": [{ "start_s": 2.1, "reason": "kuerzer_als_min_duration" }] },
+
+    { "speaker": "CAM2", "start_s": 149.0, "end_s": 151.2,
+      "skipped": "segment_kuerzer_als_warmup" }
+  ]
+}
+```
+
+- **Pro Segment, nicht durchgehend** — die Baseline wird pro Sprecher-Turn
+  zurückgesetzt. Die Sprünge an den Grenzen sind echt und sollen sichtbar bleiben.
+- Alle vier Arrays sind gleich lang; Zeitbezug `start_s + i · window_s`,
+  Timeline-Frame `start_edl_frame + round(i · window_s · fps)`.
+- `freeze` ist der einzige Wert, der sonst nirgends beobachtbar ist — er wird in
+  `detect_speaking_reactions` gebaut und war bisher nur lokal.
+- Kompaktes JSON (kein `indent`), ~1,7 MB pro Stunde Material.
+- Datenquelle für die geplante Timeline-/Kurvenansicht in der App.
 
 ## AAF-Output
 

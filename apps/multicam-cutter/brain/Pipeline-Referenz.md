@@ -104,6 +104,55 @@ Detektiert **nicht** Pegel-über-Baseline, sondern die **Anstiegsrate der Baseli
 **Parameter:** `--speaking-rise-db 6.0`, `--speaking-min-duration 0.20`,
 `--speaking-max-duration 2.5`, `--speaking-attack-window 0.2`,
 `--speaking-release-window 20.0`, `--speaking-warmup 3.0`, `--speaking-mode peak` (`:790-797`).
+Fensterbreite ist `--analysis-window` = **0,05 s** (`run_from_bin` überschreibt es nicht).
+Analysiert wird das **un-gegatete** `audio_cam1/2` (`:1247`) — bewusst, das Gate würde
+genau dieses Signal zerstören. Kreuzweise: CAM1 spricht → Bursts auf MIC2 = CAM2-Reaktionen.
+Baseline wird **pro Diarization-Segment** zurückgesetzt (`:546`).
+
+**Der Crossbleed-Rückkehr-FP (empirisch belegt, 2026-07-20).** Macht der aktive Sprecher
+eine Pause, bricht das Crossbleed auf dem Off-Mic weg, die Baseline sackt ab; beim
+Weitersprechen kehrt der Pegel zurück und erzeugt einen Rise **ohne jede Reaktion**.
+Simulation mit Produktions-Defaults (Crossbleed −25 dBFS):
+
+| Pause | Rise | Baseline-Sag | Falscher Burst? |
+|---|---|---|---|
+| 1,0 s | 4,2 dB | 2,9 dB | nein |
+| **2,0 s** | **7,8 dB** | 5,6 dB | **JA** |
+| 3,0 s | 10,9 dB | 8,0 dB | JA |
+| 8,0 s | 20,9 dB | 15,5 dB | JA |
+
+`no_burst_decay_factor = 3.0` verschärft das: die Baseline fällt dreimal schneller,
+solange kein Burst läuft — also genau während der Pause.
+
+**Der Freeze funktioniert** (`:409-412`): mit korrekt gesetzter Maske 0 Bursts bei
+jeder getesteten Pausenlänge. Er ist aber **binär** (verlangt `< quiet_speech + 3 dB`
+auf dem On-Mic, min 0,3 s zusammenhängend), während das Phänomen stufenlos ist.
+Gemessene Blindzone — Teilabfälle, die keinen Freeze auslösen, aber trotzdem kippen:
+
+| Abfall | 3 s | 5 s | 8 s |
+|---|---|---|---|
+| 9 dB | – | – | **FP** |
+| 12 dB | – | **FP** | **FP** |
+| 20 dB | **FP** | **FP** | **FP** |
+
+**Hebel:** Recovery-Detektor statt Stille-Erkennung — ist die Baseline zuvor um
+etwa denselben Betrag gefallen wie sie jetzt steigt, ist es Rückkehr, keine Reaktion.
+Symmetrisch, braucht das andere Mikrofon nicht, greift auch in der Blindzone.
+
+**Weitere Eigenheiten:**
+- Segmente **kürzer als `warmup_s` (3 s) werden komplett übersprungen** (`:567`) —
+  schneller Schlagabtausch erzeugt gar keine Reaktionen.
+- Baseline startet auf dem **75. Perzentil der ersten 3 s** des Segments; Reaktionen
+  ganz am Segmentanfang sind darin schon eingerechnet und erzeugen keinen Rise mehr.
+- **Kein Konfidenz-Filter:** `add_reactions_to_edl.py:197` nimmt `speaking_reaction`
+  explizit vom `min_confidence`-Check aus. `conf` wirkt nur als Sortier-Tiebreak.
+- **`dur_s` wird nie gelesen.** Die Cutaway-Länge kommt aus `reaction_duration`
+  (`add_reactions_to_edl.py:304-313`), nicht aus der Burst-Dauer. Der UI-Slider
+  „Max. Cutaway-Dauer" setzt `--speaking-max-duration`, also die maximale **Burst**-Länge.
+  Falsch beschriftet.
+
+**Diagnose:** Im Dev-Modus schreibt der Lauf `speaking_debug.json` mit Pegel-, Baseline-,
+Rise- und Freeze-Verlauf pro Segment → siehe `Dateiformate.md`.
 
 ### 2e. Simultan-Erkennung + Totale (`:612-642`, `:660-715`)
 ```

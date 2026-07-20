@@ -370,6 +370,7 @@ def _bursts_rolling(
     no_burst_decay_factor: float = 3.0,
     return_debug: bool = False,
     freeze_mask: np.ndarray = None,
+    rejected_sink: list = None,
 ):
     """Rolling-Baseline Burst Detection mit Rise-Erkennung (Single-Pass).
 
@@ -451,6 +452,12 @@ def _bursts_rolling(
                         'tl_frame': tl_frame,
                         'conf':     round(conf, 3),
                     })
+                elif rejected_sink is not None:
+                    rejected_sink.append({
+                        'start_s': round(burst_start * window_s, 3),
+                        'end_s':   round(k * window_s, 3),
+                        'reason':  'kuerzer_als_min_duration',
+                    })
                 in_burst = False
             elif max_wins > 0 and (k - burst_start) >= max_wins:
                 burst_len = k - burst_start
@@ -466,6 +473,12 @@ def _bursts_rolling(
                         'dur_s':    end_s - start_s,
                         'tl_frame': tl_frame,
                         'conf':     round(conf, 3),
+                    })
+                elif rejected_sink is not None:
+                    rejected_sink.append({
+                        'start_s': round(burst_start * window_s, 3),
+                        'end_s':   round(k * window_s, 3),
+                        'reason':  'kuerzer_als_min_duration',
                     })
                 in_burst = False
         elif rise[k] >= rise_db:
@@ -489,6 +502,12 @@ def _bursts_rolling(
                 'dur_s':    end_s - start_s,
                 'tl_frame': tl_frame,
                 'conf':     round(conf, 3),
+            })
+        elif rejected_sink is not None:
+            rejected_sink.append({
+                'start_s': round(burst_start * window_s, 3),
+                'end_s':   round(k * window_s, 3),
+                'reason':  'kuerzer_als_min_duration',
             })
 
     if return_debug:
@@ -514,6 +533,7 @@ def detect_speaking_reactions(
     lookback_s: float      = 1.0,
     sustain_margin_db: float = 1.5,
     on_pauses: dict = None,
+    debug_sink: list = None,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -524,6 +544,10 @@ def detect_speaking_reactions(
 
     on_pauses: Dict {'CAM1': [(s, e), ...], 'CAM2': [(s, e), ...]}
                On-Speaker-Pausen zur Baseline-Maskierung.
+    debug_sink: Optionale Liste. Wenn gesetzt, wird pro Segment ein Record mit
+               Pegel-, Baseline-, Rise- und Freeze-Verlauf angehaengt
+               (Dev-Modus, siehe speaking_debug.json). Ohne Sink aendert sich
+               am Verhalten nichts.
 
     Returns (cam1_reactions, cam2_reactions).
     """
@@ -565,6 +589,16 @@ def detect_speaking_reactions(
             continue
 
         if len(seg_audio) < int(warmup_s * sr):
+            # Segment kuerzer als die Warmup-Phase: hier wird gar nicht erst
+            # nach Reaktionen gesucht. Im Debug festhalten, sonst verschwindet
+            # der Fall spurlos.
+            if debug_sink is not None:
+                debug_sink.append({
+                    'speaker': seg['speaker'],
+                    'start_s': round(seg['start_s'], 3),
+                    'end_s':   round(seg['end_s'], 3),
+                    'skipped': 'segment_kuerzer_als_warmup',
+                })
             continue
 
         # Freeze-Mask: On-Speaker-Pausen in Fenster-Koordinaten umrechnen
@@ -587,7 +621,9 @@ def detect_speaking_reactions(
                     local_end   = min(n_wins, local_end)
                     seg_freeze[local_start:local_end] = True
 
-        bursts = _bursts_rolling(
+        _dbg      = debug_sink is not None
+        _rejected = [] if _dbg else None
+        _res = _bursts_rolling(
             seg_audio, sr, fps, window_s,
             attack_window_s, release_window_s, warmup_s,
             rise_db, min_duration_s, max_duration_s, hold_s,
@@ -597,12 +633,43 @@ def detect_speaking_reactions(
             lookback_s=lookback_s,
             sustain_margin_db=sustain_margin_db,
             freeze_mask=seg_freeze,
+            return_debug=_dbg,
+            rejected_sink=_rejected,
         )
+        if _dbg:
+            bursts, _db, _base, _rise = _res
+        else:
+            bursts = _res
 
+        emitted = []
         for b in bursts:
             r = _to_reaction(b, cam_tz)
+            emitted.append(r is not None)
             if r:
                 target.append(r)
+
+        if _dbg:
+            # Freeze defensiv auf die Kurvenlaenge bringen (sollte identisch
+            # sein: beide rechnen len // int(sr * window_s)).
+            if seg_freeze is not None:
+                _fz = [int(v) for v in seg_freeze[:len(_db)]]
+                _fz += [0] * (len(_db) - len(_fz))
+            else:
+                _fz = [0] * len(_db)
+            debug_sink.append({
+                'speaker':         seg['speaker'],
+                'reaction_cam':    'CAM2' if seg['speaker'] == 'CAM1' else 'CAM1',
+                'off_mic':         'MIC2' if seg['speaker'] == 'CAM1' else 'MIC1',
+                'start_s':         round(seg['start_s'], 3),
+                'end_s':           round(seg['end_s'], 3),
+                'start_edl_frame': seg_start_edl,
+                'db':       [round(float(v), 1) for v in _db],
+                'baseline': [round(float(v), 1) for v in _base],
+                'rise':     [round(float(v), 1) for v in _rise],
+                'freeze':   _fz,
+                'bursts':   [dict(b, emitted=e) for b, e in zip(bursts, emitted)],
+                'rejected': _rejected,
+            })
 
     return cam1_reactions, cam2_reactions
 
@@ -924,6 +991,7 @@ def main():
     # ── Adaptive Silence-Schwelle (K-Means auf normalisiertem Original) ──
     # Pro Kanal, damit asymmetrische Aufnahmen (z.B. Mic weiter weg)
     # jeweils die passende Grenze zwischen Sprache und Stille haben.
+    _th1 = _th2 = None   # K-Means-Rohwerte, fuer speaking_debug.json
     if args.pause_silence_db is not None:
         silence_db_cam1 = args.pause_silence_db
         silence_db_cam2 = args.pause_silence_db
@@ -1243,6 +1311,15 @@ def main():
             padding_s=args.speaking_mask_padding,
         )
 
+        # Debug-Dump: nur im Dev-Modus, wie Decision Log und Console-Capture
+        _sp_debug = None
+        try:
+            from licensing.license import is_dev_mode
+            if is_dev_mode():
+                _sp_debug = []
+        except ImportError:
+            pass
+
         cam1_sr, cam2_sr = detect_speaking_reactions(
             audio_cam1, audio_cam2, sr1,
             segments,
@@ -1258,8 +1335,55 @@ def main():
             hold_s=args.speaking_hold,
             mode=args.speaking_mode,
             on_pauses=_on_pauses,
+            debug_sink=_sp_debug,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
+
+        if _sp_debug is not None:
+            # Kompakt schreiben: indent=2 wuerde jede einzelne Zahl auf eine
+            # eigene Zeile legen und die Datei vervielfachen.
+            _dbg_path = Path(args.output).with_name('speaking_debug.json')
+            _dbg_path.write_text(json.dumps({
+                'schema':        1,
+                'fps':           args.fps,
+                'window_s':      args.analysis_window,
+                'wav_edl_frame': args.wav_edl_frame,
+                'params': {
+                    'rise_db':               args.speaking_rise_db,
+                    'attack_window_s':       args.speaking_attack_window,
+                    'release_window_s':      args.speaking_release_window,
+                    'warmup_s':              args.speaking_warmup,
+                    'min_duration_s':        args.speaking_min_duration,
+                    'max_duration_s':        args.speaking_max_duration,
+                    'mode':                  args.speaking_mode,
+                    'mask_min_pause_s':      args.speaking_mask_min_pause,
+                    'mask_padding_s':        args.speaking_mask_padding,
+                    # Nicht per CLI setzbar, aber fuer die Deutung noetig:
+                    'lookback_s':            1.0,
+                    'sustain_margin_db':     1.5,
+                    'decay_hold_s':          3.0,
+                    'no_burst_decay_factor': 3.0,
+                },
+                'thresholds': {
+                    'pause_db_cam1':   pause_db_cam1,
+                    'pause_db_cam2':   pause_db_cam2,
+                    'silence_db_cam1': silence_db_cam1,
+                    'silence_db_cam2': silence_db_cam2,
+                    'kmeans_cam1': ({'noise_floor': _th1['noise_floor'],
+                                     'quiet_speech': _th1['quiet_speech'],
+                                     'confidence': _th1['confidence']}
+                                    if _th1 else None),
+                    'kmeans_cam2': ({'noise_floor': _th2['noise_floor'],
+                                     'quiet_speech': _th2['quiet_speech'],
+                                     'confidence': _th2['confidence']}
+                                    if _th2 else None),
+                },
+                'segments': _sp_debug,
+            }, ensure_ascii=False), encoding='utf-8')
+            _n_skip = sum(1 for s in _sp_debug if s.get('skipped'))
+            _mb = _dbg_path.stat().st_size / 1e6
+            print(f"  🔬 Debug-Dump: {_dbg_path.name} "
+                  f"({len(_sp_debug)} Segmente, davon {_n_skip} uebersprungen, {_mb:.1f} MB)")
         if args.speaking_reactions_cam1_out:
             Path(args.speaking_reactions_cam1_out).write_text(
                 json.dumps({'fps': args.fps, 'reactions': cam1_sr}, indent=2),
