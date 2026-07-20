@@ -578,6 +578,10 @@ def detect_speaking_reactions(
     post_freeze_refractory_s: float = 0.0,
     freeze_hold_max_s: float = 0.0,
     freeze_release_margin_db: float = 3.0,
+    fp_filter: bool = False,
+    fp_corr_max: float = 0.75,
+    fp_on_rise_db: float = 5.0,
+    fp_takeover_s: float = 2.5,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -616,7 +620,46 @@ def detect_speaking_reactions(
     # CAM2 spricht → MIC1-Bursts = CAM1-Reaktionen
     cam1_reactions, cam2_reactions = [], []
 
-    for seg in segments:
+    def _fp_reject(b, off_db, on_db, seg, nxt_speaker, react_cam):
+        """Drei unabhaengige FP-Ursachen. Gibt den Grund zurueck oder None.
+
+        Hergeleitet aus 22 vom Nutzer markierten Cutaways (16 FP / 6 TP);
+        Messwerte und Schwellen in brain/Sprachreaktionen-Parameter.md.
+        """
+        k0 = int(b['start_s'] / window_s)
+        k1 = min(len(off_db), int(b['end_s'] / window_s))
+        lb = max(1, int(1.0 / window_s))
+        if k0 >= len(off_db) or k1 <= k0:
+            return None
+
+        # C) Wortuebernahme: Das ist keine Reaktion, sondern der Beginn des
+        #    eigenen Redebeitrags — direkt danach wechselt die Diarisierung
+        #    auf genau diese Kamera.
+        if (fp_takeover_s > 0 and nxt_speaker == react_cam
+                and (seg['end_s'] - (seg['start_s'] + b['start_s'])) <= fp_takeover_s):
+            return 'wortuebernahme'
+
+        pre = slice(max(0, k0 - lb), k0)
+        if on_db is not None and len(on_db) >= k1:
+            # B) Das ON-Mic steigt mit: der Sprecher redet weiter, das ist
+            #    Uebersprechen und keine Reaktion.
+            if fp_on_rise_db < 999:
+                on_rise = float(np.median(on_db[k0:k1]) - np.median(on_db[pre]))
+                if on_rise >= fp_on_rise_db:
+                    return 'on_mic_steigt'
+
+            # A) Beide Huellkurven laufen im Gleichtakt -> reines Crossbleed.
+            if fp_corr_max <= 1.0:
+                lo = max(0, k0 - int(3.0 / window_s))
+                hi = min(len(off_db), k0 + int(2.0 / window_s))
+                a_ = np.asarray(off_db[lo:hi], dtype=float)
+                b_ = np.asarray(on_db[lo:hi], dtype=float)
+                if len(a_) >= 20 and a_.std() > 0.1 and b_.std() > 0.1:
+                    if float(np.corrcoef(a_, b_)[0, 1]) >= fp_corr_max:
+                        return 'gleichtakt'
+        return None
+
+    for si, seg in enumerate(segments):
         seg_start_sample = int(seg['start_s'] * sr)
         seg_end_sample   = int(seg['end_s'] * sr)
         seg_start_edl    = wav_edl_frame + round(seg['start_s'] * fps)
@@ -668,6 +711,7 @@ def detect_speaking_reactions(
                     seg_freeze[local_start:local_end] = True
 
         _dbg      = debug_sink is not None
+        _need     = _dbg or fp_filter      # Kurven auch fuer den Nachfilter noetig
         _rejected = [] if _dbg else None
         _res = _bursts_rolling(
             seg_audio, sr, fps, window_s,
@@ -682,13 +726,29 @@ def detect_speaking_reactions(
             post_freeze_refractory_s=post_freeze_refractory_s,
             freeze_hold_max_s=freeze_hold_max_s,
             freeze_release_margin_db=freeze_release_margin_db,
-            return_debug=_dbg,
+            return_debug=_need,
             rejected_sink=_rejected,
         )
-        if _dbg:
+        if _need:
             bursts, _db, _base, _rise = _res
         else:
             bursts = _res
+        _on_db = (_level_windows(on_audio, sr, window_s, mode=mode)
+                  if _need else None)
+
+        _fp_dropped = []
+        if fp_filter:
+            react_cam   = 'CAM2' if seg['speaker'] == 'CAM1' else 'CAM1'
+            nxt_speaker = (segments[si + 1]['speaker']
+                           if si + 1 < len(segments) else None)
+            _kept = []
+            for b in bursts:
+                why = _fp_reject(b, _db, _on_db, seg, nxt_speaker, react_cam)
+                if why:
+                    _fp_dropped.append(dict(b, fp_reason=why))
+                else:
+                    _kept.append(b)
+            bursts = _kept
 
         emitted = []
         for b in bursts:
@@ -717,9 +777,8 @@ def detect_speaking_reactions(
                 # Detektor sieht ihn nicht — fuer die Diagnose ist er aber
                 # entscheidend: steigen beide Mics gleichzeitig, ist es
                 # zurueckkehrendes Crossbleed und keine Reaktion.
-                'db_on':    [round(float(v), 1)
-                             for v in _level_windows(on_audio, sr, window_s,
-                                                     mode=mode)[:len(_db)]],
+                'db_on':    [round(float(v), 1) for v in _on_db[:len(_db)]],
+                'fp_dropped': _fp_dropped,
                 'baseline': [round(float(v), 1) for v in _base],
                 'rise':     [round(float(v), 1) for v in _rise],
                 'freeze':   _fz,
@@ -920,6 +979,18 @@ def main():
     parser.add_argument('--speaking-mode',          choices=['rms', 'peak'], default='peak')
     parser.add_argument('--speaking-mask-min-pause', type=float, default=0.3,
                         help='Min. Pausenlänge des On-Sprechers für Baseline-Freeze (s)')
+    parser.add_argument('--speaking-fp-filter', action='store_true',
+                        help='FP-Nachfilter fuer Sprachreaktionen (drei Ursachen, '
+                             'siehe brain/Sprachreaktionen-Parameter.md). Default aus.')
+    parser.add_argument('--speaking-fp-corr', type=float, default=0.75,
+                        help='A: verwerfen ab dieser Huellkurven-Korrelation Off/On. '
+                             '>1.0 = Regel aus.')
+    parser.add_argument('--speaking-fp-on-rise', type=float, default=5.0,
+                        help='B: verwerfen ab diesem On-Mic-Anstieg in dB. '
+                             '999 = Regel aus.')
+    parser.add_argument('--speaking-fp-takeover', type=float, default=2.5,
+                        help='C: verwerfen, wenn der Burst so viele Sekunden vor dem '
+                             'Segmentende liegt UND danach diese Cam spricht. 0 = aus.')
     parser.add_argument('--speaking-freeze-hold-max', type=float, default=0.0,
                         help='Adaptiver Freeze: max. Sekunden, die ueber die Maske '
                              'hinaus gehalten wird, solange der Pegel nicht zurueck '
@@ -1404,6 +1475,10 @@ def main():
             post_freeze_refractory_s=args.speaking_post_freeze_refractory,
             freeze_hold_max_s=args.speaking_freeze_hold_max,
             freeze_release_margin_db=args.speaking_freeze_release_margin,
+            fp_filter=args.speaking_fp_filter,
+            fp_corr_max=args.speaking_fp_corr,
+            fp_on_rise_db=args.speaking_fp_on_rise,
+            fp_takeover_s=args.speaking_fp_takeover,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
 

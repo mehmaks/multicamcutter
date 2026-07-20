@@ -174,6 +174,32 @@ Episode mit **zwei** Kameras. Die Trennungen sind sauber und jede Regel hat eine
 eigenständige physikalische Begründung — aber vor dem Scharfschalten braucht es
 einen zweiten markierten Ausschnitt, am besten aus einer anderen Episode.
 
+### Umsetzung (Stand 2026-07-20)
+
+Nachfilter in `detect_speaking_reactions` (`_fp_reject`), `_bursts_rolling`
+unangetastet. **Default aus**, per `--speaking-fp-filter` einschaltbar:
+
+| Flag | Default | Regel aus bei |
+|---|---|---|
+| `--speaking-fp-corr` | 0,75 | > 1,0 |
+| `--speaking-fp-on-rise` | 5,0 dB | 999 |
+| `--speaking-fp-takeover` | 2,5 s | 0 |
+
+**Von `run_from_bin` bewusst NICHT übergeben** — die App verhält sich also
+unverändert, bis der Filter validiert ist.
+
+Verifiziert am Material: Filter aus → exakt 145 Detektionen wie die Baseline.
+Filter an → 74. Gegen die 22 Marker: **14/15 FP entfernt, 0/6 TP verloren**
+(die Implementierung reproduziert die Offline-Rechnung exakt). Verworfen wurden
+71 Detektionen: 34× `on_mic_steigt`, 20× `gleichtakt`, 17× `wortuebernahme`.
+Die Gründe stehen je Segment als `fp_dropped` im Debug-Dump.
+
+⚠️ **Ein Warnsignal:** Der Filter entfernt 49 % aller Detektionen. Aus der
+markierten Strecke (73 % FP, davon 93 % erfasst) wären ~68 % zu erwarten. Also
+ist entweder der markierte Ausschnitt FP-reicher als der Rest, oder die Regeln
+greifen außerhalb schlechter. Das ist ohne einen zweiten markierten Ausschnitt
+nicht zu entscheiden.
+
 ## Zweitbester Befund: das ON-Mic mitbewerten
 
 Kehrt das Crossbleed zurück, weil der Sprecher wieder einsetzt, steigt sein
