@@ -310,6 +310,33 @@
   `config/schemas/multicam_params.json`. Gotcha: `.help()` allein zeigt nichts →
   AppKit-`NSView.toolTip`-Overlay. Verzögerung via `NSInitialToolTipDelay` = 200 ms.
 
+### AAF: Clipnamen als Schnitt-Begründung nutzen
+- [ ] **Timeline-Clips im AAF nach Schnittgrund benennen** (Pendant zu den Resolve-
+  Farbcodes aus der Web-Version — nachvollziehbares Kategorisieren der Schnitte).
+  Aufwand: **leicht–mittel**.
+  **BELEGT (Test, 20.07.):** Clipnamen sind **frei wählbar** und komplett vom
+  Quelldateinamen entkoppelt. Was die NLE im Timeline-Segment anzeigt, ist der Name des
+  **MasterMob**, den der SourceClip referenziert. Test: drei MasterMobs
+  (`CAM1__Sprecher`, `CAM1__Kopfnicken`, `CAM1__Totale-Reset`) auf **einen** FileMob →
+  Timeline zeigt pro Segment den jeweiligen Namen. Zurückgelesen und bestätigt.
+  **Warum es heute so aussieht:** `build_aaf.py:309` setzt `master.name = Path(cp).stem`
+  — EIN MasterMob je Kamera, benannt mit dem Dateinamen **ohne Endung**. Daher „nicht
+  direkt der Dateiname", und Umbenennen in Resolve ändert nichts (Name ist eingebacken).
+  **Die Daten existieren schon:** `add_reactions_to_edl.py` führt je Event ein `reason`
+  (`speaker`, `reaction_<typ>`, `reaction_<typ>_wide`, `max_time`).
+  ⚠️ **Fehlendes Glied:** `write_edl()` (Z. 799) schreibt nur die Edit-Zeile +
+  `* FROM CLIP NAME:` — der Grund geht verloren; `build_aaf._parse_edl` liest ihn folglich
+  nicht. Zu tun: `reason` mitgeben (zusätzliche `*`-Kommentarzeile **nach** `FROM CLIP
+  NAME`, damit bestehende Parser nicht brechen — `run_from_bin.parse_edl` erwartet sie in
+  `lines[i+1]` — oder als Sidecar-JSON) und in `build_aaf` je (Kamera × Grund) einen
+  MasterMob anlegen.
+  ⚠️ **Trade-off:** Jeder MasterMob = ein eigener Clip im Resolve-Bin. Ein MasterMob pro
+  **Segment** würde den Bin mit hunderten Einträgen fluten → deshalb einen pro
+  **Kamera × Kategorie** (realistisch 3–5 je Kamera).
+  ⚠️ **Noch offen:** Der Test belegt die AAF-**Struktur**, nicht das Rendering in Resolve.
+  Vor Umsetzung einmal echt importieren und prüfen, ob Resolve die MasterMob-Namen wie
+  erwartet im Timeline-Segment anzeigt.
+
 ### Workflow
 - [x] **FPS-Mismatch: Fehler anzeigen + Analyse blockieren + Inline-Konvertierung**
   UMGESETZT: Scan liefert `fps` pro Cam (ffprobe `r_frame_rate`, 0 = unlesbar),
