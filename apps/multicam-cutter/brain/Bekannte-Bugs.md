@@ -23,10 +23,39 @@
   irgendwo dazwischen stehen — hier 0,32 s statt der nötigen 2,2 s. Entfernt
   werden die Frames trotzdem, nur eben aus Sprache statt aus Stille.
   **Es gibt keine Prüfung, ob der tatsächlich entfernte Bereich still ist.**
+- **Zweites Symptom, gleiche Ursache — WIEDERHOLTE FRAMES**: User beobachtet bei
+  eingeschaltetem Kopfnicken gelegentlich Pause-Trims, nach denen sich die letzten
+  10–15 Frames wiederholen. Grund: `trim`/`delta` haben nur eine **obere** Schranke
+  (`if trim > max_trim`, `:323`/`:341`), **keine untere**. Liegt die Pause auf der
+  falschen Seite der Grenze, wird `trim` negativ — dann *verlängert*
+  `ev['source_out'] -= trim` das Event, während `ev['source_in'] += delta` das
+  folgende zurückzieht. Beide decken dieselben Source-Frames ab. Bei gleicher
+  Kamera sieht man die Wiederholung. Der Kommentar (`:311`) hält das Verlängern
+  für gewollt („in Stillebereich hinein") — es ist aber ungeprüft, ob dort Stille ist.
+- **Warum Kopfnicken den Symptomtyp umschaltet**: Mit Nicken gibt es viele
+  Schnittgrenzen, eine verschobene `boundary_frame` findet also meist *irgendeine*
+  Grenze in Toleranz → viele Trims (User: 6–16/Folge), an falscher Stelle, teils
+  negativ → Wiederholungen. Ohne Nicken gibt es wenige Grenzen → die meisten Pausen
+  werden verworfen → nur 2 Trims, dafür mit fehlendem Sprachinhalt.
+- **Verdacht auf die gemeinsame Wurzel (noch zu belegen)**: `run_from_folder.py:194-199`
+  **rechnet die Record-Positionen neu** (kumulativ aus Source-Dauern ab 0), statt sie
+  aus der EDL zu übernehmen. `boundary_frame` in `audio_trims.json` stammt aber aus den
+  echten Record-TCs der Base-EDL. Solange kein Event fehlt, ist das identisch — aber
+  `build_aaf._parse_edl` **überspringt** Events (Clipname nicht zuordenbar bzw.
+  `src_in < 0`, `:221`/`:227`), und jedes übersprungene Event verschiebt alle folgenden
+  Record-Positionen. Der Code warnt dort selbst: „Audio/Video-Sync kann abweichen".
+  ⚠️ **Erklärt auch, warum die Web-App (`run_from_bin`) unauffällig ist**: dort kommen
+  die Record-Positionen aus `parse_edl()`, also aus der EDL selbst.
+  Zu prüfen im nächsten Lauf: (1) erscheint die ÜBERSPRUNGEN-Warnung, (2) stimmen die
+  neu berechneten Record-Positionen mit `final.edl` überein, (3) wie viele Pausen
+  fallen unter `skipped_no_boundary`.
 - **Fix-Vorschlag (nicht umgesetzt)**: Wenn der Cap greift, die Pause komplett
   überspringen statt teilweise zu trimmen — ein halber Trim erreicht sein Ziel
   ohnehin nie. Alternativ/zusätzlich vor dem Entfernen prüfen, ob der Bereich
   zwischen `p1_end` und `p2_start` wirklich unter der Schwelle liegt.
+  Zusätzlich **untere Schranke** für `trim`/`delta` (negativ = nie), sonst bleiben
+  die Wiederholungen. Und die eigentliche Wurzel: echte Record-Positionen mitführen
+  statt sie zu rekonstruieren.
   ⚠️ Audio-Keeps dabei weiterhin aus den getrimmten Video-Events ableiten
   (siehe `modules/multicam_cutter/CLAUDE.md`, Fixed Bugs) — nicht separat rechnen.
 
