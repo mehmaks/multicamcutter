@@ -112,6 +112,15 @@ simultaneous = both_active & (|rms1-rms2| < threshold_db)   # :628
 ```
 Zusammenhängende Runs `>= totale_simul_min_duration` (Default 3.0 s) werden zur Totale.
 
+> ⚠️ **Dieser Pfad ist aus der Mac-App heraus scharf**, auch wenn er nie bewusst
+> gebaut/getestet wurde. Kette: `EngineController:1516` (`--cam-types`) →
+> `multicam_engine:838` (`_parse_cam_list`) → `run_from_bin:659`
+> (`totale_idx = erste Cam mit type == 'wide'`) → `--totale-video`/`--totale-clip` →
+> `build_base_edl_from_audio:1140` (`if args.totale_clip and args.totale_video:`).
+> Sobald `camRoles()` eine Kamera als `wide` einstuft, laufen Simultan-Erkennung und
+> `insert_totale_events` mit. Dass in der Praxis nie Totale-Schnitte auftauchen, ist
+> vermutlich **kein** fehlendes Feature, sondern die 60-Fenster-Strenge unten.
+
 ### 2f. EDL-Erzeugung (`:1036-1121`)
 ```
 edl_frame       = round(seg_s * fps) + wav_edl_frame
@@ -158,13 +167,34 @@ Kamera auf 0 — **ohne** die Totale zu berücksichtigen.
 **MediaPipe:** FaceLandmarker, `num_faces` Default 1, alle drei Confidences hartkodiert 0.5
 (`:98-105`).
 
-### ⚠️ Das Nick-Signal ist die rohe y-Pixelkoordinate der Nasenspitze
+### Das Nick-Signal ist die rohe y-Pixelkoordinate der Nasenspitze
 `nose_y = landmarks[1].y * height` (`:443`). **Kein Pitch**, keine Rotationsmatrix — obwohl
-das Tasks-Modell `facial_transformation_matrixes` liefern könnte. Was im Code `head_tilt`
-heißt (`:451-455`), ist **Roll** und wird nur für die X-Drift-Korrektur benutzt.
+das Tasks-Modell `facial_transformation_matrixes` liefern könnte.
 
-Damit ist das Signal **nicht** rotations-, translations- oder distanzinvariant. Kompensiert
-wird ausschließlich über die Schwelle:
+**Aber: Tilt und Yaw sind sehr wohl berücksichtigt** — im X-Drift-Check (`:231-252`), mit
+explizit dokumentierter Geometrie:
+```python
+# 1) Tilt: Kopf seitlich geneigt → Nicken hat X-Anteil = y * |tan(tilt)|
+# 2) Yaw:  Kopf zur Seite gedreht (Halbprofil) → Nicken erzeugt
+#    Bogen-Projektion mit X-Anteil proportional zur Drehung
+expected_x_total = y_range * |tan(median_tilt)| + y_range * yaw_dev * 1.2
+corrected_x      = max(0, x_range - expected_x_total)
+FAIL wenn corrected_x >= x_drift_ratio * y_range**0.7
+```
+`head_tilt` (`:451-455`) ist Roll, `head_yaw` (`:457-467`) die Kopfdrehung; beide gehen
+ausschließlich hier ein.
+
+⚠️ **Die entscheidende Feinheit:** Diese Korrektur wirkt auf den **Verwerfungsfilter** — sie
+*toleriert* die geometrisch erwartete X-Bewegung. Sie korrigiert **nicht das Signal selbst**.
+Die Amplitude wird weiterhin als rohes `y_range` gemessen. Bei starker Schrägstellung oder
+Halbprofil wandert ein Teil der Nickbewegung in die X-Achse und fehlt in `y_range` → das
+Amplituden-Gate (`osc_y_range < effective_thr`, `:347`) wird **schwerer** passierbar, obwohl
+genickt wurde. **Hebel:** die Bewegung auf die erwartete Nickachse projizieren (um `tilt`
+rotieren) statt die rohe y-Komponente zu nehmen — dann profitiert auch die Amplitudenmessung
+von der bereits vorhandenen Geometrie.
+
+Davon abgesehen ist das Signal nicht translations- oder distanzinvariant. Kompensiert
+wird das ausschließlich über die Schwelle:
 ```
 thr = nod_threshold * (height / calibration_height) * clamp(face_h / auto_accuracy_ref, 0.3, 2.0)
 ```

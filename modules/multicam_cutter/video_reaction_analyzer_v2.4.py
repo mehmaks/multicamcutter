@@ -123,8 +123,16 @@ class AdvancedReactionDetector:
         self._nod_smooth_kernel = self._nod_globals['smooth_kernel']
         self._nod_calibration_height = self._nod_globals['calibration_height']
         self._nod_settle_frames = int(self._nod_globals.get('settle_s', 0) * fps)
-        # Buffer-Größe = längstes Pattern-Window
-        max_window = max(p['window_s'] for p in self._nod_patterns)
+        # Buffer-Größe = längstes Pattern-Window.
+        # Guard: Sind ALLE Muster deaktiviert (in der Mac-App pro Preset möglich —
+        # drei Klicks genügen), ist die Liste leer und max() würde mit ValueError den
+        # gesamten Lauf abbrechen. Dann still ohne Nodding weiterlaufen: die anderen
+        # Reaktionstypen und die restliche Pipeline funktionieren unabhängig davon.
+        if self._nod_patterns:
+            max_window = max(p['window_s'] for p in self._nod_patterns)
+        else:
+            max_window = 0.0
+            print("⚠️  Alle Nodding-Muster deaktiviert — Nicken-Erkennung ist aus.")
         self._nod_window_frames = int(max_window * fps)
 
         # Laughing-Threshold: weiterhin sensitiv-abhängig
