@@ -1,5 +1,9 @@
 # Pipeline-Schritte
 
+> 📖 **Diese Datei ist die Landkarte.** Die detaillierte Referenz — Logik jedes Passes,
+> alle Parameter mit Defaults, Schwachstellen und Verbesserungs-Hebel — steht in
+> **`Pipeline-Referenz.md`**.
+
 ## Uebersicht
 
 | # | Step-ID | Beschreibung | Dauer |
