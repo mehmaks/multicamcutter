@@ -2,6 +2,34 @@
 
 ## OFFEN
 
+### 🔴 Pause-Trim entfernt Sprache: Trim landet bis zu 3 s neben der Pause
+- **Symptom**: Video UND Audio sind an einer Stelle geschnitten, an der beide
+  Sprecher reden — ein Stück Gespräch fehlt. **Inhaltsverlust**, kein
+  Schönheitsfehler. Selten (2 Audioschnitte in einer 100-min-Folge), dafür
+  eindeutig hörbar. Gefunden 20.07. in „44 - Danny Müller" bei TL 00:17:49:22
+  (roter Marker des Users).
+- **Belegt**: Audioschnitt bei WAV-Sekunde 1077,80. Pegel dort MIC1 −33,6 dB
+  (Schwelle −46), MIC2 −43,3 dB (Schwelle −52) — **beide über der Schwelle**,
+  also keine Pause. Nächste echte Stille: 1073,58–1075,60 s, **2,20 s entfernt**.
+  Entfernt wurden 8 Frames (0,32 s) mitten aus einem Sprachblock (Spitze −10,1 dB).
+  K-Means-Schwellen waren plausibel (Konfidenz „hoch"), das Crossbleed-Gate
+  dämpfte MIC1 dort nur um 0,4 dB — beide als Ursache ausgeschlossen.
+- **Ursache**: `detect_pauses` sucht die Pause im Radius von **3 s**
+  (`--pause-search-radius`, Default 3.0) um eine Schnittgrenze. Der Trim
+  verschiebt die Grenze dann auf die Pause — laut Kommentar
+  (`pause_trim_edl.py:311`) „bedingungslos". Greift dabei aber der Cap
+  `max_trim = ev_dur - min_event_frames` (`:320-324`), wird der Trim **teilweise**
+  ausgeführt: Die Grenze wandert nur ein Stück in Richtung Pause und bleibt
+  irgendwo dazwischen stehen — hier 0,32 s statt der nötigen 2,2 s. Entfernt
+  werden die Frames trotzdem, nur eben aus Sprache statt aus Stille.
+  **Es gibt keine Prüfung, ob der tatsächlich entfernte Bereich still ist.**
+- **Fix-Vorschlag (nicht umgesetzt)**: Wenn der Cap greift, die Pause komplett
+  überspringen statt teilweise zu trimmen — ein halber Trim erreicht sein Ziel
+  ohnehin nie. Alternativ/zusätzlich vor dem Entfernen prüfen, ob der Bereich
+  zwischen `p1_end` und `p2_start` wirklich unter der Schwelle liegt.
+  ⚠️ Audio-Keeps dabei weiterhin aus den getrimmten Video-Events ableiten
+  (siehe `modules/multicam_cutter/CLAUDE.md`, Fixed Bugs) — nicht separat rechnen.
+
 ### Dev-Only-Artefakte entstehen aus der Mac-App NIE (`decision_log.json`, `speaking_debug.json`)
 - **Symptom**: Nach einem vollständigen Lauf aus der App liegen im Work-Dir zwar
   `final.edl` und `final.colors.json`, aber **weder** `decision_log.json` **noch**
