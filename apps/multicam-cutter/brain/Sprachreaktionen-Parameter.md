@@ -144,6 +144,36 @@ schwächer: 9 von 15 bei Schwelle 0,58.
 ⚠️ Nicht erfasst bleiben 4 FPs mit Korrelation 0,33–0,65. Dort laufen die Spuren
 tatsächlich auseinander — andere Ursache, weiter offen.
 
+## ✅✅✅ Drei Ursachen, drei Regeln (Stand der Analyse)
+
+Es gibt **nicht eine** FP-Ursache. Drei unabhängig begründete Regeln, jede
+gegen die 22 Marker gemessen:
+
+| Regel | Mechanismus | FP entfernt | TP verloren |
+|---|---|---|---|
+| **A** Hüllkurven-Korrelation ≥ 0,75 | Crossbleed ist eine leisere Kopie des On-Mics → Spuren laufen im Gleichtakt | 11/15 | 0 |
+| **B** On-Mic steigt ≥ 5 dB | Der Sprecher redet weiter → es ist Übersprechen, keine Reaktion | 7/15 | 0 |
+| **C** Wortübernahme: ≤ 2,5 s vor Segmentende **und** danach ist diese Cam Sprecher | Kein „Mhm", sondern der **Beginn des eigenen Redebeitrags** | 2/15 | 0 |
+| **A oder B oder C** | | **14/15** | **0** |
+
+A und B überschneiden sich stark (beide zielen auf Crossbleed), C ist
+unabhängig — und C erklärt zugleich die **überlangen Clips**: Ein Cutaway,
+direkt gefolgt von Sprechermaterial derselben Kamera mit lückenlosem Source,
+wird in `pause_trim_edl.py:356-368` zu **einem** Clip verschmolzen. Deshalb
+gibt es „Sprachreaktionen" von 14,9 s / 8,6 s / 5,6 s (Median sonst 1,8 s) und
+Nicken-Clips bis 19,3 s. Der Schnitt selbst ist dabei nicht falsch — es ist
+durchgehendes Material einer Kamera —, aber er sitzt ~2 s zu früh, nämlich auf
+der vermeintlichen Reaktion statt auf dem Sprecherwechsel.
+
+**Nicht erfasst:** ein FP (00:03:36) mit Korrelation 0,54, fallendem On-Mic und
+56 s Abstand zum Segmentende. Passt in kein Muster — Ursache offen.
+
+⚠️ **Überanpassungs-Risiko ernst nehmen.** Drei Regeln mit je einer gefitteten
+Schwelle auf **21 Datenpunkten**, aus **einem** 31-Minuten-Ausschnitt **einer**
+Episode mit **zwei** Kameras. Die Trennungen sind sauber und jede Regel hat eine
+eigenständige physikalische Begründung — aber vor dem Scharfschalten braucht es
+einen zweiten markierten Ausschnitt, am besten aus einer anderen Episode.
+
 ## Zweitbester Befund: das ON-Mic mitbewerten
 
 Kehrt das Crossbleed zurück, weil der Sprecher wieder einsetzt, steigt sein
