@@ -580,8 +580,8 @@ def detect_speaking_reactions(
     freeze_release_margin_db: float = 3.0,
     fp_filter: bool = False,
     fp_corr_max: float = 0.75,
-    fp_on_rise_db: float = 5.0,
-    fp_takeover_s: float = 2.5,
+    fp_on_rise_db: float = 999.0,   # Regel B: an Episode 2 durchgefallen, siehe unten
+    fp_takeover_s: float = 0.0,     # Regel C: Nutzen marginal, kostet TPs
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -985,10 +985,10 @@ def main():
     parser.add_argument('--speaking-fp-corr', type=float, default=0.75,
                         help='A: verwerfen ab dieser Huellkurven-Korrelation Off/On. '
                              '>1.0 = Regel aus.')
-    parser.add_argument('--speaking-fp-on-rise', type=float, default=5.0,
+    parser.add_argument('--speaking-fp-on-rise', type=float, default=999.0,
                         help='B: verwerfen ab diesem On-Mic-Anstieg in dB. '
                              '999 = Regel aus.')
-    parser.add_argument('--speaking-fp-takeover', type=float, default=2.5,
+    parser.add_argument('--speaking-fp-takeover', type=float, default=0.0,
                         help='C: verwerfen, wenn der Burst so viele Sekunden vor dem '
                              'Segmentende liegt UND danach diese Cam spricht. 0 = aus.')
     parser.add_argument('--speaking-freeze-hold-max', type=float, default=0.0,

@@ -174,7 +174,48 @@ Episode mit **zwei** Kameras. Die Trennungen sind sauber und jede Regel hat eine
 eigenständige physikalische Begründung — aber vor dem Scharfschalten braucht es
 einen zweiten markierten Ausschnitt, am besten aus einer anderen Episode.
 
-### Umsetzung (Stand 2026-07-20)
+## 🔬 Validierung an Episode 2 (Sarah Jung) — Regel B ist durchgefallen
+
+Zweite Episode, gleicher Raum, anderer Gast: **4,9 dB weniger Mic-Trennung**
+(11,0 statt 15,9 dB). 29 markierte Cutaways: 6 FP, 20 TP, 3 unsicher.
+Bemerkenswert: die FP-Rate ist hier **21 %** statt 73 % in Episode 1.
+
+| Regel | Episode 1 | Episode 2 | Gesamt |
+|---|---|---|---|
+| **A** Korrelation ≥ 0,75 | 11/15 FP, 0 TP weg | 4/6 FP, **0 TP weg** | **15/21 FP, 0 TP weg** |
+| **B** On-Mic ≥ 5 dB | 7/15 FP, 0 TP weg | **0/6 FP, 5 TP weg** | 7/21 FP, 5 TP weg |
+| **C** Wortübernahme | 2/15 FP, 0 TP weg | 1/6 FP, 1 TP weg | 3/21 FP, 1 TP weg |
+
+- **Nur A:** 15/21 FP (71 %) entfernt, **0 von 26 TP verloren**.
+- **A+B+C:** 17/21 FP (81 %), aber **6 von 26 TP verloren (23 %)** — untragbar.
+
+### Warum B durchgefallen ist
+Prämisse war: „das On-Mic steigt → der Sprecher redet weiter → Übersprechen".
+Bei **geringer Mic-Trennung gilt das nicht mehr**: Die Stimme des *Reagierenden*
+schlägt kräftig genug auf das Mikro des Sprechers durch, um dort +8 bis +14 dB
+zu erzeugen. Genau die echten Reaktionen lösen die Regel also aus. B misst
+Übersprechen — nur in die falsche Richtung.
+
+⚠️ In Episode 1 sah B mit 7/15 FP und null Verlusten hervorragend aus. Sie war
+ein reines Artefakt dieser einen Aufnahme. **Das ist der Grund, warum validiert
+wurde.**
+
+### Was gilt jetzt
+**A ist der Filter.** Über beide Episoden, über 4,9 dB Trennungsunterschied
+hinweg, 15/21 FP ohne einen einzigen Verlust. Defaults entsprechend gesetzt:
+`fp_on_rise_db = 999` (B aus), `fp_takeover_s = 0` (C aus).
+
+C bleibt als Idee brauchbar — sie erwischt die überlangen Merge-Clips, die A
+verfehlt —, aber 3 FP gegen 1 TP ist ein zu magerer Tausch. Bräuchte ein
+engeres Fenster als 2,5 s.
+
+⚠️ **Die Schwelle von A ist knapp.** Höchster TP über beide Episoden: 0,72.
+Bei 0,75 bleiben nur 0,03 Abstand, und im Bereich 0,72–0,76 liegen sowohl TPs
+als auch FPs. Mehr Material würde helfen; alternativ die Schwelle relativ zur
+Grundkorrelation der Aufnahme setzen (Episode 1: 0,73, Episode 2: 0,71 — die
+liegen erfreulich nah beieinander, was für eine feste Schwelle spricht).
+
+## Umsetzung (Stand 2026-07-20)
 
 Nachfilter in `detect_speaking_reactions` (`_fp_reject`), `_bursts_rolling`
 unangetastet. **Default aus**, per `--speaking-fp-filter` einschaltbar:
