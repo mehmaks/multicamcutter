@@ -1519,6 +1519,19 @@ class EngineController: ObservableObject {
            let namesStr = String(data: namesData, encoding: .utf8) {
             extraArgs += ["--display-names", namesStr]
         }
+        // Zugeordnete Person je Kamera — ersetzt im AAF das generische "Sprecher".
+        // Der Name lebt nur hier (Mic-Anzeigename); die Engine kennt von den Mics
+        // sonst nur Pfade wie MIC1.WAV. Mehrere Mics (Totale) werden verbunden,
+        // keine Zuordnung ergibt "" und faellt in build_aaf auf "Sprecher" zurueck.
+        let personNames = ordered.map { cam in
+            cam.assignedMics
+                .compactMap { id in activeMics.first { $0.id == id }?.displayName }
+                .joined(separator: " + ")
+        }
+        if let pData = try? JSONSerialization.data(withJSONObject: personNames),
+           let pStr = String(data: pData, encoding: .utf8) {
+            extraArgs += ["--cam-person-names", pStr]
+        }
 
         guard let (execPath, baseArgs) = engineCommand(extraArgs: extraArgs) else {
             errorMessage = "Engine oder Python nicht gefunden"

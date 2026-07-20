@@ -761,7 +761,8 @@ def run_pipeline(folder, fps, params, output_path,
                  cam_mics=None, cam_types_arg=None, cam_nodding_arg=None,
                  skip_analysis=False, skip_base_edl=False,
                  speaking_mode=None, lut=None,
-                 cams_arg=None, mics_arg=None):
+                 cams_arg=None, mics_arg=None,
+                 cam_person_names=None):
     """Fuehrt die komplette Pipeline aus. Gibt (aaf_path, stats) zurueck.
 
     cams_arg/mics_arg: explizite Dateilisten (nur die in der App aktivierten
@@ -920,6 +921,7 @@ def run_pipeline(folder, fps, params, output_path,
         wide_zoom=wide_zoom,
         audio_keeps=audio_keeps,
         trimmed_events=trimmed_events,
+        cam_person_names=cam_person_names,
     )
 
     emit("step_progress", percent=100, eta="")
@@ -1001,6 +1003,10 @@ def main():
     parser.add_argument("--lut", default=None)
     parser.add_argument("--display-names", default=None,
                         help="JSON-Array mit Display-Namen fuer Kameras")
+    parser.add_argument("--cam-person-names", default=None,
+                        help="JSON-Array: zugeordnete Person je Kamera, positions-"
+                             "gleich zu --cams. Ersetzt in den AAF-Clipnamen das "
+                             "generische 'Sprecher'.")
     args = parser.parse_args()
 
     # ── Lizenz-Operationen ──────────────────────────────────────────────────
@@ -1240,6 +1246,16 @@ def main():
         except Exception:
             pass
 
+    # Personennamen je Kamera (positionsgleich zu --cams, nicht zum Ordner-Scan)
+    cam_person_names = None
+    if args.cam_person_names:
+        try:
+            parsed = json.loads(args.cam_person_names)
+            if isinstance(parsed, list):
+                cam_person_names = [str(n) if n else '' for n in parsed]
+        except Exception:
+            pass
+
     # stdout durch JsonLineWriter ersetzen
     sys.stdout = JsonLineWriter(log_file=log_file, display_names=display_names_map)
     sys.stderr = sys.stdout  # stderr auch abfangen
@@ -1278,6 +1294,7 @@ def main():
             skip_base_edl=args.skip_base_edl,
             speaking_mode=args.speaking_mode,
             lut=args.lut,
+            cam_person_names=cam_person_names,
         )
         elapsed = time.time() - t_start
         stats["elapsed_s"] = round(elapsed, 1)

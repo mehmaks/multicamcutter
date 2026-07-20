@@ -167,13 +167,26 @@ entstünden hunderte Bin-Clips. Bei 2 Kameras sind es max. ~10.
 
 | reason | Label | Resolve-Farbe (Referenz) |
 |---|---|---|
-| `speaker` | Sprecher | Blue / Teal |
+| `speaker` | **Name der sprechenden Person** (Fallback: „Sprecher") | Blue / Teal |
 | `reaction_speaking_reaction` | Sprachreaktion | Green |
 | `reaction_nodding` | Nicken | Purple |
 | `pause_cutaway` | Stille | Violet |
 | `max_time` | Max-Zeit | Orange |
 
-Ergebnis in der Timeline: `CAM_B - Sprachreaktion`, `CAM_A - Stille`, …
+Ergebnis in der Timeline: `C7814 - Seb`, `C9320 - Sprachreaktion`, `C9320 - Max-Zeit`, …
+
+**Warum bei `speaker` die Person statt des Grundes:** „Sprecher" steht sonst auf
+jedem zweiten Clip (555 von 937 Events in einem realen Lauf) und sagt nichts, was
+der Schnitt nicht schon zeigt. Bei Cutaways bleibt der Grund stehen — dort **ist**
+er die Information.
+
+**Woher der Name kommt:** Der Personenname existiert nur in der App
+(`MicInfo.displayName`; die Engine kennt von den Mics sonst nur Pfade wie
+`MIC1.WAV`). Deshalb neuer Weg: `EngineController` leitet je Kamera aus
+`assignedMics` den Namen ab → `--cam-person-names` (JSON, **positionsgleich zu
+`--cams`**) → `multicam_engine.run_pipeline` → `build_aaf(cam_person_names=…)`.
+Mehrere zugeordnete Personen (Totale) werden mit „ + " verbunden; leer oder
+fehlend fällt auf „Sprecher" zurück.
 Die unbenannten Kamera-Mobs (`CAM_A`, `CAM_B`) bleiben zusätzlich im Bin —
 sie sind der Zugriff auf den ungeschnittenen Clip.
 

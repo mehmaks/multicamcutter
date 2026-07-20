@@ -254,6 +254,7 @@ def build_aaf(
     wide_zoom: float = 1.0,
     audio_keeps: list = None,
     trimmed_events: list = None,
+    cam_person_names: list = None,
 ) -> Path:
     """
     Erzeugt eine AAF-Timeline aus final.edl + synchronisierten Medien.
@@ -442,6 +443,18 @@ def build_aaf(
         }
         reason_masters = {}
 
+        def _label(cam_idx: int, reason: str) -> str:
+            """Bei 'speaker' die sprechende Person statt des generischen Wortes:
+            'Sprecher' steht sonst auf jedem zweiten Clip und sagt nichts, was der
+            Schnitt nicht schon zeigt. Bei Cutaways bleibt der Grund stehen — dort
+            IST er die Information."""
+            if reason == 'speaker' and cam_person_names:
+                if cam_idx < len(cam_person_names):
+                    person = (cam_person_names[cam_idx] or '').strip()
+                    if person:
+                        return person
+            return _REASON_LABEL.get(reason, reason)
+
         def _master_for(cam_idx: int, reason):
             """MasterMob fuer Kamera+Grund, bei Bedarf angelegt.
             Ohne Grund die unveraenderte Kamera-Mob (Verhalten wie bisher)."""
@@ -451,8 +464,7 @@ def build_aaf(
             if key not in reason_masters:
                 file_mob, fm_slot = cam_files[cam_idx]
                 m = f.create.MasterMob()
-                m.name = (f"{Path(cam_paths[cam_idx]).stem} - "
-                          f"{_REASON_LABEL.get(reason, reason)}")
+                m.name = f"{Path(cam_paths[cam_idx]).stem} - {_label(cam_idx, reason)}"
                 sl = m.create_picture_slot(edit_rate=fps_int)
                 sc_f = f.create.SourceClip(media_kind='picture')
                 sc_f.mob    = file_mob
