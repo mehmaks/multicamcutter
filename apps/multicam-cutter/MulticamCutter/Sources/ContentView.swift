@@ -91,15 +91,23 @@ struct ContentView: View {
                                 width: Self.runWidth,
                                 height: window.frame.height)
             window.setFrame(target, display: true, animate: true)
-        } else if let restore = frameBeforeRun {
-            frameBeforeRun = nil
-            // NACH dem View-Wechsel (ProgressView_ → WizardView/ResultView) restaurieren:
-            // synchron würde SwiftUIs Content-Sizing der neuen View die Breite direkt
-            // wieder überschreiben (Abbruch ließ das Fenster sonst schmal).
-            DispatchQueue.main.async {
-                window.setFrame(restore, display: true, animate: true)
-            }
+            return
         }
+
+        // Jeder Nicht-Running-Zustand stellt die gemerkte Geometrie wieder her.
+        guard let restore = frameBeforeRun else { return }
+        // NACH dem View-Wechsel (ProgressView_ → ResultView/WizardView) restaurieren:
+        // synchron würde SwiftUIs Content-Sizing der neuen View die Breite direkt
+        // wieder überschreiben.
+        DispatchQueue.main.async {
+            window.setFrame(restore, display: true, animate: true)
+        }
+        // Die Geometrie ERST freigeben, wenn wir zurück im Projekt sind.
+        // .running → .done → .ready sind ZWEI Wechsel, und bei jedem passt SwiftUI die
+        // Breite neu an den Content an — also muss auch zweimal restauriert werden.
+        // (Früher wurde schon bei .done verworfen, deshalb blieb das Fenster bei der
+        // Rückkehr ins Projekt schmal.)
+        if state == .ready || state == .idle { frameBeforeRun = nil }
     }
 
     /// Dock-Balken bei Fortschritt aktualisieren (nur während der Analyse).

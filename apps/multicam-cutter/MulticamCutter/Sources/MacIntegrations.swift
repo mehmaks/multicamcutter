@@ -14,6 +14,10 @@ private final class DockProgressView: NSView {
     override func draw(_ dirtyRect: NSRect) {
         NSApp.applicationIconImage?.draw(in: bounds)
 
+        // fraction < 0 = nur das Icon zeichnen. Wird beim Ausblenden gebraucht, um den
+        // Balken sauber wegzuzeichnen, BEVOR die contentView abgehängt wird.
+        guard fraction >= 0 else { return }
+
         let h = bounds.height * 0.12
         let inset = bounds.width * 0.14
         let track = NSRect(x: inset, y: bounds.height * 0.10,
@@ -51,7 +55,15 @@ final class DockProgress {
     }
 
     /// Balken entfernen, Standard-Icon wiederherstellen.
+    /// ⚠️ Reihenfolge ist wichtig: `contentView = nil` allein genügt NICHT — ein
+    /// anschließendes `display()` hat ohne contentView nichts zu zeichnen, und die
+    /// zuletzt gerenderte Kachel (mit Balken) bleibt im Dock stehen. Deshalb erst
+    /// den Balken wegzeichnen lassen, dann abhängen.
     func hide() {
+        if let v = view {
+            v.fraction = -1              // nur noch das Icon zeichnen
+            NSApp.dockTile.display()     // Kachel ohne Balken rendern
+        }
         NSApp.dockTile.contentView = nil
         view = nil
         NSApp.dockTile.display()

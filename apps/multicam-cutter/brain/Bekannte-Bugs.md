@@ -57,6 +57,28 @@
 
 ## Gefixt
 
+### Dock-Fortschrittsbalken bleibt nach Analyse-Ende stehen
+- **Symptom**: Analyse fertig, aber das Dock-Icon zeigt weiter den Balken.
+- **Ursache**: `DockProgress.hide()` setzte `NSApp.dockTile.contentView = nil` und rief
+  danach `display()`. Ohne contentView hat `display()` aber nichts zu zeichnen — die
+  **zuletzt gerenderte Kachel (mit Balken) bleibt stehen**. Der Aufruf kam korrekt
+  (`.running` → `.done`), er wirkte nur nicht.
+- **Fix**: `MacIntegrations.swift` — vor dem Abhängen den Balken wegzeichnen:
+  `DockProgressView.fraction = -1` (Sentinel: „nur Icon zeichnen") + `display()`,
+  **dann** `contentView = nil` + `display()`.
+
+### Fenster bleibt schmal bei Rückkehr zum Projekt (nach Analyse)
+- **Symptom**: Nach fertiger Analyse zurück ins Projekt → Fenster bleibt auf der
+  schmalen Analyse-Breite (760 pt).
+- **Ursache**: `animateWindowWidth` verwarf `frameBeforeRun` bereits beim **ersten**
+  Verlassen von `.running`, also schon bei `.done`. Der Weg zurück ins Projekt ist aber
+  ein **zweiter** Wechsel (`.done` → `.ready`), bei dem SwiftUI die Fensterbreite erneut
+  an den Content anpasst — da war die gemerkte Geometrie längst weg.
+- **Fix**: `ContentView.animateWindowWidth` restauriert bei **jedem** Nicht-Running-
+  Zustand und gibt `frameBeforeRun` erst bei `.ready`/`.idle` frei.
+- **Merke**: Ein Analyse-Lauf durchläuft mehrere Zustandswechsel — Aufräumlogik darf
+  ihren Zustand nicht schon beim ersten davon verwerfen.
+
 ### Gespeichertes Preset taucht nicht in der Preset-Liste auf
 - **Symptom**: „Preset speichern …" im Wizard-Footer legt das Preset an, aber das
   Dropdown zeigt es nicht — weder als Auswahl noch beim Aufklappen.
