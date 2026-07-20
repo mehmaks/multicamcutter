@@ -53,6 +53,45 @@ weil `detect_on_speaker_pauses` denselben Wert für beide Ränder nutzt.
 | `window_s` (Pausen) | `0.02` s | `detect_on_speaker_pauses` Signatur |
 | Freeze-Schwelle | `quiet_speech + 3` dB | `build_base_edl_from_audio.py:1013-1014` |
 
+## Welches Audio die Erkennung überhaupt sieht
+
+Wichtig für jede Regel, die Pegel vergleicht — die Kette in
+`build_base_edl_from_audio.py`:
+
+```
+combine_audios()        alle Mics EINER Cam summiert          → audio_cam1/2
+Stufe A Normalisierung  Median-Ausgleich, IN PLACE  (:1098)   → audio_cam1/2
+Crossbleed-Gate         rms_gate() → NEUE Variablen (:1161)   → _analysis1/2
+Stufe B Post-Gate-Norm  nur auf _analysis1/2        (:1197)
+```
+
+| Verbraucher | Signal |
+|---|---|
+| **Sprachreaktionen** (`:1459`) | **`audio_cam1/2` — un-gegatet, nur Stufe A** |
+| **Freeze-Maske** (`:1442`) | **`audio_cam1/2`** |
+| Diarisierung (`:1227`), Totale (`:1351`), Pause-Trim (`:1420`), Stille-Cutaways (`:1547`) | `_analysis1/2` (gegatet + Stufe B) |
+
+Das Gate bleibt bewusst draußen: Es dämpft das nicht-dominante Mic um bis zu
+25 dB und würde genau das Signal zerstören, das hier ausgewertet wird.
+
+**Der Crossbleed-Filter wirkt trotzdem — indirekt.** Er formt die Diarisierung,
+also die Segmentgrenzen, und die Erkennung läuft segmentweise mit
+Baseline-Reset. Ändert man ihn, verschieben sich die Bursts.
+
+### Warum die Regeln gegen Stufe A immun sind
+Stufe A ist ein **konstanter Gain je Kanal**. Korrelation ist skaleninvariant
+(Regel A), und ein dB-*Anstieg innerhalb eines Kanals* ändert sich durch
+konstanten Gain ebenfalls nicht (Regel B). Beide messen also robust.
+Wäre das Gate eingeflossen, hätte es die Kanäle künstlich dekorreliert und
+Regel A wäre von vornherein wertlos gewesen.
+
+⚠️ **Verworfene Kennzahl: `mic_separation_db`.** Der kanalübergreifende Abstand
+(On − Off) wurde anfangs als Erklärgröße benutzt (ep01 15,9 / ep02 11,0 dB). Er
+taugt nicht: Stufe A hebt einen Kanal um x und senkt den anderen, wodurch sich
+der Abstand je Sprecher um ±2x verschiebt — das kürzt sich nur bei ausgeglichenen
+Redeanteilen (ep01: 42/58 %). Und er misst ohnehin nicht das, woran B hängt.
+Ersetzt durch die kanalinterne Kennzahl unten (Abschnitt „Warum B kippt").
+
 ## Gemessene Baseline (Vergleichsmaßstab)
 
 Episode „45 - Mario Koch", 82,7 min, 2 Kameras.
@@ -189,16 +228,30 @@ Bemerkenswert: die FP-Rate ist hier **21 %** statt 73 % in Episode 1.
 - **Nur A:** 15/21 FP (71 %) entfernt, **0 von 26 TP verloren**.
 - **A+B+C:** 17/21 FP (81 %), aber **6 von 26 TP verloren (23 %)** — untragbar.
 
-### Warum B durchgefallen ist
+### Warum B kippt
 Prämisse war: „das On-Mic steigt → der Sprecher redet weiter → Übersprechen".
-Bei **geringer Mic-Trennung gilt das nicht mehr**: Die Stimme des *Reagierenden*
-schlägt kräftig genug auf das Mikro des Sprechers durch, um dort +8 bis +14 dB
-zu erzeugen. Genau die echten Reaktionen lösen die Regel also aus. B misst
-Übersprechen — nur in die falsche Richtung.
+Das gilt nur, wenn die Stimme des *Reagierenden* **nicht** hörbar auf das Mikro
+des Sprechers durchschlägt. Genau das unterscheidet die beiden Episoden:
 
-⚠️ In Episode 1 sah B mit 7/15 FP und null Verlusten hervorragend aus. Sie war
-ein reines Artefakt dieser einen Aufnahme. **Das ist der Grund, warum validiert
-wurde.**
+| | echte Reaktionen, die das andere Mic um ≥ 5 dB heben |
+|---|---|
+| ep01 Mario Koch | **0 von 6 (0 %)** |
+| ep02 Sarah Jung | **5 von 20 (25 %)** |
+
+In ep01 kann B jeden On-Mic-Anstieg gefahrlos als Übersprechen werten. In ep02
+trifft sie damit jede vierte echte Reaktion. Noch deutlicher: Dort haben die
+**FPs** einen medianen On-Mic-Anstieg von **−5,2 dB** — das Mikro wird leiser.
+Bs Prämisse ist in dieser Aufnahme also nicht bloß nutzlos, sondern umgekehrt.
+
+⚠️ **Nicht als „Artefakt" abtun** (frühere Formulierung hier war zu stark, vom
+User zu Recht bemängelt). Mit n=2 lässt sich nicht sagen, welche Episode typisch
+ist. Belegt ist: **B ist nicht robust und hängt am Durchschlagen des
+Reagierenden.** Denkbar bleibt eine bedingte Regel („B nur, wenn dieser Anteil
+unter X liegt") — X ist mit zwei Punkten nur nicht bestimmbar.
+
+⚠️ **Diese Kennzahl braucht Labels** und taugt deshalb **nicht** als
+Laufzeit-Schalter. Für ein bedingtes B bräuchte es eine Größe, die sich ohne
+Markierung aus dem Audio ableiten lässt. Offene Frage an den größeren Datensatz.
 
 ### Was gilt jetzt
 **A ist der Filter.** Über beide Episoden, über 4,9 dB Trennungsunterschied
@@ -281,3 +334,41 @@ Kein 30-Minuten-Lauf nötig — nur der Base-EDL-Schritt (~1 min):
 3. Quellframe → WAV-Zeit über den Versatz zwischen eigenem Lauf und
    `*_speaking.json` des echten Laufs (Listen von hinten ausrichten).
 4. Merkmale an der Stelle aus der Kurve ziehen und FP gegen TP vergleichen.
+
+## Datensatz und wie es weitergeht
+
+Ground Truth liegt in **`datasets/speaking-fp/`** (eigenes README mit
+Markier-Protokoll). Die Labels existierten vorher nur im Resolve-Projekt, die
+Dumps nur in `/tmp` — beides flüchtig, deshalb gesichert.
+
+- `ep*-marker.json` — Marker roh
+- `features.json` — je Marker die Merkmale (Korrelation, On-Mic-Anstieg,
+  Abstand zum Segmentende, Wortübernahme, Clip-Länge). **Arbeitsdatei**;
+  Regeln lassen sich hiergegen bewerten, ohne die 3-MB-Dumps zu laden
+- `dumps/` — Rohdaten, per `.gitignore` außen vor
+
+### Was die gelben Marker ergaben
+Gelb = „unsicher" (3 Stück in ep02). Sie liegen **exakt in der TP-Verteilung**
+(Median-Korrelation 0,47 gegen 0,51 bei TP, 0,81 bei FP) und werden von Regel A
+alle behalten. Erkenntnis: Die Unsicherheit kam **nicht aus dem Signal** — die
+Erkennung war dort eindeutig, unklar war die *Schnittposition*.
+
+→ Deshalb im Protokoll geschärft: **Gelb nur für „Reaktion nicht beurteilbar"**,
+nicht für „Reaktion da, aber Schnitt sitzt schlecht". Zwei verschiedene Achsen;
+vermischt verwässern sie ausgerechnet die Grenzfälle, die über die Schwelle
+entscheiden. Die Schnittposition ist ein eigenes Thema und **deterministisch**
+(`cutaway_frame = cluster_start − pre_roll`, 5 Frames fest). Der Zufallsfaktor
+wirkt ausschließlich auf die **Länge** und verlängert nur — er kann einen
+Einstieg nie verschieben.
+
+### Offene Fragen an den größeren Datensatz (5–8 weitere Episoden geplant)
+1. **Hält Regel A?** Bisher 15/21 FP bei 0/26 TP-Verlust. Der Abstand zum
+   höchsten TP (0,72) ist mit 0,03 knapp — mehr Material entscheidet, ob 0,75
+   trägt oder die Schwelle relativ zur Grundkorrelation gesetzt werden muss.
+2. **Lässt sich B retten?** Braucht einen **label-freien** Indikator dafür, wie
+   stark der Reagierende auf das andere Mic durchschlägt.
+3. **Lohnt C?** 3 FP gegen 1 TP über beide Episoden. Erwischt als einzige die
+   überlangen Merge-Clips. Bräuchte ein engeres Fenster als 2,5 s.
+4. **Warum schwankt die FP-Rate so stark?** 73 % (ep01) gegen 21 % (ep02).
+   Wenn sich das an einer Materialeigenschaft festmachen lässt, ist das
+   wertvoller als jede Filterregel.
