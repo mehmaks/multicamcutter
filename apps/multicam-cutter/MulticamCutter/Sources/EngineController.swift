@@ -1521,12 +1521,16 @@ class EngineController: ObservableObject {
         }
         // Zugeordnete Person je Kamera — ersetzt im AAF das generische "Sprecher".
         // Der Name lebt nur hier (Mic-Anzeigename); die Engine kennt von den Mics
-        // sonst nur Pfade wie MIC1.WAV. Mehrere Mics (Totale) werden verbunden,
-        // keine Zuordnung ergibt "" und faellt in build_aaf auf "Sprecher" zurueck.
-        let personNames = ordered.map { cam in
-            cam.assignedMics
-                .compactMap { id in activeMics.first { $0.id == id }?.displayName }
-                .joined(separator: " + ")
+        // sonst nur Pfade wie MIC1.WAV.
+        // NUR bei genau einer zugeordneten Person: bei mehreren (Totale) ist aus
+        // der Kamera nicht ableitbar, WER spricht — eine Namensliste waere dort
+        // die falsche Information. Dann bleibt es bei "Sprecher". In der Praxis
+        // bekommen Totalen ohnehin nie reason == 'speaker'; das ist ein Netz.
+        let personNames = ordered.map { cam -> String in
+            guard cam.assignedMics.count == 1,
+                  let mic = activeMics.first(where: { $0.id == cam.assignedMics[0] })
+            else { return "" }
+            return mic.displayName
         }
         if let pData = try? JSONSerialization.data(withJSONObject: personNames),
            let pStr = String(data: pData, encoding: .utf8) {

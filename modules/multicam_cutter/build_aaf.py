@@ -447,12 +447,21 @@ def build_aaf(
             """Bei 'speaker' die sprechende Person statt des generischen Wortes:
             'Sprecher' steht sonst auf jedem zweiten Clip und sagt nichts, was der
             Schnitt nicht schon zeigt. Bei Cutaways bleibt der Grund stehen — dort
-            IST er die Information."""
+            IST er die Information.
+
+            Die Wide-Varianten (`reaction_*_wide`) entstehen NUR, wenn mehrere
+            Personen gleichzeitig reagiert haben (`add_reactions_to_edl.py:266`).
+            Der Clipname soll sagen, WESWEGEN umgeschnitten wurde — nicht, wer
+            alles im Bild ist. Deshalb Suffix statt Namensliste.
+            """
             if reason == 'speaker' and cam_person_names:
                 if cam_idx < len(cam_person_names):
                     person = (cam_person_names[cam_idx] or '').strip()
                     if person:
                         return person
+            if reason.endswith('_wide'):
+                base = reason[:-len('_wide')]
+                return f"{_REASON_LABEL.get(base, base)} (mehrere)"
             return _REASON_LABEL.get(reason, reason)
 
         def _master_for(cam_idx: int, reason):

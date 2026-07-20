@@ -185,8 +185,17 @@ er die Information.
 `MIC1.WAV`). Deshalb neuer Weg: `EngineController` leitet je Kamera aus
 `assignedMics` den Namen ab → `--cam-person-names` (JSON, **positionsgleich zu
 `--cams`**) → `multicam_engine.run_pipeline` → `build_aaf(cam_person_names=…)`.
-Mehrere zugeordnete Personen (Totale) werden mit „ + " verbunden; leer oder
-fehlend fällt auf „Sprecher" zurück.
+**Nur bei genau einer zugeordneten Person.** Bei mehreren (Totale) ist aus der
+Kamera nicht ableitbar, *wer* spricht — eine Namensliste wäre dort die falsche
+Information. Dann bleibt „Sprecher". In der Praxis bekommen Totalen ohnehin nie
+`reason == 'speaker'`: das setzt `add_reactions_to_edl.py` nur für die Sprecher-
+Kamera, Totalen erhalten `max_time` oder `reaction_*_wide`.
+
+**Wide-Varianten:** `reaction_*_wide` entsteht **ausschließlich**, wenn mehrere
+Personen gleichzeitig reagiert haben (`_is_multi_person`, `:266`). Der Clipname
+soll sagen, *weswegen* umgeschnitten wurde, nicht wer im Bild ist — daher Suffix:
+`Nicken (mehrere)`, `Sprachreaktion (mehrere)`. Das Suffix wird generisch über die
+Endung `_wide` gebildet, neue Reaktionstypen brauchen keinen Eintrag.
 Die unbenannten Kamera-Mobs (`CAM_A`, `CAM_B`) bleiben zusätzlich im Bin —
 sie sind der Zugriff auf den ungeschnittenen Clip.
 
