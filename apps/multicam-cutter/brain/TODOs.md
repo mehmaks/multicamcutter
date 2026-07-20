@@ -264,10 +264,20 @@
   zurücksetzt; der Cam-Index steckt nur im Label und wird per Regex geraten. Sauber
   wäre, `cam_index` und `cam_total` explizit mitzusenden, statt in Swift das Label
   erneut zu parsen.
-  ⚠️ **Abwägung vor der Umsetzung:** Ein reiner Schritt-Balken verliert die Aussage
-  „wie weit bin ich insgesamt". Alternative, die beides behält: Schritte nach
-  **gemessener Dauer gewichten** statt gleich (Nodding bekäme dann z. B. 0,7 des
-  Gesamtbalkens). Muss entschieden werden — beides ist ehrlicher als der Ist-Zustand.
+  ✅ **Entschieden (User, 20.07.): gewichtete Dauer**, kein reiner Schritt-Balken —
+  so bleibt der Balken ein Gesamtfortschritt, nur ein ehrlicher. Nodding bekäme
+  den Löwenanteil statt 1/8.
+  ⚠️ **Die Gewichte dürfen nicht statisch sein.** Welche Schritte überhaupt laufen und
+  wie lange, hängt vom Lauf ab:
+  - **CLIP-Filter ist optional** (PASS 5) und skaliert mit der Episodenlänge — kann
+    also je nach Material ähnlich dominant werden wie Nodding oder ganz wegfallen.
+  - Die Zahl der Kameras variiert (Nodding läuft je Kamera).
+  - Kurze vs. lange Episode verschiebt das Verhältnis der langen zu den kurzen Schritten.
+  Eine feste Tabelle (`nodding: 0.7, …`) wäre also schon beim nächsten Preset falsch.
+  Besserer Ansatz: jeder lange Schritt meldet beim Start seinen **Arbeitsumfang**
+  (z. B. zu analysierende Frames bzw. Segmente), der Balken normiert über die Summe
+  der tatsächlich anstehenden Schritte. Dann stimmt es auch, wenn CLIP aus ist.
+  🎨 **Kosmetisch, blockt nichts** — bewusst zurückgestellt.
 - [ ] **Dock-Balken oszillieren lassen, wo die App es auch tut.** Aufwand: **mittel**.
   Regel im Fenster: `stepPercent > 0` → determinate, sonst oszillierend
   (`ContentView.swift:444-466`). Dieselbe Regel im Dock anwenden.
