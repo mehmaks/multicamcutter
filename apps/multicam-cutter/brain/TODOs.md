@@ -3,6 +3,14 @@
 ## Offen
 
 ### UI / UX
+- [ ] **Analyse-Modus: feste Fenstergröße statt nur schmaler.** Aufwand: **leicht**.
+  Beim Start der Analyse verschmälert sich das Fenster bereits (`ContentView.animateWindowWidth`),
+  aber es ist **auch zu hoch** — im Analyse-Zustand steht kaum Inhalt drin.
+  Gewünscht: feste Breite **und** Höhe für die Dauer des Laufs, und in dieser Zeit
+  **nicht vom User skalierbar** (Resize-Sperre), danach zurück auf den vorherigen Frame.
+  Anknüpfpunkt: dort wo heute `frameBeforeRun` gemerkt und bei `.ready`/`.idle`
+  freigegeben wird — die Logik existiert, es fehlt die Höhe und das Sperren.
+  Konkrete Zielwerte noch festzulegen (am laufenden Analysefenster ausmessen).
 - [ ] **Hinweis-Fenster beim ersten Start: technische Voraussetzungen.** Aufwand: **leicht**.
   Erst-Start-Sheet (einmalig, `@AppStorage`-Flag), das die Anforderungen ans Material
   erklärt — bevor der User in einen unnötigen Fehlversuch läuft. Mindestens:
@@ -311,7 +319,17 @@
   AppKit-`NSView.toolTip`-Overlay. Verzögerung via `NSInitialToolTipDelay` = 200 ms.
 
 ### AAF: Clipnamen als Schnitt-Begründung nutzen
-- [ ] **Timeline-Clips im AAF nach Schnittgrund benennen** (Pendant zu den Resolve-
+- [x] **UMGESETZT 20.07.** (`build_aaf.py`, Commit `c225289`). Eine MasterMob je
+  (Kamera × Grund), Namen wie `CAM_B - Sprachreaktion`. Quelle ist **nicht** eine neue
+  EDL-Kommentarzeile, sondern das bereits existierende Sidecar `final.colors.json`
+  (`add_reactions_to_edl.py:1295`) — das „fehlende Glied" unten war also schon da.
+  Angehängt als `cut_reason`, bewusst **nicht** als `reason`: `pause_trim_edl` verzweigt
+  darauf (`:256`, `:363`) und echte Gründe dort würden den Schnitt ändern. Längen-Guard:
+  passt der Sidecar nicht zur EDL, wird die Benennung abgeschaltet statt falsch zugeordnet.
+  Details in `Dateiformate.md`. Funktionierender Vorzustand als Tag `aaf-struktur-funktioniert`.
+  - [ ] **Offen: Import-Gegenprobe.** Struktur ist per Test belegt, das Rendering in
+    Resolve/Premiere noch nicht. Beim nächsten echten Import prüfen.
+- [ ] ~~**Timeline-Clips im AAF nach Schnittgrund benennen**~~ (Pendant zu den Resolve-
   Farbcodes aus der Web-Version — nachvollziehbares Kategorisieren der Schnitte).
   Aufwand: **leicht–mittel**.
   **BELEGT (Test, 20.07.):** Clipnamen sind **frei wählbar** und komplett vom
