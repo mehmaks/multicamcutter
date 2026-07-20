@@ -6,9 +6,13 @@ struct ContentView: View {
     @EnvironmentObject var engine: EngineController
     @State private var mainWindow: NSWindow?
     @State private var frameBeforeRun: NSRect?
+    /// Resize-Grenzen vor dem Lauf — während der Analyse wird das Fenster fixiert.
+    @State private var sizeLimitsBeforeRun: (min: NSSize, max: NSSize)?
 
     /// Breite, auf die das Fenster während der Analyse schrumpft.
     private static let runWidth: CGFloat = 760
+    /// Am laufenden Analysefenster ausgemessen (inkl. Titelleiste).
+    private static let runHeight: CGFloat = 552
 
     var body: some View {
         // Feedback-Button sitzt jetzt im Wizard-Footer neben „Zurück" (nicht mehr
@@ -76,26 +80,39 @@ struct ContentView: View {
         window.setFrame(f, display: true, animate: true)
     }
 
-    /// Die Progress-View braucht deutlich weniger Breite als das Setup: beim
-    /// Analyse-Start das Fenster animiert zur Mitte hin schmälern, danach exakt
-    /// die vorherige Geometrie wiederherstellen.
+    /// Die Progress-View braucht deutlich weniger Platz als das Setup: beim
+    /// Analyse-Start bekommt das Fenster eine feste Größe (und ist so lange
+    /// nicht skalierbar), danach exakt die vorherige Geometrie zurück.
     private func animateWindowWidth(for state: AppState) {
         guard let window = mainWindow else { return }
 
         if state == .running {
-            // Nur einmal schmälern — und nur, wenn überhaupt breiter als das Ziel.
-            guard frameBeforeRun == nil, window.frame.width > Self.runWidth else { return }
-            frameBeforeRun = window.frame
-            let target = NSRect(x: window.frame.midX - Self.runWidth / 2,
-                                y: window.frame.origin.y,
-                                width: Self.runWidth,
-                                height: window.frame.height)
+            // Nur einmal setzen. Kein Größenvergleich mehr: im Analyse-Modus gilt
+            // die feste Geometrie, auch wenn das Fenster vorher kleiner war.
+            guard frameBeforeRun == nil else { return }
+            frameBeforeRun      = window.frame
+            sizeLimitsBeforeRun = (window.minSize, window.maxSize)
+            // Um den Mittelpunkt herum verkleinern — bei fixem origin.y würde
+            // die Titelleiste sichtbar nach unten springen.
+            let target = NSRect(x: window.frame.midX - Self.runWidth  / 2,
+                                y: window.frame.midY - Self.runHeight / 2,
+                                width:  Self.runWidth,
+                                height: Self.runHeight)
             window.setFrame(target, display: true, animate: true)
+            let fixed = NSSize(width: Self.runWidth, height: Self.runHeight)
+            window.minSize = fixed
+            window.maxSize = fixed
             return
         }
 
         // Jeder Nicht-Running-Zustand stellt die gemerkte Geometrie wieder her.
         guard let restore = frameBeforeRun else { return }
+        // ZUERST entsperren: solange min == max gilt, klemmt setFrame auf die
+        // Analyse-Größe und die Wiederherstellung liefe ins Leere.
+        if let limits = sizeLimitsBeforeRun {
+            window.minSize = limits.min
+            window.maxSize = limits.max
+        }
         // NACH dem View-Wechsel (ProgressView_ → ResultView/WizardView) restaurieren:
         // synchron würde SwiftUIs Content-Sizing der neuen View die Breite direkt
         // wieder überschreiben.
@@ -107,7 +124,10 @@ struct ContentView: View {
         // Breite neu an den Content an — also muss auch zweimal restauriert werden.
         // (Früher wurde schon bei .done verworfen, deshalb blieb das Fenster bei der
         // Rückkehr ins Projekt schmal.)
-        if state == .ready || state == .idle { frameBeforeRun = nil }
+        if state == .ready || state == .idle {
+            frameBeforeRun      = nil
+            sizeLimitsBeforeRun = nil
+        }
     }
 
     /// Dock-Balken bei Fortschritt aktualisieren (nur während der Analyse).
