@@ -58,8 +58,14 @@
   **160/160** Pausen eine Grenze, gegen die rekonstruierten nur **7/160**.
   ⚠️ Mein erster Verdacht (übersprungene Events in `_parse_edl`) war **falsch** —
   es wurde kein einziges Event übersprungen.
-  **Fix**: `build_aaf._parse_edl` liefert `record_in`/`record_out` aus der EDL mit,
-  `run_from_folder` übernimmt sie statt sie zu rekonstruieren. Damit arbeitet der
+  **Fix**: `build_aaf._parse_edl` liefert `record_in`/`record_out` aus der EDL mit;
+  die Rekonstruktion entfällt.
+  ⚠️ **Die Rekonstruktion existierte ZWEIMAL.** Erster Anlauf reparierte nur
+  `run_from_folder.py` — **das nutzt die Mac-App gar nicht** (kein einziger Import).
+  Der wirksame Ort ist `apps/multicam-cutter/engine/multicam_engine.py:885`, eine
+  wortgleiche Kopie im eigenen Pause-Trim-Block. Vor jedem „gefixt" prüfen, welche
+  Datei der App-Pfad tatsächlich ausführt — `run_from_folder.py` ist nur der
+  CLI-Einstieg. Damit arbeitet der
   Folder-Workflow wie der Bin-Workflow, der die Positionen schon immer aus
   `parse_edl()` bezog — deshalb war die Web-App nie betroffen.
   **Offline verifiziert**: 2 → 20 Trims (User erwartet 6–16), und 19 der 20

@@ -882,14 +882,17 @@ def run_pipeline(folder, fps, params, output_path,
                 trim_events = _parse_edl(final_edl, cam_paths, fps)
                 if trim_events:
                     cam_sentinels = [object() for _ in cam_paths]
-                    cursor = 0
                     for ev in trim_events:
                         ev["clip"] = cam_sentinels[ev["cam_index"]]
-                        dur = ev["source_out"] - ev["source_in"]
-                        ev["record_in"] = cursor
-                        ev["record_out"] = cursor + dur
                         ev.setdefault("reason", "speaker")
-                        cursor += dur
+                    # record_in/out kommen aus _parse_edl, also aus der EDL selbst.
+                    # Frueher wurden sie hier kumulativ ab 0 nachgerechnet — die EDL
+                    # beginnt aber bei einem Offset (WAV-Vorlauf, z.B. 134 Frames).
+                    # Der konstante Versatz war 26x groesser als die
+                    # boundary_tolerance von 5 Frames, wodurch fast alle Pausen ihre
+                    # Grenze verloren (gemessen: 7 von 160 statt 160 von 160) und die
+                    # wenigen Durchkommer an beliebiger Stelle schnitten — bis mitten
+                    # in laufende Sprache. Siehe brain/Bekannte-Bugs.md.
 
                     trim_events, audio_keeps = apply_pauses_to_cut_events(
                         trim_events, pauses, fps,
