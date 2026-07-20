@@ -99,16 +99,51 @@ Der Parameter existiert im Code (`--speaking-post-freeze-refractory`,
 Default `0.0` = aus, von `run_from_bin` **nicht** übergeben) und ist damit
 wirkungslos, solange ihn niemand setzt.
 
-### Was beide zeigen
+### ❌ Versuch 3: Adaptiver Freeze (`freeze_hold_max_s` 2,0 s, Marge 3 dB)
+Über die Maske hinaus halten, solange `db` noch unter dem eingefrorenen Wert liegt.
+145 → 124 Detektionen. **5 von 16 FP entfernt, wieder 2 von 6 TP verloren.**
+**Warum:** Bei 3 dB Toleranz bleibt die Haltebedingung in leisen Passagen lange
+wahr, der Freeze läuft also regelmäßig bis zum 2-s-Deckel und deckt damit wieder
+zu viel ab — dieselbe Falle wie Versuch 1, nur später.
+
+### Was alle drei zeigen
 Das Problem ist **nicht der Zeitpunkt des Auslösens**, sondern dass die Baseline
 in einem Fenster abfällt, in dem das Signal nicht repräsentativ ist (Crossbleed
 noch nicht zurück). Pauschales Einfrieren behebt den Abfall, deckt aber zu viel
 ab; die Sperrfrist deckt das Richtige ab, behebt den Abfall aber nicht.
 
-**Nächste Idee (ungetestet): adaptiver Freeze.** Nach dem Ende der Maske weiter
-einfrieren, solange `db` noch unter dem eingefrorenen Baseline-Wert liegt
-(minus Toleranz), gedeckelt auf z. B. 2 s. Friert exakt so lange wie nötig statt
-überall gleich lang — adressiert beide Fehlschläge auf einmal.
+Alle drei drehen an **derselben Stellschraube** (dem Freeze) und scheitern
+daran, dass der Detektor **nur das Off-Mic sieht**. Dort ist „Crossbleed kehrt
+zurück" und „Person sagt mhm" beides schlicht ein Pegelanstieg — kein
+Freeze-Timing der Welt kann das trennen, weil die unterscheidende Information
+gar nicht im Signal steckt, das er auswertet.
+
+## ✅ Erfolgversprechend: das ON-Mic mitbewerten
+
+Kehrt das Crossbleed zurück, weil der Sprecher wieder einsetzt, steigt sein
+**eigenes** Mikrofon mit. Bei einer echten Reaktion steigt nur das Off-Mic.
+
+Gemessen an den 22 Markern (Pegel während des Bursts gegen die Sekunde davor,
+jeweils Median):
+
+| | FP (Median) | TP (Median) | TP-Maximum |
+|---|---|---|---|
+| Off-Mic steigt | −0,2 dB | +1,8 dB | — |
+| **On-Mic steigt** | **+4,7 dB** | **−0,7 dB** | **+4,2 dB** |
+
+**Regel „On-Mic steigt ≥ 5 dB → verwerfen": entfernt 7 von 15 FP und kostet
+0 von 6 TP.** Der erste Eingriff ohne Kollateralschaden. Sieben FPs zeigen
+On-Mic-Anstiege von +16 bis +28 dB — dort redet der Sprecher schlicht weiter.
+
+⚠️ **Deckt nur die Hälfte ab.** Die übrigen FPs sind ein **anderes Phänomen**:
+bei acht von ihnen **fällt** der Off-Mic-Pegel während des Bursts sogar
+(−2 bis −8 dB). Dort feuert die Erkennung auf einer Baseline, die einem früheren
+Anstieg noch hinterherläuft, während aktuell gar nichts lauter wird. Das ist
+getrennt zu untersuchen.
+
+**Umsetzung wäre günstig:** `detect_speaking_reactions` hat beide Audio-Arrays
+bereits zur Hand. Ein Nachfilter über die fertigen Bursts genügt —
+`_bursts_rolling` muss nicht angefasst werden.
 
 ## Reproduzierbare Prüfschleife
 

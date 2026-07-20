@@ -372,6 +372,8 @@ def _bursts_rolling(
     freeze_mask: np.ndarray = None,
     rejected_sink: list = None,
     post_freeze_refractory_s: float = 0.0,
+    freeze_hold_max_s: float = 0.0,
+    freeze_release_margin_db: float = 3.0,
 ):
     """Rolling-Baseline Burst Detection mit Rise-Erkennung (Single-Pass).
 
@@ -407,6 +409,18 @@ def _bursts_rolling(
     refractory_n = max(0, int(post_freeze_refractory_s / window_s))
     last_frozen_k = -10 ** 9
 
+    # Adaptiver Freeze: Die Maske endet, sobald das ON-Mic wieder laut ist. Das
+    # Crossbleed auf dem OFF-Mic braucht aber laenger zurueck. Genau in dieser
+    # Luecke faellt die Baseline (dreifach schnell) und erzeugt beim Eintreffen
+    # des Crossbleeds den falschen Rise. Deshalb weiter halten, solange der
+    # Pegel noch unter dem eingefrorenen Wert liegt — aber nur so lange wie
+    # noetig und hoechstens freeze_hold_max_s. Pauschal laenger einzufrieren
+    # deckt zu viel ab und kostet echte Reaktionen (siehe brain/
+    # Sprachreaktionen-Parameter.md, Versuch 1).
+    hold_max_n  = max(0, int(freeze_hold_max_s / window_s))
+    frozen_val  = None
+    held        = 0
+
     # ── Single-Pass: Baseline + Rise + Burst-Detection ──────────────────────
     baseline = np.empty(len(db))
     baseline[0] = start_val
@@ -425,10 +439,20 @@ def _bursts_rolling(
             # Abfall keinen falschen Rise beim Wiedereinsetzen erzeugt.
             baseline[k] = baseline[k - 1]
             last_frozen_k = k
+            frozen_val = baseline[k]
+            held = 0
+        elif (frozen_val is not None and held < hold_max_n
+              and db[k] < frozen_val - freeze_release_margin_db):
+            # Maske vorbei, Pegel aber noch nicht zurueck -> weiter halten.
+            baseline[k] = baseline[k - 1]
+            last_frozen_k = k
+            held += 1
         elif db[k] > baseline[k - 1]:
+            frozen_val = None
             baseline[k] = baseline[k - 1] + alpha_a * (db[k] - baseline[k - 1])
             since_attack = 0
         else:
+            frozen_val = None
             since_attack += 1
             if in_burst:
                 # Während Burst: langsamer Decay mit S-Kurve
@@ -495,7 +519,10 @@ def _bursts_rolling(
                         'reason':  'kuerzer_als_min_duration',
                     })
                 in_burst = False
-        elif rise[k] >= rise_db and (k - last_frozen_k) > refractory_n:
+        # ">=" statt ">": bei refractory_n == 0 muss die Bedingung IMMER wahr
+        # sein, sonst blockiert der Default das Ausloesen waehrend eingefrorener
+        # Fenster — das liess der Originalcode zu (kostete 4 Detektionen).
+        elif rise[k] >= rise_db and (k - last_frozen_k) >= refractory_n:
             in_burst = True
             burst_start = k
             peak = baseline[k]
@@ -549,6 +576,8 @@ def detect_speaking_reactions(
     on_pauses: dict = None,
     debug_sink: list = None,
     post_freeze_refractory_s: float = 0.0,
+    freeze_hold_max_s: float = 0.0,
+    freeze_release_margin_db: float = 3.0,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -594,10 +623,12 @@ def detect_speaking_reactions(
 
         if seg['speaker'] == 'CAM1':
             seg_audio = audio2[seg_start_sample:seg_end_sample]
+            on_audio  = audio1[seg_start_sample:seg_end_sample]
             cam_tz = cam2_timeline_zero_video
             target = cam2_reactions
         elif seg['speaker'] == 'CAM2':
             seg_audio = audio1[seg_start_sample:seg_end_sample]
+            on_audio  = audio2[seg_start_sample:seg_end_sample]
             cam_tz = cam1_timeline_zero_video
             target = cam1_reactions
         else:
@@ -649,6 +680,8 @@ def detect_speaking_reactions(
             sustain_margin_db=sustain_margin_db,
             freeze_mask=seg_freeze,
             post_freeze_refractory_s=post_freeze_refractory_s,
+            freeze_hold_max_s=freeze_hold_max_s,
+            freeze_release_margin_db=freeze_release_margin_db,
             return_debug=_dbg,
             rejected_sink=_rejected,
         )
@@ -680,6 +713,13 @@ def detect_speaking_reactions(
                 'end_s':           round(seg['end_s'], 3),
                 'start_edl_frame': seg_start_edl,
                 'db':       [round(float(v), 1) for v in _db],
+                # Pegel des ON-Mics (des Sprechenden) im selben Raster. Der
+                # Detektor sieht ihn nicht — fuer die Diagnose ist er aber
+                # entscheidend: steigen beide Mics gleichzeitig, ist es
+                # zurueckkehrendes Crossbleed und keine Reaktion.
+                'db_on':    [round(float(v), 1)
+                             for v in _level_windows(on_audio, sr, window_s,
+                                                     mode=mode)[:len(_db)]],
                 'baseline': [round(float(v), 1) for v in _base],
                 'rise':     [round(float(v), 1) for v in _rise],
                 'freeze':   _fz,
@@ -880,6 +920,12 @@ def main():
     parser.add_argument('--speaking-mode',          choices=['rms', 'peak'], default='peak')
     parser.add_argument('--speaking-mask-min-pause', type=float, default=0.3,
                         help='Min. Pausenlänge des On-Sprechers für Baseline-Freeze (s)')
+    parser.add_argument('--speaking-freeze-hold-max', type=float, default=0.0,
+                        help='Adaptiver Freeze: max. Sekunden, die ueber die Maske '
+                             'hinaus gehalten wird, solange der Pegel nicht zurueck '
+                             'ist. 0 = aus (Verhalten wie bisher).')
+    parser.add_argument('--speaking-freeze-release-margin', type=float, default=3.0,
+                        help='Toleranz in dB: ab wann der Pegel als zurueckgekehrt gilt.')
     parser.add_argument('--speaking-post-freeze-refractory', type=float, default=0.0,
                         help='Sperrfrist in s nach dem Loesen des Baseline-Freeze. '
                              '0 = aus (Verhalten wie bisher).')
@@ -1356,6 +1402,8 @@ def main():
             on_pauses=_on_pauses,
             debug_sink=_sp_debug,
             post_freeze_refractory_s=args.speaking_post_freeze_refractory,
+            freeze_hold_max_s=args.speaking_freeze_hold_max,
+            freeze_release_margin_db=args.speaking_freeze_release_margin,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
 
