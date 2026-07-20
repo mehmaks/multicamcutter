@@ -76,6 +76,40 @@ der Pause ab und kehrt zurück" ist **nicht** die Ursache. Die echten FPs zeigen
 Einbrüche von nur 0,0–3,7 dB. Ein darauf gebauter Klassifikator schätzte 9 % FP,
 die Marker sagen 73 %.
 
+## Versuche — was NICHT funktioniert hat
+
+Beide gegen die 22 Marker geprüft. Nicht wiederholen.
+
+### ❌ Versuch 1: `speaking_mask_padding` 0,15 → 1,0 s
+145 → 95 Detektionen. **7 von 16 FP entfernt, aber 2 von 6 TP verloren.**
+**Warum:** Es gibt 426 (CAM1) bzw. **1118 (CAM2)** On-Speaker-Pausen. Mit ±1 s
+Rand wachsen die Freeze-Bereiche zusammen und decken große Teile der Segmente ab.
+Eine eingefrorene Baseline unterdrückt dann auch echte Reaktionen — ein
+verlorener TP lag 3,65 s nach seinem Freeze-Ende. Pauschales Einfrieren ist ein
+zu grobes Werkzeug.
+
+### ❌ Versuch 2: Sperrfrist nach dem Freeze (`post_freeze_refractory_s` 0,95 s)
+Idee: nicht die Baseline anhalten, sondern nur das Auslösen kurz sperren.
+145 → 131 Detektionen. **Nur 1 von 16 FP entfernt**, dafür alle 6 TP erhalten.
+**Warum:** Es unterdrückt nicht, es **verzögert**. Nachgemessen: 32 Bursts nur
+nach hinten verschoben, Median 0,60 s, max 1,15 s. Der Rise liegt nach Ablauf
+der Sperre immer noch über der Schwelle, der Burst feuert also einfach später.
+
+Der Parameter existiert im Code (`--speaking-post-freeze-refractory`,
+Default `0.0` = aus, von `run_from_bin` **nicht** übergeben) und ist damit
+wirkungslos, solange ihn niemand setzt.
+
+### Was beide zeigen
+Das Problem ist **nicht der Zeitpunkt des Auslösens**, sondern dass die Baseline
+in einem Fenster abfällt, in dem das Signal nicht repräsentativ ist (Crossbleed
+noch nicht zurück). Pauschales Einfrieren behebt den Abfall, deckt aber zu viel
+ab; die Sperrfrist deckt das Richtige ab, behebt den Abfall aber nicht.
+
+**Nächste Idee (ungetestet): adaptiver Freeze.** Nach dem Ende der Maske weiter
+einfrieren, solange `db` noch unter dem eingefrorenen Baseline-Wert liegt
+(minus Toleranz), gedeckelt auf z. B. 2 s. Friert exakt so lange wie nötig statt
+überall gleich lang — adressiert beide Fehlschläge auf einmal.
+
 ## Reproduzierbare Prüfschleife
 
 Kein 30-Minuten-Lauf nötig — nur der Base-EDL-Schritt (~1 min):

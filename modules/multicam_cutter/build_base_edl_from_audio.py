@@ -371,6 +371,7 @@ def _bursts_rolling(
     return_debug: bool = False,
     freeze_mask: np.ndarray = None,
     rejected_sink: list = None,
+    post_freeze_refractory_s: float = 0.0,
 ):
     """Rolling-Baseline Burst Detection mit Rise-Erkennung (Single-Pass).
 
@@ -394,6 +395,18 @@ def _bursts_rolling(
     warmup_n  = max(1, int(warmup_s / window_s))
     start_val = float(np.percentile(db[:warmup_n], 75))
 
+    # Sperrfrist nach dem Loesen des Freeze. Messung an echtem Material:
+    # FPs starten 0,10-1,40 s nach dem Freeze-Ende, echte Reaktionen fruehestens
+    # nach 1,00 s. Ursache: das On-Mic ist wieder laut (Freeze faellt), das
+    # Crossbleed auf dem Off-Mic braucht aber laenger zurueck — in dieser Luecke
+    # faellt die Baseline dreifach schnell (no_burst_decay_factor) und das
+    # zurueckkehrende Crossbleed erzeugt einen falschen Rise.
+    # Bewusst NICHT laenger einfrieren: das haelt die Baseline an und
+    # unterdrueckt auch echte Reaktionen. Hier wird nur das AUSLOESEN gesperrt,
+    # die Baseline laeuft normal weiter.
+    refractory_n = max(0, int(post_freeze_refractory_s / window_s))
+    last_frozen_k = -10 ** 9
+
     # ── Single-Pass: Baseline + Rise + Burst-Detection ──────────────────────
     baseline = np.empty(len(db))
     baseline[0] = start_val
@@ -411,6 +424,7 @@ def _bursts_rolling(
             # On-Speaker-Pause: Baseline einfrieren, damit Crossbleed-
             # Abfall keinen falschen Rise beim Wiedereinsetzen erzeugt.
             baseline[k] = baseline[k - 1]
+            last_frozen_k = k
         elif db[k] > baseline[k - 1]:
             baseline[k] = baseline[k - 1] + alpha_a * (db[k] - baseline[k - 1])
             since_attack = 0
@@ -481,7 +495,7 @@ def _bursts_rolling(
                         'reason':  'kuerzer_als_min_duration',
                     })
                 in_burst = False
-        elif rise[k] >= rise_db:
+        elif rise[k] >= rise_db and (k - last_frozen_k) > refractory_n:
             in_burst = True
             burst_start = k
             peak = baseline[k]
@@ -534,6 +548,7 @@ def detect_speaking_reactions(
     sustain_margin_db: float = 1.5,
     on_pauses: dict = None,
     debug_sink: list = None,
+    post_freeze_refractory_s: float = 0.0,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -633,6 +648,7 @@ def detect_speaking_reactions(
             lookback_s=lookback_s,
             sustain_margin_db=sustain_margin_db,
             freeze_mask=seg_freeze,
+            post_freeze_refractory_s=post_freeze_refractory_s,
             return_debug=_dbg,
             rejected_sink=_rejected,
         )
@@ -864,6 +880,9 @@ def main():
     parser.add_argument('--speaking-mode',          choices=['rms', 'peak'], default='peak')
     parser.add_argument('--speaking-mask-min-pause', type=float, default=0.3,
                         help='Min. Pausenlänge des On-Sprechers für Baseline-Freeze (s)')
+    parser.add_argument('--speaking-post-freeze-refractory', type=float, default=0.0,
+                        help='Sperrfrist in s nach dem Loesen des Baseline-Freeze. '
+                             '0 = aus (Verhalten wie bisher).')
     parser.add_argument('--speaking-mask-padding',   type=float, default=0.15,
                         help='Padding um On-Speaker-Pausen für Baseline-Freeze (s)')
     # Off-sections output (für Nodding-Analyse Optimierung)
@@ -1336,6 +1355,7 @@ def main():
             mode=args.speaking_mode,
             on_pauses=_on_pauses,
             debug_sink=_sp_debug,
+            post_freeze_refractory_s=args.speaking_post_freeze_refractory,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
 
