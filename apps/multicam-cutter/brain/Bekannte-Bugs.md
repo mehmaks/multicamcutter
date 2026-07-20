@@ -2,6 +2,35 @@
 
 ## OFFEN
 
+### Dev-Only-Artefakte entstehen aus der Mac-App NIE (`decision_log.json`, `speaking_debug.json`)
+- **Symptom**: Nach einem vollständigen Lauf aus der App liegen im Work-Dir zwar
+  `final.edl` und `final.colors.json`, aber **weder** `decision_log.json` **noch**
+  `speaking_debug.json`. Auch im Dev-Build (`swift run`) nicht. Beobachtet 20.07.
+  an `/tmp/resolve-toolkit/19bdb46b2e59/`.
+- **Ursache**: Beide Artefakte hängen an `is_dev_mode()` (`licensing/license.py:473`),
+  das nichts über Debugging aussagt, sondern **nur** `MODE == "dummy"` prüft.
+  `MODE` kommt aus `TOOLKIT_LICENSE_MODE` und defaultet zwar auf `"dummy"` —
+  die App überschreibt das aber für jeden Engine-Subprozess:
+  `LicenseConfig.mode = "remote"` (`LicenseConfig.swift:8`) →
+  `LicenseConfig.apply(to:)` (`:16`) → `engineEnvironment()`
+  (`EngineController.swift:1758`). Damit ist `is_dev_mode()` in **jedem** aus der App
+  gestarteten Lauf `False`.
+  Verifiziert: `TOOLKIT_LICENSE_MODE` nicht gesetzt → `True`, `dummy` → `True`,
+  `remote` → `False`.
+- **Sofort-Workaround**: Dev-App mit gesetzter Variable starten — `apply(to:)`
+  respektiert einen bereits vorhandenen Wert:
+  ```
+  TOOLKIT_LICENSE_MODE=dummy swift run --package-path apps/multicam-cutter/MulticamCutter
+  ```
+- **Richtiger Fix (offen, zu entscheiden)**: Debug-Artefakte vom **Lizenzmodus
+  entkoppeln**. Der Lizenzmodus beschreibt, wie lizenziert wird, nicht ob geloggt
+  werden soll — die Kopplung ist der eigentliche Fehler. Eigenes Signal, z. B.
+  `MULTICAM_DEBUG=1` (von der App im Debug-Build gesetzt) oder ein verstecktes
+  Setting. Betrifft `add_reactions_to_edl.py:1153`,
+  `build_base_edl_from_audio.py` (speaking-Debug) und `run_from_bin.py:984`
+  (Console-Capture — vermutlich aus demselben Grund ebenfalls wirkungslos, noch
+  nicht gegengeprüft).
+
 ### Kameras ab Nr. 3 werden nicht gesynct → stillschweigend Offset 0
 - **Symptom**: Bei **3+ Kameras** läuft die dritte (und jede weitere) zeitlich
   versetzt zum Rest — ohne Fehlermeldung. Bei 2 Cams (bisheriger Normalfall)
