@@ -1,0 +1,204 @@
+{
+  "episode": "ep03-danny-mueller",
+  "timeline": "44 - Danny Müller StilleTest",
+  "fps": 25.0,
+  "markiert": "erste ~30 min, 100 % der Sprachreaktions-Cutaways",
+  "labels": {
+    "FP": "blau",
+    "TP": "gruen",
+    "unsicher": "gelb",
+    "defekt": "rot (Inhaltsverlust, siehe Bekannte-Bugs)"
+  },
+  "hinweis": "Work-Dir war beim Export bereits aus /tmp geloescht — features muessen aus einem Neulauf ergaenzt werden.",
+  "markers": [
+    {
+      "label": "TP",
+      "marker_frame": 8108,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 8108,
+      "clip_duration": 218,
+      "source_start": 8241,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 12748,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 12748,
+      "clip_duration": 48,
+      "source_start": 12747,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 16845,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 16845,
+      "clip_duration": 44,
+      "source_start": 16844,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 17221,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 17221,
+      "clip_duration": 47,
+      "source_start": 17221,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 18108,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 18108,
+      "clip_duration": 48,
+      "source_start": 18107,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 21899,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 21899,
+      "clip_duration": 48,
+      "source_start": 22033,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 22507,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 22507,
+      "clip_duration": 46,
+      "source_start": 22506,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 23670,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 23670,
+      "clip_duration": 43,
+      "source_start": 23669,
+      "note": ""
+    },
+    {
+      "label": "defekt",
+      "marker_frame": 26747,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 26747,
+      "clip_duration": 58,
+      "source_start": 26888,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 27852,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 27852,
+      "clip_duration": 42,
+      "source_start": 27860,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 37277,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 37277,
+      "clip_duration": 42,
+      "source_start": 37418,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 39024,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 39024,
+      "clip_duration": 48,
+      "source_start": 39165,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 39212,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 39212,
+      "clip_duration": 48,
+      "source_start": 39354,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 39492,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 39492,
+      "clip_duration": 48,
+      "source_start": 39634,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 40025,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 40025,
+      "clip_duration": 205,
+      "source_start": 40166,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 40543,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 40543,
+      "clip_duration": 45,
+      "source_start": 40551,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 42785,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 42785,
+      "clip_duration": 46,
+      "source_start": 42927,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 43010,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 43010,
+      "clip_duration": 49,
+      "source_start": 43152,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 43443,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 43443,
+      "clip_duration": 43,
+      "source_start": 43451,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 45260,
+      "clip_name": "C7804 - Sprachreaktion",
+      "clip_start": 45260,
+      "clip_duration": 45,
+      "source_start": 45402,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 45677,
+      "clip_name": "C8789 - Sprachreaktion",
+      "clip_start": 45677,
+      "clip_duration": 223,
+      "source_start": 45685,
+      "note": ""
+    }
+  ]
+}

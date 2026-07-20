@@ -35,7 +35,22 @@ Vermischt verwässern sie die Ground Truth.
 `base_corr` gehören zur Episode, nicht zum einzelnen Marker — beide erklären,
 warum eine Regel in der einen Aufnahme funktioniert und in der anderen nicht.
 
-| Episode | Mic-Trennung | Grundkorrelation | FP-Rate |
-|---|---|---|---|
-| ep01 Mario Koch | 15,9 dB | 0,73 | 73 % |
-| ep02 Sarah Jung | 11,0 dB | 0,71 | 21 % |
+| Episode | Kopfnicken | Sprachreaktions-Cutaways | markiert | FP-Rate |
+|---|---|---|---|---|
+| ep01 Mario Koch | **AN** | 70 | 22 | **73 %** |
+| ep02 Sarah Jung | aus | — | 29 | 21 % |
+| ep03 Danny Müller | aus | 105 | 21 | 10 % |
+
+⚠️ **Konfigurations-Confound, nicht übersehen.** ep01 lief mit **eingeschaltetem**
+Kopfnicken, ep02 und ep03 ohne. Das ist kein Detail: Ohne Nicken-Cutaways
+konkurrieren weniger Kandidaten um den `min_shot`-Abstand in PASS 2, es
+überleben also **mehr** Sprachreaktionen in den Schnitt (ep03: 105 gegenüber
+ep01: 70). Die überlebende Teilmenge ist damit eine andere.
+
+Die stark schwankende FP-Rate (73 % → 21 % → 10 %) darf deshalb **nicht** ohne
+Weiteres dem Material zugeschrieben werden — sie kann ebenso gut an der
+Konfiguration liegen. Wer das auflösen will, braucht entweder eine Episode in
+beiden Varianten oder alle weiteren mit derselben Einstellung.
+
+⚠️ Die früher hier geführte `mic_separation_db` ist als Erklärgröße verworfen
+(nach Stufe A gemessen, siehe `brain/Sprachreaktionen-Parameter.md`).
