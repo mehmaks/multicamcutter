@@ -118,7 +118,33 @@ zurück" und „Person sagt mhm" beides schlicht ein Pegelanstieg — kein
 Freeze-Timing der Welt kann das trennen, weil die unterscheidende Information
 gar nicht im Signal steckt, das er auswertet.
 
-## ✅ Erfolgversprechend: das ON-Mic mitbewerten
+## ✅✅ Bester Befund: Hüllkurven-Korrelation der Spuren
+
+Aus einer Beobachtung des Users an der Waveform: Bei den FPs hört der aktive
+Sprecher auf und setzt wieder ein — **alle** Spuren zeigen denselben Abfall,
+dieselbe Pause, denselben Anstieg. Bei reinem Crossbleed ist das Off-Mic eben
+eine leisere Kopie des On-Mics; bei einer echten Reaktion kommt dort eigener
+Inhalt hinzu und die Kurven laufen auseinander.
+
+Gemessen als Pearson-Korrelation der beiden dB-Hüllkurven über **3 s vor bis
+2 s nach** dem Burst-Start:
+
+| | FP | TP |
+|---|---|---|
+| Median | **0,81** | **0,46** |
+| Spanne | 0,33 … 0,97 | 0,25 … **0,67** |
+
+Zwischen **0,67 und 0,76** liegt eine echte Lücke in den Daten. Eine Schwelle
+darin entfernt **11 von 15 FP ohne TP-Verlust**. Empfehlung **0,75** statt des
+rechnerischen Optimums 0,68 — gleiche Trefferzahl, aber Abstand zum obersten TP.
+
+Die Steigung der Regression (wie stark das Off-Mic dem On-Mic folgt) ist
+schwächer: 9 von 15 bei Schwelle 0,58.
+
+⚠️ Nicht erfasst bleiben 4 FPs mit Korrelation 0,33–0,65. Dort laufen die Spuren
+tatsächlich auseinander — andere Ursache, weiter offen.
+
+## Zweitbester Befund: das ON-Mic mitbewerten
 
 Kehrt das Crossbleed zurück, weil der Sprecher wieder einsetzt, steigt sein
 **eigenes** Mikrofon mit. Bei einer echten Reaktion steigt nur das Off-Mic.
