@@ -246,6 +246,37 @@
   ⚠️ **Braucht PyInstaller-Rebuild** fürs ausgelieferte Bundle (Dev via `swift run` sofort).
 
 ### macOS-Integration
+- [ ] **Dock-Balken: pro Schritt zählen statt Gesamtfortschritt.** Aufwand: **mittel**.
+  **Problem:** Der Balken hängt an `overallProgress`
+  (`EngineController.swift:376`) = `(stepNum-1 + stepPercent/100) / totalSteps` —
+  **alle Schritte gleich gewichtet**. Die Nodding-Analyse ist Schritt 6 von 8, dauert
+  aber den Löwenanteil der Laufzeit. Der Balken steht also ~30 Minuten knapp unter
+  „fertig", obwohl der Großteil der Arbeit noch kommt.
+  **Gewünscht:** Der Dock-Balken zeigt den **aktuellen Schritt** 0–100 %, wie das
+  Fenster (`ContentView.swift:446`). Nodding zählt dabei als **ein** Schritt über
+  **alle** Kameras:
+  ```
+  fraktion = (cam_index + cam_percent/100) / cam_total
+  # 2 Cams, erste Cam bei 50 %  ->  (0 + 0.5) / 2 = 25 %
+  ```
+  **Fehlendes Datum:** Heute wird je Kamera ein eigener `step_start_sub` gesendet
+  (`engine/protocol.py:87-96`), der `stepNum` hochzählt und `stepPercent` auf 0
+  zurücksetzt; der Cam-Index steckt nur im Label und wird per Regex geraten. Sauber
+  wäre, `cam_index` und `cam_total` explizit mitzusenden, statt in Swift das Label
+  erneut zu parsen.
+  ⚠️ **Abwägung vor der Umsetzung:** Ein reiner Schritt-Balken verliert die Aussage
+  „wie weit bin ich insgesamt". Alternative, die beides behält: Schritte nach
+  **gemessener Dauer gewichten** statt gleich (Nodding bekäme dann z. B. 0,7 des
+  Gesamtbalkens). Muss entschieden werden — beides ist ehrlicher als der Ist-Zustand.
+- [ ] **Dock-Balken oszillieren lassen, wo die App es auch tut.** Aufwand: **mittel**.
+  Regel im Fenster: `stepPercent > 0` → determinate, sonst oszillierend
+  (`ContentView.swift:444-466`). Dieselbe Regel im Dock anwenden.
+  ⚠️ **Haken:** `NSDockTile` animiert nicht von selbst — `DockProgressView` zeichnet
+  nur, wenn `display()` gerufen wird. Ein oszillierender Balken braucht also einen
+  Timer (~10–15 fps), der eine Phase weiterdreht und neu zeichnet. Der Timer **muss
+  auf jedem Ausstiegspfad sterben** (fertig, Fehler, Abbruch), sonst zeichnet er nach
+  dem Lauf weiter — dieselbe Fehlerklasse wie der Balken, der nach der Analyse stehen
+  blieb (siehe `Bekannte-Bugs.md`).
 - [x] **Dock-Fortschrittsbalken während der Analyse** — `DockProgress`
   (`MacIntegrations.swift`), gekoppelt in `ContentView` an `engine.overallProgress`.
   Sichtbar auch bei minimierter App.
