@@ -8,6 +8,8 @@ struct ContentView: View {
     @State private var frameBeforeRun: NSRect?
     /// Resize-Grenzen vor dem Lauf — während der Analyse wird das Fenster fixiert.
     @State private var sizeLimitsBeforeRun: (min: NSSize, max: NSSize)?
+    /// War das Fenster vor dem Lauf skalierbar? (styleMask wird währenddessen entfernt)
+    @State private var wasResizableBeforeRun: Bool?
 
     /// Breite, auf die das Fenster während der Analyse schrumpft.
     private static let runWidth: CGFloat = 760
@@ -102,6 +104,13 @@ struct ContentView: View {
             let fixed = NSSize(width: Self.runWidth, height: Self.runHeight)
             window.minSize = fixed
             window.maxSize = fixed
+            // min/maxSize allein genuegt NICHT: SwiftUI verwaltet die Groesse ueber
+            // die Content-Constraints und laesst das Ziehen an den Kanten weiter zu.
+            // Im Vollbild nicht anfassen — das wuerde den Vollbild-Zustand brechen.
+            if !window.styleMask.contains(.fullScreen) {
+                wasResizableBeforeRun = window.styleMask.contains(.resizable)
+                window.styleMask.remove(.resizable)
+            }
             return
         }
 
@@ -112,6 +121,9 @@ struct ContentView: View {
         if let limits = sizeLimitsBeforeRun {
             window.minSize = limits.min
             window.maxSize = limits.max
+        }
+        if wasResizableBeforeRun == true {
+            window.styleMask.insert(.resizable)
         }
         // NACH dem View-Wechsel (ProgressView_ → ResultView/WizardView) restaurieren:
         // synchron würde SwiftUIs Content-Sizing der neuen View die Breite direkt
@@ -125,8 +137,9 @@ struct ContentView: View {
         // (Früher wurde schon bei .done verworfen, deshalb blieb das Fenster bei der
         // Rückkehr ins Projekt schmal.)
         if state == .ready || state == .idle {
-            frameBeforeRun      = nil
-            sizeLimitsBeforeRun = nil
+            frameBeforeRun        = nil
+            sizeLimitsBeforeRun   = nil
+            wasResizableBeforeRun = nil
         }
     }
 

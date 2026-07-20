@@ -543,6 +543,13 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         cam_types = ['close'] * len(cam_paths)
     if cam_nodding is None:
         cam_nodding = [True] * len(cam_paths)
+    # Globaler Schalter schlaegt die Per-Cam-Liste. Die Mac-App kennt nur diesen
+    # einen Schalter und sendet ihn als params-Key, NICHT als --cam-nodding.
+    # Ohne das hier lief MediaPipe trotz ausgeschaltetem Kopfnicken durch (~30 min
+    # pro Lauf) und die Ergebnisse wurden anschliessend verworfen — der Schalter
+    # steuerte nur, ob Nicken zu Cutaways wird (add_reactions_to_edl.py:1122).
+    if not params.get('nodding_enabled', True):
+        cam_nodding = [False] * len(cam_paths)
 
     cam1_path = cam_paths[0]
     cam2_path = cam_paths[1]
