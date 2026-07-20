@@ -6,10 +6,17 @@ struct ContentView: View {
     @EnvironmentObject var engine: EngineController
     @State private var mainWindow: NSWindow?
     @State private var frameBeforeRun: NSRect?
-    /// Resize-Grenzen vor dem Lauf — während der Analyse wird das Fenster fixiert.
-    @State private var sizeLimitsBeforeRun: (min: NSSize, max: NSSize)?
-    /// War das Fenster vor dem Lauf skalierbar? (styleMask wird währenddessen entfernt)
-    @State private var wasResizableBeforeRun: Bool?
+    /// Fenster-Constraints vor dem Lauf — während der Analyse wird alles fixiert.
+    @State private var windowStateBeforeRun: WindowConstraints?
+
+    /// Alles, was die Analyse-Sperre überschreibt, um es danach zurückzugeben.
+    private struct WindowConstraints {
+        let minSize: NSSize
+        let maxSize: NSSize
+        let contentMin: NSSize
+        let contentMax: NSSize
+        let wasResizable: Bool
+    }
 
     /// Breite, auf die das Fenster während der Analyse schrumpft.
     private static let runWidth: CGFloat = 760
@@ -92,8 +99,13 @@ struct ContentView: View {
             // Nur einmal setzen. Kein Größenvergleich mehr: im Analyse-Modus gilt
             // die feste Geometrie, auch wenn das Fenster vorher kleiner war.
             guard frameBeforeRun == nil else { return }
-            frameBeforeRun      = window.frame
-            sizeLimitsBeforeRun = (window.minSize, window.maxSize)
+            frameBeforeRun = window.frame
+            windowStateBeforeRun = WindowConstraints(
+                minSize:      window.minSize,
+                maxSize:      window.maxSize,
+                contentMin:   window.contentMinSize,
+                contentMax:   window.contentMaxSize,
+                wasResizable: window.styleMask.contains(.resizable))
             // Um den Mittelpunkt herum verkleinern — bei fixem origin.y würde
             // die Titelleiste sichtbar nach unten springen.
             let target = NSRect(x: window.frame.midX - Self.runWidth  / 2,
@@ -101,16 +113,12 @@ struct ContentView: View {
                                 width:  Self.runWidth,
                                 height: Self.runHeight)
             window.setFrame(target, display: true, animate: true)
-            let fixed = NSSize(width: Self.runWidth, height: Self.runHeight)
-            window.minSize = fixed
-            window.maxSize = fixed
-            // min/maxSize allein genuegt NICHT: SwiftUI verwaltet die Groesse ueber
-            // die Content-Constraints und laesst das Ziehen an den Kanten weiter zu.
-            // Im Vollbild nicht anfassen — das wuerde den Vollbild-Zustand brechen.
-            if !window.styleMask.contains(.fullScreen) {
-                wasResizableBeforeRun = window.styleMask.contains(.resizable)
-                window.styleMask.remove(.resizable)
-            }
+            applyRunWindowLock(window)
+            // Noch einmal nach dem Layout-Durchgang: SwiftUI konfiguriert das
+            // Fenster beim Wechsel der Content-View neu und stellt .resizable
+            // dabei wieder her. Zusätzlich hält der Fortschritts-Heartbeat die
+            // Sperre nach (updateDockProgress).
+            DispatchQueue.main.async { applyRunWindowLock(window) }
             return
         }
 
@@ -118,12 +126,12 @@ struct ContentView: View {
         guard let restore = frameBeforeRun else { return }
         // ZUERST entsperren: solange min == max gilt, klemmt setFrame auf die
         // Analyse-Größe und die Wiederherstellung liefe ins Leere.
-        if let limits = sizeLimitsBeforeRun {
-            window.minSize = limits.min
-            window.maxSize = limits.max
-        }
-        if wasResizableBeforeRun == true {
-            window.styleMask.insert(.resizable)
+        if let s = windowStateBeforeRun {
+            window.minSize        = s.minSize
+            window.maxSize        = s.maxSize
+            window.contentMinSize = s.contentMin
+            window.contentMaxSize = s.contentMax
+            if s.wasResizable { window.styleMask.insert(.resizable) }
         }
         // NACH dem View-Wechsel (ProgressView_ → ResultView/WizardView) restaurieren:
         // synchron würde SwiftUIs Content-Sizing der neuen View die Breite direkt
@@ -137,9 +145,30 @@ struct ContentView: View {
         // (Früher wurde schon bei .done verworfen, deshalb blieb das Fenster bei der
         // Rückkehr ins Projekt schmal.)
         if state == .ready || state == .idle {
-            frameBeforeRun        = nil
-            sizeLimitsBeforeRun   = nil
-            wasResizableBeforeRun = nil
+            frameBeforeRun       = nil
+            windowStateBeforeRun = nil
+        }
+    }
+
+    /// Sperrt das Fenster auf die Analyse-Größe. Muss WIEDERHOLT anwendbar sein:
+    /// die Szene nutzt `.windowResizability(.automatic)`, SwiftUI konfiguriert das
+    /// Fenster beim Wechsel der Content-View neu und stellt `.resizable` dabei
+    /// wieder her. Einmaliges Entfernen genügt deshalb nicht (zwei Anläufe kostete
+    /// das). Idempotent — tut nichts, wenn schon gesperrt.
+    private func applyRunWindowLock(_ window: NSWindow) {
+        let fixed = NSSize(width: Self.runWidth, height: Self.runHeight)
+        let content = window.contentRect(
+            forFrameRect: NSRect(origin: .zero, size: fixed)).size
+        if window.minSize != fixed { window.minSize = fixed }
+        if window.maxSize != fixed { window.maxSize = fixed }
+        // SwiftUI leitet die Fenstergröße aus dem CONTENT ab — ohne diese beiden
+        // greift die Frame-Begrenzung oben gar nicht.
+        if window.contentMinSize != content { window.contentMinSize = content }
+        if window.contentMaxSize != content { window.contentMaxSize = content }
+        // Im Vollbild nicht anfassen — das würde den Vollbild-Zustand brechen.
+        if !window.styleMask.contains(.fullScreen),
+           window.styleMask.contains(.resizable) {
+            window.styleMask.remove(.resizable)
         }
     }
 
@@ -147,6 +176,8 @@ struct ContentView: View {
     private func updateDockProgress() {
         guard engine.state == .running else { return }
         DockProgress.shared.show(engine.overallProgress)
+        // Heartbeat: holt die Sperre zurück, falls SwiftUI sie überschrieben hat.
+        if let window = mainWindow { applyRunWindowLock(window) }
     }
 
     /// Dock-Balken + System-Notification an den Analyse-Lebenszyklus koppeln.
