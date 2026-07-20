@@ -3,6 +3,24 @@
 ## Offen
 
 ### UI / UX
+- [ ] **CLIP-Schritt: „ETA: 199/382" ist keine ETA + Restzeit schätzen.** Aufwand: **leicht**.
+  🎨 Kosmetisch, blockt nichts.
+  **Ursache:** Zwei Formate auf demselben Kanal. Nodding sendet
+  `__PROGRESS__ <pct> <M:SS>` (echte ETA aus `elapsed/done`,
+  `video_reaction_analyzer_v2.4.py:900-911`), CLIP sendet
+  `__PROGRESS__ <pct> <checked>/<total>` (`add_reactions_to_edl.py:955`).
+  `engine/protocol.py:109` nimmt blind `parts[1]` als `eta`, `ContentView.swift:456`
+  schreibt „ETA:" davor → „ETA: 199/382".
+  **Zu tun:** CLIP rechnet seine ETA selbst, genau wie Nodding es schon tut — die
+  Schleife hat `checked`, `total_cutaways` und kann die Startzeit mitführen. Dann
+  liefern beide Schritte dasselbe Format und der Zähler kann **zusätzlich** angezeigt
+  werden („199 von 382 · ETA 4:12") statt als ETA missbraucht.
+  Alternative (ohne Engine-Änderung): Swift misst die Abstände zwischen
+  `step_progress`-Nachrichten und extrapoliert. Funktioniert für **jeden** Schritt,
+  der X/Y meldet — dafür neuer Zustand in `EngineController`. Engine-seitig ist
+  konsistenter, weil der Mechanismus schon existiert.
+  ⚠️ Beim Umbau `parts[1]` nicht weiter blind interpretieren: unterscheidbar über
+  `\d+:\d\d` (Zeit) vs. `\d+/\d+` (Zähler), sonst wandert der Fehler nur weiter.
 - [ ] **Analyse-Modus: feste Fenstergröße statt nur schmaler.** Aufwand: **leicht**.
   Beim Start der Analyse verschmälert sich das Fenster bereits (`ContentView.animateWindowWidth`),
   aber es ist **auch zu hoch** — im Analyse-Zustand steht kaum Inhalt drin.
