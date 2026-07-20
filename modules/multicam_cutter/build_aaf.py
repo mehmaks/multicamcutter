@@ -163,8 +163,35 @@ def _make_timecode_slot(f, mob, edit_rate: int, fps: int, start: int, length: in
 
 # ── EDL parser ────────────────────────────────────────────────────────────────
 
+def _load_cut_reasons(edl_path: Path, edl_text: str) -> list:
+    """Liest <edl>.colors.json — die Schnittgruende, die add_reactions_to_edl
+    index-parallel zu den EDL-Events schreibt.
+
+    Bei Laengen-Mismatch lieber GAR KEINE Gruende als falsch zugeordnete:
+    ein falsches Label im Schnitt ist schlimmer als kein Label.
+    """
+    path = Path(edl_path).with_suffix('.colors.json')
+    if not path.exists():
+        return []
+    try:
+        reasons = [e.get('reason') for e in json.loads(path.read_text(encoding='utf-8'))]
+    except Exception as e:
+        print(f"  ⚠️  {path.name} nicht lesbar ({e}) — Clips ohne Grund-Benennung")
+        return []
+    n_events = len(re.findall(r'^\d+\s+\S+\s+\S+\s+C\s+', edl_text, re.MULTILINE))
+    if len(reasons) != n_events:
+        print(f"  ⚠️  {path.name} passt nicht zur EDL ({len(reasons)} Gruende vs. "
+              f"{n_events} Events) — Grund-Benennung deaktiviert")
+        return []
+    return reasons
+
+
 def _parse_edl(edl_path: Path, cam_paths: list, fps: float) -> list:
     text = edl_path.read_text()
+    # Nur fuer die Clip-Benennung im AAF. Bewusst als 'cut_reason' und NICHT als
+    # 'reason': pause_trim_edl verzweigt auf 'reason' (:256, :363), das Setzen
+    # wuerde also still den Schnitt aendern.
+    reasons = _load_cut_reasons(edl_path, text)
     cam_tc    = [_probe_embedded_tc_frames(p, fps) for p in cam_paths]
     cam_stems = [Path(p).stem.lower() for p in cam_paths]
     cam_names = [Path(p).name.lower() for p in cam_paths]
@@ -181,7 +208,7 @@ def _parse_edl(edl_path: Path, cam_paths: list, fps: float) -> list:
 
     result = []
     skipped = 0
-    for ev, cn in zip(event_re.finditer(text), clip_re.finditer(text)):
+    for i, (ev, cn) in enumerate(zip(event_re.finditer(text), clip_re.finditer(text))):
         clip_name = cn.group(1).strip()
         clip_stem = Path(clip_name).stem.lower()
         clip_lo   = clip_name.lower()
@@ -206,7 +233,8 @@ def _parse_edl(edl_path: Path, cam_paths: list, fps: float) -> list:
             skipped += 1
             continue
 
-        result.append({'cam_index': cam_idx, 'source_in': src_in, 'source_out': src_out})
+        result.append({'cam_index': cam_idx, 'source_in': src_in, 'source_out': src_out,
+                       'cut_reason': reasons[i] if i < len(reasons) else None})
 
     if skipped:
         print(f"  ⚠️  {skipped} Events übersprungen — Audio/Video-Sync kann abweichen!")
@@ -271,6 +299,7 @@ def build_aaf(
 
         # ── Video: TapeMob + FileMob + MasterMob (alle Kameras) ──────────────
         cam_masters = []
+        cam_files   = []   # (file_mob, fm_slot) je Kamera — Basis fuer benannte Mobs
         for idx, (cp, dur, tc) in enumerate(zip(cam_paths, cam_durs, cam_tc)):
             stem = Path(cp).stem
 
@@ -317,6 +346,7 @@ def build_aaf(
             f.content.mobs.append(master)
 
             cam_masters.append((master, m_slot))
+            cam_files.append((file_mob, fm_slot))
 
         # ── Audio: TapeMob + SourceMob + MasterMob ───────────────────────────
         mic_tc      = [_probe_embedded_tc_frames(str(p), fps) for p in mics]
@@ -399,12 +429,47 @@ def build_aaf(
         if has_zoom:
             _register_scale_op(f)
 
+        # Benannte MasterMobs pro (Kamera, Schnittgrund) — ersetzt die Clip-Farben
+        # aus dem Resolve-Workflow, die es im AAF nicht gibt. Bewusst NICHT eine
+        # Mob pro Schnitt: das waeren hunderte Bin-Clips. So bleiben es ~10, und
+        # das Timeline-Segment zeigt den Grund trotzdem an (Segmentname = Mob-Name).
+        _REASON_LABEL = {
+            'speaker':                    'Sprecher',
+            'reaction_nodding':           'Nicken',
+            'reaction_speaking_reaction': 'Sprachreaktion',
+            'pause_cutaway':              'Stille',
+            'max_time':                   'Max-Zeit',
+        }
+        reason_masters = {}
+
+        def _master_for(cam_idx: int, reason):
+            """MasterMob fuer Kamera+Grund, bei Bedarf angelegt.
+            Ohne Grund die unveraenderte Kamera-Mob (Verhalten wie bisher)."""
+            if not reason:
+                return cam_masters[cam_idx]
+            key = (cam_idx, reason)
+            if key not in reason_masters:
+                file_mob, fm_slot = cam_files[cam_idx]
+                m = f.create.MasterMob()
+                m.name = (f"{Path(cam_paths[cam_idx]).stem} - "
+                          f"{_REASON_LABEL.get(reason, reason)}")
+                sl = m.create_picture_slot(edit_rate=fps_int)
+                sc_f = f.create.SourceClip(media_kind='picture')
+                sc_f.mob    = file_mob
+                sc_f.slot   = fm_slot
+                sc_f.start  = 0
+                sc_f.length = cam_durs[cam_idx]
+                sl.segment.components.append(sc_f)
+                f.content.mobs.append(m)
+                reason_masters[key] = (m, sl)
+            return reason_masters[key]
+
         v_seq = f.create.Sequence(media_kind='picture')
         for ev in events:
             cam_idx = ev['cam_index']
             src_in  = ev['source_in']
             dur     = ev['source_out'] - ev['source_in']
-            master, m_slot = cam_masters[cam_idx]
+            master, m_slot = _master_for(cam_idx, ev.get('cut_reason'))
             sc = master.create_source_clip(
                 slot_id=m_slot.slot_id, start=src_in, length=dur)
             if has_zoom and cam_idx in wide_indices:

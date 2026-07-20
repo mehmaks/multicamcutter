@@ -145,3 +145,48 @@ entsteht die Datei nicht. Geschrieben neben der EDL.
 
 Im Episoden-Ordner: `{Episodenname}.aaf`
 Dateiname leitet sich vom editierbaren Episodennamen ab.
+
+### ⚠️ Mob-Struktur — vor Umbauten sichern
+
+`TapeMob → FileMob → MasterMob → CompositionMob` plus TC-Slot und
+`PhysicalTrackNumber` auf den Audio-Slots. Diese Struktur war hart erarbeitet
+(Resolve **und** Premiere). Der verifiziert funktionierende Stand liegt als
+Git-Tag:
+
+```
+git show aaf-struktur-funktioniert:modules/multicam_cutter/build_aaf.py > /tmp/build_aaf_ok.py
+git checkout aaf-struktur-funktioniert -- modules/multicam_cutter/build_aaf.py
+```
+
+### Clip-Benennung nach Schnittgrund
+
+Ersatz für die Clip-Farben aus dem Resolve-Workflow, die es im AAF nicht gibt.
+Der Segmentname in der Timeline ist der **MasterMob-Name**, deshalb:
+eine MasterMob je **(Kamera × Schnittgrund)** — nicht je Schnitt, sonst
+entstünden hunderte Bin-Clips. Bei 2 Kameras sind es max. ~10.
+
+| reason | Label | Resolve-Farbe (Referenz) |
+|---|---|---|
+| `speaker` | Sprecher | Blue / Teal |
+| `reaction_speaking_reaction` | Sprachreaktion | Green |
+| `reaction_nodding` | Nicken | Purple |
+| `pause_cutaway` | Stille | Violet |
+| `max_time` | Max-Zeit | Orange |
+
+Ergebnis in der Timeline: `CAM_B - Sprachreaktion`, `CAM_A - Stille`, …
+Die unbenannten Kamera-Mobs (`CAM_A`, `CAM_B`) bleiben zusätzlich im Bin —
+sie sind der Zugriff auf den ungeschnittenen Clip.
+
+**Quelle:** `final.colors.json` (`[{"reason": ...}]`, index-parallel zu den
+EDL-Events, von `add_reactions_to_edl.py:1295` immer geschrieben).
+`_parse_edl` lädt den Sidecar automatisch und hängt ihn als **`cut_reason`** an.
+
+Zwei bewusste Entscheidungen:
+- **`cut_reason`, nicht `reason`.** `pause_trim_edl.py` verzweigt auf `reason`
+  (`:256` Cutaway-Schutz, `:363` Merge-Sperre). Im Folder-Workflow steht dort
+  überall `'speaker'` (`run_from_folder.py:192`), die Logik läuft also leer.
+  Echte Gründe dort einzusetzen **würde den Schnitt ändern** — das ist eine
+  eigene Entscheidung, kein Nebeneffekt der Benennung. Offener Hebel.
+- **Längen-Guard.** Passt `final.colors.json` nicht zur Event-Zahl der EDL,
+  wird die Benennung komplett abgeschaltet statt verschoben zuzuordnen.
+  Ein falsches Label im Schnitt ist schlimmer als keines.
