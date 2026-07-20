@@ -187,16 +187,8 @@ def main():
                     for ev in _trim_events:
                         ev['clip'] = _cam_sentinels[ev['cam_index']]
                         dur = ev['source_out'] - ev['source_in']
-                        ev.setdefault('record_in', 0)
-                        ev.setdefault('record_out', 0)
+                        # record_in/out liefert _parse_edl aus der EDL mit.
                         ev.setdefault('reason', 'speaker')
-                    # Record-Positionen aus Source-Dauern berechnen
-                    _cursor = 0
-                    for ev in _trim_events:
-                        dur = ev['source_out'] - ev['source_in']
-                        ev['record_in'] = _cursor
-                        ev['record_out'] = _cursor + dur
-                        _cursor += dur
                     _trim_events, audio_keeps = apply_pauses_to_cut_events(
                         _trim_events, pauses, args.fps,
                         max_pause_s=float(_params.get('max_pause', 1.0)),

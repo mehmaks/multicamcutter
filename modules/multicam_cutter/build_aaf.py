@@ -233,7 +233,13 @@ def _parse_edl(edl_path: Path, cam_paths: list, fps: float) -> list:
             skipped += 1
             continue
 
+        # Record-Positionen MITFUEHREN, nicht rekonstruieren. run_from_folder hat
+        # sie frueher aus den Source-Dauern ab 0 nachgerechnet — die EDL beginnt
+        # aber bei einem Offset (WAV-Vorlauf), wodurch alle Positionen konstant
+        # verschoben waren und der Pause-Trim ins Leere lief.
         result.append({'cam_index': cam_idx, 'source_in': src_in, 'source_out': src_out,
+                       'record_in':  _tc_to_frames(ev.group(3), fps),
+                       'record_out': _tc_to_frames(ev.group(4), fps),
                        'cut_reason': reasons[i] if i < len(reasons) else None})
 
     if skipped:

@@ -2,7 +2,7 @@
 
 ## OFFEN
 
-### 🔴 Pause-Trim entfernt Sprache: Trim landet bis zu 3 s neben der Pause
+### 🟡 Pause-Trim entfernt Sprache — Wurzel gefixt, Praxistest offen
 - **Symptom**: Video UND Audio sind an einer Stelle geschnitten, an der beide
   Sprecher reden — ein Stück Gespräch fehlt. **Inhaltsverlust**, kein
   Schönheitsfehler. Selten (2 Audioschnitte in einer 100-min-Folge), dafür
@@ -49,7 +49,23 @@
   Zu prüfen im nächsten Lauf: (1) erscheint die ÜBERSPRUNGEN-Warnung, (2) stimmen die
   neu berechneten Record-Positionen mit `final.edl` überein, (3) wie viele Pausen
   fallen unter `skipped_no_boundary`.
-- **Fix-Vorschlag (nicht umgesetzt)**: Wenn der Cap greift, die Pause komplett
+- **✅ WURZEL GEFUNDEN UND GEFIXT (20.07.)**: `run_from_folder.py` rechnete die
+  Record-Positionen kumulativ **ab 0** neu. Die EDL beginnt aber bei Frame **134**
+  (WAV-Vorlauf) — ein konstanter Versatz über die ganze Timeline, **26× größer als
+  die `boundary_tolerance` von 5 Frames**. Folge: 153 von 160 Pausen fanden keine
+  Grenze mehr (`skipped_no_boundary`), nur 2 kamen durch — und die an beliebiger
+  Stelle. Belegt am Lauf vom 20.07.: gegen die echten Record-Positionen finden
+  **160/160** Pausen eine Grenze, gegen die rekonstruierten nur **7/160**.
+  ⚠️ Mein erster Verdacht (übersprungene Events in `_parse_edl`) war **falsch** —
+  es wurde kein einziges Event übersprungen.
+  **Fix**: `build_aaf._parse_edl` liefert `record_in`/`record_out` aus der EDL mit,
+  `run_from_folder` übernimmt sie statt sie zu rekonstruieren. Damit arbeitet der
+  Folder-Workflow wie der Bin-Workflow, der die Positionen schon immer aus
+  `parse_edl()` bezog — deshalb war die Web-App nie betroffen.
+  **Offline verifiziert**: 2 → 20 Trims (User erwartet 6–16), und 19 der 20
+  entfernten Bereiche sind nachweislich still; einer ist grenzwertig
+  (Spitze −34,7 dB bei Schwelle −46).
+- **Noch offen (Fix-Vorschlag, nicht umgesetzt)**: Wenn der Cap greift, die Pause komplett
   überspringen statt teilweise zu trimmen — ein halber Trim erreicht sein Ziel
   ohnehin nie. Alternativ/zusätzlich vor dem Entfernen prüfen, ob der Bereich
   zwischen `p1_end` und `p2_start` wirklich unter der Schwelle liegt.
