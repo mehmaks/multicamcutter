@@ -57,6 +57,25 @@
 
 ## Gefixt
 
+### Gespeichertes Preset taucht nicht in der Preset-Liste auf
+- **Symptom**: „Preset speichern …" im Wizard-Footer legt das Preset an, aber das
+  Dropdown zeigt es nicht — weder als Auswahl noch beim Aufklappen.
+- **Nicht** die Ursache: Das Speichern selbst funktionierte einwandfrei (Datei lag
+  korrekt in `~/Library/Application Support/MulticamCutter/presets/`).
+- **Ursache**: Reines SwiftUI-Datenfluss-Problem. `WizPresetDropdown` rief
+  `PresetManager.shared.listPresets()` **direkt im Body** auf. `PresetManager` ist ein
+  einfacher `Sendable`-Singleton ohne Observability, und die Methode liest bei jedem
+  Aufruf frisch vom Dateisystem — SwiftUI hat darauf **keine Abhängigkeit** und baut
+  das Menü folglich nicht neu.
+- **Fix**: Preset-Liste als echter `@State` (`presets`), nach Speichern/Import per
+  `reloadPresets()` neu einlesen, zusätzlich `.onAppear`. Auswahl-Logik über
+  `matchingPresetId` statt mehrfacher Inline-Aufrufe.
+- **Nebeneffekt**: deutlich weniger I/O — vorher wurde pro Render mehrfach das
+  Verzeichnis gelistet UND je Preset die JSON geladen (für den Params-Vergleich).
+- **Merke**: Sobald eine View Daten aus einem nicht-observablen Singleton/Dateisystem
+  zeigt, muss der Zustand in `@State`/`@Published` gespiegelt werden — sonst
+  aktualisiert SwiftUI nicht.
+
 ### Abgebrochene FPS-Konvertierung → abgeschnittene Datei → kaputte AAF + Sync-Versatz
 - **Symptom** (18.07.): In Resolve „The clip C7451_25fps failed to link because the timecode
   extents do not match any clip in the Media Pool" (viele Zeilen), UND die Gast-Cam läuft

@@ -1140,11 +1140,17 @@ struct WizPresetDropdown: View {
     @EnvironmentObject var engine: EngineController
     @State private var showSaveSheet = false
     @State private var newName = ""
+    /// Preset-Liste als echter @State. Vorher wurde `PresetManager.shared.listPresets()`
+    /// direkt im Body gelesen — darauf hat SwiftUI KEINE Abhängigkeit, deshalb tauchte ein
+    /// frisch gespeichertes Preset nicht im Menü auf. Nach Speichern/Import neu laden.
+    /// Nebeneffekt: spart die mehrfachen Verzeichnis-/JSON-Lesevorgänge pro Render.
+    @State private var presets: [Preset] = PresetManager.shared.listPresets()
 
-    private var currentName: String {
-        PresetManager.shared.listPresets().first {
-            PresetManager.shared.loadPreset($0.id) == engine.params
-        }?.name ?? "Angepasst"
+    private func reloadPresets() { presets = PresetManager.shared.listPresets() }
+
+    /// ID des Presets, das exakt den aktuellen Parametern entspricht (sonst „Angepasst").
+    private var matchingPresetId: String? {
+        presets.first { PresetManager.shared.loadPreset($0.id) == engine.params }?.id
     }
 
     var body: some View {
@@ -1153,15 +1159,13 @@ struct WizPresetDropdown: View {
 
             // Natives Menü-Dropdown: dunkle Box + aktueller Name + Chevron (wie Dummy).
             Picker("", selection: Binding(
-                get: { PresetManager.shared.listPresets().first {
-                    PresetManager.shared.loadPreset($0.id) == engine.params }?.id },
+                get: { matchingPresetId },
                 set: { if let id = $0, let p = PresetManager.shared.loadPreset(id) { engine.params = p } }
             )) {
-                if PresetManager.shared.listPresets().first(where: {
-                    PresetManager.shared.loadPreset($0.id) == engine.params }) == nil {
+                if matchingPresetId == nil {
                     Text("Angepasst").tag(String?.none)
                 }
-                ForEach(PresetManager.shared.listPresets()) { Text($0.name).tag(Optional($0.id)) }
+                ForEach(presets) { Text($0.name).tag(Optional($0.id)) }
             }
             .labelsHidden()
             .frame(minWidth: 150)
@@ -1170,7 +1174,10 @@ struct WizPresetDropdown: View {
             Menu {
                 Button("Preset speichern …") { newName = ""; showSaveSheet = true }
                 Button("Preset importieren …") {
-                    if let (_, p) = PresetManager.shared.importPreset() { engine.params = p }
+                    if let (_, p) = PresetManager.shared.importPreset() {
+                        engine.params = p
+                        reloadPresets()   // Import legt eine Datei an → Liste neu einlesen
+                    }
                 }
                 Button("Preset exportieren …") {
                     _ = PresetManager.shared.exportPreset(engine.params, name: "Mein Preset")
@@ -1182,6 +1189,7 @@ struct WizPresetDropdown: View {
             .menuIndicator(.hidden)
             .fixedSize()
         }
+        .onAppear { reloadPresets() }   // falls anderswo Presets dazugekommen sind
         .sheet(isPresented: $showSaveSheet) {
             VStack(spacing: 16) {
                 Text("Preset speichern").font(.headline)
@@ -1191,6 +1199,7 @@ struct WizPresetDropdown: View {
                     Button("Speichern") {
                         guard !newName.isEmpty else { return }
                         _ = PresetManager.shared.savePreset(name: newName, params: engine.params)
+                        reloadPresets()   // ohne das erscheint das neue Preset nicht im Menü
                         showSaveSheet = false
                     }
                     .buttonStyle(.borderedProminent).disabled(newName.isEmpty)

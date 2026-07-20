@@ -268,6 +268,20 @@
   Alternative ohne LUT: generischer Auto-Kontrast-Filter (`eq`/`normalize`/`curves`)
   in dieselbe `-vf`-Kette, per Toggle — analog zum kosmetischen Thumbnail-Toggle, aber
   Engine-seitig. Ebenfalls nur bei Bedarf. (Beides braucht PyInstaller-Rebuild fürs Release.)
+- [ ] **Log-Footage automatisch erkennen und LUT-Hinweis einblenden.** Aufwand: **leicht**.
+  ⚠️ **Hängt am LUT-Punkt darüber** — ergibt erst Sinn, sobald der LUT-Parameter wieder
+  exponiert ist. Vorher hätte der Hinweis keine Handlungsoption.
+  **Idee:** Das beim Scan ohnehin erzeugte Thumbnail je Videodatei aufs **Kontrastprofil**
+  messen. Ist der Kontrast auffällig gering (typisch für Log-Material), einen dezenten
+  Hinweis einblenden, dass ein LUT sinnvoll wäre.
+  **Technisch:** Das JPEG liegt bereits vor (`CameraInfo.thumbnailPath`), die Messung ist
+  billig — z. B. Histogramm-Spreizung über CoreImage (`CIAreaMinMax` / `CIAreaHistogram`)
+  oder schlicht Standardabweichung + Perzentil-Abstand (P5→P95) der Luma. Auswertung in
+  Swift beim Scan, kein Engine-Eingriff nötig.
+  ⚠️ **Falsch-Positive bedenken:** Auch eine dunkle, neblige oder flaue Szene ist
+  kontrastarm. Der Hinweis darf deshalb nur **weich** formuliert sein („könnte Log-Material
+  sein") und niemals blockieren. Ggf. über mehrere Scrub-Positionen mitteln statt nur den
+  einen Initial-Frame zu messen.
 
 ### Multilanguage (planen)
 - [ ] **Mehrsprachigkeit konzipieren (DE/EN)**. Die Website ist bereits zweisprachig
