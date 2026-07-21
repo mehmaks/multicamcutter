@@ -1,0 +1,222 @@
+{
+  "episode": "ep04-robin-tutzschke",
+  "timeline": "46 - Dr Robin Tutzschke",
+  "fps": 25.0,
+  "kopfnicken": "AN",
+  "markiert": "erste ~30 min, 100 % der Sprachreaktions-Cutaways",
+  "hinweis": "MIC2 deutlich leiser geregelt als MIC1 (User). Erster gelber Marker: Aufnahmebeginn, davor spricht niemand — Baseline undefiniert.",
+  "labels": {
+    "FP": "blau",
+    "TP": "gruen",
+    "unsicher": "gelb"
+  },
+  "markers": [
+    {
+      "label": "unsicher",
+      "marker_frame": 190,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 190,
+      "clip_duration": 42,
+      "source_start": 78,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 584,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 584,
+      "clip_duration": 49,
+      "source_start": 471,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 1145,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 1145,
+      "clip_duration": 77,
+      "source_start": 1032,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 2838,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 2838,
+      "clip_duration": 48,
+      "source_start": 2726,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 8888,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 8888,
+      "clip_duration": 82,
+      "source_start": 8888,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 9619,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 9619,
+      "clip_duration": 49,
+      "source_start": 9621,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 10321,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 10321,
+      "clip_duration": 46,
+      "source_start": 10212,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 16105,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 16105,
+      "clip_duration": 46,
+      "source_start": 16119,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 17858,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 17858,
+      "clip_duration": 42,
+      "source_start": 17761,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 19923,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 19923,
+      "clip_duration": 42,
+      "source_start": 19842,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 25080,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 25080,
+      "clip_duration": 118,
+      "source_start": 25152,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 26706,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 26706,
+      "clip_duration": 45,
+      "source_start": 26777,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 27400,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 27400,
+      "clip_duration": 46,
+      "source_start": 27488,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 29281,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 29281,
+      "clip_duration": 170,
+      "source_start": 29257,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 29451,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 29451,
+      "clip_duration": 47,
+      "source_start": 29540,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 31114,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 31114,
+      "clip_duration": 46,
+      "source_start": 31090,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 32745,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 32745,
+      "clip_duration": 46,
+      "source_start": 32834,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 34974,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 34974,
+      "clip_duration": 49,
+      "source_start": 35063,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 36867,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 36867,
+      "clip_duration": 46,
+      "source_start": 36857,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 39156,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 39156,
+      "clip_duration": 45,
+      "source_start": 39284,
+      "note": ""
+    },
+    {
+      "label": "FP",
+      "marker_frame": 40012,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 40012,
+      "clip_duration": 77,
+      "source_start": 40146,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 41924,
+      "clip_name": "C7816 - Sprachreaktion",
+      "clip_start": 41924,
+      "clip_duration": 153,
+      "source_start": 42057,
+      "note": ""
+    },
+    {
+      "label": "TP",
+      "marker_frame": 44311,
+      "clip_name": "C9322 - Sprachreaktion",
+      "clip_start": 44311,
+      "clip_duration": 47,
+      "source_start": 44345,
+      "note": ""
+    }
+  ]
+}

@@ -335,6 +335,35 @@ Kein 30-Minuten-Lauf nötig — nur der Base-EDL-Schritt (~1 min):
    `*_speaking.json` des echten Laufs (Listen von hinten ausrichten).
 4. Merkmale an der Stelle aus der Kurve ziehen und FP gegen TP vergleichen.
 
+## 🔑 Die FP-Rate hängt an der Mic-Trennung — pro RICHTUNG
+
+Beobachtung des Users an ep04 („MIC2 viel leiser geregelt"): Sprachreaktionen sind
+in die eine Richtung überwiegend TP, in die andere überwiegend FP. Nachgemessen —
+bestätigt, und zwar deutlich:
+
+| ep04, Reaktions-Cam | Sprecher-Pegel | Übersprechen | Trennung | FP-Rate |
+|---|---|---|---|---|
+| C7816 (MIC1) | −25,9 dB | −36,9 dB | **10,8 dB** | **75 %** (9/12) |
+| C9322 (MIC2) | −14,4 dB | −37,8 dB | **25,2 dB** | **20 %** (2/10) |
+
+Das Übersprechen ist in beiden Richtungen fast gleich laut. Der Unterschied kommt
+vom **Sprecher**: kommt er nur mit −25,9 dB an, hebt er sich kaum vom Übersprechen
+ab — und der Rise-Detektor liest jede Pegelschwankung als Reaktion.
+
+Über alle vier Episoden (6 Richtungspaare): **r = −0,65**. Klarer Trend, aber
+Ausreißer in beide Richtungen (ep02/C9730: 10,5 dB → nur 28 % FP; ep01/C7814:
+15 dB → 75 %). **Starker Faktor, nicht die ganze Erklärung.** Der Vergleich
+*innerhalb* einer Folge ist am belastbarsten, weil Material und Gast konstant sind.
+
+⚠️ **Das ist der label-freie Indikator, der Regel B retten könnte.** Die Trennung
+je Richtung ist vor der Analyse aus dem Audio berechenbar — anders als der Anteil
+durchschlagender Reaktionen, der Marker braucht. Damit ließe sich der Filter je
+Richtung unterschiedlich scharf stellen, statt global.
+
+**Praktischer Hebel jenseits jeder Filterregel:** Die Aussteuerung beim Aufnehmen.
+Ein Gast, der 11 dB leiser ankommt als der Host, produziert dreimal so viele
+Fehlschnitte auf seiner Kamera.
+
 ## Datensatz und wie es weitergeht
 
 Ground Truth liegt in **`datasets/speaking-fp/`** (eigenes README mit
