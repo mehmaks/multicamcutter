@@ -283,7 +283,7 @@ struct CamerasStep: View {
 
             if !engine.fpsMismatches.isEmpty { FpsMismatchBanner() }
             if !engine.suspiciouslyShortCams.isEmpty { ShortCamBanner() }
-            if !engine.unsyncedCams.isEmpty { UnsyncedCamsBanner() }
+            if !engine.unsupportedCloseCams.isEmpty { UnsupportedCloseCamsBanner() }
 
             HStack(alignment: .top, spacing: 26) {
                 VStack(alignment: .leading, spacing: 12) {
@@ -531,26 +531,27 @@ struct ShortCamBanner: View {
 
 // MARK: - Warnung: mehr als 2 Kameras (Sync deckt nur die ersten beiden ab)
 
-struct UnsyncedCamsBanner: View {
+struct UnsupportedCloseCamsBanner: View {
     @EnvironmentObject var engine: EngineController
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 Image(systemName: "exclamationmark.triangle.fill")
-                Text("Mehr als 2 Kameras — noch nicht unterstützt").fontWeight(.semibold)
+                Text("Mehr als 2 Nah-Kameras — noch nicht unterstützt").fontWeight(.semibold)
             }
             .foregroundStyle(.brandSecondary)
 
-            Text("Der Waveform-Sync misst aktuell nur die ersten beiden Kameras. Jede "
-                 + "weitere würde ohne Zeitversatz eingebaut und liefe im Schnitt "
-                 + "unsynchron — ohne dass es auffällt. Deshalb ist der Start gesperrt, "
-                 + "bis eine Kamera weniger zugeordnet ist. Der Umbau des Syncs steht an.")
+            Text("Die Sprechererkennung vergleicht genau zwei Nah-Kameras. Eine dritte "
+                 + "käme nie als Sprecher zum Zug — die Person darauf bliebe im Schnitt "
+                 + "stumm, ohne dass etwas fehlschlägt. Deshalb ist der Start gesperrt.\n\n"
+                 + "Totalen sind davon nicht betroffen: Beliebig viele sind erlaubt und "
+                 + "werden für Cutaways genutzt.")
                 .font(.caption).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("Betroffen wären:").font(.caption).foregroundStyle(.wizFaint).padding(.top, 2)
-            ForEach(engine.unsyncedCams) { cam in
+            ForEach(engine.unsupportedCloseCams) { cam in
                 Text("• \(cam.displayName)")
                     .font(.system(.caption, design: .monospaced))
             }
@@ -722,9 +723,9 @@ struct WizardFooter: View {
         if engine.persons.isEmpty { return "Mindestens eine Person nötig" }
         if engine.analysisCams.count < 2 { return "Mindestens 2 Kameras brauchen eine Person" }
         if !engine.fpsMismatches.isEmpty { return "FPS-Mismatch — bitte oben beheben" }
-        // Sync deckt nur die ersten zwei Cams ab — lieber blockieren als still falsch
-        // schneiden (siehe UnsyncedCamsBanner / brain/Bekannte-Bugs.md).
-        if !engine.unsyncedCams.isEmpty { return "Mehr als 2 Kameras — noch nicht unterstützt" }
+        // Die Diarisierung vergleicht genau zwei NAH-Kameras; eine dritte bliebe
+        // stumm. Totalen sind erlaubt (siehe UnsupportedCloseCamsBanner).
+        if !engine.unsupportedCloseCams.isEmpty { return "Mehr als 2 Nah-Kameras — noch nicht unterstützt" }
         if !engine.unassignedMics.isEmpty { return "Jede Person braucht mindestens eine Kamera" }
         return nil
     }

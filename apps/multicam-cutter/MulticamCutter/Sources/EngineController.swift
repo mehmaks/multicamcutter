@@ -483,15 +483,22 @@ class EngineController: ObservableObject {
         }
     }
 
-    /// Kameras, die die Engine NICHT zeitlich synchronisiert.
-    /// `sync_sources()` misst nur die ersten beiden aus `--cams` (CAM1↔CAM2); alles ab
-    /// Position 3 fehlt im Offsets-Dict und bekaeme in build_aaf.py stumm Offset 0 →
-    /// das Bild liefe versetzt, ohne Fehlermeldung. Bis der Sync in der Multicam-Session
-    /// umgebaut ist, blockieren wir den Start statt still falsch zu schneiden.
-    /// Siehe brain/Bekannte-Bugs.md → „Kameras ab Nr. 3 werden nicht gesynct".
-    var unsyncedCams: [CameraInfo] {
-        let ordered = orderedAnalysisCams
-        return ordered.count > 2 ? Array(ordered.dropFirst(2)) : []
+    /// Nah-Kameras jenseits der ersten beiden — der Rest der Pipeline kann sie nicht
+    /// bedienen.
+    ///
+    /// Die Sprechererkennung ist binaer: `rms_diarize` vergleicht genau die Positionen 1
+    /// und 2 aus `--cams`. Eine dritte NAH-Kamera wuerde nie als Sprecher gewaehlt — die
+    /// Person darauf bliebe im Schnitt stumm, ohne dass etwas fehlschlaegt.
+    ///
+    /// TOTALEN sind dagegen unproblematisch und ausdruecklich erlaubt: sie dienen als
+    /// Cutaway- und Reset-Ziel, `orderedAnalysisCams` sortiert sie ohnehin ans Ende, und
+    /// seit dem Umbau von `sync_sources` (21.07.) wird jede Quelle einzeln gemessen.
+    /// Vorher blockierte diese Pruefung JEDE dritte Kamera, weil Position 3 aufwaerts
+    /// stumm Offset 0 bekam.
+    var unsupportedCloseCams: [CameraInfo] {
+        let roles = camRoles()
+        let closes = orderedAnalysisCams.filter { roles[$0.id] == .close }
+        return closes.count > 2 ? Array(closes.dropFirst(2)) : []
     }
 
     // MARK: - Personen (abgeleitet)

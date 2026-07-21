@@ -73,8 +73,17 @@ einzeln gemessen, Normalisierung auf CAM1 = 0, Kreuzprobe CAM1↔CAM2 mit
 dekodiert. Alle fuenf Aufrufstellen migriert (run_from_bin, run_from_folder,
 multicam_engine, sequencer, CLI).
 
-**Noch offen und bewusst NICHT Teil davon:** der `unsyncedCams`-Waechter in der
-App bleibt vorerst. Der Sync stimmt jetzt zwar fuer N Kameras, aber die
+**Waechter gelockert (21.07., nach Verifikation an echtem Material):** Aus
+`unsyncedCams` (jede dritte Kamera) wurde `unsupportedCloseCams` — gesperrt wird
+nur noch, wenn mehr als ZWEI Kameras die Rolle `close` haben. Totalen sind
+beliebig viele erlaubt: sie dienen als Cutaway-/Reset-Ziel, `orderedAnalysisCams`
+sortiert sie ans Ende, und der Sync misst sie jetzt einzeln. Damit laeuft das
+Setup „2 Closes + Totale" erstmals durch die App.
+Die vollstaendige Entfernung des Waechters bleibt Stufe 4 (nach N-facher
+Diarisierung) — drei Personen auf je eigener Nah-Kamera sind weiter gesperrt,
+weil die dritte Person sonst im Schnitt stumm bliebe.
+
+**Alter Stand:** der `unsyncedCams`-Waechter in der App bleibt vorerst. Der Sync stimmt jetzt zwar fuer N Kameras, aber die
 Diarisierung ist weiter binaer — ein Setup aus 2 Closes + Raumkamera sollte
 damit erstmals vollstaendig funktionieren, das gehoert aber an echtem Material
 geprueft, bevor der Waechter faellt (Stufe 4).
