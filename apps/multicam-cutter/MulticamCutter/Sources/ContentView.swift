@@ -8,6 +8,9 @@ struct ContentView: View {
     @State private var frameBeforeRun: NSRect?
     /// Fenster-Constraints vor dem Lauf — während der Analyse wird alles fixiert.
     @State private var windowStateBeforeRun: WindowConstraints?
+    /// Materialhinweis beim allerersten Start (siehe FirstRunSheet).
+    @AppStorage("hasSeenFirstRunInfo") private var hasSeenFirstRunInfo = false
+    @State private var showFirstRunInfo = false
 
     /// Alles, was die Analyse-Sperre überschreibt, um es danach zurückzugeben.
     private struct WindowConstraints {
@@ -33,6 +36,18 @@ struct ContentView: View {
             mainWindow = window
             configureWindowChrome(window)
         })
+        .sheet(isPresented: $showFirstRunInfo) {
+            FirstRunSheet()
+        }
+        .onAppear {
+            // Erst nach dem Fensteraufbau: ein Sheet, das im selben Zyklus wie
+            // das Fenster erscheint, sitzt sonst gelegentlich ohne Elternfenster
+            // in der Bildschirmmitte.
+            guard !hasSeenFirstRunInfo else { return }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
+                showFirstRunInfo = true
+            }
+        }
         .sheet(isPresented: $engine.showingFeedback) {
             FeedbackView().environmentObject(engine)
         }

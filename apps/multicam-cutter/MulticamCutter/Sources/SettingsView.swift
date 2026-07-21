@@ -266,6 +266,8 @@ struct GeneralSettingsTab: View {
     // „Experteneinstellungen" ein-/ausklappen (Variante C).
     // Denselben Key liest ScrubbableThumbnail — Umschalten wirkt live.
     @AppStorage("thumbnailAutoContrast") private var thumbnailAutoContrast = false
+    /// Denselben Key setzt FirstRunSheet beim Bestaetigen.
+    @AppStorage("hasSeenFirstRunInfo") private var hasSeenFirstRunInfo = false
 
     var body: some View {
         Form {
@@ -277,6 +279,19 @@ struct GeneralSettingsTab: View {
                 Toggle("Kontrast der Vorschaubilder anheben", isOn: $thumbnailAutoContrast)
                 Text("Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim "
                      + "Scrubbing). Rein kosmetisch — Analyse und Export bleiben unberührt.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Hinweise") {
+                Button("Materialhinweis erneut anzeigen") {
+                    hasSeenFirstRunInfo = false
+                }
+                .disabled(!hasSeenFirstRunInfo)
+                Text(hasSeenFirstRunInfo
+                     ? "Zeigt die Voraussetzungen ans Material beim nächsten Start "
+                       + "wieder an — Tonspur je Kamera, Mikrofon je Person, Überlappung."
+                     : "Wird beim nächsten Start angezeigt.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

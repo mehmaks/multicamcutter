@@ -162,7 +162,16 @@ Python-Runtime dazubekommt.
   Anknüpfpunkt: dort wo heute `frameBeforeRun` gemerkt und bei `.ready`/`.idle`
   freigegeben wird — die Logik existiert, es fehlt die Höhe und das Sperren.
   Konkrete Zielwerte noch festzulegen (am laufenden Analysefenster ausmessen).
-- [ ] **Hinweis-Fenster beim ersten Start: technische Voraussetzungen.** Aufwand: **leicht**.
+- [x] **Hinweis-Fenster beim ersten Start: technische Voraussetzungen.** UMGESETZT (21.07.):
+  `FirstRunSheet.swift`, `@AppStorage("hasSeenFirstRunInfo")`, per Sheet aus
+  `ContentView.onAppear` (0,4 s verzoegert, sonst sitzt es ohne Elternfenster).
+  Ueber Einstellungen -> Hinweise zuruecksetzbar.
+  **Beim Schreiben zwei Annahmen korrigiert:** Bildraten muessen NICHT
+  uebereinstimmen (die App erkennt Abweichungen ueber `fpsMismatches` und bietet
+  `--convert-fps` an) — steht jetzt als Entwarnung drin. Und die Grenze sind zwei
+  **Sprecher**, nicht zwei Kameras: `rms_diarize` vergleicht genau zwei Seiten,
+  weitere Kameras funktionieren als Totale/Cutaway.
+  Alte Beschreibung:
   Erst-Start-Sheet (einmalig, `@AppStorage`-Flag), das die Anforderungen ans Material
   erklärt — bevor der User in einen unnötigen Fehlversuch läuft. Mindestens:
   - **Jede Videospur braucht einen eigenen Referenzton.** Der Waveform-Sync korreliert
