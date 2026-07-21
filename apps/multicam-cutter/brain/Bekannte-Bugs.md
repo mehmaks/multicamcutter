@@ -18,10 +18,26 @@
 - **Luecke**: Der Schutz griff nur beim KONVERTIEREN. Eine unvollstaendige Datei
   kann auch anders entstehen — abgebrochener Kopiervorgang, halb geladene
   Cloud-Datei, Altbestand.
-- **Fix (21.07.)**: `sync_sources` prueft vor jeder Korrelation die Laengen.
-  Quellen unter `CHUNK_SECONDS` (3 min) brechen mit Nennung von Datei und Dauer
-  ab; Quellen unter 50 % der laengsten erzeugen einen Hinweis (kann legitim
+- **Fix (21.07.), zweiter Anlauf**: Der erste Versuch — Abbruch bei Quellen unter
+  3 min — behandelte das Symptom. Der User wandte zu Recht ein, dass 95 s
+  gemeinsames Material fuer eine Korrelation reichlich sind. Die wahre Ursache
+  lag in `_sync_pair`:
+  ```python
+  min_len = min(len(ref_audio), len(target_audio))
+  ref_audio = ref_audio[:min_len]     # kappt die REFERENZ auf 94 s
+  ```
+  Die Referenz wurde auf die Laenge des kuerzeren Partners gestutzt, **gerechnet
+  ab ihrem eigenen Anfang**. MIC1 blieben so nur die ersten 94 s — reiner
+  Vorlauf, null Ueberlappung mit CAM1 (beginnt bei Sekunde 102). Zugleich sinkt
+  damit der groesste auffindbare Versatz auf ebendiese Laenge: 102 s waren
+  **prinzipiell unauffindbar**.
+  Die Kuerzung war ueberfluessig — `correlate(mode="full")` kommt mit
+  unterschiedlich langen Signalen zurecht. Sie ist entfernt; der harte Abbruch
+  gilt nur noch unter `MIN_SOURCE_SECONDS` (10 s), darunter ist es Rauschen.
+  Quellen unter 50 % der laengsten erzeugen weiter einen Hinweis (kann legitim
   sein, wenn eine Kamera nur zeitweise lief).
+- **Verifiziert**: 95-s-Fragment bei 102 s Vorlauf synct jetzt exakt; beide
+  frueheren Szenarien (5 Quellen, 100-s-Vorlauf) unveraendert korrekt.
 - **Merke**: Die Kreuzprobe hat hier korruptes EINGANGSMATERIAL aufgedeckt, nicht
   einen Rechenfehler. Ohne sie waere daraus klaglos ein Schnitt entstanden.
 

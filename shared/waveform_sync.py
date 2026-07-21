@@ -136,10 +136,16 @@ def _sync_pair(
                 cache[(ref_path, duration)] = ref_audio
         target_audio = extract_audio(target_path, duration_s=duration)
 
-        # Use the shorter of the two
-        min_len = min(len(ref_audio), len(target_audio))
-        ref_audio    = ref_audio[:min_len]
-        target_audio = target_audio[:min_len]
+        # KEIN Kuerzen auf die gemeinsame Laenge. correlate(mode="full") kommt mit
+        # unterschiedlich langen Signalen zurecht, und das Stutzen war aktiv
+        # schaedlich: es kappt die REFERENZ auf die Laenge des kuerzeren Partners,
+        # gerechnet ab ihrem eigenen Anfang. Damit sinkt zugleich der groesste
+        # auffindbare Versatz auf diese Laenge.
+        #
+        # Konkreter Fall: MIC1 lief 102 s vor CAM1, CAM1 war nur 94 s lang. Die
+        # Referenz wurde auf ihre ersten 94 s gestutzt — reiner Vorlauf, null
+        # Ueberlappung — und der wahre Versatz von 102 s lag ausserhalb des
+        # ueberhaupt durchsuchbaren Bereichs.
 
         offset_samples, confidence = _correlate_offset(ref_audio, target_audio)
         offset_frames  = _samples_to_frames(offset_samples, fps)
@@ -203,6 +209,11 @@ CROSSCHECK_TOLERANCE_FRAMES = 2
 # (es greift nur nach einem Widerspruch).
 RETRY_WINDOW_FACTOR = 4
 
+# Untergrenze fuer eine sinnvolle Korrelation. Bewusst niedrig: eine kurze
+# Quelle laesst sich seit dem Wegfall der min_len-Kuerzung sauber einordnen,
+# solange die REFERENZ lang genug ist. Kuerzer als das ist es Rauschen.
+MIN_SOURCE_SECONDS = 10.0
+
 
 def sync_sources(
     cam_paths: list[str],
@@ -249,27 +260,27 @@ def sync_sources(
     # abgebrochener Kopiervorgang, halb geladene Cloud-Datei, Altbestand.
     durations = {label: _probe_duration(path) for label, path in sources.items()}
     longest = max(durations.values()) if durations else 0.0
-    too_short = {l: d for l, d in durations.items() if 0 < d < CHUNK_SECONDS}
-    if too_short:
+    # Hart abbrechen nur, wenn eine Korrelation sinnlos waere. Alles darueber
+    # kann die Korrelation seit dem Wegfall der min_len-Kuerzung selbst
+    # bewaeltigen — und eine Kamera, die nur zeitweise lief, ist legitim.
+    unusable = {l: d for l, d in durations.items() if 0 < d < MIN_SOURCE_SECONDS}
+    if unusable:
         lines = "\n".join(
-            f"    {l}: {d / 60:.1f} min  ({Path(sources[l]).name})"
-            for l, d in sorted(too_short.items())
+            f"    {l}: {d:.1f} s  ({Path(sources[l]).name})"
+            for l, d in sorted(unusable.items())
         )
         raise SyncError(
-            f"Quelle(n) zu kurz fuer eine verlaessliche Synchronisierung "
-            f"(unter {CHUNK_SECONDS / 60:.0f} min):\n{lines}\n"
-            f"    laengste Quelle: {longest / 60:.1f} min\n"
-            f"Haeufigste Ursache ist eine unvollstaendige Datei — etwa eine "
-            f"abgebrochene Konvertierung oder ein abgebrochener Kopiervorgang. "
-            f"Bitte die Datei pruefen und neu erzeugen."
+            f"Quelle(n) zu kurz fuer eine Korrelation (unter {MIN_SOURCE_SECONDS:.0f} s):\n{lines}\n"
+            f"    laengste Quelle: {longest / 60:.1f} min"
         )
     # Deutlich kuerzer als der Rest ist verdaechtig, kann aber stimmen (Kamera
     # lief nur zeitweise). Deshalb nur ein Hinweis, kein Abbruch.
     for label, d in sorted(durations.items()):
         if longest and d < longest * 0.5:
-            print(f"  ⚠ {label} ist mit {d / 60:.1f} min deutlich kuerzer als "
-                  f"die laengste Quelle ({longest / 60:.1f} min) — bitte pruefen, "
-                  f"ob die Datei vollstaendig ist.")
+            print(f"  ⚠ {label} ist mit {d / 60:.1f} min deutlich kuerzer als die "
+                  f"laengste Quelle ({longest / 60:.1f} min). Der Sync kommt damit "
+                  f"zurecht — falls die Datei aber unvollstaendig ist (abgebrochene "
+                  f"Konvertierung o. ae.), fehlt sie spaeter im Schnitt.")
 
     # ── Referenz waehlen ──
     if reference is not None:
