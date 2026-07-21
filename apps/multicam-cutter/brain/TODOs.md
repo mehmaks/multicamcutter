@@ -125,6 +125,34 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
+- [ ] **Changelog: in der App sichtbar UND auf der Website.** Aufwand: **mittel**.
+  Nutzer sollen sehen, was ein Update bringt — heute steht im Update-Dialog nur
+  eine Versionsnummer.
+
+  **Sparkle kann das bereits, wir nutzen es nur nicht.** Der Appcast enthaelt
+  aktuell weder `<description>` noch `<sparkle:releaseNotesLink>` (geprueft
+  21.07.: nur title, version, enclosure, pubDate, minimumSystemVersion,
+  hardwareRequirements, deltas). `generate_appcast` bietet dafuer fertige
+  Schalter: `--embed-release-notes` (Notizen direkt ins Item) bzw.
+  `--release-notes-url-prefix` / `--full-release-notes-url` (Verlinkung auf die
+  Website). Damit erscheinen die Notizen **ohne eigene UI** im Sparkle-Dialog.
+
+  **NICHT direkt aus Git generieren.** Die Commit-Botschaften hier sind bewusst
+  entwicklungsnah (Ursachen, Dateinamen, Zeilennummern) — als Nutzertext waeren
+  sie unbrauchbar bis verunsichernd. Besser: eine gepflegte `CHANGELOG.md` im
+  Repo (gibt es noch nicht) als EINE Quelle, aus der beim Release erzeugt wird:
+  1. Abschnitt der Version → `release/updates/<version>.html` fuer Sparkle
+  2. derselbe Abschnitt → Seite auf der Website (Appcast verlinkt dorthin)
+  3. optional ein „Was ist neu"-Fenster in der App nach einem Update — der
+     `firstRunInfoSeenRevision`-Mechanismus aus `FirstRunSheet` ist dafuer das
+     passende Muster (Stand merken, bei Aenderung einmalig zeigen).
+
+  **Reihenfolge:** erst CHANGELOG.md + Sparkle-Verlinkung (klein, sofort
+  sichtbar im Update-Dialog), das eigene Fenster in der App danach.
+  ⚠️ `release.sh` muesste beim Fehlen eines Abschnitts fuer die Version
+  **abbrechen** — sonst geht stillschweigend ein Release ohne Notizen raus,
+  und das faellt wieder erst beim Nutzer auf.
+
 - [ ] **Dock-Fortschritt auch bei der FPS-Konvertierung.** Aufwand: **leicht**.
   🎨 Kosmetisch, blockt nichts — aber die Konvertierung dauert laenger als vieles
   andere (Faustregel im UI-Text: ~10 min pro GB; im Test 67 min Material →
