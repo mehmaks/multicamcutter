@@ -2,6 +2,40 @@
 
 ## Offen
 
+### Sprachreaktionen — dokumentiert, bewusst nicht umgesetzt
+- [ ] **Karenzzeit am Timeline-Anfang.** Beobachtung (ep04): Bei Timeline 7,6 s wird
+  auf die andere Cam geschnitten, bevor der Zuschauer überhaupt jemanden gesehen hat.
+  Die Erkennung war dabei **korrekt** — der Burst lag 8 s nach dem Timeline-Nullpunkt,
+  ON-Mic bei −5,7 dB, conf 0,87. Es ist ein redaktionelles, kein technisches Problem.
+  ⚠️ Eine Karenzzeit **existiert bereits**: PASS 2 setzt `last_cut_frame = section_start`
+  und blockiert Cutaways innerhalb von `min_shot` (2,3 s). Nötig wäre nur ein größerer
+  Mindestabstand für den **ersten** Schnitt — wofür es keinen belastbaren Richtwert gibt
+  („der Einsatz nach Aufnahmebeginn ist immer unterschiedlich", User). Deshalb offen.
+- [ ] **Reset der Analyse am Timeline-Nullpunkt.** Segmente vor Timeline-Frame 0
+  überspringen, das eine überspannende vorne beschneiden. Gemessen an ep04: 20 von 370
+  Segmenten liegen davor, 1 überspannt den Punkt; Ersparnis **1,5 %** der Laufzeit.
+  Cutaways davor entstehen ohnehin nicht (`_to_reaction` verwirft negative Video-Frames).
+  Konzeptionell sauber, praktisch marginal — und jede Frame-Arithmetik hängt daran, wo
+  das WAV beginnt. Lohnt erst, wenn jemand mit stundenlangem Vorlauf auftaucht.
+- [ ] **Mic-Trennung anzeigen statt warnen.** Die Trennung je Richtung ist ohne Labels
+  messbar und korreliert mit der FP-Rate (r = −0,65, n=6). Eine Warnschwelle bei 12 dB
+  würde aber bei **2 von 3** Folgen feuern und damit weggeklickt. Besser: den Wert im
+  Ergebnis nennen („Cam A 10,8 dB, Cam B 25,2 dB"), damit über Folgen hinweg sichtbar
+  wird, was normal ist. ⚠️ Nicht als Gate missbrauchen: 10,5 dB → 28 % FP, 15,0 dB →
+  75 % FP. Zu wackelig, um Verhalten daran zu hängen.
+- [x] **Voice Leveler als Pre-Process — GEMESSEN, bringt nichts.** Idee: `voice_leveler.py`
+  vor der Analyse laufen lassen, um Pegel anzugleichen. Test an ep04 (3 min, beide Mics,
+  Gate −45 dB, Low-Level-Boost +8, Ziel −16 LUFS):
+  Trennung roh **22,8 / 7,9 dB**, gelevelt **22,2 / 8,1 dB** — unverändert.
+  **Warum es prinzipiell nicht gehen kann:** Ein Prozessor pro Spur sieht immer nur
+  *eine* Spur. Um die Trennung zu verbessern, müsste er Übersprechen dämpfen — aber
+  Übersprechen ist auf einer einzelnen Spur nicht von einer leisen Reaktion zu
+  unterscheiden. Genau daran scheitert auch das vorhandene Crossbleed-Gate, weshalb die
+  Sprachreaktions-Erkennung es bewusst NICHT benutzt. Die nötige Information ist die
+  **Beziehung zwischen den Spuren** — und genau die nutzt Regel A.
+  → Als **Ausgabe**-Bearbeitung des fertigen Tons bleibt der Leveler sinnvoll; das ist,
+  wofür er gebaut wurde, und es berührt die Erkennung nicht.
+
 ### UI / UX
 - [ ] **CLIP-Schritt: „ETA: 199/382" ist keine ETA + Restzeit schätzen.** Aufwand: **leicht**.
   🎨 Kosmetisch, blockt nichts.

@@ -662,6 +662,16 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--speaking-mask-min-pause', str(params.get('speaking_mask_min_pause', 0.3)),
                 '--speaking-mask-padding',   str(params.get('speaking_mask_padding', 0.15)),
             ]
+            # FP-Nachfilter (Huellkurven-Korrelation). Validiert an 4 Episoden /
+            # 85 markierten Cutaways: entfernt 80 % der Fehlschnitte und kostet
+            # 2 von 55 echten Reaktionen (siehe brain/Sprachreaktionen-Parameter.md).
+            # Standardverhalten, nicht in der UI — aber ueber params abschaltbar,
+            # falls fremdes Material anders reagiert.
+            if params.get('speaking_fp_filter', True):
+                builder_args += [
+                    '--speaking-fp-filter',
+                    '--speaking-fp-corr', str(params.get('speaking_fp_corr', 0.75)),
+                ]
         # Totale-Cam: erste Kamera mit type='wide' (falls vorhanden)
         totale_idx = next(
             (i for i, t in enumerate(cam_types) if t == 'wide'), None
