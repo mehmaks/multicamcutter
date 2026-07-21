@@ -20,9 +20,17 @@
 - **Wirkung**: Der 3-Cam-Ordner bricht jetzt mit klarer Diagnose ab statt mit
   einem um bis zu 4 s falschen Offset weiterzurechnen. Beide bekannt guten
   2-Cam-Episoden laufen unveraendert durch (Confidences dort 100–470x).
-- **Offen**: Totalen mit weit entferntem/andersartigem Ton sind per Waveform
-  grundsaetzlich nicht syncbar. Dafuer braucht es einen anderen Weg —
-  manueller Offset in der UI oder Sync ueber die Bildspur.
+- **KORREKTUR (21.07., wenige Stunden spaeter)**: Die Schlussfolgerung „Totale
+  per Waveform nicht syncbar" war **falsch**. Die flache Confidence war echt,
+  ihre Ursache aber eine andere: der wahre Versatz (30 min) lag ausserhalb des
+  durchsuchbaren Bereichs. `correlate(mode="full")` findet nur Lags bis zur
+  Laenge der REFERENZ — mit 180 s Referenz sind 30 min prinzipiell unauffindbar,
+  und man sieht ausschliesslich Rauschen. Auch der Gegentest mit 1500 s reichte
+  nicht, weil der gesuchte Versatz bei 1808 s liegt.
+  **Merkregel**: flache Confidence bei WACHSENDEM Fenster heisst nicht „kein
+  Signal", sondern zuerst „Suchraum zu klein".
+  Mit asymmetrischen Fenstern (Ziel 180 s, Referenz waechst bis zur vollen Laenge)
+  synct dieselbe Totale mit **177x** statt 12x.
 
 ### Unvollstaendige Quelldatei wird beim Scan unbesehen uebernommen
 - **Symptom (Episode 38, 21.07.)**: Waveform-Sync bricht mit „Kreuzprobe

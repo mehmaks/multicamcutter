@@ -109,82 +109,70 @@ def _sync_pair(
     start_duration: float = None,
 ) -> SyncResult:
     """
-    Syncs one pair of audio/video sources against a reference.
-    Expands analysis window in CHUNK_STEP increments until confidence is met.
+    Synchronisiert eine Quelle gegen eine Referenz.
 
-    start_duration: groesseres Startfenster erzwingen. Noetig, wenn eine Quelle
-    einen langen Vorlauf hat: das Fenster wird von JEDEM Dateianfang genommen,
-    bei 100 s Vorlauf ueberlappen zwei 180-s-Fenster also nur 80 s. Das reicht
-    fuer ein falsches Maximum, das die Confidence-Schwelle trotzdem passiert.
+    ASYMMETRISCHE FENSTER: Das ZIEL liefert den Inhalt zum Wiedererkennen —
+    3 Minuten reichen dafuer. Die REFERENZ bestimmt den durchsuchbaren
+    Versatzbereich, denn correlate(mode="full") findet nur Lags bis zu ihrer
+    Laenge. Beide gleich kurz zu halten war der Fehler: ein Kamera-Fragment,
+    das 30 min in die Aufnahme hinein beginnt, ist mit einer 3-Minuten-Referenz
+    nicht auffindbar — die Fenster haben nicht einmal gemeinsamen Inhalt.
+
+    Erweitert wird bis TRUST_CONFIDENCE, nicht bis MIN_CONFIDENCE: 14x ist
+    Rauschen, das die 5.0 muehelos passiert. Ist das Referenzmaterial
+    erschoepft, wird das BESTE gefundene Ergebnis zurueckgegeben (sofern
+    ueberhaupt ueber MIN_CONFIDENCE) — die Gegenpruefung in sync_sources
+    entscheidet dann, ob es tragfaehig ist.
     """
-    duration = start_duration or CHUNK_SECONDS
-    max_duration = None  # will probe on first failure
+    target_duration = start_duration or CHUNK_SECONDS
+    ref_duration    = target_duration
+    max_ref         = _probe_duration(ref_path) or target_duration * 8
+    best            = None
 
     while True:
-        print(f"  {ref_label} ↔ {target_label}: analysiere {duration}s ...", end=" ", flush=True)
+        print(f"  {ref_label} ↔ {target_label}: {target_duration:.0f}s gegen "
+              f"{ref_duration:.0f}s Referenz ...", end=" ", flush=True)
 
-        # Die Referenz wird gegen JEDE andere Quelle korreliert und sonst bei
-        # jedem Paar neu dekodiert. Bei 4K-Material sind das je Aufruf zweistellige
-        # Sekunden fuer exakt dasselbe Ergebnis. Nur die Referenz wird gehalten —
-        # alle Quellen zu cachen waere bei erweitertem Fenster schnell dreistellig
-        # in MB.
-        if cache is not None and (ref_path, duration) in cache:
-            ref_audio = cache[(ref_path, duration)]
+        if cache is not None and (ref_path, ref_duration) in cache:
+            ref_audio = cache[(ref_path, ref_duration)]
         else:
-            ref_audio = extract_audio(ref_path, duration_s=duration)
+            ref_audio = extract_audio(ref_path, duration_s=ref_duration)
             if cache is not None:
-                cache[(ref_path, duration)] = ref_audio
-        target_audio = extract_audio(target_path, duration_s=duration)
-
-        # KEIN Kuerzen auf die gemeinsame Laenge. correlate(mode="full") kommt mit
-        # unterschiedlich langen Signalen zurecht, und das Stutzen war aktiv
-        # schaedlich: es kappt die REFERENZ auf die Laenge des kuerzeren Partners,
-        # gerechnet ab ihrem eigenen Anfang. Damit sinkt zugleich der groesste
-        # auffindbare Versatz auf diese Laenge.
-        #
-        # Konkreter Fall: MIC1 lief 102 s vor CAM1, CAM1 war nur 94 s lang. Die
-        # Referenz wurde auf ihre ersten 94 s gestutzt — reiner Vorlauf, null
-        # Ueberlappung — und der wahre Versatz von 102 s lag ausserhalb des
-        # ueberhaupt durchsuchbaren Bereichs.
+                cache[(ref_path, ref_duration)] = ref_audio
+        target_audio = extract_audio(target_path, duration_s=target_duration)
 
         offset_samples, confidence = _correlate_offset(ref_audio, target_audio)
-        offset_frames  = _samples_to_frames(offset_samples, fps)
-        offset_seconds = offset_samples / SAMPLE_RATE
+        result = SyncResult(
+            ref_label=ref_label,
+            target_label=target_label,
+            offset_frames=_samples_to_frames(offset_samples, fps),
+            offset_seconds=offset_samples / SAMPLE_RATE,
+            confidence=confidence,
+            analyzed_seconds=ref_duration,
+        )
+        if best is None or confidence > best.confidence:
+            best = result
 
-        print(f"Confidence: {confidence:.1f}x", end="")
+        if confidence >= TRUST_CONFIDENCE:
+            print(f"Confidence: {confidence:.1f}x ✓ → Offset: "
+                  f"{result.offset_frames:+d} frames ({result.offset_seconds:+.3f}s)")
+            return result
 
-        if confidence >= MIN_CONFIDENCE:
-            print(f" ✓ → Offset: {offset_frames:+d} frames ({offset_seconds:+.3f}s)")
-            return SyncResult(
-                ref_label=ref_label,
-                target_label=target_label,
-                offset_frames=offset_frames,
-                offset_seconds=offset_seconds,
-                confidence=confidence,
-                analyzed_seconds=duration,
-            )
-
-        print(f" (unter Schwellwert {MIN_CONFIDENCE}x) — erweitere Fenster")
-
-        # Probe total duration to know when to give up
-        if max_duration is None:
-            probe = subprocess.run(
-                ["ffprobe", "-v", "error", "-show_entries", "format=duration",
-                 "-of", "default=noprint_wrappers=1:nokey=1", ref_path],
-                capture_output=True, text=True
-            )
-            try:
-                max_duration = float(probe.stdout.strip())
-            except ValueError:
-                max_duration = duration * 5  # fallback
-
-        duration += CHUNK_STEP
-        if duration > max_duration:
+        if ref_duration >= max_ref:
+            if best.confidence >= MIN_CONFIDENCE:
+                print(f"Confidence: {confidence:.1f}x (bestes: {best.confidence:.1f}x) "
+                      f"→ Offset: {best.offset_frames:+d} frames — wird gegengeprueft")
+                return best
             raise SyncError(
-                f"Kein verlässlicher Sync gefunden für {ref_label} ↔ {target_label} "
-                f"(max. Confidence erreicht: {confidence:.1f}x bei {max_duration:.0f}s Material).\n"
-                f"Bitte manuell synchronisieren."
+                f"Kein verlaesslicher Sync fuer {ref_label} ↔ {target_label} "
+                f"(beste Confidence {best.confidence:.1f}x bei {max_ref:.0f}s "
+                f"Referenzmaterial). Bitte manuell synchronisieren."
             )
+
+        print(f"Confidence: {confidence:.1f}x — erweitere Referenzfenster")
+        # Verdoppeln statt linear erhoehen: der gesuchte Versatz kann Stunden
+        # betragen, in 3-Minuten-Schritten dauerte das ewig.
+        ref_duration = min(ref_duration * 2, max_ref)
 
 
 def _probe_duration(path: str) -> float:
@@ -407,9 +395,11 @@ def sync_sources(
             f"Zwei unabhaengige Wege kommen zu verschiedenen Ergebnissen, und die "
             f"Confidence liegt unter {TRUST_CONFIDENCE:.0f}x — die Korrelation findet "
             f"keinen echten Gipfel, sondern Rauschen.\n"
-            f"Typisch fuer Kameras, deren Ton aus einer ganz anderen Position stammt "
-            f"(Totale weit weg, Actioncam, Windgeraeusche). Solche Quellen bitte "
-            f"manuell synchronisieren oder aus der Analyse nehmen."
+            f"Wenn die Confidence bei WACHSENDEM Referenzfenster flach bleibt, lag der "
+            f"wahre Versatz bisher ausserhalb des durchsuchten Bereichs — das faengt die "
+            f"Fenster-Erweiterung inzwischen ab. Bleibt es auch danach uneinig, stammt "
+            f"der Ton der Quelle vermutlich aus einer ganz anderen Position (weit "
+            f"entfernte Totale, Wind). Dann manuell synchronisieren oder ausschliessen."
         )
 
     print()
