@@ -48,9 +48,20 @@ gedacht — wenn du danach fragst, ist das die Liste.
 **Publish — `bash scripts/publish.sh 0.5.0`** (bewusst separat, „geht nach außen"):
 
 Das Skript nimmt die Tipparbeit ab, **nicht die Entscheidung**: Es zeigt zuerst
-vollständig, was es tun wird, und fragt einmal. Braucht `R2_BUCKET` (Name via
-`npx wrangler r2 bucket list`); `wrangler` läuft über `npx`, keine globale
-Installation.
+vollständig, was es tun wird, und fragt einmal. Braucht `R2_BUCKET` (z. B. `multicamcutter-downloads`) und **rclone**.
+
+⚠️ **wrangler scheidet aus**: harte Grenze von **300 MiB** pro Upload, kein
+Multipart (`Wrangler only supports uploading files up to 300 MiB in size`,
+getestet mit 4.112.0). Unsere DMGs liegen bei ~500 MiB. `rclone` spricht R2 über
+die S3-API und lädt automatisch in Teilen. Einmalig:
+```
+brew install rclone
+rclone config     # n) new remote · Name: r2 · Typ: s3 · Provider: Cloudflare
+                  # Access Key + Secret: Cloudflare → R2 → API-Token erstellen
+                  # Endpoint: https://<account-id>.r2.cloudflarestorage.com
+```
+Die Zugangsdaten liegen in der rclone-Config, **nicht** im Repo. Das Skript
+erkennt das Werkzeug **vor** der Rückfrage — kein Bestätigen und dann scheitern.
 
 ⚠️ **Reihenfolge ist sicherheitsrelevant** — erst DMG, dann Feed. Ginge der
 Appcast zuerst live, böte Sparkle allen Nutzern ein Update an, dessen Datei noch

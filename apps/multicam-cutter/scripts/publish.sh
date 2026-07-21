@@ -5,7 +5,7 @@ set -euo pipefail
 #   bash scripts/publish.sh 0.5.0
 #
 # Nimmt, was release.sh erzeugt hat, und bringt es online:
-#   1. DMG   → Cloudflare R2 (npx wrangler, keine globale Installation nötig)
+#   1. DMG   → Cloudflare R2 (rclone; wrangler nur bis 300 MiB, siehe unten)
 #   2. PRÜFEN, ob das DMG wirklich abrufbar und vollständig ist
 #   3. appcast.xml → Website-Repo, committen, pushen (Vercel deployt beim Push)
 #   4. PRÜFEN, ob der deployte Feed dem lokalen entspricht
@@ -20,8 +20,9 @@ set -euo pipefail
 # Entscheidung: es zeigt zuerst vollständig, was es tun wird, und fragt einmal.
 #
 # Env:
-#   R2_BUCKET    Name des R2-Buckets (Pflicht). Zu finden im Cloudflare-Dashboard
-#                unter R2, oder via `npx wrangler r2 bucket list`.
+#   R2_BUCKET     Name des R2-Buckets (Pflicht), z. B. multicamcutter-downloads
+#   RCLONE_REMOTE rclone-Remote (Default: r2)
+#   R2_ENDPOINT   nur für den aws-CLI-Pfad
 #   WEB_REPO     Website-Repo (Default: ~/Developer/multicamcutter-web)
 #   ASSUME_YES=1 überspringt die Rückfrage (für unbeaufsichtigte Läufe)
 
@@ -45,6 +46,34 @@ WEB_REPO="${WEB_REPO:-$HOME/Developer/multicamcutter-web}"
     echo "  Dann: R2_BUCKET=<name> bash scripts/publish.sh $VERSION"
     exit 1
 }
+
+# ── Uploader wählen ────────────────────────────────────────────────────────
+# wrangler kann nur bis 300 MiB (harte Grenze, kein Multipart) — unsere DMGs
+# liegen bei ~500 MiB. Deshalb wird rclone bevorzugt: spricht R2 über die
+# S3-API und lädt automatisch in Teilen hoch. Erkannt wird VOR der Rückfrage,
+# damit man nicht erst bestätigt und dann scheitert.
+WRANGLER_LIMIT=$((300 * 1024 * 1024))
+DMG_BYTES="$(stat -f%z "$DMG")"
+if command -v rclone >/dev/null 2>&1; then
+    UPLOADER="rclone"
+elif command -v aws >/dev/null 2>&1 && [ -n "${R2_ENDPOINT:-}" ]; then
+    UPLOADER="aws"
+elif [ "$DMG_BYTES" -le "$WRANGLER_LIMIT" ]; then
+    UPLOADER="wrangler"
+else
+    echo "✗ Kein geeignetes Upload-Werkzeug für $(echo "$DMG_BYTES" | awk '{printf "%.0f MiB", $1/1048576}')."
+    echo ""
+    echo "  wrangler kann nur bis 300 MiB (harte Grenze, kein Multipart)."
+    echo "  Empfehlung — rclone, einmalig einrichten:"
+    echo "    brew install rclone"
+    echo "    rclone config    # n) new remote, Typ: s3, Provider: Cloudflare"
+    echo "                     # Access Key + Secret aus Cloudflare → R2 → API-Token"
+    echo "                     # Endpoint: https://<account-id>.r2.cloudflarestorage.com"
+    echo "    Remote muss 'r2' heissen (oder RCLONE_REMOTE=<name> setzen)."
+    echo ""
+    echo "  ⚠️ Die R2-Zugangsdaten gehören in die rclone-Config, NICHT ins Repo."
+    exit 1
+fi
 
 # Erwartete Werte AUS DEM SIGNIERTEN FEED lesen — nicht selbst berechnen. Der
 # Feed ist die Wahrheit: Sparkle prüft gegen genau diese Länge und Signatur.
@@ -80,6 +109,7 @@ echo "       Größe:       $(echo "$ACTUAL_LEN" | awk '{printf "%.0f MB (%d Byt
 echo "       Bucket:      $R2_BUCKET"
 echo "       Objekt-Key:  $OBJECT_KEY"
 echo "       Content-Type: application/octet-stream"
+echo "       Werkzeug:    $UPLOADER"
 echo ""
 echo "  2. appcast.xml → $WEB_REPO/public/appcast.xml"
 echo "       committen + pushen (Vercel deployt beim Push)"
@@ -97,8 +127,22 @@ fi
 echo ""
 echo "───── [1/4] DMG → R2 ─────"
 echo "► Hochladen (~$(echo "$ACTUAL_LEN" | awk '{printf "%.0f", $1/1048576}') MB, dauert einen Moment)..."
-npx --yes wrangler r2 object put "$R2_BUCKET/$OBJECT_KEY" \
-    --file="$DMG" --content-type="application/octet-stream" --remote
+case "$UPLOADER" in
+  rclone)
+    RCLONE_REMOTE="${RCLONE_REMOTE:-r2}"
+    rclone copyto "$DMG" "$RCLONE_REMOTE:$R2_BUCKET/$OBJECT_KEY" \
+        --header-upload "Content-Type: application/octet-stream" \
+        --s3-chunk-size 64M --progress
+    ;;
+  aws)
+    aws s3 cp "$DMG" "s3://$R2_BUCKET/$OBJECT_KEY" \
+        --endpoint-url "$R2_ENDPOINT" --content-type "application/octet-stream"
+    ;;
+  wrangler)
+    npx --yes wrangler r2 object put "$R2_BUCKET/$OBJECT_KEY" \
+        --file="$DMG" --content-type="application/octet-stream" --remote
+    ;;
+esac
 
 # ── 2. Upload prüfen — BEVOR der Feed live geht ────────────────────────────
 echo ""
