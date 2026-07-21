@@ -34,11 +34,16 @@ struct FirstRunSheet: View {
                     + "Mikrofone bestimmt. Ein gemeinsames Mikrofon für mehrere "
                     + "Personen lässt sich nicht auftrennen."),
         .init(icon: "person.2",
-              title: "Zurzeit zwei Personen als Sprecher",
-              // build_base_edl_from_audio.rms_diarize vergleicht genau zwei Seiten.
-              detail: "Weitere Kameras sind willkommen und werden als Totale oder "
-                    + "Cutaway genutzt — als sprechende Person erkennt die Analyse "
-                    + "aber derzeit nur zwei."),
+              // rms_diarize vergleicht genau ZWEI Seiten (run_from_bin.py:554-561:
+              // cam_paths[0] und cam_paths[1]). Die Grenze sind damit zwei
+              // KAMERAS, nicht zwei Personen: mehrere Mikrofone pro Kamera sind
+              // erlaubt und werden zusammengefasst (load_and_combine, Maximum).
+              // Drei Personen auf zwei Kameras funktionieren deshalb vollstaendig.
+              title: "Der Sprecherwechsel läuft zwischen zwei Kameras",
+              detail: "Mehrere Personen dürfen sich eine Kamera teilen — ihre "
+                    + "Mikrofone werden dann zusammengefasst. Weitere Kameras "
+                    + "funktionieren als Totale oder für Cutaways, werden aber "
+                    + "nicht selbst angeschnitten, wenn dort jemand spricht."),
         .init(icon: "clock.arrow.2.circlepath",
               title: "Die Aufnahmen müssen sich zeitlich überlappen",
               detail: "Ohne gemeinsamen Zeitraum findet die Synchronisierung "

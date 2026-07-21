@@ -244,6 +244,12 @@ Python-Runtime dazubekommt.
 ### 🔴 N-Sprecher-Diarisierung (3+ Personen) — PRIORISIERT (Engine) — Aufwand: **mittel**
 - [ ] **Basis-EDL von binär (2 Cams) auf N-fach umstellen.** User-Kontext: Podcast hat
   **häufig Host + 2 Gäste = 3 Personen**, also kein Edge-Case.
+  ⚠️ **Weniger dringend als hier lange behauptet** (geklärt 21.07.): Die Grenze sind
+  zwei **Kameras**, nicht zwei **Personen**. Jede Seite nimmt eine LISTE von Mikrofonen
+  (`load_and_combine`, Maximum), und die App kann sie auch senden (`camMicsArgs` → `"0,1"`).
+  Host + 2 Gäste läuft daher **vollständig**, solange sich die Gäste eine Kamera teilen —
+  vom User so getestet. Offen ist nur der Fall **drei Personen auf drei eigenen Kameras**,
+  jede einzeln angeschnitten.
   **Ist-Zustand:** `build_base_edl_from_audio.py` (`rms_diarize`, ~:67-93) vergleicht nur
   `rms1` (Mics von `cam_paths[0]`) vs `rms2` (`cam_paths[1]`) → Label `CAM1`/`CAM2`.
   `run_from_bin.py:546-557` speist genau zwei Seiten. Personen auf Cams ab Index 2
