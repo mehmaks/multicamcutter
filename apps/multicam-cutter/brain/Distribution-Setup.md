@@ -4,6 +4,22 @@ Wie aus der gebauten App eine verteilbare Datei wird — von der ad-hoc-DMG bis 
 signierten/notarisierten Auslieferung inkl. Auto-Update.
 
 
+## ✅ Update-Kette einmal vollständig verifiziert (21.07., 0.4.0 → 0.5.0)
+
+Erste nachweislich durchgelaufene Auto-Update-Installation. Bewiesen sind damit
+in einem Zug: Developer-ID-Signatur + Hardened Runtime, Notarisierung + Stapling,
+Gatekeeper-Akzeptanz, Sparkle-EdDSA-Signatur des Feeds, R2-Auslieferung über die
+`/downloads`-Weiterleitung und die `CFBundleVersion`-Vergleichslogik
+(`202607190827` → `202607210731`).
+
+Die Quelle war **0.4.0 vom 19.07., also ein Build VOR den Gatekeeper-Fixes** —
+der Migrationspfad von den fehlerhaft gepackten Ständen auf einen korrekten ist
+damit ebenfalls bestätigt.
+
+⚠️ Beim Testen darauf achten, welche App läuft: `release/MultiCamCutter.app`, die
+Dev-App aus `swift run` und `/Applications/MultiCamCutter.app` heißen gleich.
+Finder sortiert nicht nach Ort. Sicher ist `open /Applications/MultiCamCutter.app`.
+
 ## ⚠️ Gatekeeper-Prüfung nach dem Release IMMER lesen
 
 `release.sh` meldet am Ende `spctl`-Ergebnisse. **„rejected" dort heißt NICHT,
