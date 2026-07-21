@@ -42,6 +42,34 @@ echo "  Binary: $SWIFT_BINARY"
 
 # 2. Engine-Bundle prüfen
 ENGINE_DIR="$APP_DIR/dist/multicam-engine"
+
+# ── Veraltete Engine erkennen ──────────────────────────────────────────────
+# build_app.sh friert die Engine NICHT selbst ein, es kopiert nur
+# dist/multicam-engine ins Bundle. Ohne diese Pruefung landet stillschweigend
+# ein alter Stand im Release: am 21.07. ging 0.5.0 mit einer Engine vom 19.07.
+# raus -- ohne den Pause-Trim-Fix, die AAF-Clipnamen und den FP-Filter. Der
+# Build meldete dabei Erfolg.
+if [ -f "$ENGINE_DIR/multicam-engine" ]; then
+    STALE="$(find "$TOOLKIT_ROOT/modules" "$TOOLKIT_ROOT/shared" \
+                  "$TOOLKIT_ROOT/licensing" "$APP_DIR/engine" \
+                  -name '*.py' -newer "$ENGINE_DIR/multicam-engine" 2>/dev/null \
+             | grep -v '/dist/\|/release/' || true)"
+    if [ -n "$STALE" ]; then
+        echo "✗ Die eingefrorene Engine ist AELTER als der Quellcode."
+        echo "  Neuer als dist/multicam-engine/multicam-engine:"
+        echo "$STALE" | sed "s|$TOOLKIT_ROOT/||; s|^|      |"
+        echo ""
+        echo "  Diese Aenderungen waeren NICHT im Release. Erst neu einfrieren:"
+        echo "      cd $APP_DIR && pyinstaller scripts/multicam_engine.spec"
+        echo ""
+        echo "  (Bewusst kein Auto-Rebuild: der Lauf dauert mehrere Minuten und"
+        echo "   soll eine Entscheidung bleiben. SKIP_ENGINE_CHECK=1 uebergeht die"
+        echo "   Pruefung.)"
+        [ "${SKIP_ENGINE_CHECK:-0}" = "1" ] || exit 1
+        echo "  ⚠ SKIP_ENGINE_CHECK=1 — Pruefung uebersprungen."
+    fi
+fi
+
 if [ ! -f "$ENGINE_DIR/multicam-engine" ]; then
     echo "FEHLER: Engine-Bundle nicht gefunden unter $ENGINE_DIR"
     echo "Bitte zuerst: pyinstaller scripts/multicam_engine.spec"

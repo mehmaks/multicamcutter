@@ -2,6 +2,30 @@
 
 ## OFFEN
 
+### 🔴 0.5.0 wurde mit einer zwei Tage alten Engine ausgeliefert
+- **Symptom**: Analyse aus 0.5.1 bricht ab mit
+  `unrecognized arguments: --cam-person-names`. Die App sendet das Argument, die
+  gebündelte Engine kennt es nicht.
+- **Ursache**: `build_app.sh` friert die Engine **nicht** ein, es **kopiert** nur
+  `dist/multicam-engine` ins Bundle (`:78`). PyInstaller muss vorher von Hand
+  laufen. Am 21.07. war `dist/` vom **19.07. 20:06**, die Quellen vom 20.07. —
+  der Build meldete trotzdem Erfolg.
+- **Tragweite**: In **0.5.0, das live ist**, fehlt jede Python-Änderung seit dem
+  19.07.: Pause-Trim-Fix (Inhaltsverlust!), AAF-Clipnamen, FP-Filter Regel A,
+  Kopfnicken-Schalter, speaking_debug. Die Swift-Seite war aktuell — deshalb sah
+  die App neu aus, verhielt sich aber wie vorher.
+- **Warum es niemandem auffiel**: Die Versionsnummer stammt aus der Info.plist
+  (Swift-Seite), nicht aus der Engine. Ein Bundle mit neuer Version und alter
+  Engine ist von außen nicht unterscheidbar.
+- **Abgesichert (21.07.)**: `build_app.sh` vergleicht jetzt die mtime der
+  eingefrorenen Engine gegen alle `.py` unter `modules/`, `shared/`,
+  `licensing/`, `engine/` und **bricht ab**, wenn Quellen neuer sind. Bewusst
+  kein Auto-Rebuild — PyInstaller läuft mehrere Minuten und soll eine
+  Entscheidung bleiben. `SKIP_ENGINE_CHECK=1` übergeht die Prüfung.
+- **Zu tun**: `cd apps/multicam-cutter && pyinstaller scripts/multicam_engine.spec`,
+  dann Release neu bauen und **0.5.2 nachschieben** — die Nutzer von 0.5.0 haben
+  den Pause-Trim-Bug weiterhin.
+
 ### 🟢 Pause-Trim entfernt Sprache — gefixt (Praxistest der Schranken offen)
 - **Symptom**: Video UND Audio sind an einer Stelle geschnitten, an der beide
   Sprecher reden — ein Stück Gespräch fehlt. **Inhaltsverlust**, kein
