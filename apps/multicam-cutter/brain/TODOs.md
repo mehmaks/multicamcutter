@@ -60,13 +60,25 @@ Bundle löst das Problem an der Wurzel statt am Transportweg.
 | **sklearn** | **16 MB** | **nein** |
 | **matplotlib** | **12 MB** | nur `silence_cutter.py` + Sandbox, **nicht** im Multicam-Pfad |
 
-**Schritt 1 (risikoarm)**: `pandas`, `pyarrow`, `sklearn`, `llvmlite`, `numba`,
-`matplotlib` in `multicam_engine.spec` unter `excludes` — zusammen ~270 MB, keiner
-davon wird im Engine-Code importiert. Aktuell stehen dort nur `streamlit`,
-`notebook`, `jupyter`, `tkinter`.
-⚠️ Danach **zwingend** einen vollständigen Lauf testen: PyInstaller-Excludes
-brechen genau die Imports, die dynamisch passieren. `onnxruntime` NICHT im ersten
-Schritt anfassen — mediapipe könnte es zur Laufzeit brauchen.
+**Schritt 1 — ✅ eingetragen (21.07.), Test steht aus.** `pandas`, `pyarrow`,
+`sklearn`, `llvmlite`, `numba`, `matplotlib`, `plotly` stehen in
+`multicam_engine.spec` unter `excludes` (~270 MB). `onnxruntime` bewusst NICHT —
+mediapipe könnte es zur Laufzeit brauchen; erst nach erfolgreichem Test einzeln
+nachziehen.
+
+⚠️ **So wird getestet — die Reihenfolge ist wichtig:**
+1. `bash scripts/release.sh <version>` (oder nur den PyInstaller-Build) — die
+   Ausschlüsse wirken **nur im gefrorenen Bundle**. Ein Dev-Lauf über `swift run`
+   beweist nichts, dort liegt das komplette venv vor.
+2. Lauf aus der **gebündelten** `.app` heraus, **mit eingeschaltetem CLIP-Filter**
+   („Ungünstige Cutaways verschieben"). Das ist der Pfad, der torch und
+   transformers anfasst — und damit der einzige, auf dem die ausgeschlossenen
+   Pakete überhaupt auftauchen könnten. Ohne CLIP prüft der Lauf die riskante
+   Stelle gar nicht.
+3. Zusätzlich den **Ordner-Scan** ansehen: die Personenerkennung fürs Thumbnail
+   nutzt CLIP ebenfalls (`_find_person_frame`).
+4. Erfolg = Lauf bis zur AAF ohne `ModuleNotFoundError`, plus Größenvergleich
+   der `.app` (vorher 1,2 GB).
 
 **Schritt 2 (größer)**: torch + transformers = **326 MB für ein optionales
 Feature**. Der CLIP-Filter ist abschaltbar, und das *Modell* wird ohnehin schon

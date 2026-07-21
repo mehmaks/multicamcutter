@@ -124,6 +124,29 @@ a = Analysis(
         'notebook',
         'jupyter',
         'tkinter',
+
+        # ── Verwaister Beifang (~270 MB) ──────────────────────────────────
+        # Keines dieser Pakete wird im Engine-Pfad importiert (per grep über
+        # engine/, modules/multicam_cutter/, shared/, licensing/ geprüft: 0
+        # Treffer). Sie stammen aus ANDEREN Toolkit-Modulen, die das Bundle
+        # nie anfasst — Whisper, DeepFilterNet, Audio-Separation, plotly —
+        # bzw. aus dem PyInstaller-Hook für transformers, der dessen gesamte
+        # optionale Abhängigkeitswelt einsammelt.
+        #   pyarrow 114 MB · llvmlite 110 MB · pandas 17 MB
+        #   sklearn 16 MB  · matplotlib 12 MB
+        # matplotlib taucht nur in silence_cutter.py und Sandbox-Skripten auf,
+        # die hier nicht erreichbar sind (ebenfalls 0 Treffer).
+        'pandas',
+        'pyarrow',
+        'sklearn',
+        'scikit-learn',
+        'llvmlite',
+        'numba',
+        'matplotlib',
+        'plotly',
+        # ⚠️ onnxruntime (59 MB) BEWUSST NICHT ausschließen: mediapipe könnte
+        # es zur Laufzeit brauchen. Erst nach einem erfolgreichen Lauf mit
+        # diesen Ausschlüssen einzeln nachziehen und erneut testen.
     ],
     noarchive=False,
     optimize=0,
