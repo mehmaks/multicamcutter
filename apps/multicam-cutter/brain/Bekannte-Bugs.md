@@ -2,6 +2,28 @@
 
 ## OFFEN
 
+### Schwache Korrelationen wurden ungeprueft uebernommen (Confidence-Schwelle)
+- **Befund (3-Cam-Test, 21.07.)**: Eine Totale (Actioncam, `VID_…`) lieferte bei
+  JEDEM Analysefenster eine Confidence um 12x — und dabei voellig verschiedene
+  Offsets: −478 (180 s), +95 (600 s), −460 (1500 s). Ueber CAM1 gemessen −472,
+  ueber CAM2 −374. **Es gibt bei dieser Quelle keinen echten Korrelationsgipfel**;
+  die Korrelation findet Rauschen und liefert je Fenster eine andere Zufallszahl.
+- **Erkennungsmerkmal**: gleichbleibend niedrige Confidence bei WACHSENDEM Fenster.
+  Bei echtem Signal steigt sie mit mehr Material.
+- **Warum es durchging**: `MIN_CONFIDENCE = 5.0` ist die Schwelle zum
+  Weitersuchen, nicht zum Vertrauen. 12x passiert sie muehelos. Die Kreuzprobe
+  deckte nur CAM1↔CAM2 ab — jede andere Quelle blieb ungeprueft.
+- **Fix (21.07.)**: Neue Schwelle `TRUST_CONFIDENCE = 50.0`. Jede Quelle darunter
+  wird ueber einen ZWEITEN Weg gegengeprueft (sicherste andere Quelle als Pruefer);
+  weichen beide Wege um mehr als 2 Frames ab, bricht der Sync ab und nennt Quelle,
+  beide Ergebnisse und die Confidence.
+- **Wirkung**: Der 3-Cam-Ordner bricht jetzt mit klarer Diagnose ab statt mit
+  einem um bis zu 4 s falschen Offset weiterzurechnen. Beide bekannt guten
+  2-Cam-Episoden laufen unveraendert durch (Confidences dort 100–470x).
+- **Offen**: Totalen mit weit entferntem/andersartigem Ton sind per Waveform
+  grundsaetzlich nicht syncbar. Dafuer braucht es einen anderen Weg —
+  manueller Offset in der UI oder Sync ueber die Bildspur.
+
 ### Unvollstaendige Quelldatei wird beim Scan unbesehen uebernommen
 - **Symptom (Episode 38, 21.07.)**: Waveform-Sync bricht mit „Kreuzprobe
   fehlgeschlagen" ab. Sieht nach einem Korrelationsproblem aus, ist aber keines.

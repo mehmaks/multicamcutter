@@ -214,6 +214,16 @@ RETRY_WINDOW_FACTOR = 4
 # solange die REFERENZ lang genug ist. Kuerzer als das ist es Rauschen.
 MIN_SOURCE_SECONDS = 10.0
 
+# Ab dieser Confidence gilt eine EINZELMESSUNG als belastbar. Darunter wird die
+# Quelle ueber einen zweiten Weg gegengeprueft.
+#
+# MIN_CONFIDENCE (5.0) ist die Schwelle zum Weitersuchen, nicht zum Vertrauen:
+# gemessen wurde eine Totale, die bei JEDEM Fenster ~12x lieferte und dabei
+# Offsets zwischen -478 und +111 Frames -- reines Rauschen, das die 5.0 muehelos
+# passiert. Eine gleichbleibend niedrige Confidence bei wachsendem Fenster ist
+# das Erkennungsmerkmal: es gibt keinen echten Korrelationsgipfel.
+TRUST_CONFIDENCE = 50.0
+
 
 def sync_sources(
     cam_paths: list[str],
@@ -361,6 +371,46 @@ def sync_sources(
                 f"die Analysefenster kaum gemeinsames Material enthalten."
             )
         print(f"  Kreuzprobe CAM1 ↔ CAM2: ✓ (Abweichung {drift} Frames)")
+
+    # ── Schwache Messungen ueber einen zweiten Weg gegenpruefen ──
+    # Die Kreuzprobe oben deckt nur CAM2 ab. Jede andere Quelle koennte mit
+    # duerftiger Confidence einen Zufallswert liefern, ohne dass es auffaellt —
+    # und Offsets sind genau die Sorte Zahl, die man dem fertigen Schnitt nicht
+    # mehr ansieht.
+    unreliable = []
+    for label, conf in sorted(confidences.items(), key=lambda kv: kv[1]):
+        if conf >= TRUST_CONFIDENCE:
+            continue
+        # Als Pruefer die sicherste ANDERE Quelle nehmen.
+        others = [l for l in confidences if l != label]
+        if not others:
+            continue
+        verifier = max(others, key=lambda l: confidences[l])
+        check = _sync_pair(sources[verifier], sources[label], verifier, label, fps)
+        via_verifier = rel[verifier] + check.offset_frames
+        spread = abs(via_verifier - rel[label])
+        if spread > CROSSCHECK_TOLERANCE_FRAMES:
+            unreliable.append((label, conf, rel[label] - rel["CAM1"],
+                               via_verifier - rel["CAM1"], verifier, spread))
+        else:
+            print(f"  {label} gegengeprueft ueber {verifier}: ✓ "
+                  f"(Abweichung {spread} Frames)")
+
+    if unreliable:
+        lines = "\n".join(
+            f"    {l}: ueber {ref_label} {a:+d} Frames, ueber {v} {b:+d} Frames "
+            f"(Abweichung {sp}, Confidence nur {c:.1f}x)"
+            for l, c, a, b, v, sp in unreliable
+        )
+        raise SyncError(
+            f"Diese Quelle(n) lassen sich nicht verlaesslich einordnen:\n{lines}\n"
+            f"Zwei unabhaengige Wege kommen zu verschiedenen Ergebnissen, und die "
+            f"Confidence liegt unter {TRUST_CONFIDENCE:.0f}x — die Korrelation findet "
+            f"keinen echten Gipfel, sondern Rauschen.\n"
+            f"Typisch fuer Kameras, deren Ton aus einer ganz anderen Position stammt "
+            f"(Totale weit weg, Actioncam, Windgeraeusche). Solche Quellen bitte "
+            f"manuell synchronisieren oder aus der Analyse nehmen."
+        )
 
     print()
     print("Sync abgeschlossen:")
