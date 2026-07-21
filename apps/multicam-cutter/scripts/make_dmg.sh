@@ -216,9 +216,17 @@ if [ -n "${SIGN_IDENTITY:-}" ]; then
     echo "► DMG signieren..."
     codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG"
     codesign --verify --verbose=2 "$DMG" 2>&1 | sed 's/^/    /'
+elif [ "${NOTARIZED:-0}" = "1" ]; then
+    # Im Release-Pfad ist ein unsigniertes DMG wertlos: Apple notarisiert es
+    # zwar, aber Gatekeeper lehnt es beim Oeffnen ab. Eine Warnung reichte hier
+    # nicht — sie ging zwischen den Fortschrittszeilen unter und der Defekt fiel
+    # erst nach Upload, Notarisierung und Download auf. Deshalb harter Abbruch.
+    echo "✗ SIGN_IDENTITY fehlt, obwohl notarisiert werden soll."
+    echo "  Ein unsigniertes DMG lehnt Gatekeeper trotz Notarisierung ab."
+    exit 1
 else
     echo "  ⚠ SIGN_IDENTITY nicht gesetzt — DMG bleibt unsigniert"
-    echo "    Gatekeeper wird es mit 'no usable signature' ablehnen."
+    echo "    Nur für lokale Tests brauchbar; Gatekeeper lehnt es ab."
 fi
 DMG_SIZE=$(du -sh "$DMG" | cut -f1)
 echo ""

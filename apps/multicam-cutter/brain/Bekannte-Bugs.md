@@ -2,6 +2,23 @@
 
 ## OFFEN
 
+### notarize.sh direkt aufgerufen -> unsigniertes DMG
+- **Symptom**: `⚠ SIGN_IDENTITY nicht gesetzt — DMG bleibt unsigniert`, danach
+  laeuft die Einreichung bei Apple trotzdem weiter.
+- **Ursache**: Die Identitaet wird in `release.sh:39` aus dem Schluesselbund
+  ermittelt und an `notarize.sh` durchgereicht. Wird `notarize.sh` **direkt**
+  gestartet (z.B. um nach einem Abbruch nur die Notarisierung zu wiederholen),
+  ist die Variable leer — `make_dmg.sh` hat dann nur gewarnt und weitergebaut.
+- **Tragweite**: Apple notarisiert das unsignierte DMG anstandslos, aber
+  Gatekeeper lehnt es beim Oeffnen mit `no usable signature` ab. Der Defekt
+  faellt also erst nach Upload, Notarisierung und Download auf.
+- **Fix (21.07.)**: `notarize.sh` ermittelt die Identitaet notfalls selbst aus
+  der **App-Signatur** (`codesign -dv` -> erste `Authority=`-Zeile) — damit wird
+  das DMG zwingend mit derselben Identitaet signiert wie sein Inhalt — und
+  bricht ab, wenn keine ermittelbar ist. `make_dmg.sh` bricht bei `NOTARIZED=1`
+  ohne Identitaet hart ab statt nur zu warnen.
+- **Dateien**: `scripts/notarize.sh`, `scripts/make_dmg.sh`
+
 ### DMG-Bau: geratener Mountpunkt gestaltet das falsche Volume
 - **Symptom**: `hdiutil: convert failed - Die Ressource ist zeitweilig nicht
   verfuegbar` beim Komprimieren. Alternativ — je nach Timing — ein fertiges,

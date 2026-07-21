@@ -46,10 +46,30 @@ if ! echo "$SIGINFO" | grep -q "flags=.*runtime"; then
 fi
 echo "► Signatur ok: Developer ID + Hardened Runtime"
 
+# Identitaet notfalls SELBST bestimmen. release.sh reicht sie durch, aber
+# notarize.sh wird auch direkt aufgerufen (etwa um nach einem Abbruch nur die
+# Notarisierung zu wiederholen). Fehlte sie dann, baute make_dmg.sh ein
+# UNSIGNIERTES DMG und warnte lediglich — Apple notarisiert das sogar, aber
+# Gatekeeper lehnt es beim Oeffnen mit "no usable signature" ab. Der Fehler
+# faellt also erst nach Upload, Notarisierung und Download auf.
+# Beste Quelle ist die App selbst: so wird das DMG zwingend mit derselben
+# Identitaet signiert wie ihr Inhalt.
+if [ -z "${SIGN_IDENTITY:-}" ]; then
+    SIGN_IDENTITY="$(echo "$SIGINFO" \
+        | grep -m1 '^Authority=Developer ID Application' | sed 's/^Authority=//')"
+    [ -n "$SIGN_IDENTITY" ] && echo "  Identität aus der App-Signatur: $SIGN_IDENTITY"
+fi
+if [ -z "$SIGN_IDENTITY" ]; then
+    echo "✗ Keine Signatur-Identität ermittelbar — das DMG bliebe unsigniert und"
+    echo "  Gatekeeper lehnte es trotz Notarisierung ab. Explizit setzen:"
+    echo "    SIGN_IDENTITY=\"Developer ID Application: … (TEAMID)\" bash scripts/notarize.sh"
+    exit 1
+fi
+
 # 2. DMG bauen (mit schlanker, notarisierter LIESMICH statt Gatekeeper-Umgehung).
 echo "► DMG bauen..."
 # SIGN_IDENTITY durchreichen, damit make_dmg.sh das DMG signieren kann.
-NOTARIZED=1 SIGN_IDENTITY="${SIGN_IDENTITY:-}" bash "$SCRIPT_DIR/make_dmg.sh"
+NOTARIZED=1 SIGN_IDENTITY="$SIGN_IDENTITY" bash "$SCRIPT_DIR/make_dmg.sh"
 [ -f "$DMG" ] || { echo "✗ DMG nicht erzeugt: $DMG"; exit 1; }
 
 # 3. Einreichen und warten. Der Upload (~1 GB) + Apples Prüfung dauern typisch
