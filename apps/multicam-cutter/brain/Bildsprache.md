@@ -241,11 +241,44 @@ in zwei Stellungen ab.
    es kommen nur Felder und eine Warnung hinzu, kein Konsument liest das Neue.
 3. Erste Regel: die Übergangsregel (R6/R7/R8) — größter sichtbarer Effekt und
    teilt sich die Mechanik mit B3.
-   **Einordnung in die Pipeline:** als NEUER Pass ganz am Ende, nicht zwischen
-   den bestehenden. Zwei Gründe: die Pass-Reihenfolge in
-   `add_reactions_to_edl.py` ist eine Fass-das-nicht-an-Liste, und PASS 3
-   (Cleanup kurzer Events) würde die eingefügten Zwischeneinstellungen sofort
-   wieder entfernen — sie sind ja kurz. Anhängen ist keine Umordnung.
+
+   **Einordnung in die Pipeline — ZWEI Anwendungen, nicht eine** (User, 21.07.):
+
+   | Anlass | wann | warum |
+   |---|---|---|
+   | Sprecherwechsel | **vor** den Cutaways, auf der Basis-EDL | dort ist die Timeline noch ruhig, die Brücke hat Platz |
+   | Cutaways | **nachdem** die Cutaway-Positionen feststehen | vorher ist gar nicht bekannt, wo Ausflüge liegen |
+
+   Die frühe Anwendung ist strukturell dieselbe Operation wie
+   `insert_totale_events` in `build_base_edl_from_audio.py` (Events schneiden,
+   Segment einsetzen) — Mechanik und Ort sind also vorhanden.
+
+   **Mindestlänge, zwei verschiedene Auswege** (User, 21.07.):
+   - **Sprecherwechsel:** Erfüllt der Rückweg zum neuen Sprecher die
+     Mindestlänge nicht, wird die **Brücke bis zum nächsten Sprecherwechsel
+     verlängert** — dort wird ohnehin wieder eine Stufe enger geschnitten.
+     Wer nur eine Sekunde spricht, bekommt dann keine 0,2-s-Nahaufnahme,
+     sondern bleibt in der Totale.
+   - **Cutaways:** Umgekehrt — passt der Rückweg nicht, wird **auf die Brücke
+     verzichtet**. Eine Verlängerung würde hier die Rückkehr zum Sprecher
+     verschlucken.
+     *(User ausdrücklich als Vermutung markiert: möglicherweise zeigt sich im
+     Schnitt, dass auch hier durchgezogen werden muss.)*
+
+   ⚠️ **Offener Konflikt — PASS 3 löscht Brücken.** `_is_diarization_switch`
+   (`add_reactions_to_edl.py:414`) schützt kurze Events nur im Muster
+   **A → B → A** mit identischem Clip davor und danach. Eine Brücke beim
+   Sprecherwechsel ist **A → T → B** — Vorgänger und Nachfolger sind
+   verschieden, der Schutz greift nicht.
+   Dazu kommt: `cleanup_min_duration` liegt bei **1,6 s**, der vorgeschlagene
+   Standard für die Brücke bei **0,8 s**. Beides zusammen geht nicht.
+   Zwei Auswege, zu entscheiden:
+   1. Brücke **mindestens** so lang wie die allgemeine Mindestlänge (dann ab
+      1,6 s, deutlich ruhiger)
+   2. Brücken bekommen eine eigene `reason` und werden in PASS 3 **geschützt**
+      (dann ist die Länge frei wählbar, auch 0,5 s)
+   Unabhängig davon ist der Schutz sinnvoll: PASS 3 soll versehentliche
+   Fragmente entfernen, keine bewusst gesetzten Einstellungen.
 4. Rubrik „Bildsprache" in den Experteneinstellungen, sobald es mehr als einen
    Schalter gibt. Was davon in die einfachen Einstellungen wandert, entscheidet
    der User später.
