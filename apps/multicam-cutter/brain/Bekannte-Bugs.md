@@ -2,6 +2,29 @@
 
 ## OFFEN
 
+### Unvollstaendige Quelldatei wird beim Scan unbesehen uebernommen
+- **Symptom (Episode 38, 21.07.)**: Waveform-Sync bricht mit „Kreuzprobe
+  fehlgeschlagen" ab. Sieht nach einem Korrelationsproblem aus, ist aber keines.
+- **Wahre Ursache**: `C7451_25fps.MP4` war ein **94-Sekunden-Fragment** einer
+  abgebrochenen FPS-Konvertierung (Original `C7451.MP4`: 99 min). Die App nahm
+  es beim Scan als vollwertige Kamera an — 1,6 min Video gegen 100 min Ton.
+- **Warum die Nachmessung nicht half**: `_sync_pair` kappt beide Seiten per
+  `min_len` auf die kuerzere Datei. Ein groesseres Fenster anzufordern aendert
+  nichts, wenn nur 94 s existieren — Confidence und Offset kamen deshalb auf die
+  Nachkommastelle identisch zurueck. Genau das war der Hinweis.
+- **Der Konverter war nicht schuld**: Er prueft seine Ausgabe seit dem 18.07.
+  (`out_dur < dur * 0.98` → Datei loeschen + Fehler). Das Fragment stammt vom
+  17.07., ist also einen Tag aelter als der Schutz.
+- **Luecke**: Der Schutz griff nur beim KONVERTIEREN. Eine unvollstaendige Datei
+  kann auch anders entstehen — abgebrochener Kopiervorgang, halb geladene
+  Cloud-Datei, Altbestand.
+- **Fix (21.07.)**: `sync_sources` prueft vor jeder Korrelation die Laengen.
+  Quellen unter `CHUNK_SECONDS` (3 min) brechen mit Nennung von Datei und Dauer
+  ab; Quellen unter 50 % der laengsten erzeugen einen Hinweis (kann legitim
+  sein, wenn eine Kamera nur zeitweise lief).
+- **Merke**: Die Kreuzprobe hat hier korruptes EINGANGSMATERIAL aufgedeckt, nicht
+  einen Rechenfehler. Ohne sie waere daraus klaglos ein Schnitt entstanden.
+
 ### ~~Kameras ab Nr. 3 und Zusatz-Mikrofone wurden nie gesynct~~ — BEHOBEN (21.07.)
 - **Symptom**: keines. Der Lauf war erfolgreich, das Material asynchron.
 - **Ursache**: `sync_sources` mass genau zwei Paare — CAM1↔CAM2 und CAM1↔MIC1.

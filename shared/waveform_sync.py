@@ -236,6 +236,41 @@ def sync_sources(
     if "CAM1" not in sources:
         raise SyncError("Mindestens eine Kamera wird benoetigt (CAM1 fehlt).")
 
+    # ── Quellen auf plausible Laenge pruefen ──
+    # Die Korrelation braucht ein Fenster von CHUNK_SECONDS. Ist eine Quelle
+    # kuerzer, wird intern auf ihre Laenge gekappt (min_len in _sync_pair) und
+    # das Ergebnis ist bestenfalls Glueckssache — mehr Material anzufordern hilft
+    # dann nicht, weil es keines gibt.
+    #
+    # Aufgefallen an einer abgebrochenen FPS-Konvertierung, die als 94-Sekunden-
+    # Fragment liegen blieb (Original: 99 min) und beim Scan als vollwertige
+    # Kamera uebernommen wurde. Der Konverter prueft seine Ausgabe inzwischen
+    # selbst, aber eine unvollstaendige Datei kann auch anders entstehen —
+    # abgebrochener Kopiervorgang, halb geladene Cloud-Datei, Altbestand.
+    durations = {label: _probe_duration(path) for label, path in sources.items()}
+    longest = max(durations.values()) if durations else 0.0
+    too_short = {l: d for l, d in durations.items() if 0 < d < CHUNK_SECONDS}
+    if too_short:
+        lines = "\n".join(
+            f"    {l}: {d / 60:.1f} min  ({Path(sources[l]).name})"
+            for l, d in sorted(too_short.items())
+        )
+        raise SyncError(
+            f"Quelle(n) zu kurz fuer eine verlaessliche Synchronisierung "
+            f"(unter {CHUNK_SECONDS / 60:.0f} min):\n{lines}\n"
+            f"    laengste Quelle: {longest / 60:.1f} min\n"
+            f"Haeufigste Ursache ist eine unvollstaendige Datei — etwa eine "
+            f"abgebrochene Konvertierung oder ein abgebrochener Kopiervorgang. "
+            f"Bitte die Datei pruefen und neu erzeugen."
+        )
+    # Deutlich kuerzer als der Rest ist verdaechtig, kann aber stimmen (Kamera
+    # lief nur zeitweise). Deshalb nur ein Hinweis, kein Abbruch.
+    for label, d in sorted(durations.items()):
+        if longest and d < longest * 0.5:
+            print(f"  ⚠ {label} ist mit {d / 60:.1f} min deutlich kuerzer als "
+                  f"die laengste Quelle ({longest / 60:.1f} min) — bitte pruefen, "
+                  f"ob die Datei vollstaendig ist.")
+
     # ── Referenz waehlen ──
     if reference is not None:
         if reference not in sources:
