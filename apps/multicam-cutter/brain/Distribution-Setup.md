@@ -86,6 +86,35 @@ Finder-Labels **y 500–556 freihalten**.
 ⚠️ Ändern sich Icon-Positionen, müssen **beide** Stellen mit: die AppleScript-
 Werte in `make_dmg.sh` und `APP_XY`/`DEST_XY` in `make_dmg_background.py`.
 
+### ⛔ Label-Textfarbe ist NICHT steuerbar — nicht nochmal untersuchen
+Bei dunklem Hintergrund sind die von Finder gezeichneten Dateinamen
+(„MultiCamCutter.app", „Programme") **schwarz und kaum lesbar**. Das ist eine
+Plattformgrenze, kein Konfigurationsfehler:
+
+> „Sobald ein eigenes Hintergrundbild gesetzt ist, behandelt Finder das Fenster
+> immer so, als wäre es im Light Mode." — Michael Tsai (DropDMG)
+
+Belegt und mehrfach geprüft (21.07.):
+- `icon view options` kennt nur `text size`, `label position`, `color` —
+  **keine** Label-Farbe. (Eigenschaften abgefragt, vollständige Liste.)
+- `background color` **ersetzt** das Bild, statt daneben zu bestehen. Reihenfolge
+  ist dabei egal: Farbe→Bild = Bild sichtbar, Farbe wirkungslos; Bild→Farbe =
+  Bild weg.
+- Das kurze **weiße Aufblitzen** beim Öffnen ist ein Ladezustand, bevor das Bild
+  greift — nicht persistierbar.
+- Bei `create-dmg` (Issue #197) und `electron-builder` (#2297) offener
+  Feature-Request ohne Lösung. Auch kommerzielle Werkzeuge können es nicht.
+
+**Einziger Ausweg:** Helligkeit in der Grafik. Gemessen an der aktuellen Grafik
+liegt die Label-Zone bei 16–39 (0–255); dunkler Text braucht ~110. Ein weicher
+Verlauf im Bereich **y 500–556** (2x) unter beiden Icons genügt — kein weißer
+Kasten nötig. Icons zu verschieben hilft nicht: bei allen geprüften Höhen
+(y 240–372) bleibt die Zone unter 40.
+
+Die dokumentierte Alternative — **ganz auf das Hintergrundbild verzichten**,
+dann folgen Hintergrund und Text der Systemeinstellung — scheidet aus, wenn eine
+gestaltete DMG gewünscht ist.
+
 ### Fallstricke (alle erlebt)
 - `hdiutil create -size` braucht viel Reserve — +120 MB reichten nicht
   („kein Platz verfügbar" trotz 400 GB frei; gemeint ist das **Image**).
