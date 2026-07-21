@@ -45,7 +45,31 @@ gedacht — wenn du danach fragst, ist das die Liste.
    erlauben" für codesign und generate_appcast. Dauer ~10–15 min (Build + ~1 GB
    Upload zu Apple).
 
-**Publish (von Hand, bewusst separat — geht „nach außen"):**
+**Publish — `bash scripts/publish.sh 0.5.0`** (bewusst separat, „geht nach außen"):
+
+Das Skript nimmt die Tipparbeit ab, **nicht die Entscheidung**: Es zeigt zuerst
+vollständig, was es tun wird, und fragt einmal. Braucht `R2_BUCKET` (Name via
+`npx wrangler r2 bucket list`); `wrangler` läuft über `npx`, keine globale
+Installation.
+
+⚠️ **Reihenfolge ist sicherheitsrelevant** — erst DMG, dann Feed. Ginge der
+Appcast zuerst live, böte Sparkle allen Nutzern ein Update an, dessen Datei noch
+nicht existiert: kaputte Installation statt keiner. Das Skript prüft den Upload
+per `HEAD` (Status 200 **und** exakte `Content-Length` aus dem signierten Feed)
+und bricht **vor** dem Appcast-Push ab, wenn etwas fehlt. Häufigster Fall:
+`wrangler` hat ein Größenlimit und der ~500-MB-Upload läuft nicht durch — dann
+bleibt der Feed unangetastet.
+
+Was es prüft, bevor überhaupt etwas rausgeht: DMG existiert · Dateigröße ==
+`length` im Feed · Feed-Version == Argument · Enclosure-Dateiname == erwarteter
+Objekt-Key. Danach: HEAD auf die Enclosure-URL, dann Appcast committen/pushen,
+dann bis zu 90 s auf den Vercel-Deploy warten und den Live-Feed gegenprüfen.
+
+**Nicht automatisierbar bleibt Schritt 3** (echter Sparkle-Update-Test aus einer
+älteren Installation) — das braucht eine real installierte Vorversion.
+
+<details><summary>Die Schritte einzeln, falls von Hand nötig</summary>
+
 3. **DMG → Cloudflare R2**: `release/updates/MultiCamCutter-<version>.dmg` hochladen.
    · Objekt-Key **exakt** = Dateiname (muss zur Enclosure-URL im Feed passen).
    · Content-Type `application/octet-stream`.
@@ -54,7 +78,9 @@ gedacht — wenn du danach fragst, ist das die Liste.
 5. **Testen**: eine ältere installierte Version → „Über MultiCamCutter" → „Auf
    Update prüfen" muss die neue Version anbieten, laden, verifizieren, installieren.
 
-Kurzform: **release.sh → DMG zu R2 → appcast.xml zur Website → testen.**
+</details>
+
+Kurzform: **release.sh → publish.sh → aus alter Installation testen.**
 
 Einmalige Voraussetzungen (alle erledigt): Developer-ID-Zertifikat + Notary-Profil
 `MulticamNotary` + Sparkle-Private-Key im Keychain + R2-Storage & `/downloads`-Route
