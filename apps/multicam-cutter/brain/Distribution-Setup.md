@@ -63,6 +63,12 @@ rclone config     # n) new remote · Name: r2 · Typ: s3 · Provider: Cloudflare
 Die Zugangsdaten liegen in der rclone-Config, **nicht** im Repo. Das Skript
 erkennt das Werkzeug **vor** der Rückfrage — kein Bestätigen und dann scheitern.
 
+**Von Hand hochgeladen?** `bash scripts/publish.sh 0.5.0 --skip-upload`
+Überspringt nur den Upload, **nicht die Prüfung**. Die ist beim manuellen Weg
+sogar wichtiger, weil dort genau die Fehler passieren, die sie abfängt: Objekt-Key
+mit Tippfehler, falscher Content-Type, abgebrochener Transfer. `R2_BUCKET` ist
+dann nicht nötig.
+
 ⚠️ **Reihenfolge ist sicherheitsrelevant** — erst DMG, dann Feed. Ginge der
 Appcast zuerst live, böte Sparkle allen Nutzern ein Update an, dessen Datei noch
 nicht existiert: kaputte Installation statt keiner. Das Skript prüft den Upload

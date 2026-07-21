@@ -26,8 +26,20 @@ set -euo pipefail
 #   WEB_REPO     Website-Repo (Default: ~/Developer/multicamcutter-web)
 #   ASSUME_YES=1 überspringt die Rückfrage (für unbeaufsichtigte Läufe)
 
-VERSION="${1:-}"
-[ -n "$VERSION" ] || { echo "Usage: bash scripts/publish.sh <version>   z.B. 0.5.0"; exit 1; }
+VERSION=""
+SKIP_UPLOAD="${SKIP_UPLOAD:-0}"
+for arg in "$@"; do
+    case "$arg" in
+        --skip-upload) SKIP_UPLOAD=1 ;;
+        -*) echo "Unbekannte Option: $arg"; exit 1 ;;
+        *)  VERSION="$arg" ;;
+    esac
+done
+[ -n "$VERSION" ] || {
+    echo "Usage: bash scripts/publish.sh <version> [--skip-upload]"
+    echo "  --skip-upload  DMG wurde von Hand hochgeladen; nur pruefen + Appcast veroeffentlichen."
+    exit 1
+}
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 APP_DIR="$SCRIPT_DIR/.."
@@ -40,7 +52,7 @@ WEB_REPO="${WEB_REPO:-$HOME/Developer/multicamcutter-web}"
 [ -f "$DMG" ]     || { echo "✗ DMG fehlt: $DMG"; echo "  Erst: bash scripts/release.sh $VERSION"; exit 1; }
 [ -f "$APPCAST" ] || { echo "✗ appcast.xml fehlt: $APPCAST"; exit 1; }
 [ -d "$WEB_REPO/.git" ] || { echo "✗ Website-Repo nicht gefunden: $WEB_REPO"; echo "  Mit WEB_REPO=… überschreiben."; exit 1; }
-[ -n "${R2_BUCKET:-}" ] || {
+[ -n "${R2_BUCKET:-}" ] || [ "${SKIP_UPLOAD:-0}" = "1" ] || {
     echo "✗ R2_BUCKET nicht gesetzt."
     echo "  Bucket-Name findest du mit: npx wrangler r2 bucket list"
     echo "  Dann: R2_BUCKET=<name> bash scripts/publish.sh $VERSION"
@@ -54,7 +66,13 @@ WEB_REPO="${WEB_REPO:-$HOME/Developer/multicamcutter-web}"
 # damit man nicht erst bestätigt und dann scheitert.
 WRANGLER_LIMIT=$((300 * 1024 * 1024))
 DMG_BYTES="$(stat -f%z "$DMG")"
-if command -v rclone >/dev/null 2>&1; then
+if [ "$SKIP_UPLOAD" = "1" ]; then
+    # Von Hand hochgeladen. Die Pruefung in Schritt 2 bleibt — sie ist hier sogar
+    # WICHTIGER als beim automatischen Upload, weil beim manuellen Weg genau die
+    # Fehler passieren, die sie abfaengt: falscher Objekt-Key, falscher
+    # Content-Type, abgebrochener Transfer.
+    UPLOADER="(von Hand)"
+elif command -v rclone >/dev/null 2>&1; then
     UPLOADER="rclone"
 elif command -v aws >/dev/null 2>&1 && [ -n "${R2_ENDPOINT:-}" ]; then
     UPLOADER="aws"
@@ -103,13 +121,19 @@ fi
 echo ""
 echo "═══ Publish MultiCamCutter $VERSION ═══"
 echo ""
-echo "  1. DMG → Cloudflare R2"
-echo "       Datei:       $DMG"
-echo "       Größe:       $(echo "$ACTUAL_LEN" | awk '{printf "%.0f MB (%d Bytes)", $1/1048576, $1}')"
-echo "       Bucket:      $R2_BUCKET"
-echo "       Objekt-Key:  $OBJECT_KEY"
-echo "       Content-Type: application/octet-stream"
-echo "       Werkzeug:    $UPLOADER"
+if [ "$SKIP_UPLOAD" = "1" ]; then
+    echo "  1. DMG → ÜBERSPRUNGEN (von Hand hochgeladen) — wird aber geprüft"
+    echo "       Erwarteter Objekt-Key: $OBJECT_KEY"
+    echo "       Erwartete Größe:       $ACTUAL_LEN Bytes"
+else
+    echo "  1. DMG → Cloudflare R2"
+    echo "       Datei:        $DMG"
+    echo "       Größe:        $(echo "$ACTUAL_LEN" | awk '{printf "%.0f MB (%d Bytes)", $1/1048576, $1}')"
+    echo "       Bucket:       $R2_BUCKET"
+    echo "       Objekt-Key:   $OBJECT_KEY"
+    echo "       Content-Type: application/octet-stream"
+    echo "       Werkzeug:     $UPLOADER"
+fi
 echo ""
 echo "  2. appcast.xml → $WEB_REPO/public/appcast.xml"
 echo "       committen + pushen (Vercel deployt beim Push)"
@@ -126,6 +150,9 @@ fi
 # ── 1. DMG hochladen ───────────────────────────────────────────────────────
 echo ""
 echo "───── [1/4] DMG → R2 ─────"
+if [ "$SKIP_UPLOAD" = "1" ]; then
+    echo "  übersprungen — DMG wurde von Hand hochgeladen"
+else
 echo "► Hochladen (~$(echo "$ACTUAL_LEN" | awk '{printf "%.0f", $1/1048576}') MB, dauert einen Moment)..."
 case "$UPLOADER" in
   rclone)
@@ -143,6 +170,7 @@ case "$UPLOADER" in
         --file="$DMG" --content-type="application/octet-stream" --remote
     ;;
 esac
+fi
 
 # ── 2. Upload prüfen — BEVOR der Feed live geht ────────────────────────────
 echo ""
@@ -160,7 +188,8 @@ if [ "${GOT_CODE:-}" != "200" ] || [ "${GOT_LEN:-}" != "$EXPECTED_LEN" ]; then
     echo "✗ DMG ist nicht korrekt abrufbar — der Appcast wird NICHT veröffentlicht."
     echo "  Damit bleibt der Feed konsistent: kein Nutzer bekommt ein Update"
     echo "  angeboten, dessen Datei fehlt oder unvollständig ist."
-    [ "${GOT_LEN:-}" != "$EXPECTED_LEN" ] && echo "  Häufigste Ursache: Upload abgebrochen (wrangler hat ein Größenlimit)."
+    echo "  Zu prüfen: Objekt-Key EXAKT '$OBJECT_KEY' im Bucket,"
+    echo "             Content-Type application/octet-stream, Transfer vollständig."
     exit 1
 fi
 echo "  ✓ abrufbar und vollständig"
