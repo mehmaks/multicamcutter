@@ -2,7 +2,7 @@
 
 ## OFFEN
 
-### 🟡 Pause-Trim entfernt Sprache — Wurzel gefixt, Praxistest offen
+### 🟢 Pause-Trim entfernt Sprache — gefixt (Praxistest der Schranken offen)
 - **Symptom**: Video UND Audio sind an einer Stelle geschnitten, an der beide
   Sprecher reden — ein Stück Gespräch fehlt. **Inhaltsverlust**, kein
   Schönheitsfehler. Selten (2 Audioschnitte in einer 100-min-Folge), dafür
@@ -71,13 +71,20 @@
   **Offline verifiziert**: 2 → 20 Trims (User erwartet 6–16), und 19 der 20
   entfernten Bereiche sind nachweislich still; einer ist grenzwertig
   (Spitze −34,7 dB bei Schwelle −46).
-- **Noch offen (Fix-Vorschlag, nicht umgesetzt)**: Wenn der Cap greift, die Pause komplett
-  überspringen statt teilweise zu trimmen — ein halber Trim erreicht sein Ziel
-  ohnehin nie. Alternativ/zusätzlich vor dem Entfernen prüfen, ob der Bereich
-  zwischen `p1_end` und `p2_start` wirklich unter der Schwelle liegt.
-  Zusätzlich **untere Schranke** für `trim`/`delta` (negativ = nie), sonst bleiben
-  die Wiederholungen. Und die eigentliche Wurzel: echte Record-Positionen mitführen
-  statt sie zu rekonstruieren.
+- **✅ BEIDE SCHRANKEN UMGESETZT (20.07., `pause_trim_edl.py`)**:
+  1. **Grenze muss IN der erkannten Stille liegen** (`ps <= matched_cb <= pe`, nach
+     Snap). Getrimmt wird immer *rund um* die Grenze — liegt sie außerhalb der Pause,
+     ist der entfernte Bereich per Definition nicht still. Ersetzt die ursprünglich
+     angedachte Audio-Prüfung: **geometrisch statt messend**, braucht keinen
+     Audio-Zugriff in `apply_pauses_to_cut_events`.
+  2. **Untere Schranke** für `trim`/`delta`: `max(0, min(…, matched_cb - ps))` bzw.
+     `max(0, min(…, pe - matched_cb))`. Negative Werte hatten das Event *verlängert*,
+     wodurch beide Nachbarn dieselben Source-Frames abdeckten — die wiederholten
+     Frames. Zusätzlich bleibt der entfernte Bereich damit immer innerhalb `[ps, pe]`.
+  Getestet mit drei Szenarien (Grenze neben der Pause → nichts entfernt; Pause hinter
+  der Grenze → nichts entfernt, keine Überlappung; Grenze in der Pause → trimmt
+  weiterhin korrekt). ⚠️ Praxistest an echtem Material steht aus — `/tmp` war beim
+  Nachmessen bereits geleert.
   ⚠️ Audio-Keeps dabei weiterhin aus den getrimmten Video-Events ableiten
   (siehe `modules/multicam_cutter/CLAUDE.md`, Fixed Bugs) — nicht separat rechnen.
 

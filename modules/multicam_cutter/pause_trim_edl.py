@@ -260,6 +260,7 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
     total_saved_frames = 0
     skipped_no_boundary = 0
     skipped_cutaway = 0
+    skipped_outside = 0
 
     for p in pauses:
         ps = p['pause_start_frame']
@@ -277,6 +278,15 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
             pe = matched_cb
         if matched_cb < ps and (ps - matched_cb) <= snap_frames:
             ps = matched_cb
+
+        # Die Grenze muss IN der erkannten Stille liegen. Getrimmt wird immer
+        # RUND UM die Grenze — liegt sie ausserhalb der Pause, ist der entfernte
+        # Bereich per Definition nicht still. Genau so entstand der
+        # Inhaltsverlust: Pause bei 1073,6-1075,6 s, Grenze bei 1077,8 s,
+        # entfernt wurden 0,32 s laufende Sprache (siehe brain/Bekannte-Bugs.md).
+        if not (ps <= matched_cb <= pe):
+            skipped_outside += 1
+            continue
 
         dur = pe - ps
         excess = dur - max_pause_frames
@@ -315,6 +325,10 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         for ev in cut_events:
             if abs(ev['record_out'] - matched_cb) <= boundary_tolerance:
                 trim = ev['record_out'] - p1_end
+                # Nie negativ (das wuerde das Event VERLAENGERN — beide Nachbarn
+                # deckten dann dieselben Source-Frames ab, sichtbar als
+                # wiederholte Frames) und nie ueber den Pausenanfang hinaus.
+                trim = max(0, min(trim, matched_cb - ps))
                 # Cap: Event darf nicht negativ oder zu kurz werden
                 ev_dur = ev['source_out'] - ev['source_in']
                 max_trim = ev_dur - min_event_frames
@@ -332,6 +346,8 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         for ev in cut_events:
             if abs(ev['record_in'] - matched_cb) <= boundary_tolerance:
                 delta = p2_start - ev['record_in']
+                # Analog: nie negativ, nie ueber das Pausenende hinaus.
+                delta = max(0, min(delta, pe - matched_cb))
                 # Cap: Event darf nicht negativ oder zu kurz werden
                 ev_dur = ev['source_out'] - ev['source_in']
                 max_delta = ev_dur - min_event_frames
@@ -401,6 +417,8 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
     if skipped_cutaway:
         print(f"  ⚠️  {skipped_cutaway} Pausen übersprungen (Cutaway im Bereich)")
 
+    if skipped_outside:
+        print(f"  ⏭️  {skipped_outside} Pausen uebersprungen (Grenze liegt nicht in der Stille)")
     if trimmed_count:
         print(f"\n✂️  Pause-Trim ({cut_mode}):")
         print(f"  {trimmed_count} Pausen getrimmt, "
