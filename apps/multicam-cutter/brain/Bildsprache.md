@@ -215,11 +215,17 @@ in zwei Stellungen ab.
   auf beides?
 - ~~R7: Nur bei Sprecherwechsel oder bei jedem Schnitt?~~ **Beantwortet (21.07.)**:
   Kästchen je Anlass UND je Richtung, Voreinstellung nur Sprecherwechsel.
-- **Wie lang ist die Zwischeneinstellung?** Eigener Parameter oder an
-  `min_shot_duration` gekoppelt? Zu kurz wirkt sie wie ein Fehler, zu lang
-  bremst sie den Wechsel aus.
-- **Was, wenn es keine gemeinsame Kamera gibt?** Übergang auslassen (harter
-  Schnitt wie heute) oder die größte verfügbare nehmen?
+- ~~Wie lang ist die Zwischeneinstellung?~~ **Beantwortet (21.07.)**: eigener
+  Parameter, nicht an `min_shot_duration` gekoppelt.
+- ~~Was, wenn es keine gemeinsame Kamera gibt?~~ **Beantwortet (21.07.)**: dann
+  wird geschnitten wie bisher — unangetasteter Cutaway nach den ursprünglichen
+  Regeln. Kein Ersatz, keine Notlösung.
+  **Wichtige Folge:** In Setups, in denen jede Kamera genau eine Person zeigt
+  (alle bisherigen Zwei-Kamera-Folgen), gibt es **nie** ein gemeinsames Bild.
+  Die Regel greift dort also nie und ändert nichts — sie kann deshalb
+  **standardmäßig aktiv** sein, ohne bestehendes Material zu berühren.
+  Für die Meldung heißt das: kein Warnton. Bei zwei Kameras ist der Rückfall der
+  Normalfall, keine Auffälligkeit. Eine Zählung am Ende des Laufs genügt.
 - Welche Regeln sind im Standard-Preset aktiv? Voreinstellung sollte sich wie
   der heutige Stand verhalten.
 
@@ -234,7 +240,12 @@ in zwei Stellungen ab.
    Invariante, die nur im Aufrufer lebt, ist keine. Verhalten unveraendert:
    es kommen nur Felder und eine Warnung hinzu, kein Konsument liest das Neue.
 3. Erste Regel: die Übergangsregel (R6/R7/R8) — größter sichtbarer Effekt und
-   teilt sich die Mechanik mit B3
+   teilt sich die Mechanik mit B3.
+   **Einordnung in die Pipeline:** als NEUER Pass ganz am Ende, nicht zwischen
+   den bestehenden. Zwei Gründe: die Pass-Reihenfolge in
+   `add_reactions_to_edl.py` ist eine Fass-das-nicht-an-Liste, und PASS 3
+   (Cleanup kurzer Events) würde die eingefügten Zwischeneinstellungen sofort
+   wieder entfernen — sie sind ja kurz. Anhängen ist keine Umordnung.
 4. Rubrik „Bildsprache" in den Experteneinstellungen, sobald es mehr als einen
    Schalter gibt. Was davon in die einfachen Einstellungen wandert, entscheidet
    der User später.
