@@ -445,6 +445,14 @@ def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float
         if event.duration_frames() < min_frames and cleaned:
             next_event = events[i + 1] if i + 1 < len(events) else None
             prev = cleaned[-1]
+            # Bruecken sind BEWUSST gesetzte Einstellungen, keine Fragmente.
+            # PASS 3 raeumt Reste weg — eine Uebergangs-Einstellung ist keiner,
+            # auch wenn sie kurz ist. Ohne das hier verschwaende die
+            # Uebergangsregel ihre Arbeit: _is_diarization_switch schuetzt nur
+            # A -> B -> A mit gleichem Clip aussen, eine Bruecke ist A -> T -> B.
+            if event.reason == "transition":
+                cleaned.append(event)
+                continue
             if _is_diarization_switch(event, prev, next_event):
                 cleaned.append(event)
                 skipped_diarization += 1

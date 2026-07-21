@@ -215,8 +215,16 @@ in zwei Stellungen ab.
   auf beides?
 - ~~R7: Nur bei Sprecherwechsel oder bei jedem Schnitt?~~ **Beantwortet (21.07.)**:
   Kästchen je Anlass UND je Richtung, Voreinstellung nur Sprecherwechsel.
-- ~~Wie lang ist die Zwischeneinstellung?~~ **Beantwortet (21.07.)**: eigener
-  Parameter, nicht an `min_shot_duration` gekoppelt.
+- ~~Wie lang ist die Zwischeneinstellung?~~ **Beantwortet (21.07.)**: KEIN eigener
+  Parameter. „0,8 s für einen Schnitt ist Quatsch" — die Brücke folgt der
+  allgemeinen **Mindest-Schnittlänge** und nutzt zusätzlich den **Cutaway-
+  Zufallsfaktor**. Bei `min_shot` 2,3 s und Zufall 0,20 ergibt das 2,32–2,72 s.
+  Vorteil gegenüber einem eigenen Wert: die Brücke fügt sich in den Rhythmus ein,
+  statt einen eigenen zu setzen, und zieht automatisch mit, wenn der Nutzer die
+  Schnittfrequenz ändert.
+- **Brücken bekommen eine eigene Begründung** (`transition`) — nicht nur zum
+  Schutz vor PASS 3, sondern **für die Nachvollziehbarkeit**: die AAF-Clipnamen
+  tragen den Schnittgrund, dort erscheint sie als „Übergang".
 - ~~Was, wenn es keine gemeinsame Kamera gibt?~~ **Beantwortet (21.07.)**: dann
   wird geschnitten wie bisher — unangetasteter Cutaway nach den ursprünglichen
   Regeln. Kein Ersatz, keine Notlösung.
@@ -272,13 +280,12 @@ in zwei Stellungen ab.
    verschieden, der Schutz greift nicht.
    Dazu kommt: `cleanup_min_duration` liegt bei **1,6 s**, der vorgeschlagene
    Standard für die Brücke bei **0,8 s**. Beides zusammen geht nicht.
-   Zwei Auswege, zu entscheiden:
-   1. Brücke **mindestens** so lang wie die allgemeine Mindestlänge (dann ab
-      1,6 s, deutlich ruhiger)
-   2. Brücken bekommen eine eigene `reason` und werden in PASS 3 **geschützt**
-      (dann ist die Länge frei wählbar, auch 0,5 s)
-   Unabhängig davon ist der Schutz sinnvoll: PASS 3 soll versehentliche
-   Fragmente entfernen, keine bewusst gesetzten Einstellungen.
+   **Gelöst (21.07.): beides.** Die Brücke folgt der Mindest-Schnittlänge (liegt
+   damit ohnehin über der Cleanup-Schwelle) UND bekommt die eigene Begründung
+   `transition`, die PASS 3 überspringt. Der Schutz ist der eigentliche Punkt:
+   PASS 3 soll versehentliche Fragmente entfernen, keine bewusst gesetzten
+   Einstellungen — ein Aufräum-Parameter darf nicht über die Bildsprache
+   entscheiden.
 4. Rubrik „Bildsprache" in den Experteneinstellungen, sobald es mehr als einen
    Schalter gibt. Was davon in die einfachen Einstellungen wandert, entscheidet
    der User später.

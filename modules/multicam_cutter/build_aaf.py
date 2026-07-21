@@ -446,6 +446,7 @@ def build_aaf(
             'reaction_speaking_reaction': 'Sprachreaktion',
             'pause_cutaway':              'Stille',
             'max_time':                   'Max-Zeit',
+            'transition':                 'Übergang',
         }
         reason_masters = {}
 

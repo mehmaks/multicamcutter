@@ -38,12 +38,13 @@ OCCASION_BY_REASON = {
     'reaction_pause':             'pause',
 }
 
+# Eigene Begruendung — nicht nur, damit PASS 3 die Bruecke nicht als Fragment
+# wegraeumt, sondern auch fuer die Nachvollziehbarkeit: die AAF-Clipnamen tragen
+# den Schnittgrund, und dort soll erkennbar sein, warum ein Bild steht.
+TRANSITION_REASON = 'transition'
+
 DEFAULT_SETTINGS = {
     'enabled': True,
-    # Eigener Parameter, bewusst NICHT an min_shot_duration gekoppelt (User,
-    # 21.07.): zu kurz wirkt die Zwischeneinstellung wie ein Schnittfehler, zu
-    # lang bremst sie den Wechsel aus, den sie weicher machen soll.
-    'duration_s': 0.8,
     # Voreinstellung: nur der Sprecherwechsel. Fuer Setups, in denen jede Kamera
     # eine Person zeigt, aendert das nichts — dort gibt es nie ein gemeinsames
     # Bild, die Regel faellt immer zurueck.
@@ -55,6 +56,24 @@ DEFAULT_SETTINGS = {
         'pause':             {'to': False, 'back': False},
     },
 }
+
+
+def bridge_frames(config: dict, fps: float, rng=None) -> int:
+    """Laenge der Zwischeneinstellung — abgeleitet, nicht frei gesetzt.
+
+    Ein eigener Dauer-Parameter war ein Fehlgriff (0,8 s waeren fuer einen
+    Schnitt Quatsch, User 21.07.): die Bruecke folgt der allgemeinen
+    Mindest-Schnittlaenge und nutzt denselben EINSEITIGEN Zufallsfaktor wie die
+    Cutaways (`1.0 + uniform(0, randomness)` — verlaengert nur, verkuerzt nie).
+    So fuegt sie sich in den Rhythmus ein, statt einen eigenen zu setzen, und
+    reagiert automatisch mit, wenn der Nutzer die Schnittfrequenz aendert.
+    """
+    import random as _random
+    rng = rng or _random
+    base_s = float(config.get('min_shot', 2.3))
+    randomness = float(config.get('randomness', 0.0))
+    factor = 1.0 + rng.uniform(0.0, randomness) if randomness > 0 else 1.0
+    return max(1, int(round(base_s * factor * fps)))
 
 
 def _people_of(clip_name: str, by_name: Dict[str, dict]) -> List[str]:
@@ -121,6 +140,7 @@ def plan_transitions(events: List[dict], cameras: List[dict],
             'clip_name': bridge['name'],
             'occasion':  occasion,
             'direction': direction,
+            'reason':    TRANSITION_REASON,
         })
 
     plan.sort(key=lambda p: p['before'], reverse=True)
