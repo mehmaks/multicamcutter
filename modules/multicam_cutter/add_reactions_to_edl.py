@@ -552,12 +552,21 @@ def insert_pause_cutaways(
         on_ref = reference_frames[on_clip]
         on_tzvf = timeline_zero_video_frames[on_clip]
 
-        # Off-Kamera wählen: erste andere Close-Kamera
+        # Off-Kamera wählen: erste andere Close-Kamera.
+        # Der Typ-Filter fehlte, obwohl der Kommentar ihn seit jeher behauptet —
+        # je nach Kamera-Reihenfolge landete hier die Totale. Fallback auf eine
+        # beliebige andere Cam bleibt, sonst entfiele der Cutaway ganz, wenn es
+        # ausser der Totale keine zweite Kamera gibt.
         off_cam = None
         for cam in cameras:
-            if cam['name'] != on_clip:
+            if cam['name'] != on_clip and cam.get('type', 'close') != 'wide':
                 off_cam = cam
                 break
+        if off_cam is None:
+            for cam in cameras:
+                if cam['name'] != on_clip:
+                    off_cam = cam
+                    break
         if not off_cam or off_cam['name'] not in reference_frames:
             if decision_log is not None:
                 decision_log.append({

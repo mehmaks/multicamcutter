@@ -551,6 +551,26 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     if not params.get('nodding_enabled', True):
         cam_nodding = [False] * len(cam_paths)
 
+    # Die Diarisierung laeuft binaer ueber Position 1 und 2. Steht dort eine Totale,
+    # ist ihre Seite per combine_audios das Maximum ueber ALLE Mics dieser Cam und
+    # damit fast immer die lautere -- die Sprechererkennung kippt, ohne dass etwas
+    # abbricht. Die Mac-App sortiert deshalb Closes nach vorn (orderedAnalysisCams),
+    # aber diese Invariante lebte bisher NUR dort: wer run_from_bin direkt aufruft,
+    # hatte keinerlei Schutz. Die Engine setzt sie jetzt selbst durch.
+    _wide_at_front = [i for i in (0, 1)
+                      if i < len(cam_types) and cam_types[i] == 'wide']
+    if _wide_at_front:
+        _names = ', '.join(f"CAM{i + 1} ({Path(cam_paths[i]).name})"
+                           for i in _wide_at_front)
+        raise ValueError(
+            f"Auf Position 1/2 steht eine Totale: {_names}.\n"
+            "Die Sprechererkennung vergleicht genau diese beiden Positionen. Eine "
+            "Totale fasst dort alle ihre Mikrofone zusammen und gewinnt den Vergleich "
+            "fast immer — der Schnitt waere still falsch.\n"
+            "Abhilfe: Close-Kameras nach vorne sortieren (--cams/--cam-types), "
+            "Totalen ans Ende."
+        )
+
     cam1_path = cam_paths[0]
     cam2_path = cam_paths[1]
 
@@ -723,6 +743,21 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             nodding_enabled = cam_nodding[i] if i < len(cam_nodding) else True
             if not nodding_enabled:
                 print(f"\n  Nodding-Analyse CAM{i + 1} übersprungen (nodding_detection=false)")
+                continue
+            # Totalen liefern nie eigene Reaktions-Cutaways: PASS 2 sammelt
+            # ausschliesslich aus close_cams (add_reactions_to_edl.py:183-189).
+            # Die Analyse lief dort trotzdem — rund 30 min pro Totale und Lauf,
+            # deren Ergebnis anschliessend verworfen wurde.
+            #
+            # Bedingung bewusst aus dem VERBRAUCHER abgeleitet und nicht neu
+            # gebildet: waeren es zwei Urteile darueber, was eine Totale ist,
+            # koennten sie auseinanderlaufen. Eine Cam, die fuer mindestens eine
+            # Person die engste Einstellung ist, gilt bereits als 'close'
+            # ("Close gewinnt", EngineController.camRoles) — ein Zwei-Personen-Bild
+            # wird also nur uebersprungen, wenn es fuer NIEMANDEN die engste ist.
+            if i < len(cam_types) and cam_types[i] == 'wide':
+                print(f"\n  Nodding-Analyse CAM{i + 1} übersprungen (Totale — "
+                      f"PASS 2 verwendet nur Close-Kameras)")
                 continue
             json_out = work_dir / (Path(cp).stem + '_reactions.json')
             args_list = [analyzer, cp, '--output', str(json_out), '--params', str(params_json_path)]

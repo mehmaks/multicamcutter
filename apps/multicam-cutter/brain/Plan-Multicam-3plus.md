@@ -41,17 +41,17 @@ davon **nichts**; erledigt sind nur Vorarbeiten (Personen-Modell, Wizard, `camRo
 
 ---
 
-# Stufe 0 — Sofortmaßnahmen (unabhängig vom Umbau)
+# Stufe 0 — Sofortmaßnahmen ✅ ERLEDIGT (21.07.)
 
 Klein, ohne Abhängigkeit zu Teil A/B, und sie machen stille Fehler laut. Vorziehen.
 
-- [ ] **PASS 2b nach `type` filtern** — Kommentar und Code in Übereinstimmung bringen.
-- [ ] **Python-seitiger Abbruch, wenn Position 1 oder 2 eine Totale ist.** Die Engine
+- [x] **PASS 2b nach `type` filtern** (21.07.) — Kommentar und Code in Übereinstimmung bringen.
+- [x] **Python-seitiger Abbruch, wenn Position 1 oder 2 eine Totale ist.** (21.07.) Die Engine
       soll die Invariante selbst durchsetzen, statt sich auf den Aufrufer zu verlassen.
       Ein Abbruch mit klarer Meldung ist einer still gekippten Diarisierung vorzuziehen.
       **Muss VOR dem Nodding-Überspringen kommen** (s.u.), sonst unterschlägt ein
       falsches Etikett stillschweigend eine halbe Stunde Analyse.
-- [ ] **Nodding dort überspringen, wo PASS 2 die Ergebnisse ohnehin verwirft** —
+- [x] **Nodding dort überspringen, wo PASS 2 die Ergebnisse ohnehin verwirft** (21.07.) —
       spart ~30 min je Totale und Lauf.
       **Bedingung aus dem VERBRAUCHER ableiten**, nicht neu bilden: PASS 2 sammelt
       Reaktionen aus `close_cams` (`add_reactions_to_edl.py:183-189`). Genau diese
