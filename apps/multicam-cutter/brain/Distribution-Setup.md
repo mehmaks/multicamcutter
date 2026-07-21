@@ -70,12 +70,18 @@ linke obere Viertel (genau so passiert, 21.07.).
 | freier Mittelbereich | x 240–400 zwischen den Icons |
 | unterer Rand | letzte ~20 px nicht mit Wichtigem belegen (Titelleistenhöhe variiert) |
 
-**Retina:** eine PNG wird weich gezeichnet. Stattdessen eine TIFF mit zwei
-Auflösungen:
+**Retina — einfachster Weg:** Grafik **nur in 1280 × 800** anlegen, den Rest
+erledigt das Skript:
 ```
-tiffutil -cathidpicheck bg.png bg@2x.png -out scripts/dmg-background.tiff
+bash scripts/dmg_background_tiff.sh ~/Desktop/hintergrund@2x.png
 ```
-`bg.png` 640×400, `bg@2x.png` 1280×800.
+Es rechnet die 640×400-Fassung herunter (Pillow/Lanczos, sips als Rückfall),
+verbindet beide per `tiffutil -cathidpicheck` und legt
+`scripts/dmg-background.tiff` ab. Ab dann nimmt `make_dmg.sh` sie automatisch.
+
+Im 1280 × 800-Raster verdoppeln sich alle Positionen:
+App-Icon Mitte **340, 372** · `Programme` Mitte **940, 372** ·
+Finder-Labels **y 500–556 freihalten**.
 
 ⚠️ Ändern sich Icon-Positionen, müssen **beide** Stellen mit: die AppleScript-
 Werte in `make_dmg.sh` und `APP_XY`/`DEST_XY` in `make_dmg_background.py`.
