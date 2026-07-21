@@ -277,12 +277,25 @@ in zwei Stellungen ab.
    `insert_totale_events` in `build_base_edl_from_audio.py` (Events schneiden,
    Segment einsetzen) — Mechanik und Ort sind also vorhanden.
 
-   **Mindestlänge, zwei verschiedene Auswege** (User, 21.07.):
-   - **Sprecherwechsel:** Erfüllt der Rückweg zum neuen Sprecher die
-     Mindestlänge nicht, wird die **Brücke bis zum nächsten Sprecherwechsel
-     verlängert** — dort wird ohnehin wieder eine Stufe enger geschnitten.
-     Wer nur eine Sekunde spricht, bekommt dann keine 0,2-s-Nahaufnahme,
-     sondern bleibt in der Totale.
+   **Mindestlänge — Verlängern verworfen, Schwelle stattdessen musterabhängig**
+   (User, 21.07., nach Zwischenstand):
+   Die zuerst angedachte Verlängerung der Brücke über das ganze Event ist
+   **raus**. Sie hätte den Sprecher unsichtbar gemacht — aus A-B-A würde A-T-A,
+   B hätte gesprochen und wäre nie zu sehen. Außerdem entstand eine Unstetigkeit:
+   B mit 2,2 s blieb sichtbar, B mit 2,4 s verschwand.
+   Stattdessen entscheidet die Länge von B, **abhängig vom Muster**:
+
+   | Muster | B braucht mindestens | bei min_shot 2,3 s |
+   |---|---|---|
+   | **A-B-A** (Rückkehr) | `return_factor` × Mindest-Schnittlänge (2,5) | 5,7 s |
+   | **A-B-C** (Weitergang) | Brücke + Mindest-Schnittlänge | 4,6 s |
+
+   Die Rückkehr verlangt mehr Raum: ein Ausflug, der gleich wieder zurückführt,
+   wirkt sonst hektisch. Wird die Schwelle unterschritten, bleibt B
+   **unangetastet** — kein Ersatz, keine Notlösung.
+   **Offen zur Beobachtung:** Auf dem Rückweg von einem kurzen B kann trotzdem
+   eine Brücke stehen (`A → B → T → A`). Der User will sich das im Schnitt
+   ansehen, bevor entschieden wird.
    - **Cutaways:** Umgekehrt — passt der Rückweg nicht, wird **auf die Brücke
      verzichtet**. Eine Verlängerung würde hier die Rückkehr zum Sprecher
      verschlucken.

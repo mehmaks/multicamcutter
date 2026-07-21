@@ -841,47 +841,49 @@ def _slice_event(event: dict, start_frame: int, end_frame: int, fps: float) -> d
 
 def insert_transition_events(events: list, fps: float,
                             resolve_bridge,
-                            bridge_len_frames, min_shot_frames: int) -> list:
-    """Setzt bei jedem Sprecherwechsel eine Zwischeneinstellung davor.
+                            bridge_len_frames, min_shot_frames: int,
+                            return_min_factor: float = 2.5) -> list:
+    """Setzt bei Sprecherwechseln eine Zwischeneinstellung davor.
 
     Aus `Close P1 → Close P2` wird `Close P1 → Bruecke → Close P2`. Die Bruecke
-    ist die kleinste Kamera, die BEIDE zeigt (siehe transition_rule.py); bei
-    binaerer Diarisierung ist das immer dieselbe, naemlich die Totale.
+    ist die kleinste Kamera, die BEIDE zeigt (siehe transition_rule.py).
 
     WOHER DIE ZEIT KOMMT: vom EINGEHENDEN Event. Die Bruecke belegt dessen erste
     Frames, danach folgt der Rest als Nahaufnahme. Man hoert den neuen Sprecher
-    also bereits, waehrend noch die Totale steht — und schneidet dann hinein.
+    also bereits, waehrend noch das weite Bild steht, und schneidet dann hinein.
 
-    ZU KURZER REST (User, 21.07.): Bliebe vom eingehenden Event weniger als die
-    Mindest-Schnittlaenge uebrig, wird die Bruecke stattdessen bis zum naechsten
-    Sprecherwechsel VERLAENGERT. Dort wird ohnehin wieder eine Stufe enger
-    geschnitten. Wer nur eine Sekunde spricht, bekommt so keine
-    Zehntelsekunden-Nahaufnahme, sondern bleibt im weiten Bild.
+    WANN GAR NICHT (User, 21.07.): Ist das eingehende Event zu kurz, bleibt es
+    unangetastet — es wird NICHT die Bruecke ueber die ganze Laenge gezogen. Eine
+    Verlaengerung haette den Sprecher unsichtbar gemacht: aus A-B-A wuerde A-T-A,
+    B haette gesprochen und waere nie zu sehen.
+
+    Wie viel „zu kurz" ist, haengt vom Muster ab:
+
+      A-B-A  (Rueckkehr)  B braucht `return_min_factor` x Mindest-Schnittlaenge.
+                          Ein Ausflug, der gleich wieder zurueckfuehrt, braucht
+                          mehr Raum, sonst wird es hektisch.
+      A-B-C  (Weitergang) B braucht Bruecke + Mindest-Schnittlaenge, also genug
+                          fuer die Bruecke UND einen tragfaehigen Rest.
+
+    resolve_bridge(von_clip, nach_clip) -> (clip, ref, timeline_zero_video) oder
+    None. BEWUSST je Uebergang befragt, nicht einmal global: unter binaerer
+    Diarisierung ist das Ergebnis zwar konstant, aber das ist eine Eigenschaft
+    der heutigen Einschraenkung. Mit N-facher Diarisierung kann jedes
+    Personenpaar eine andere kleinste gemeinsame Kamera haben, und schon bei
+    zwei gleich weiten Kameras waere „immer dieselbe" ein Verstoss gegen die
+    Dynamik-Regel.
 
     bridge_len_frames: Aufruf ohne Argumente, liefert je Uebergang eine Laenge
     (der Zufallsfaktor soll pro Schnitt neu wuerfeln, nicht einmal global).
-
-    resolve_bridge(von_clip, nach_clip) -> (clip, ref, timeline_zero_video) oder
-    None. BEWUSST je Uebergang befragt, nicht einmal global:
-
-    - Unter binaerer Diarisierung ist das Ergebnis zwar konstant (alle Wechsel
-      betreffen dieselben zwei Personen), aber das ist eine Eigenschaft der
-      heutigen Einschraenkung, keine der Sache. Mit N-facher Diarisierung gibt es
-      Wechsel wie P1->P3, und jedes Paar kann eine andere kleinste gemeinsame
-      Kamera haben.
-    - Schon heute bricht die Annahme, wenn es ZWEI gleich weite Kameras gibt:
-      immer dieselbe zu waehlen widerspraeche der Dynamik-Regel (R5 in
-      brain/Bildsprache.md).
-
-    Ein Aufrufer, der nur eine Bruecke kennt, gibt sie einfach immer zurueck.
     """
     if resolve_bridge is None or len(events) < 2:
         return events
 
     result = [events[0]]
-    inserted = extended = skipped_offcam = already = 0
+    inserted = too_short = already = skipped_offcam = 0
 
-    for prev, event in zip(events, events[1:]):
+    for i in range(1, len(events)):
+        prev, event = events[i - 1], events[i]
         if prev['clip_name'] == event['clip_name']:
             result.append(event)
             continue
@@ -892,10 +894,8 @@ def insert_transition_events(events: list, fps: float,
             continue
         bridge_clip, bridge_ref, bridge_timeline_zero_video = chosen
 
-        # Wurde das VORHERIGE Event bereits zur Bruecke verlaengert, stehen wir
-        # schon im weiten Bild. Eine zweite Bruecke davor waere ein Schnitt auf
-        # dieselbe Kamera. Massgeblich ist, was tatsaechlich ausgegeben wurde —
-        # nicht das urspruengliche Event.
+        # Stehen wir bereits im weiten Bild, waere eine Bruecke ein Schnitt auf
+        # dieselbe Kamera. Massgeblich ist das AUSGEGEBENE, nicht das Original.
         if result[-1]['clip_name'] == bridge_clip:
             already += 1
             result.append(event)
@@ -906,20 +906,26 @@ def insert_transition_events(events: list, fps: float,
 
         vid_start = bridge_timeline_zero_video + ev_start
         if vid_start < 0:
-            # Bruecken-Kamera laeuft an dieser Stelle noch nicht.
-            skipped_offcam += 1
+            skipped_offcam += 1           # Bruecken-Kamera laeuft noch nicht
             result.append(event)
             continue
 
-        want = bridge_len_frames()
-        rest = (ev_end - ev_start) - want
-        if rest < min_shot_frames:
-            bridge_end = ev_end          # Bruecke deckt das ganze Event ab
-            extended += 1
-        else:
-            bridge_end = ev_start + want
-            inserted += 1
+        want   = bridge_len_frames()
+        ev_len = ev_end - ev_start
 
+        # Kehrt der Schnitt danach zum vorherigen Sprecher zurueck (A-B-A)?
+        nxt = events[i + 1] if i + 1 < len(events) else None
+        returns = nxt is not None and nxt['clip_name'] == prev['clip_name']
+        required = (int(round(return_min_factor * min_shot_frames)) if returns
+                    else want + min_shot_frames)
+
+        if ev_len < required:
+            too_short += 1
+            result.append(event)
+            continue
+
+        bridge_end = ev_start + want
+        inserted += 1
         result.append({
             'clip_name':  bridge_clip,
             'source_in':  frames_to_timecode(bridge_ref + vid_start, fps),
@@ -928,14 +934,12 @@ def insert_transition_events(events: list, fps: float,
             'record_out': frames_to_timecode(bridge_end, fps),
             'reason':     'transition',
         })
-        if bridge_end < ev_end:
-            result.append(_slice_event(event, bridge_end, ev_end, fps))
+        result.append(_slice_event(event, bridge_end, ev_end, fps))
 
-    total = inserted + extended
-    if total or skipped_offcam or already:
-        msg = f"  {total} Uebergangs-Einstellung(en) bei Sprecherwechseln"
-        if extended:
-            msg += f" — davon {extended} bis zum naechsten Wechsel verlaengert (Rest zu kurz)"
+    if inserted or too_short or already or skipped_offcam:
+        msg = f"  {inserted} Uebergangs-Einstellung(en) bei Sprecherwechseln"
+        if too_short:
+            msg += f"; {too_short} entfallen (Sprechbeitrag zu kurz)"
         if already:
             msg += f"; {already} entfallen (stand bereits im weiten Bild)"
         if skipped_offcam:
@@ -1126,6 +1130,10 @@ def main():
     parser.add_argument('--transition-min-shot', type=float, default=2.3,
                         help='Basislaenge der Uebergangs-Einstellung in Sekunden. '
                              'Folgt der allgemeinen Mindest-Schnittlaenge.')
+    parser.add_argument('--transition-return-factor', type=float, default=2.5,
+                        help='Im Muster A-B-A muss B mindestens dieses Vielfache '
+                             'der Mindest-Schnittlaenge dauern, damit eine Bruecke '
+                             'eingebaut wird. Sonst bleibt der kurze Beitrag stehen.')
     parser.add_argument('--transition-randomness', type=float, default=0.0,
                         help='Zufallsfaktor auf die Brueckenlaenge, einseitig '
                              '(verlaengert nur) — wie bei den Cutaways.')
@@ -1509,6 +1517,7 @@ def main():
             events = insert_transition_events(
                 events, args.fps, _resolve, _bridge_len,
                 int(args.transition_min_shot * args.fps),
+                return_min_factor=args.transition_return_factor,
             )
         else:
             print("  ⚠ Uebergangsregel uebersprungen: kein Timecode auf der Bruecken-Kamera")

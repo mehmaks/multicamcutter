@@ -715,6 +715,8 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                     '--transition-on-speaker-change',
                     '--transition-min-shot',    str(params.get('min_shot', 2.3)),
                     '--transition-randomness',  str(params.get('randomness', 0.0)),
+                    '--transition-return-factor',
+                    str(params.get('transition_return_factor', 2.5)),
                 ]
         # Pause-Trimming
         pause_trim_enabled = bool(params.get('pause_trim_enabled', False))
