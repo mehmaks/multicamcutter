@@ -2,6 +2,32 @@
 
 ## OFFEN
 
+### Schnitt-Begruendung ging zweimal auf dem Weg verloren
+- **Symptom**: Uebergangs-Einstellungen hiessen im AAF „Sprecher" statt
+  „Uebergang". Sichtbar war der Schnitt korrekt — nur nicht zuzuordnen.
+- **Zwei getrennte Verlustpunkte**, nacheinander gefunden:
+  1. **`write_edl`** schrieb nur Timecodes und Clipnamen. Beim Wiedereinlesen
+     setzte `parse_resolve_edl` pauschal `speaker`.
+     → Fix: `* CUT REASON`-Kommentar schreiben und lesen. Der Parser sammelt
+     jetzt ALLE Kommentarzeilen nach einem Event ein; bei festem Blick auf `i+1`
+     haette je nach Reihenfolge Clipname oder Begruendung gefehlt.
+  2. **PASS 2 baut die Events NEU.** Die geparsten Events dienen nur als
+     Section-Grenzen; die neuen bekamen den Standardwert.
+     → Fix: Sections tragen `reason` mit, `build_events_with_cutaways` nimmt sie
+     als `base_reason`.
+- **Die entscheidende Stelle war die unscheinbarste**: der Zweig in `main()`
+  „keine OFF-Kamera → Sections direkt uebernehmen". Genau dort landen die
+  Bruecken, denn die Bruecke ist die Totale und fuer sie gibt es keine
+  Cutaway-Quellen. Ohne diese eine Stelle haette der Fix ueberall gegriffen
+  **ausser dort, wo er gebraucht wird**.
+- **Nebenwirkung, die niemand bemerkt haette**: Solange die Begruendung fehlte,
+  war der Schutz in PASS 3 (`reason == 'transition'`) **toter Code**. Dass die
+  Bruecken ueberlebten, lag allein an ihrer Laenge — bei einem kuerzeren Wert
+  waeren sie stillschweigend verschwunden.
+- **Merke**: Eine Eigenschaft, die eine Datei-Serialisierung passieren muss,
+  ueberlebt sie nur, wenn beide Seiten sie kennen. Und ein Schutz, der auf einer
+  solchen Eigenschaft beruht, ist ohne Beweis nur eine Vermutung.
+
 ### Schwache Korrelationen wurden ungeprueft uebernommen (Confidence-Schwelle)
 - **Befund (3-Cam-Test, 21.07.)**: Eine Totale (Actioncam, `VID_…`) lieferte bei
   JEDEM Analysefenster eine Confidence um 12x — und dabei voellig verschiedene

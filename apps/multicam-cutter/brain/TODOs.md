@@ -316,6 +316,12 @@ Host + 2 Gaeste laeuft bereits, solange sich die Gaeste eine Kamera teilen.)*
   Grenze greift NUR bei **3+ Personen mit je EIGENER Cam**.
 
 ### 🟠 Datei-Splits als EINE logische Quelle — Aufwand: **mittel**
+- [ ] **Warnung „Auffällig kurze Kamera" differenzieren.** Sie behauptet heute
+  „meist eine abgebrochene Konvertierung" und rät „Datei löschen und erneut
+  konvertieren". Bei ECHTEN Split-Fragmenten (GoPro/DJI) ist beides falsch und
+  führt in die Irre — beobachtet am 21.07. an C0002/C0352 (30-min-Teile einer
+  97-min-Aufnahme). Sobald zusammengehörige Fragmente erkannt werden, gehört die
+  Warnung dort unterdrückt.
 - [ ] **Mehrere Dateien einer Quelle nahtlos als eine behandeln.** User-Kontext: GoPro-Cams
   und DJI-Mic-Rekorder splitten lange Aufnahmen in mehrere Dateien (z. B. 2-h-Folge → 4
   nahtlos aneinander passende Teile). Die gehören zu EINER Person/Cam („Mic 2"), nicht zu
