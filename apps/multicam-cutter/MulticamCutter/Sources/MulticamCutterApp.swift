@@ -73,7 +73,7 @@ struct MulticamCutterApp: App {
         .keyboardShortcut("l")
 
         Settings {
-            SettingsView()
+            SettingsView(updater: updater.updater, updaterIsActive: updater.isActive)
                 .environmentObject(engine)   // CLIP-Tab liest @EnvironmentObject engine
         }
     }

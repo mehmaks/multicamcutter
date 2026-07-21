@@ -1,13 +1,19 @@
 import SwiftUI
+import Sparkle
 
 struct SettingsView: View {
+    /// Optional, weil Previews und der Dev-Build ohne laufenden Updater
+    /// auskommen muessen.
+    var updater: SPUUpdater? = nil
+    var updaterIsActive: Bool = false
+
     private enum Tab: Hashable {
         case general, clip, nodding, license
     }
 
     var body: some View {
         TabView {
-            GeneralSettingsTab()
+            GeneralSettingsTab(updater: updater, updaterIsActive: updaterIsActive)
                 .tabItem {
                     Label("Allgemein", systemImage: "gearshape")
                 }
@@ -253,6 +259,9 @@ struct ClipSettingsTab: View {
 // MARK: - Allgemein
 
 struct GeneralSettingsTab: View {
+    let updater: SPUUpdater?
+    let updaterIsActive: Bool
+
     // Expertenmodus-Toggle entfernt: obsolet, seit die Parameter im Wizard über
     // „Experteneinstellungen" ein-/ausklappen (Variante C).
     // Denselben Key liest ScrubbableThumbnail — Umschalten wirkt live.
@@ -260,6 +269,10 @@ struct GeneralSettingsTab: View {
 
     var body: some View {
         Form {
+            if let updater {
+                UpdateSettingsSection(updater: updater, isActive: updaterIsActive)
+            }
+
             Section("Darstellung") {
                 Toggle("Kontrast der Vorschaubilder anheben", isOn: $thumbnailAutoContrast)
                 Text("Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim "

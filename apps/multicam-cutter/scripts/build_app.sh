@@ -150,8 +150,13 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>https://multicamcutter.pantake.com/appcast.xml</string>
     <key>SUPublicEDKey</key>
     <string>kcPVTCojTVp36MscXhRzKlgyNAa/fkekxnoVfsxfRDY=</string>
+    <!-- Standardwert fuer die automatische Pruefung. Sobald der Nutzer den
+         Schalter in den Einstellungen umlegt, gewinnt SEINE Wahl (Sparkle legt
+         sie in den UserDefaults ab); dieser Wert greift also nur bei
+         Neuinstallationen und bei allen, die nie etwas umgestellt haben.
+         `true` unterdrueckt zugleich Sparkles Rueckfrage beim ersten Start. -->
     <key>SUEnableAutomaticChecks</key>
-    <false/>
+    <true/>
 </dict>
 </plist>
 PLIST

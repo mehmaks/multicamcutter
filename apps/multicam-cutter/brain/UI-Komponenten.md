@@ -328,3 +328,21 @@ aus-/einblenden → Trash auf den Cards + `WizRestoreChips`, Parameter →
 `WizardSettings`, Presets → `WizPresetDropdown`. Auch die alten Kamera-Tags
 (Host/Gast als `CamTag`, `isWide`/`setCamWide`, `sharedWideCams`/`ignoredCams`)
 sind weg — Rollen werden aus dem Personen-Graphen **abgeleitet** (`camRoles()`).
+
+
+### Updates (Einstellungen → Allgemein)
+`UpdateSettingsSection` (in `Updater.swift`, bewusst neben `AboutView` — beide
+hängen am selben `SPUUpdater`). Zeigt die installierte Version, den Schalter
+„Automatisch nach Updates suchen" und einen Prüfen-Button.
+
+- **Kein eigener `@AppStorage`-Schlüssel.** Sparkle persistiert den Schalter
+  selbst unter `SUEnableAutomaticChecks`; ein zweiter Speicher liefe auseinander.
+  Der `UpdaterViewModel` reicht nur durch.
+- **Default an**: `SUEnableAutomaticChecks` steht in der Info.plist auf `true`
+  (`build_app.sh`). Das ist nur der Startwert — legt der Nutzer den Schalter um,
+  gewinnt seine Wahl. `true` unterdrückt zugleich Sparkles Rückfrage beim ersten
+  Start.
+- **Dev-Build**: ohne `SUFeedURL` startet der Updater nicht
+  (`UpdaterController.isActive`). Dann erscheint statt der Bedienelemente ein
+  Hinweis — sonst gäbe es einen Button, der ins Leere greift.
+- Der automatische Lauf **meldet** nur; installiert wird nach Bestätigung.

@@ -30,12 +30,17 @@ final class UpdaterController {
     let controller: SPUStandardUpdaterController
 
     var updater: SPUUpdater { controller.updater }
+    /// Laeuft der Updater ueberhaupt? Im Dev-Build (`swift run`, keine
+    /// Info.plist mit SUFeedURL) ist er nicht gestartet — dann darf die UI
+    /// keinen Pruefen-Button anbieten, der ins Leere greift.
+    let isActive: Bool
 
     init() {
         // Ohne SUFeedURL (z.B. `swift run` ohne Info.plist) startet der Updater
         // nicht — sonst zeigt Sparkle einen Fehler-Alert. Im .app-Bundle ist die
         // URL gesetzt und der Updater startet regulaer.
         let hasFeed = (Bundle.main.infoDictionary?["SUFeedURL"] as? String)?.isEmpty == false
+        isActive = hasFeed
         controller = SPUStandardUpdaterController(
             startingUpdater: hasFeed,
             updaterDelegate: nil,
@@ -49,8 +54,22 @@ final class UpdaterController {
 @MainActor
 final class UpdaterViewModel: ObservableObject {
     @Published var canCheckForUpdates = false
+    private let updater: SPUUpdater
+
+    /// Automatische Pruefung. Sparkle persistiert das selbst in den
+    /// UserDefaults (`SUEnableAutomaticChecks`) — hier wird nur durchgereicht,
+    /// KEIN eigener @AppStorage-Schluessel: zwei Quellen fuer denselben Zustand
+    /// laufen sonst auseinander.
+    var automaticallyChecksForUpdates: Bool {
+        get { updater.automaticallyChecksForUpdates }
+        set {
+            objectWillChange.send()
+            updater.automaticallyChecksForUpdates = newValue
+        }
+    }
 
     init(updater: SPUUpdater) {
+        self.updater = updater
         updater.publisher(for: \.canCheckForUpdates)
             .assign(to: &$canCheckForUpdates)
     }
@@ -105,6 +124,55 @@ struct AboutView: View {
         }
         .padding(28)
         .frame(width: 320)
+    }
+}
+
+// MARK: - Update-Sektion fuer die Einstellungen
+
+/// Zeigt Version, manuelle Pruefung und den Schalter fuer die automatische
+/// Pruefung. Bewusst dieselbe Datei wie AboutView: beide haengen am selben
+/// SPUUpdater, und getrennte Dateien laden dazu ein, den Zustand doppelt zu
+/// halten.
+struct UpdateSettingsSection: View {
+    private let updater: SPUUpdater
+    private let isActive: Bool
+    @StateObject private var viewModel: UpdaterViewModel
+
+    init(updater: SPUUpdater, isActive: Bool) {
+        self.updater = updater
+        self.isActive = isActive
+        _viewModel = StateObject(wrappedValue: UpdaterViewModel(updater: updater))
+    }
+
+    var body: some View {
+        Section("Updates") {
+            LabeledContent("Installiert") {
+                Text(AppVersion.display)
+                    .foregroundStyle(.secondary)
+                    .textSelection(.enabled)   // zum Kopieren in Bug-Reports
+            }
+
+            if isActive {
+                Toggle("Automatisch nach Updates suchen", isOn: Binding(
+                    get: { viewModel.automaticallyChecksForUpdates },
+                    set: { viewModel.automaticallyChecksForUpdates = $0 }))
+                Text("Prüft kurz nach dem Start und danach regelmäßig im "
+                     + "Hintergrund. Gefunden wird nur gemeldet — installiert "
+                     + "wird erst nach deiner Bestätigung.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+
+                Button("Jetzt nach Updates suchen") {
+                    updater.checkForUpdates()
+                }
+                .disabled(!viewModel.canCheckForUpdates)
+            } else {
+                // Dev-Build ohne SUFeedURL: kein Button, der ins Leere greift.
+                Text("Update-Prüfung ist in dieser Entwicklungsversion nicht aktiv.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
     }
 }
 
