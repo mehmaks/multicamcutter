@@ -131,6 +131,41 @@ gestaltete DMG gewünscht ist.
 Kompletter Weg von „neue Version" bis „Nutzer bekommt das Update". Zum Aufzählen
 gedacht — wenn du danach fragst, ist das die Liste.
 
+**Vorher — Changelog schreiben (meine Aufgabe, nicht die des Users):**
+
+0. **Alle Commits seit dem letzten Release in Nutzertext übersetzen.**
+   ```
+   git log --oneline <letzter-release-tag-oder-commit>..HEAD
+   ```
+   Daraus einen Changelog-Abschnitt formulieren und dem User zur Freigabe
+   vorlegen, **bevor** `release.sh` läuft.
+
+   **Warum übersetzen und nicht übernehmen:** Unsere Commit-Botschaften sind
+   bewusst entwicklungsnah — sie nennen Ursachen, Dateinamen, Zeilennummern
+   („min_len-Kürzung war der eigentliche Fehler"). Als Nutzertext sind sie
+   unbrauchbar bis verunsichernd. Ein Changelog beantwortet **eine** Frage:
+   *Was ändert sich für mich?*
+
+   **Regeln:**
+   - Nach **Wirkung** gruppieren, nicht nach Commit: „Behoben", „Neu",
+     „Verbessert". Fünf Commits an einem Thema werden **eine** Zeile.
+   - Aus der Nutzersicht schreiben: nicht „`sync_sources` misst jede Quelle
+     einzeln", sondern „Mehr als zwei Kameras und zusätzliche Mikrofone werden
+     jetzt korrekt synchronisiert."
+   - **Interna weglassen**: Dateinamen, Funktionsnamen, Zeilennummern, Commit-Hashes.
+   - **Stillschweigend behobene Fehler benennen**, wenn sie Ergebnisse betrafen.
+     Wer eine fehlerhafte Fassung im Einsatz hatte, muss wissen, ob alte
+     Ergebnisse betroffen sind — das ist der wichtigste Teil des Changelogs.
+   - Rein Internes (Build-Skripte, Doku, Refactorings) gehört **nicht** hinein.
+   - Deutsch, ganze Sätze, keine Emoji-Wüste.
+
+   **Beispiel** (aus den Commits vom 21.07.):
+   > **Behoben:** Bei mehr als zwei Kameras oder mehreren Mikrofonen konnten
+   > Tonspuren um mehrere Sekunden verschoben im Schnitt landen, ohne dass eine
+   > Fehlermeldung erschien. Alle Quellen werden jetzt einzeln vermessen und
+   > gegengeprüft; unsichere Ergebnisse führen zu einem klaren Abbruch statt zu
+   > einem stillen Fehler.
+
 **Auf meinem Mac (ein Befehl):**
 1. **Version festlegen** — höher als die letzte. Anzeige-Version (`0.5.0`) wählst
    du; die für Sparkle entscheidende `CFBundleVersion` (Zeitstempel) setzt der
