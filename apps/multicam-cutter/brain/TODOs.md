@@ -2,6 +2,39 @@
 
 ## Offen
 
+### Fortschritt: aktuellen Pass im Cutaway-Schritt anzeigen
+Der Schritt heisst pauschal „Cutaways einfügen" und laeuft je nach Material
+minutenlang. Man sieht nicht, **welcher** Pass gerade rechnet — und damit nicht,
+wo die Zeit haengen bleibt. Gewuenscht: der Text nennt die aktuelle Art,
+benannt **wie der zugehoerige Schalter in den Einstellungen**, damit klar ist,
+welcher Parameter die Laufzeit verursacht.
+
+Vorgeschlagene Zuordnung (Banner in `add_reactions_to_edl.py` -> Anzeige):
+
+| Pass | Banner | Anzeige |
+|---|---|---|
+| 1 | `PASS 1: Parse Resolve EDL` | Schnittliste einlesen |
+| 2 | `PASS 2: Cutaways einfügen` | Kopfnicken-Cutaways einfügen |
+| 2b | `PASS 2b: Pause-Cutaways` | Pausen-Cutaways einfügen |
+| 3 | `PASS 3: Cleanup kurzer Events` | Kurze Einstellungen aufräumen |
+| 4 | `PASS 4: Split zu lange Shots` | Lange Einstellungen teilen |
+| 5 | `PASS 5: CLIP Ignore-Filter` | **Ungünstige Cutaways verschieben** |
+
+Pass 5 ist der teuerste (CLIP) und der Anlass fuer den Wunsch.
+
+**Zwei Fallstricke:**
+1. Die Erkennung in `engine/protocol.py:78` greift nur bei Zeilen, die auf
+   `...` enden. Die PASS-Banner tun das nicht und landen nur im Log — sie
+   muessen zusaetzlich per `PASS <n>` erkannt werden.
+2. `step_start_sub` **erhoeht den Schrittzaehler** (`EngineController.swift:1617`).
+   Ein `step_start_sub` je Pass machte aus „Schritt 6 von 8" ein „Schritt 11 von 8".
+   Daher braucht es eine Variante, die **nur den Text** setzt — etwa ein neuer
+   Typ `step_detail` oder ein Feld `"advance": false`.
+
+Aufwand: ~10 Zeilen `protocol.py` + ~5 Zeilen Swift + Eintrag in
+`brain/Engine-Protokoll.md`. Braucht ein Neu-Einfrieren der Engine, geht also
+fruehestens in 0.5.3.
+
 ### Sprachreaktionen — dokumentiert, bewusst nicht umgesetzt
 - [ ] **Karenzzeit am Timeline-Anfang.** Beobachtung (ep04): Bei Timeline 7,6 s wird
   auf die andere Cam geschnitten, bevor der Zuschauer überhaupt jemanden gesehen hat.
