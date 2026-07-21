@@ -2,6 +2,23 @@
 
 ## OFFEN
 
+### DMG-Bau: geratener Mountpunkt gestaltet das falsche Volume
+- **Symptom**: `hdiutil: convert failed - Die Ressource ist zeitweilig nicht
+  verfuegbar` beim Komprimieren. Alternativ — je nach Timing — ein fertiges,
+  aber **ungestaltetes** DMG **ohne Fehlermeldung**.
+- **Ursache**: `make_dmg.sh` setzte `MOUNT_DIR="/Volumes/$VOL"` als Annahme,
+  statt den Mountpunkt aus der `hdiutil attach`-Ausgabe zu lesen. Existiert
+  bereits ein Volume dieses Namens (abgebrochener Vorlauf, Testimage), haengt
+  macOS das neue still als `/Volumes/<Name> 1` ein. Folge: der Finder gestaltete
+  das ALTE Volume, `detach` warf das ALTE aus, die "wirklich weg?"-Pruefung war
+  damit zufrieden — und `convert` lief, waehrend das NEUE Volume noch hing.
+- **Fix (21.07.)**: Mountpunkt wird aus der `attach`-Ausgabe gelesen; der Finder
+  wird ueber `basename "$MOUNT_DIR"` angesprochen statt ueber `$VOL`; verwaiste
+  Volumes gleichen Namens werden vor dem Einhaengen ausgeworfen; die
+  Auswurf-Pruefung befragt zusaetzlich `hdiutil info` nach dem Image, weil ein
+  verschwundenes `/Volumes/...` nicht beweist, dass das Image freigegeben ist.
+- **Datei**: `scripts/make_dmg.sh`
+
 ### 🔴 0.5.0 wurde mit einer zwei Tage alten Engine ausgeliefert
 - **Symptom**: Analyse aus 0.5.1 bricht ab mit
   `unrecognized arguments: --cam-person-names`. Die App sendet das Argument, die

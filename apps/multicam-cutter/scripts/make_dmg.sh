@@ -117,8 +117,30 @@ hdiutil create -srcfolder "$STAGING" -volname "$VOL" -fs HFS+ \
     -format UDRW -size "${SIZE_MB}m" "$RW_DMG" >/dev/null
 
 echo "► Fenster gestalten..."
-MOUNT_DIR="/Volumes/$VOL"
-hdiutil attach "$RW_DMG" -readwrite -noverify -noautoopen >/dev/null
+# Verwaiste Volumes gleichen Namens ZUERST abraeumen. Liegt schon ein
+# /Volumes/<Name>, haengt macOS das neue Image als "/Volumes/<Name> 1" ein --
+# und zwar still. Alles Folgende liefe dann auf das ALTE Volume: der Finder
+# gestaltet es, detach wirft es aus, die "wirklich weg?"-Pruefung ist zufrieden,
+# und convert scheitert am neuen, noch eingehaengten Volume mit "Ressource
+# zeitweilig nicht verfuegbar". Bei anderem Timing entstuende dagegen ein
+# fertiges, aber UNGESTALTETES DMG ohne jede Fehlermeldung.
+for stale in "/Volumes/$VOL" "/Volumes/$VOL "*; do
+    [ -d "$stale" ] || continue
+    echo "  ⚠ Verwaistes Volume gefunden, werfe aus: $stale"
+    hdiutil detach "$stale" >/dev/null 2>&1 \
+        || hdiutil detach "$stale" -force >/dev/null 2>&1 \
+        || { echo "✗ $stale laesst sich nicht auswerfen — bitte manuell auswerfen"; exit 1; }
+done
+
+# Mountpunkt AUS DER AUSGABE lesen, nicht aus dem Volumenamen raten.
+MOUNT_DIR="$(hdiutil attach "$RW_DMG" -readwrite -noverify -noautoopen \
+             | grep -o '/Volumes/.*' | tail -1)"
+[ -n "$MOUNT_DIR" ] && [ -d "$MOUNT_DIR" ] \
+    || { echo "✗ Image liess sich nicht einhaengen"; exit 1; }
+# Der Finder wird ueber den TATSAECHLICHEN Namen angesprochen. 'disk "$VOL"'
+# waere mehrdeutig, sobald ein zweites Volume gleichen Namens existiert.
+VOL_NAME="$(basename "$MOUNT_DIR")"
+[ "$VOL_NAME" = "$VOL" ] || echo "  ⚠ Eingehaengt als \"$VOL_NAME\" statt \"$VOL\""
 sleep 2
 
 # Fenstergroesse 640x400 Punkte — muss zur Grafik aus make_dmg_background.py
@@ -126,7 +148,7 @@ sleep 2
 # bei abweichender Groesse verrutscht das Layout.
 osascript <<APPLESCRIPT || echo "  ⚠ Finder-Gestaltung fehlgeschlagen — DMG bleibt funktionsfähig, nur ungestaltet"
 tell application "Finder"
-    tell disk "$VOL"
+    tell disk "$VOL_NAME"
         open
         set current view of container window to icon view
         set toolbar visible of container window to false
@@ -165,11 +187,20 @@ for attempt in 1 2 3 4 5; do
     sleep 2
 done
 # Wirklich weg? Sonst produziert convert ein unbrauchbares Image.
+# Geprueft wird das IMAGE, nicht nur der Mountpunkt: ein verschwundenes
+# /Volumes/... beweist nicht, dass hdiutil das Image freigegeben hat.
 for attempt in 1 2 3 4 5; do
-    [ ! -d "$MOUNT_DIR" ] && break
+    if [ ! -d "$MOUNT_DIR" ] && ! hdiutil info | grep -qF "$RW_DMG"; then
+        break
+    fi
     sleep 2
 done
-[ -d "$MOUNT_DIR" ] && { echo "✗ Volume $MOUNT_DIR laesst sich nicht auswerfen"; exit 1; }
+if [ -d "$MOUNT_DIR" ] || hdiutil info | grep -qF "$RW_DMG"; then
+    echo "✗ Das Image ist noch eingehaengt ($MOUNT_DIR)."
+    echo "  Meist haelt der Finder oder Spotlight es fest. Manuell:"
+    echo "      hdiutil detach \"$MOUNT_DIR\" -force"
+    exit 1
+fi
 
 echo "► DMG komprimieren (dauert bei ~1 GB einen Moment)..."
 rm -f "$DMG"

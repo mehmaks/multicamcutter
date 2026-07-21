@@ -60,7 +60,7 @@ if [ -f "$ENGINE_DIR/multicam-engine" ]; then
         echo "$STALE" | sed "s|$TOOLKIT_ROOT/||; s|^|      |"
         echo ""
         echo "  Diese Aenderungen waeren NICHT im Release. Erst neu einfrieren:"
-        echo "      cd $APP_DIR && pyinstaller scripts/multicam_engine.spec"
+        echo "      cd $APP_DIR && $TOOLKIT_ROOT/venv/bin/pyinstaller --noconfirm scripts/multicam_engine.spec"
         echo ""
         echo "  (Bewusst kein Auto-Rebuild: der Lauf dauert mehrere Minuten und"
         echo "   soll eine Entscheidung bleiben. SKIP_ENGINE_CHECK=1 uebergeht die"
@@ -72,7 +72,7 @@ fi
 
 if [ ! -f "$ENGINE_DIR/multicam-engine" ]; then
     echo "FEHLER: Engine-Bundle nicht gefunden unter $ENGINE_DIR"
-    echo "Bitte zuerst: pyinstaller scripts/multicam_engine.spec"
+    echo "Bitte zuerst: cd $APP_DIR && $TOOLKIT_ROOT/venv/bin/pyinstaller --noconfirm scripts/multicam_engine.spec"
     exit 1
 fi
 echo "► Engine-Bundle: $(du -sh "$ENGINE_DIR" | cut -f1)"
