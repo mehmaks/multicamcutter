@@ -10,8 +10,18 @@ import SwiftUI
 /// Fenster weggeklickt, ohne gelesen zu werden. Alles hier ist am Code geprueft,
 /// nicht aus dem Gedaechtnis geschrieben — Belege stehen an den Punkten.
 struct FirstRunSheet: View {
-    /// Einmal gesehen = nie wieder. Zuruecksetzbar ueber die Einstellungen.
-    @AppStorage("hasSeenFirstRunInfo") private var hasSeenFirstRunInfo = false
+    /// Stand des INHALTS, nicht der App-Version. Hochzaehlen, sobald sich an den
+    /// Voraussetzungen unten etwas aendert — dann sehen auch Bestandsnutzer den
+    /// Hinweis noch einmal.
+    ///
+    /// Bewusst nicht an `CFBundleShortVersionString` gekoppelt: an einem einzigen
+    /// Tag gingen 0.5.0, 0.5.1 und 0.5.2 raus. Bei Versionsbindung waere derselbe
+    /// unveraenderte Text dreimal erschienen — nach zweimal Wegklicken liest ihn
+    /// niemand mehr, gerade dann nicht, wenn er sich wirklich mal aendert.
+    static let contentRevision = 1
+
+    /// Zuletzt bestaetigter Stand. 0 = noch nie gesehen.
+    @AppStorage("firstRunInfoSeenRevision") private var seenRevision = 0
     @Environment(\.dismiss) private var dismiss
 
     private struct Requirement: Identifiable {
@@ -97,14 +107,16 @@ struct FirstRunSheet: View {
             Divider()
 
             HStack {
-                Text("Dieser Hinweis erscheint nur einmal.")
+                Text(seenRevision == 0
+                     ? "Dieser Hinweis erscheint wieder, wenn sich etwas daran ändert."
+                     : "Hier hat sich etwas geändert.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
                 Button("Verstanden") {
-                    hasSeenFirstRunInfo = true
+                    seenRevision = Self.contentRevision
                     dismiss()
                 }
                 .buttonStyle(.borderedProminent)

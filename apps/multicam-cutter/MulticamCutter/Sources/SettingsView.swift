@@ -267,7 +267,7 @@ struct GeneralSettingsTab: View {
     // Denselben Key liest ScrubbableThumbnail — Umschalten wirkt live.
     @AppStorage("thumbnailAutoContrast") private var thumbnailAutoContrast = false
     /// Denselben Key setzt FirstRunSheet beim Bestaetigen.
-    @AppStorage("hasSeenFirstRunInfo") private var hasSeenFirstRunInfo = false
+    @AppStorage("firstRunInfoSeenRevision") private var firstRunInfoSeenRevision = 0
 
     var body: some View {
         Form {
@@ -285,10 +285,10 @@ struct GeneralSettingsTab: View {
 
             Section("Hinweise") {
                 Button("Materialhinweis erneut anzeigen") {
-                    hasSeenFirstRunInfo = false
+                    firstRunInfoSeenRevision = 0
                 }
-                .disabled(!hasSeenFirstRunInfo)
-                Text(hasSeenFirstRunInfo
+                .disabled(firstRunInfoSeenRevision == 0)
+                Text(firstRunInfoSeenRevision > 0
                      ? "Zeigt die Voraussetzungen ans Material beim nächsten Start "
                        + "wieder an — Tonspur je Kamera, Mikrofon je Person, Überlappung."
                      : "Wird beim nächsten Start angezeigt.")

@@ -8,8 +8,9 @@ struct ContentView: View {
     @State private var frameBeforeRun: NSRect?
     /// Fenster-Constraints vor dem Lauf — während der Analyse wird alles fixiert.
     @State private var windowStateBeforeRun: WindowConstraints?
-    /// Materialhinweis beim allerersten Start (siehe FirstRunSheet).
-    @AppStorage("hasSeenFirstRunInfo") private var hasSeenFirstRunInfo = false
+    /// Materialhinweis (siehe FirstRunSheet). Gespeichert wird der zuletzt
+    /// bestaetigte INHALTS-Stand, damit geaenderte Voraussetzungen erneut erscheinen.
+    @AppStorage("firstRunInfoSeenRevision") private var firstRunInfoSeenRevision = 0
     @State private var showFirstRunInfo = false
 
     /// Alles, was die Analyse-Sperre überschreibt, um es danach zurückzugeben.
@@ -43,7 +44,7 @@ struct ContentView: View {
             // Erst nach dem Fensteraufbau: ein Sheet, das im selben Zyklus wie
             // das Fenster erscheint, sitzt sonst gelegentlich ohne Elternfenster
             // in der Bildschirmmitte.
-            guard !hasSeenFirstRunInfo else { return }
+            guard firstRunInfoSeenRevision < FirstRunSheet.contentRevision else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
                 showFirstRunInfo = true
             }
