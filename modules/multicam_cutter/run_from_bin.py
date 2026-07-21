@@ -981,11 +981,7 @@ def main():
             print(f"  {label}: {frames:+d} frames ({frames / args.fps:+.3f}s)")
     else:
         try:
-            offsets = sync_sources(
-                cam1_path, cam2_path, mic_paths[0],
-                fps=args.fps,
-                additional_mics=mic_paths[1:],
-            )
+            offsets = sync_sources(cam_paths_all, mic_paths, fps=args.fps)
         except SyncError as e:
             print(f"\nFEHLER: {e}")
             return 1

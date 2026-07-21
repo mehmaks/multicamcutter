@@ -65,7 +65,20 @@ Klein, ohne Abhängigkeit zu Teil A/B, und sie machen stille Fehler laut. Vorzie
 
 ---
 
-# Teil A — Sync für N Quellen (Voraussetzung)
+# Teil A — Sync für N Quellen (Voraussetzung)  ✅ UMGESETZT (21.07.)
+
+Umgesetzt wie unten beschrieben: Referenz = laengstes Mikrofon, jede Quelle
+einzeln gemessen, Normalisierung auf CAM1 = 0, Kreuzprobe CAM1↔CAM2 mit
+2 Frames Toleranz, Referenz-Audio wird zwischengespeichert statt je Paar neu
+dekodiert. Alle fuenf Aufrufstellen migriert (run_from_bin, run_from_folder,
+multicam_engine, sequencer, CLI).
+
+**Noch offen und bewusst NICHT Teil davon:** der `unsyncedCams`-Waechter in der
+App bleibt vorerst. Der Sync stimmt jetzt zwar fuer N Kameras, aber die
+Diarisierung ist weiter binaer — ein Setup aus 2 Closes + Raumkamera sollte
+damit erstmals vollstaendig funktionieren, das gehoert aber an echtem Material
+geprueft, bevor der Waechter faellt (Stufe 4).
+
 
 ## Ist-Zustand (Code-Fakten)
 

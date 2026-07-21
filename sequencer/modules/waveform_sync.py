@@ -45,13 +45,7 @@ class WaveformSyncModule(Module):
         mic_paths = [m.path for m in mics]
         additional = mic_paths[1:] if len(mic_paths) > 1 else None
 
-        offsets = sync_sources(
-            cam1_path=cameras[0].path,
-            cam2_path=cameras[1].path,
-            mic1_path=mic_paths[0],
-            fps=fps,
-            additional_mics=additional,
-        )
+        offsets = sync_sources([c.path for c in cameras], mic_paths, fps=fps)
 
         print(f"  Offsets: {offsets}")
         ctx.set("sync.offsets", SyncOffsets(offsets=offsets, fps=fps))

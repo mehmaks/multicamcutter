@@ -823,11 +823,7 @@ def run_pipeline(folder, fps, params, output_path,
     # ── 2. Waveform-Sync ─────────────────────────────────────────────────────
     next_step("Waveform-Sync")
     try:
-        offsets = sync_sources(
-            cam_paths[0], cam_paths[1], mic_paths[0],
-            fps=fps,
-            additional_mics=mic_paths[1:],
-        )
+        offsets = sync_sources(cam_paths, mic_paths, fps=fps)
     except SyncError as e:
         raise RuntimeError(f"Waveform-Sync fehlgeschlagen: {e}")
 

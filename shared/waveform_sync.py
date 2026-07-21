@@ -5,7 +5,7 @@ Calculates frame offsets between audio sources using cross-correlation.
 No Resolve required — works purely on audio files and embedded camera audio.
 
 Typical use:
-    offsets = sync_sources(cam1_video, cam2_video, mic1_wav)
+    offsets = sync_sources([cam1_video, cam2_video], [mic1_wav, mic2_wav])
     # Returns frame offsets relative to CAM1 for all sources.
 """
 
@@ -105,6 +105,7 @@ def _sync_pair(
     ref_label: str,
     target_label: str,
     fps: float,
+    cache: dict = None,
 ) -> SyncResult:
     """
     Syncs one pair of audio/video sources against a reference.
@@ -116,7 +117,17 @@ def _sync_pair(
     while True:
         print(f"  {ref_label} ↔ {target_label}: analysiere {duration}s ...", end=" ", flush=True)
 
-        ref_audio    = extract_audio(ref_path,    duration_s=duration)
+        # Die Referenz wird gegen JEDE andere Quelle korreliert und sonst bei
+        # jedem Paar neu dekodiert. Bei 4K-Material sind das je Aufruf zweistellige
+        # Sekunden fuer exakt dasselbe Ergebnis. Nur die Referenz wird gehalten —
+        # alle Quellen zu cachen waere bei erweitertem Fenster schnell dreistellig
+        # in MB.
+        if cache is not None and (ref_path, duration) in cache:
+            ref_audio = cache[(ref_path, duration)]
+        else:
+            ref_audio = extract_audio(ref_path, duration_s=duration)
+            if cache is not None:
+                cache[(ref_path, duration)] = ref_audio
         target_audio = extract_audio(target_path, duration_s=duration)
 
         # Use the shorter of the two
@@ -164,53 +175,118 @@ def _sync_pair(
             )
 
 
+def _probe_duration(path: str) -> float:
+    """Laenge in Sekunden, 0.0 wenn nicht ermittelbar."""
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration",
+         "-of", "default=noprint_wrappers=1:nokey=1", path],
+        capture_output=True, text=True
+    )
+    try:
+        return float(probe.stdout.strip())
+    except ValueError:
+        return 0.0
+
+
+# Toleranz der Kreuzprobe. 2 Frames decken Rundung auf Frame-Raster ab
+# (jede Messung rundet einmal), alles darueber ist ein echter Widerspruch.
+CROSSCHECK_TOLERANCE_FRAMES = 2
+
+
 def sync_sources(
-    cam1_path: str,
-    cam2_path: str,
-    mic1_path: str,
+    cam_paths: list[str],
+    mic_paths: list[str],
     fps: float = 25.0,
-    additional_mics: list[str] = None,
+    reference: str = None,
 ) -> dict[str, int]:
     """
-    Calculates sync offsets for all sources relative to CAM1.
+    Ermittelt Sync-Offsets fuer BELIEBIG VIELE Kameras und Mikrofone.
 
-    Sync pairs:
-      CAM1 ↔ CAM2   (both use their embedded camera audio)
-      CAM1 ↔ MIC1   (camera audio vs. Zoom recorder)
-      All additional MICs are assumed synchronous with MIC1.
+    Rueckgabe: {label: offset_frames}, label = CAM1..CAMn / MIC1..MICm.
+      CAM1 ist immer 0 (Normalisierung), positiv = startet spaeter als CAM1.
 
-    Returns dict: {label: offset_frames_relative_to_cam1}
-      CAM1 is always 0 (reference).
-      Positive = starts later than CAM1.
-      Negative = starts earlier than CAM1.
+    Jede Quelle wird EINZELN gegen eine Referenz gemessen. Vorher galt:
+    CAM1<->CAM2 und CAM1<->MIC1 gemessen, alle weiteren Mikrofone bekamen
+    ungeprueft MIC1s Offset und Kameras ab Nr. 3 gar keinen (blieben still
+    auf 0). Beides erzeugte lautlos asynchrones Material.
+
+    Referenz ist standardmaessig das LAENGSTE MIKROFON, nicht CAM1: Mikrofone
+    laufen meist durch, waehrend Kameras zwischendurch stoppen oder splitten —
+    eine Quelle, die alle anderen zeitlich ueberlappt, ist die verlaesslichere
+    Bezugsgroesse. Am Ende wird auf CAM1 = 0 normalisiert, damit EDL, AAF und
+    `_cam_shift` unveraendert weiterrechnen.
     """
+    sources: dict[str, str] = {}
+    for i, path in enumerate(cam_paths, start=1):
+        sources[f"CAM{i}"] = path
+    for i, path in enumerate(mic_paths, start=1):
+        sources[f"MIC{i}"] = path
+
+    if "CAM1" not in sources:
+        raise SyncError("Mindestens eine Kamera wird benoetigt (CAM1 fehlt).")
+
+    # ── Referenz waehlen ──
+    if reference is not None:
+        if reference not in sources:
+            raise SyncError(f"Referenz '{reference}' ist keine der Quellen: "
+                            f"{', '.join(sources)}")
+        ref_label = reference
+    else:
+        mic_labels = [l for l in sources if l.startswith("MIC")]
+        if mic_labels:
+            ref_label = max(mic_labels, key=lambda l: _probe_duration(sources[l]))
+        else:
+            ref_label = "CAM1"
+    ref_path = sources[ref_label]
+
     print("Waveform-Sync gestartet")
-    print(f"  Referenz: CAM1 ({Path(cam1_path).name})")
+    print(f"  Referenz: {ref_label} ({Path(ref_path).name})")
+    print(f"  Quellen:  {len(sources)} ({', '.join(sources)})")
     print(f"  FPS: {fps}")
     print()
 
-    offsets = {"CAM1": 0}
+    # ── Jede Quelle einzeln gegen die Referenz ──
+    rel: dict[str, int] = {ref_label: 0}
+    confidences: dict[str, float] = {}
+    ref_cache: dict = {}
+    for label, path in sources.items():
+        if label == ref_label:
+            continue
+        result = _sync_pair(ref_path, path, ref_label, label, fps, cache=ref_cache)
+        rel[label] = result.offset_frames
+        confidences[label] = result.confidence
 
-    # CAM1 ↔ CAM2
-    result_cam2 = _sync_pair(cam1_path, cam2_path, "CAM1", "CAM2", fps)
-    offsets["CAM2"] = result_cam2.offset_frames
+    # ── Auf CAM1 = 0 normalisieren ──
+    cam1_rel = rel["CAM1"]
+    offsets = {label: value - cam1_rel for label, value in rel.items()}
 
-    # CAM1 ↔ MIC1
-    result_mic1 = _sync_pair(cam1_path, mic1_path, "CAM1", "MIC1", fps)
-    offsets["MIC1"] = result_mic1.offset_frames
-
-    # Additional MICs: same offset as MIC1
-    if additional_mics:
-        for i, mic_path in enumerate(additional_mics, start=2):
-            label = f"MIC{i}"
-            offsets[label] = result_mic1.offset_frames
-            print(f"  {label}: synchron mit MIC1 → Offset {result_mic1.offset_frames:+d} frames")
+    # ── Kreuzprobe: CAM1<->CAM2 unabhaengig nachmessen ──
+    # Beide Kameras wurden gegen die Referenz gemessen; ihre Differenz muss zu
+    # einer DIREKTEN Messung passen. Weicht sie ab, hat mindestens eine der
+    # Korrelationen auf ein falsches Maximum gezeigt — das faellt sonst erst
+    # im schon geschnittenen Material auf.
+    if "CAM2" in sources and ref_label not in ("CAM1", "CAM2"):
+        direct = _sync_pair(sources["CAM1"], sources["CAM2"], "CAM1", "CAM2", fps)
+        ref_cache.clear()   # ab hier nicht mehr gebraucht
+        drift = abs(direct.offset_frames - offsets["CAM2"])
+        if drift > CROSSCHECK_TOLERANCE_FRAMES:
+            raise SyncError(
+                f"Kreuzprobe fehlgeschlagen: ueber {ref_label} ergibt CAM2 "
+                f"{offsets['CAM2']:+d} Frames, direkt gemessen "
+                f"{direct.offset_frames:+d} Frames "
+                f"(Abweichung {drift} Frames, erlaubt {CROSSCHECK_TOLERANCE_FRAMES}).\n"
+                f"Mindestens eine Korrelation hat ein falsches Maximum getroffen. "
+                f"Bitte Material pruefen oder manuell synchronisieren."
+            )
+        print(f"  Kreuzprobe CAM1 ↔ CAM2: ✓ (Abweichung {drift} Frames)")
 
     print()
     print("Sync abgeschlossen:")
     for label, offset in offsets.items():
         seconds = offset / fps
-        print(f"  {label}: {offset:+d} frames ({seconds:+.3f}s)")
+        conf = confidences.get(label)
+        conf_txt = f"  [Confidence {conf:.1f}x]" if conf is not None else "  [Referenz]"
+        print(f"  {label}: {offset:+d} frames ({seconds:+.3f}s){conf_txt}")
 
     return offsets
 
@@ -221,18 +297,15 @@ if __name__ == "__main__":
     import argparse, json
 
     parser = argparse.ArgumentParser(description="Waveform-basierter Audio-Sync")
-    parser.add_argument("--cam1",  required=True)
-    parser.add_argument("--cam2",  required=True)
-    parser.add_argument("--mic1",  required=True)
-    parser.add_argument("--mic2",  help="Weitere MIC-Datei (synchron mit MIC1)")
+    parser.add_argument("--cams", nargs="+", required=True, help="Video-Dateien, CAM1 zuerst")
+    parser.add_argument("--mics", nargs="+", required=True, help="Audio-Dateien, MIC1 zuerst")
+    parser.add_argument("--reference", help="Label der Referenzquelle, z.B. MIC1 (Default: laengstes Mic)")
     parser.add_argument("--fps",   type=float, default=25.0)
     parser.add_argument("--json",  action="store_true", help="Ausgabe als JSON")
     args = parser.parse_args()
 
-    additional = [args.mic2] if args.mic2 else []
-
     try:
-        offsets = sync_sources(args.cam1, args.cam2, args.mic1, args.fps, additional)
+        offsets = sync_sources(args.cams, args.mics, args.fps, args.reference)
         if args.json:
             print(json.dumps(offsets))
     except SyncError as e:

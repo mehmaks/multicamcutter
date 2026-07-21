@@ -106,11 +106,7 @@ def main():
     # ── 2. Waveform-Sync ──────────────────────────────────────────────────────
     print()
     try:
-        offsets = sync_sources(
-            cam_paths[0], cam_paths[1], mic_paths[0],
-            fps=args.fps,
-            additional_mics=mic_paths[1:],
-        )
+        offsets = sync_sources(cam_paths, mic_paths, fps=args.fps)
     except SyncError as e:
         print(f"\nFEHLER beim Waveform-Sync: {e}")
         return 1

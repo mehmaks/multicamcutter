@@ -34,7 +34,8 @@ struct FirstRunSheet: View {
     private let requirements: [Requirement] = [
         .init(icon: "waveform.badge.magnifyingglass",
               title: "Jede Kamera braucht eine eigene Tonspur",
-              // shared/waveform_sync.py korreliert den Kameraton gegen CAM1.
+              // shared/waveform_sync.py korreliert jede Quelle gegen eine Referenz
+              // (standardmaessig das laengste Mikrofon).
               detail: "Die Synchronisierung vergleicht die Tonspuren der Kameras "
                     + "miteinander. Eine Kamera ohne brauchbaren Ton lässt sich "
                     + "nicht einordnen — auch nicht von Hand."),

@@ -2,6 +2,25 @@
 
 ## OFFEN
 
+### ~~Kameras ab Nr. 3 und Zusatz-Mikrofone wurden nie gesynct~~ — BEHOBEN (21.07.)
+- **Symptom**: keines. Der Lauf war erfolgreich, das Material asynchron.
+- **Ursache**: `sync_sources` mass genau zwei Paare — CAM1↔CAM2 und CAM1↔MIC1.
+  Kameras ab Nr. 3 tauchten im Offsets-Dict gar nicht auf und wurden in
+  `build_aaf.py` still als 0 behandelt. Zusatz-Mikrofone bekamen **ungeprueft**
+  MIC1s Offset ("assumed synchronous with MIC1").
+- **Tragweite**: Im synthetischen Test mit bekannter Wahrheit lag MIC2 dadurch
+  um **150 Frames = 6 s** daneben, CAM3 um 75 Frames.
+- **Verdeckt** wurde es in der App durch den `unsyncedCams`-Waechter (>2 Kameras
+  blockiert); ueber die CLI gab es keinerlei Schutz.
+- **Fix**: `sync_sources(cam_paths, mic_paths, fps, reference=None)` misst **jede**
+  Quelle einzeln. Referenz ist das **laengste Mikrofon** statt CAM1 (Mikrofone
+  laufen durch, Kameras stoppen und splitten), am Ende wird auf CAM1 = 0
+  normalisiert — EDL, AAF und `_cam_shift` rechnen unveraendert weiter.
+  Zusaetzlich eine **Kreuzprobe**: CAM1↔CAM2 wird unabhaengig nachgemessen und
+  gegen die ueber die Referenz abgeleitete Differenz geprueft (Toleranz 2 Frames).
+- **Verifikation**: synthetische Quellen mit bekannten Versaetzen, alle fuenf
+  Offsets exakt getroffen (`scratchpad/synctest`).
+
 ### Deltas wurden nie hochgeladen — jedes Update lud die volle DMG
 - **Symptom**: keines. Updates funktionierten, nur langsam.
 - **Ursache**: `publish.sh` lud genau **eine** Datei hoch (`$OBJECT_KEY`, die
