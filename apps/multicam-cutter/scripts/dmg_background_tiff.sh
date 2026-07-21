@@ -41,21 +41,36 @@ fi
 # Kanten als sips; sips bleibt Rueckfallebene, falls das venv fehlt.
 PYBIN="$ROOT/venv/bin/python3"
 if [ -x "$PYBIN" ] && "$PYBIN" -c "import PIL" 2>/dev/null; then
-    "$PYBIN" - "$SRC" "$TMP/bg.png" <<'PY'
+    "$PYBIN" - "$SRC" "$TMP/bg.png" "$TMP/bg@2x.png" <<'PY'
 import sys
 from PIL import Image
-src, dst = sys.argv[1], sys.argv[2]
-Image.open(src).convert("RGB").resize((640, 400), Image.LANCZOS).save(dst, "PNG")
+src, dst1x, dst2x = sys.argv[1], sys.argv[2], sys.argv[3]
+im = Image.open(src).convert("RGB")
+# dpi ZWINGEND setzen: macOS leitet die Punktgroesse aus der Aufloesung ab.
+# Eine 1280x800-Grafik mit 300 dpi gilt als 307x192 PUNKTE statt 640x400 --
+# tiffutil warnt dann ("do not follow Aqua guidelines") und der Hintergrund
+# waere auf Retina voellig falsch skaliert. 72 dpi = 1x, 144 dpi = 2x.
+im.resize((640, 400), Image.LANCZOS).save(dst1x, "PNG", dpi=(72, 72))
+im.save(dst2x, "PNG", dpi=(144, 144))
 PY
-    echo "  1x erzeugt (Pillow/Lanczos)"
+    echo "  1x erzeugt (Pillow/Lanczos), dpi auf 72/144 normalisiert"
 else
     cp "$SRC" "$TMP/bg.png"
-    sips -z 400 640 "$TMP/bg.png" >/dev/null
-    echo "  1x erzeugt (sips)"
+    sips -z 400 640 "$TMP/bg.png" -s dpiWidth 72 -s dpiHeight 72 >/dev/null
+    cp "$SRC" "$TMP/bg@2x.png"
+    sips -s dpiWidth 144 -s dpiHeight 144 "$TMP/bg@2x.png" >/dev/null
+    echo "  1x erzeugt (sips), dpi auf 72/144 normalisiert"
 fi
-cp "$SRC" "$TMP/bg@2x.png"
 
-tiffutil -cathidpicheck "$TMP/bg.png" "$TMP/bg@2x.png" -out "$OUT" >/dev/null
+# tiffutil WARNT bei falschem Verhaeltnis nur, es bricht NICHT ab. Ohne diese
+# Pruefung entsteht stillschweigend ein unbrauchbarer Retina-Hintergrund und
+# das DMG baut trotzdem sauber durch.
+TIFF_OUT="$(tiffutil -cathidpicheck "$TMP/bg.png" "$TMP/bg@2x.png" -out "$OUT" 2>&1)"
+if echo "$TIFF_OUT" | grep -qi "do not follow"; then
+    echo "X tiffutil meldet ein falsches Groessenverhaeltnis:"
+    echo "$TIFF_OUT" | sed 's/^/    /'
+    exit 1
+fi
 echo ""
 echo "✓ $OUT"
 echo "  enthaelt 640x400 (Layout) + 1280x800 (Retina)"
