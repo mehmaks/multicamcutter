@@ -3,6 +3,33 @@
 Wie aus der gebauten App eine verteilbare Datei wird — von der ad-hoc-DMG bis zur
 signierten/notarisierten Auslieferung inkl. Auto-Update.
 
+
+## ⚠️ Gatekeeper-Prüfung nach dem Release IMMER lesen
+
+`release.sh` meldet am Ende `spctl`-Ergebnisse. **„rejected" dort heißt NICHT,
+dass Apple abgelehnt hat** — die Notarisierung steht separat im Log
+(`status: Accepted`). Zwei Fehler, die 0.5.0 gezeigt hat und die beide gefixt
+sind (21.07.):
+
+| Meldung | Ursache | Fix |
+|---|---|---|
+| `the code is valid but does not seem to be an app` | Im Plist-Template stand `CFBundlePackagetype` — **kleines „t"**. macOS-Keys sind case-sensitiv, der Eintrag wurde ignoriert und spctl erkannte das Bundle nicht als Programm. | `build_app.sh`, Key korrigiert |
+| `rejected — source=no usable signature` (DMG) | `make_dmg.sh` hat das DMG nur erzeugt, nie signiert. Notarisieren + Stapeln allein genügt Gatekeeper nicht. | `make_dmg.sh` signiert jetzt mit `SIGN_IDENTITY`, **vor** der Einreichung |
+
+Dazu wurde `SIGN_IDENTITY` durch die ganze Kette gereicht
+(`release.sh` → `notarize.sh` → `make_dmg.sh`); vorher endete es bei
+`build_app.sh` und die Subprozesse sahen es nicht.
+
+**So prüfst du einen Release von Hand:**
+```
+spctl -a -vv -t exec    release/MultiCamCutter.app     # -> accepted, Notarized Developer ID
+spctl -a -vv -t install release/MultiCamCutter.dmg     # -> accepted
+xcrun stapler validate  release/MultiCamCutter.dmg     # -> The validate action worked!
+```
+Alle drei müssen grün sein. `stapler validate` allein reicht **nicht** — es
+bestätigt nur, dass ein Ticket angeheftet ist, nicht dass Gatekeeper das Paket
+akzeptiert.
+
 ## Release-Checkliste (Update ausliefern)
 
 Kompletter Weg von „neue Version" bis „Nutzer bekommt das Update". Zum Aufzählen

@@ -56,7 +56,7 @@ MARKETING_VERSION="$VERSION" SIGN_IDENTITY="$SIGN_IDENTITY" bash "$SCRIPT_DIR/bu
 # ── 4. Notarisieren ────────────────────────────────────────────────────────
 echo ""
 echo "───── [2/3] Notarisierung ─────"
-bash "$SCRIPT_DIR/notarize.sh"
+SIGN_IDENTITY="$SIGN_IDENTITY" bash "$SCRIPT_DIR/notarize.sh"
 
 DMG="$APP_DIR/release/MultiCamCutter.dmg"
 

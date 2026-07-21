@@ -129,7 +129,7 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>1</string>
     <key>CFBundleShortVersionString</key>
     <string>0.1.0</string>
-    <key>CFBundlePackagetype</key>
+    <key>CFBundlePackageType</key>
     <string>APPL</string>
     <key>CFBundleExecutable</key>
     <string>MulticamCutter</string>

@@ -92,6 +92,19 @@ echo "► DMG erstellen (komprimieren, dauert bei ~1 GB einen Moment)..."
 hdiutil create -volname "$VOL" -srcfolder "$STAGING" -ov -format UDZO "$DMG"
 
 rm -rf "$STAGING"
+
+# DMG signieren. Ohne Signatur meldet Gatekeeper beim Oeffnen
+# "rejected — source=no usable signature", auch wenn die Notarisierung
+# akzeptiert und das Ticket angeheftet wurde. Muss VOR der Einreichung
+# passieren, damit die Notarisierung das signierte DMG abdeckt.
+if [ -n "${SIGN_IDENTITY:-}" ]; then
+    echo "► DMG signieren..."
+    codesign --force --sign "$SIGN_IDENTITY" --timestamp "$DMG"
+    codesign --verify --verbose=2 "$DMG" 2>&1 | sed 's/^/    /'
+else
+    echo "  ⚠ SIGN_IDENTITY nicht gesetzt — DMG bleibt unsigniert"
+    echo "    Gatekeeper wird es mit 'no usable signature' ablehnen."
+fi
 DMG_SIZE=$(du -sh "$DMG" | cut -f1)
 echo ""
 echo "=== DMG fertig ==="

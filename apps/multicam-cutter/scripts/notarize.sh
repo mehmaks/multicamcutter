@@ -48,7 +48,8 @@ echo "► Signatur ok: Developer ID + Hardened Runtime"
 
 # 2. DMG bauen (mit schlanker, notarisierter LIESMICH statt Gatekeeper-Umgehung).
 echo "► DMG bauen..."
-NOTARIZED=1 bash "$SCRIPT_DIR/make_dmg.sh"
+# SIGN_IDENTITY durchreichen, damit make_dmg.sh das DMG signieren kann.
+NOTARIZED=1 SIGN_IDENTITY="${SIGN_IDENTITY:-}" bash "$SCRIPT_DIR/make_dmg.sh"
 [ -f "$DMG" ] || { echo "✗ DMG nicht erzeugt: $DMG"; exit 1; }
 
 # 3. Einreichen und warten. Der Upload (~1 GB) + Apples Prüfung dauern typisch
