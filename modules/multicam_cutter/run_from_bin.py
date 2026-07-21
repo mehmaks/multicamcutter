@@ -705,6 +705,17 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 '--totale-edl-frame',           str(offsets.get(f'CAM{totale_idx + 1}', 0)),
                 '--totale-simul-min-duration',  str(params.get('totale_simul_dur', 3.0)),
             ]
+            # Uebergangsregel: bei Sprecherwechseln ueber die kleinste gemeinsame
+            # Einstellung schneiden. Standardmaessig AN — greift aber nur, wenn es
+            # ueberhaupt eine Totale gibt (dieser Block laeuft sonst nicht). In
+            # Setups, in denen jede Kamera genau eine Person zeigt, aendert sich
+            # also nichts. Siehe brain/Bildsprache.md.
+            if params.get('transition_speaker_change', True):
+                builder_args += [
+                    '--transition-on-speaker-change',
+                    '--transition-min-shot',    str(params.get('min_shot', 2.3)),
+                    '--transition-randomness',  str(params.get('randomness', 0.0)),
+                ]
         # Pause-Trimming
         pause_trim_enabled = bool(params.get('pause_trim_enabled', False))
         if pause_trim_enabled:

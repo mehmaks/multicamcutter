@@ -1119,6 +1119,16 @@ def main():
                         help='Totale-Cam Clip-Name in der EDL')
     parser.add_argument('--totale-edl-frame',      type=int, default=0,
                         help='EDL-Frame bei dem die Totale-Cam Frame 0 liegt (Standard: 0 = wie CAM1)')
+    parser.add_argument('--transition-on-speaker-change', action='store_true',
+                        help='Uebergangsregel: bei jedem Sprecherwechsel ueber die '
+                             'kleinste gemeinsame Einstellung schneiden '
+                             '(siehe brain/Bildsprache.md).')
+    parser.add_argument('--transition-min-shot', type=float, default=2.3,
+                        help='Basislaenge der Uebergangs-Einstellung in Sekunden. '
+                             'Folgt der allgemeinen Mindest-Schnittlaenge.')
+    parser.add_argument('--transition-randomness', type=float, default=0.0,
+                        help='Zufallsfaktor auf die Brueckenlaenge, einseitig '
+                             '(verlaengert nur) — wie bei den Cutaways.')
     parser.add_argument('--totale-simul-min-duration', type=float, default=3.0,
                         help='Mindestdauer Simultansprechen bevor auf Totale geschnitten wird (s)')
     # Pause-Trimming
@@ -1470,6 +1480,38 @@ def main():
                 print(f"  ✓ Totale-Events eingefügt — EDL hat jetzt {len(events)} Events")
         else:
             print(f"  ⚠️  Konnte embedded TC der Totale nicht lesen — Logik übersprungen.")
+
+
+    # ── Uebergangsregel: Sprecherwechsel ueber die kleinste gemeinsame Cam ────
+    # Bewusst HIER, auf der noch ruhigen Basis-EDL, und nicht am Ende der
+    # Pipeline: hier hat die Bruecke Platz. Nach dem Einfuegen der Cutaways
+    # muesste sie sich zwischen bereits dichte Schnitte draengeln.
+    if args.transition_on_speaker_change and args.totale_clip and args.totale_video:
+        import random as _rnd
+        from shot_sizes import shot_level  # noqa: F401  (Doku: Leiter, s. Bildsprache.md)
+        totale_ref2, _ = get_reference_frame(args.totale_video, args.fps)
+        if totale_ref2 is not None:
+            _tzv = 0 - (args.totale_edl_frame + _cam_shift)
+            base_f = args.transition_min_shot
+            rnd_f  = args.transition_randomness
+
+            def _bridge_len():
+                factor = 1.0 + _rnd.uniform(0.0, rnd_f) if rnd_f > 0 else 1.0
+                return max(1, int(round(base_f * factor * args.fps)))
+
+            # Heute genau eine Bruecke — der Resolver wird trotzdem je Uebergang
+            # befragt, damit N-fache Diarisierung und mehrere gleich weite
+            # Kameras spaeter ohne Umbau moeglich sind.
+            def _resolve(_from_clip, _to_clip):
+                return (args.totale_clip, totale_ref2, _tzv)
+
+            print("\n🎬 Uebergangsregel (Sprecherwechsel)...")
+            events = insert_transition_events(
+                events, args.fps, _resolve, _bridge_len,
+                int(args.transition_min_shot * args.fps),
+            )
+        else:
+            print("  ⚠ Uebergangsregel uebersprungen: kein Timecode auf der Bruecken-Kamera")
 
     # ── 5. Statistik ──────────────────────────────────────────────────────────
     cam1_evts = [e for e in events if e['clip_name'] == args.cam1_clip]
