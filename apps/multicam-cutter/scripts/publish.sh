@@ -157,8 +157,13 @@ echo "► Hochladen (~$(echo "$ACTUAL_LEN" | awk '{printf "%.0f", $1/1048576}') 
 case "$UPLOADER" in
   rclone)
     RCLONE_REMOTE="${RCLONE_REMOTE:-r2}"
+    # --s3-no-check-bucket: rclone prueft sonst vorab, ob der Bucket existiert,
+    # und versucht ihn anzulegen. Ein R2-Token mit "Object Read & Write" darf das
+    # nicht -> 403 AccessDenied auf CreateBucket, obwohl der Bucket laengst da ist
+    # und das Token alle noetigen Objektrechte hat.
     rclone copyto "$DMG" "$RCLONE_REMOTE:$R2_BUCKET/$OBJECT_KEY" \
         --header-upload "Content-Type: application/octet-stream" \
+        --s3-no-check-bucket \
         --s3-chunk-size 64M --progress
     ;;
   aws)

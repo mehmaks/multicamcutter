@@ -63,6 +63,18 @@ rclone config     # n) new remote · Name: r2 · Typ: s3 · Provider: Cloudflare
 Die Zugangsdaten liegen in der rclone-Config, **nicht** im Repo. Das Skript
 erkennt das Werkzeug **vor** der Rückfrage — kein Bestätigen und dann scheitern.
 
+**Zwei Stolpersteine bei der R2-Einrichtung (beide erlebt, 21.07.):**
+- **401 Unauthorized** bei *jeder* Operation → Zugangsdaten falsch. Ursache war
+  ein `¢` in der Access Key ID, entstanden beim Abtippen aus einem **Screenshot
+  per Texterkennung**. ⚠️ Credentials nie per OCR übernehmen: Bei Hex-Werten
+  bleiben Verwechslungen wie `8`↔`B` oder `6`↔`b` **gültiges Hex** und rutschen
+  durch jeden Formatcheck. Access Key ID = 32 Hex, Secret = 64 Hex.
+- **403 AccessDenied auf `CreateBucket`** → rclone prüft vorab, ob der Bucket
+  existiert, und will ihn sonst anlegen. Ein auf einen Bucket beschränktes Token
+  darf das nicht. Lösung: **`--s3-no-check-bucket`** (steht im Skript).
+  `ListBuckets` mit 403 ist bei so einem Token **normal**, kein Fehler — zum
+  Testen deshalb `rclone ls r2:<bucket> --s3-no-check-bucket` statt `rclone lsd r2:`.
+
 **Von Hand hochgeladen?** `bash scripts/publish.sh 0.5.0 --skip-upload`
 Überspringt nur den Upload, **nicht die Prüfung**. Die ist beim manuellen Weg
 sogar wichtiger, weil dort genau die Fehler passieren, die sie abfängt: Objekt-Key
