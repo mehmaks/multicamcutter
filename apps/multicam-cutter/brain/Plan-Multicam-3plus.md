@@ -46,11 +46,22 @@ davon **nichts**; erledigt sind nur Vorarbeiten (Personen-Modell, Wizard, `camRo
 Klein, ohne Abhängigkeit zu Teil A/B, und sie machen stille Fehler laut. Vorziehen.
 
 - [ ] **PASS 2b nach `type` filtern** — Kommentar und Code in Übereinstimmung bringen.
-- [ ] **Nodding auf Totalen überspringen** — spart ~30 min je Totale und Lauf. Achtung:
-      nur überspringen, wenn die Cam auch wirklich nirgends als Reaktionsquelle dient.
 - [ ] **Python-seitiger Abbruch, wenn Position 1 oder 2 eine Totale ist.** Die Engine
       soll die Invariante selbst durchsetzen, statt sich auf den Aufrufer zu verlassen.
       Ein Abbruch mit klarer Meldung ist einer still gekippten Diarisierung vorzuziehen.
+      **Muss VOR dem Nodding-Überspringen kommen** (s.u.), sonst unterschlägt ein
+      falsches Etikett stillschweigend eine halbe Stunde Analyse.
+- [ ] **Nodding dort überspringen, wo PASS 2 die Ergebnisse ohnehin verwirft** —
+      spart ~30 min je Totale und Lauf.
+      **Bedingung aus dem VERBRAUCHER ableiten**, nicht neu bilden: PASS 2 sammelt
+      Reaktionen aus `close_cams` (`add_reactions_to_edl.py:183-189`). Genau diese
+      Bedingung entscheidet auch über das Überspringen — keine zweite, parallel
+      gebildete Meinung darüber, was eine Totale ist. Weichen beide je auseinander,
+      ist es ein Fehler an einer Stelle statt an zweien.
+      ⚠️ **Kein Denkfehler-Risiko bei 2-Shots:** Eine Cam, die für ≥1 Person die engste
+      ist, ist per `camRoles()` bereits `.close` („Close gewinnt", `EngineController.swift:538`)
+      — z.B. zwei Gäste, die nur dort zu sehen sind. Übersprungen wird nur, was für
+      NIEMANDEN die engste Einstellung ist.
 
 ---
 
@@ -209,6 +220,14 @@ Simultan-Segment die passende Cam statt einer global fixen.
 - **Regression N=2:** alte vs. neue Diarisierung auf realem 2-Cam-Set → identische
   Base-EDL.
 - Echtes 3-Cam-Material zum Schluss.
+
+## Bewusst zurückgestellt
+
+- **Welcher Person gehört ein Nicken auf einer Mehr-Personen-Cam?** Nicht verlässlich
+  entscheidbar: MediaPipe liefert je Gesicht ein Ergebnis, die Zuordnung Gesicht→Person
+  ginge nur über die Bildposition und die ist nicht stabil. Entscheidung 21.07.:
+  **ignorieren**, nicht raten. Ein Cutaway auf den 2-Shot ist ohnehin vertretbar, wenn
+  dort jemand reagiert.
 
 ## Offene Produktfragen (in der Session zu klären)
 
