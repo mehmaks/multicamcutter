@@ -36,6 +36,45 @@
   → Als **Ausgabe**-Bearbeitung des fertigen Tons bleibt der Leveler sinnvoll; das ist,
   wofür er gebaut wurde, und es berührt die Erkennung nicht.
 
+### 🔴 Bundle-Größe: 1,2 GB App → 500 MB DMG — blockiert den Upload
+Aufwand: **mittel**, Nutzen hoch (Upload, Nutzer-Download, Update-Dauer).
+
+**Anlass**: Cloudflare R2 nimmt weder über `wrangler` noch über das Web-Frontend
+mehr als **300 MiB** an. Bei 500 MiB DMG bleibt nur die S3-API. Ein kleineres
+Bundle löst das Problem an der Wurzel statt am Transportweg.
+
+**Gemessen (0.5.0, `_internal/`):**
+
+| Paket | Größe | Im Engine-Code importiert? |
+|---|---|---|
+| torch | **288 MB** | nur in CLIP-Pfaden (lazy `import torch` in Funktionen) |
+| cv2 | 120 MB | ja (MediaPipe/Analyse) |
+| **pyarrow** | **114 MB** | **nein — 0 Treffer** |
+| **llvmlite** | **110 MB** | **nein — 0 Treffer** |
+| mediapipe | 85 MB | ja |
+| **onnxruntime** | **59 MB** | **nein** (evtl. von mediapipe zur Laufzeit) |
+| transformers | 38 MB | nur CLIP |
+| scipy | 38 MB | ja |
+| mlx | 22 MB | 1 Treffer |
+| **pandas** | **17 MB** | **nein** |
+| **sklearn** | **16 MB** | **nein** |
+| **matplotlib** | **12 MB** | nur `silence_cutter.py` + Sandbox, **nicht** im Multicam-Pfad |
+
+**Schritt 1 (risikoarm)**: `pandas`, `pyarrow`, `sklearn`, `llvmlite`, `numba`,
+`matplotlib` in `multicam_engine.spec` unter `excludes` — zusammen ~270 MB, keiner
+davon wird im Engine-Code importiert. Aktuell stehen dort nur `streamlit`,
+`notebook`, `jupyter`, `tkinter`.
+⚠️ Danach **zwingend** einen vollständigen Lauf testen: PyInstaller-Excludes
+brechen genau die Imports, die dynamisch passieren. `onnxruntime` NICHT im ersten
+Schritt anfassen — mediapipe könnte es zur Laufzeit brauchen.
+
+**Schritt 2 (größer)**: torch + transformers = **326 MB für ein optionales
+Feature**. Der CLIP-Filter ist abschaltbar, und das *Modell* wird ohnehin schon
+zur Laufzeit nachgeladen (`ClipDownloadSheet`). Nur die Runtime liegt fest im
+Bundle. Eine Trennung („Basis-App" + optionales CLIP-Paket) würde das DMG etwa
+halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich eine
+Python-Runtime dazubekommt.
+
 ### UI / UX
 - [ ] **CLIP-Schritt: „ETA: 199/382" ist keine ETA + Restzeit schätzen.** Aufwand: **leicht**.
   🎨 Kosmetisch, blockt nichts.
