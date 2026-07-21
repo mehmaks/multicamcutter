@@ -94,7 +94,8 @@ Defaults bei defekter Datei).
 | `scan_complete` | cameras[], mics[], default_mapping | Ende von --scan |
 | `step_start` | step_num, total_steps, label | Neuer Pipeline-Schritt (von Engine) |
 | `step_start_sub` | label | Subprocess-Schritt (von JsonLineWriter erkannt) |
-| `step_progress` | percent, eta | Fortschritt innerhalb eines Schritts |
+| `step_detail` | label | Verfeinert den Text des LAUFENDEN Schritts (welcher Pass rechnet). Erhoeht `stepNum` **nicht** — anders als `step_start_sub` |
+| `step_progress` | percent, eta, counter? | Fortschritt innerhalb eines Schritts. `eta` = Restzeit `M:SS`, `counter` = `done/total` (optional) |
 | `scan_result` | cameras[], mics[] | Nach Ordner-Scan im Pipeline-Modus |
 | `sync_result` | offsets{} | Nach Waveform-Sync |
 | `warning` | message | Nicht-fatale Warnung |
@@ -110,7 +111,13 @@ Defaults bei defekter Datei).
 
 Ersetzt sys.stdout. Konvertiert alle Ausgaben:
 - JSON-Zeilen (starten mit `{`) -> durchreichen
-- `__PROGRESS__ 44.6 5:35` -> `step_progress` (auch bei `\r`-Separator)
+- `__PROGRESS__ <pct> [<M:SS>] [<done>/<total>]` -> `step_progress` (auch bei `\r`-Separator).
+  Die Zusatzfelder werden nach **Form** erkannt (`\d+:\d\d` = Zeit, `\d+/\d+` = Zaehler),
+  nicht nach Position: frueher wurde `parts[1]` blind als ETA uebernommen, wodurch der
+  Zaehler des CLIP-Passes als `ETA: 341/384` in der UI stand.
+- `… PASS <n>: …` -> `step_detail` mit dem Namen des zugehoerigen Einstellungs-Schalters
+  (`_PASS_LABELS` in `protocol.py`). Die Banner enden nicht auf `...` und werden
+  deshalb **vor** der Punkt-Erkennung geprueft.
 - `__REACTIONS__` -> gefiltert (nicht anzeigen)
 - `  Beschreibung...` -> `step_start_sub` wenn bekannter Step
 - Alles andere -> `{"type": "log"}`

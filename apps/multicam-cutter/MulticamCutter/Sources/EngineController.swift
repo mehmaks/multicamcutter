@@ -371,6 +371,8 @@ class EngineController: ObservableObject {
     @Published var totalSteps: Int = 1
     @Published var stepPercent: Double = 0
     @Published var stepETA: String = ""
+    /// Zaehler des laufenden Schritts, z.B. "341 von 384". Ergaenzt stepETA.
+    @Published var stepCounter: String = ""
 
     /// Gesamtfortschritt 0…1 über alle Schritte (für den Dock-Balken). stepNum ist 1-basiert.
     var overallProgress: Double {
@@ -801,6 +803,7 @@ class EngineController: ObservableObject {
         totalSteps = 1
         stepPercent = 0
         stepETA = ""
+        stepCounter = ""
         logMessages = []
         resultAAF = nil
         resultStats = nil
@@ -823,6 +826,7 @@ class EngineController: ObservableObject {
         stepNum = 0
         stepLabel = ""
         stepETA = ""
+        stepCounter = ""
         logMessages = []
     }
 
@@ -851,6 +855,7 @@ class EngineController: ObservableObject {
         stepNum = 0
         stepLabel = ""
         stepETA = ""
+        stepCounter = ""
         logMessages = []
         state = .ready
     }
@@ -1602,6 +1607,7 @@ class EngineController: ObservableObject {
                 stepLabel = label
                 stepPercent = 0
                 stepETA = ""
+                stepCounter = ""
             }
             if let num = json["step_num"] as? Int { stepNum = num }
             if let total = json["total_steps"] as? Int { totalSteps = total }
@@ -1614,6 +1620,7 @@ class EngineController: ObservableObject {
                 stepLabel = label
                 stepPercent = 0
                 stepETA = ""
+                stepCounter = ""
                 stepNum += 1
             }
             // Facemesh-Preview starten/stoppen
@@ -1624,12 +1631,29 @@ class EngineController: ObservableObject {
             }
             logMessages.append("Schritt \(stepNum)/\(totalSteps): \(stepLabel)")
 
+        case "step_detail":
+            // Verfeinert den Text des LAUFENDEN Schritts (welcher Pass rechnet
+            // gerade). Bewusst OHNE stepNum-Erhoehung -- anders als
+            // step_start_sub, das einen echten neuen Schritt markiert.
+            if let label = json["label"] as? String {
+                stepLabel = label
+                stepPercent = 0
+                stepETA = ""
+                stepCounter = ""
+            }
+
         case "step_progress":
             if let percent = json["percent"] as? Double {
                 stepPercent = percent
             }
             if let eta = json["eta"] as? String, !eta.isEmpty {
                 stepETA = eta
+            }
+            // "341/384" -> "341 von 384". Der Zaehler stand frueher an der
+            // Stelle der ETA und wurde als solche angezeigt; jetzt ist er ein
+            // eigenes Feld und ergaenzt die Restzeit, statt sie zu ersetzen.
+            if let counter = json["counter"] as? String, !counter.isEmpty {
+                stepCounter = counter.replacingOccurrences(of: "/", with: " von ")
             }
 
         case "warning":

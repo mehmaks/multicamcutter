@@ -22,6 +22,7 @@ import argparse
 import re
 import random
 import sys
+import time
 from pathlib import Path
 from typing import List, Dict, Tuple, Optional
 import os
@@ -941,6 +942,10 @@ def clip_filter_cutaways(
 
     result = list(events)
     total_cutaways = sum(1 for e in result if e.reason != "speaker")
+    # Startzeit fuer die ETA. Dieser Pass ist der mit Abstand teuerste (ein
+    # CLIP-Durchlauf je Cutaway), deshalb rechnet er seine Restzeit selbst --
+    # genauso wie die Nodding-Analyse (video_reaction_analyzer_v2.4.py:903).
+    clip_start_time = time.time()
 
     with tempfile.TemporaryDirectory() as tmpdir:
         for i, event in enumerate(result):
@@ -952,8 +957,17 @@ def clip_filter_cutaways(
             # (gleicher Mechanismus wie die MediaPipe-Analyse). Jeder Check, sonst
             # oszilliert die Progressbar minutenlang ohne echten Wert.
             if total_cutaways:
+                _elapsed = time.time() - clip_start_time
+                if _elapsed > 1 and checked > 0:
+                    _eta_s = (total_cutaways - checked) / (checked / _elapsed)
+                    _eta = f"{int(_eta_s // 60)}:{int(_eta_s % 60):02d}"
+                else:
+                    _eta = "--:--"
+                # Reihenfolge: Prozent, ETA, Zaehler. Die ETA steht an derselben
+                # Stelle wie bei der Nodding-Analyse, damit beide Schritte
+                # dasselbe Format sprechen; der Zaehler kommt zusaetzlich dazu.
                 print(f"__PROGRESS__ {checked / total_cutaways * 100:.1f} "
-                      f"{checked}/{total_cutaways}", flush=True)
+                      f"{_eta} {checked}/{total_cutaways}", flush=True)
             # Lesbare Log-Zeile bleibt grob — sonst flutet sie das Log.
             if checked % 50 == 0 or checked == total_cutaways:
                 print(f"  … {checked}/{total_cutaways} geprüft", flush=True)

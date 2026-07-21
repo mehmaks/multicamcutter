@@ -496,6 +496,15 @@ struct ProgressView_: View {
                         .font(.system(.body, design: .monospaced))
                         .foregroundStyle(.secondary)
 
+                    // Zaehler und Restzeit sind zwei verschiedene Dinge. Frueher
+                    // landete der Zaehler des CLIP-Passes im ETA-Feld und wurde
+                    // als "ETA: 341/384" ausgegeben — keine Restzeit.
+                    if !engine.stepCounter.isEmpty {
+                        Text(engine.stepCounter)
+                            .font(.system(.body, design: .monospaced))
+                            .foregroundStyle(.secondary)
+                    }
+
                     if !engine.stepETA.isEmpty && engine.stepETA != "--:--" {
                         Text("ETA: \(engine.stepETA)")
                             .font(.system(.body, design: .monospaced))

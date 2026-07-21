@@ -2,7 +2,11 @@
 
 ## Offen
 
-### Fortschritt: aktuellen Pass im Cutaway-Schritt anzeigen
+### ~~Fortschritt: aktuellen Pass im Cutaway-Schritt anzeigen~~ — UMGESETZT (21.07.)
+Geloest wie unten skizziert: neuer Protokoll-Typ `step_detail` (setzt nur den
+Text, **ohne** `stepNum` zu erhoehen), Pass-Banner werden in `protocol.py`
+**vor** der `...`-Erkennung geprueft. Zuordnung wie in der Tabelle.
+
 Der Schritt heisst pauschal „Cutaways einfügen" und laeuft je nach Material
 minutenlang. Man sieht nicht, **welcher** Pass gerade rechnet — und damit nicht,
 wo die Zeit haengen bleibt. Gewuenscht: der Text nennt die aktuelle Art,
@@ -121,8 +125,14 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
-- [ ] **CLIP-Schritt: „ETA: 199/382" ist keine ETA + Restzeit schätzen.** Aufwand: **leicht**.
-  🎨 Kosmetisch, blockt nichts.
+- [x] **CLIP-Schritt: „ETA: 199/382" ist keine ETA.** UMGESETZT (21.07.):
+  Der CLIP-Pass rechnet seine ETA jetzt selbst (`add_reactions_to_edl.py`,
+  `clip_start_time` + Hochrechnung wie bei Nodding) und sendet
+  `__PROGRESS__ <pct> <M:SS> <done>/<total>`. `protocol.py` unterscheidet die
+  Zusatzfelder nach **Form** statt nach Position (`\d+:\d\d` vs. `\d+/\d+`) —
+  damit wandert der Fehler nicht nur weiter — und liefert `eta` **und**
+  `counter`. Anzeige: „88%  341 von 384  ETA: 4:12".
+  Alte Beschreibung zur Nachvollziehbarkeit:
   **Ursache:** Zwei Formate auf demselben Kanal. Nodding sendet
   `__PROGRESS__ <pct> <M:SS>` (echte ETA aus `elapsed/done`,
   `video_reaction_analyzer_v2.4.py:900-911`), CLIP sendet
@@ -139,7 +149,12 @@ Python-Runtime dazubekommt.
   konsistenter, weil der Mechanismus schon existiert.
   ⚠️ Beim Umbau `parts[1]` nicht weiter blind interpretieren: unterscheidbar über
   `\d+:\d\d` (Zeit) vs. `\d+/\d+` (Zähler), sonst wandert der Fehler nur weiter.
-- [ ] **Analyse-Modus: feste Fenstergröße statt nur schmaler.** Aufwand: **leicht**.
+- [x] **Analyse-Modus: feste Fenstergröße statt nur schmaler.** UMGESETZT (21.07.):
+  `runHeight = 552` (am laufenden Fenster ausgemessen), `WindowConstraints` merkt
+  min/max/Stil vor dem Lauf, `applyRunWindowLock()` sperrt Breite **und** Höhe für
+  die Dauer der Analyse und gibt sie danach wieder frei. Idempotent und zusätzlich
+  als Heartbeat aus `updateDockProgress()` aufgerufen, weil SwiftUI die Constraints
+  nach Layout-Wechseln sonst wieder aufweicht.
   Beim Start der Analyse verschmälert sich das Fenster bereits (`ContentView.animateWindowWidth`),
   aber es ist **auch zu hoch** — im Analyse-Zustand steht kaum Inhalt drin.
   Gewünscht: feste Breite **und** Höhe für die Dauer des Laufs, und in dieser Zeit

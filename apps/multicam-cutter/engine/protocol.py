@@ -5,9 +5,30 @@ Regulaere print()-Ausgaben werden in {"type": "log"} gewrappt.
 """
 
 import json
+import re
 import sys
 import io
 from datetime import datetime
+
+# Zusatzfelder von __PROGRESS__ nach Form unterscheiden (siehe _parse_progress).
+_TIME_RE = re.compile(r"^(?:\d+:\d{2}|--:--)$")
+_COUNT_RE = re.compile(r"^\d+/\d+$")
+
+# Die Pass-Banner aus add_reactions_to_edl.py. Der Schritt heisst nach aussen
+# pauschal "Cutaways einfügen" und laeuft minutenlang -- ohne diese Aufloesung
+# ist nicht erkennbar, welcher Pass gerade rechnet und wo die Zeit bleibt.
+# Die Benennung folgt bewusst den SCHALTERN in den Einstellungen (nicht den
+# internen Pass-Namen), damit ersichtlich ist, welcher Parameter die Laufzeit
+# verursacht. PASS 5 (CLIP) ist der mit Abstand teuerste.
+_PASS_RE = re.compile(r"PASS\s+(\d+[a-z]?)\s*:")
+_PASS_LABELS = {
+    "1":  "Schnittliste einlesen",
+    "2":  "Kopfnicken-Cutaways einfügen",
+    "2b": "Pausen-Cutaways einfügen",
+    "3":  "Kurze Einstellungen aufräumen",
+    "4":  "Lange Einstellungen teilen",
+    "5":  "Ungünstige Cutaways verschieben",
+}
 
 
 class JsonLineWriter:
@@ -75,6 +96,17 @@ class JsonLineWriter:
                     pass
             # Step-Beschreibungen erkennen (z.B. "  Base-EDL aus Audio...")
             stripped = line.strip()
+            # Pass-Banner ZUERST: sie enden nicht auf "..." und fielen sonst
+            # durch die Erkennung unten hindurch (nur Log). step_detail statt
+            # step_start_sub, weil letzteres den Schrittzaehler hochzaehlt --
+            # sechs Paesse machten aus "Schritt 6 von 8" ein "Schritt 11 von 8".
+            pass_match = _PASS_RE.search(stripped)
+            if pass_match:
+                label = _PASS_LABELS.get(pass_match.group(1))
+                if label:
+                    self._emit({"type": "step_detail", "label": label})
+                self._emit({"type": "log", "message": line})
+                continue
             if stripped.endswith("...") and len(stripped) > 5:
                 step_label = stripped.rstrip(".")
                 # Display-Namen einsetzen (z.B. "C7804.MP4" -> "Cam Host")
@@ -102,16 +134,31 @@ class JsonLineWriter:
             self._emit({"type": "log", "message": line})
 
     def _parse_progress(self, line):
-        """Parst '__PROGRESS__ 44.6 5:35' in step_progress JSON."""
+        """Parst '__PROGRESS__ <pct> [<M:SS>] [<done>/<total>]' in step_progress.
+
+        Die Zusatzfelder werden nach ihrer FORM erkannt, nicht nach ihrer
+        Position. Vorher wurde `parts[1]` blind als ETA uebernommen -- der
+        CLIP-Pass sendet dort aber einen Zaehler, sodass in der UI
+        "ETA: 341/384" stand. Formunterscheidung statt Positionsvertrauen
+        haelt das auch dann heil, wenn ein Schritt nur eines von beiden liefert.
+        """
         try:
             parts = line.split("__PROGRESS__")[1].strip().split()
             percent = float(parts[0])
-            eta = parts[1] if len(parts) > 1 else ""
-            self._emit({
+            eta, counter = "", ""
+            for field in parts[1:3]:
+                if _TIME_RE.match(field):
+                    eta = field
+                elif _COUNT_RE.match(field):
+                    counter = field
+            msg = {
                 "type": "step_progress",
                 "percent": round(percent, 1),
                 "eta": eta,
-            })
+            }
+            if counter:
+                msg["counter"] = counter
+            self._emit(msg)
         except (IndexError, ValueError):
             pass
 
