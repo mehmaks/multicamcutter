@@ -24,6 +24,7 @@ hidden_imports = [
     'modules.multicam_cutter.build_base_edl_from_audio',
     'modules.multicam_cutter.video_reaction_analyzer_v2_4',
     'modules.multicam_cutter.pause_trim_edl',
+    'modules.multicam_cutter.shot_sizes',
     'modules.multicam_cutter.build_fcpxml',
     'shared.waveform_sync',
     'shared.frame_utils',

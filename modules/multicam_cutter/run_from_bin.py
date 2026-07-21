@@ -29,6 +29,7 @@ sys.path.insert(0, str(ROOT))
 from resolve_bridge.connection import get_resolve
 from shared.waveform_sync import sync_sources, SyncError
 from shared.paths import effective_clip_prompts_path
+from shot_sizes import camera_roles
 
 SCRIPT_DIR = Path(__file__).parent
 
@@ -791,12 +792,30 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             'type':              cam_types[i]   if i < len(cam_types)   else 'close',
             'nodding_detection': cam_nodding[i] if i < len(cam_nodding) else True,
             'mics':              mics_for_cam,
+            # Stufenleiter statt zweier Klassen: Anzahl gezeigter Personen,
+            # kleiner = enger. Erlaubt Regeln wie „eine Stufe weiter", ohne dass
+            # sie feste Groessennamen oder Kameras kennen muessen.
+            # Siehe shot_sizes.py und brain/Bildsprache.md.
+            'shot_level':        max(1, len(mics_for_cam)),
             'reactions':         str(work_dir / (Path(cp).stem + '_reactions.json')),
         }
         sp = speaking_jsons.get(cp)
         if speaking_enabled and sp and sp.exists():
             entry['speaking_reactions'] = str(sp)
         cameras_config.append(entry)
+
+    # Rollen SELBST bestimmen statt --cam-types zu vertrauen. Die App berechnet
+    # dieselbe Regel (camRoles), aber eine Invariante, die nur im Aufrufer lebt,
+    # ist keine Invariante — genau daran krankte die Diarisierungs-Reihenfolge.
+    # Vorerst nur ein Abgleich: weicht etwas ab, will man es SEHEN, bevor man das
+    # Verhalten umstellt.
+    _own_roles = camera_roles(cameras_config)
+    for _c in cameras_config:
+        _sent, _own = _c['type'], _own_roles.get(_c['name'])
+        if _own != 'unused' and _sent != _own:
+            print(f"  ⚠ Rollen-Abweichung {_c['name']}: App sagt '{_sent}', "
+                  f"aus den Zuordnungen folgt '{_own}' "
+                  f"({_c['shot_level']} Person(en) im Bild)")
 
     cameras_json_path = work_dir / 'cameras.json'
     cameras_json_path.write_text(
