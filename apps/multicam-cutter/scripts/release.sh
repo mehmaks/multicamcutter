@@ -79,7 +79,18 @@ mkdir -p "$UPDATES_DIR"
 cp "$DMG" "$UPDATES_DIR/$DMG_NAME"
 
 echo "► generate_appcast (signiert jede DMG mit dem Sparkle-Schlüssel)..."
-"$GEN_APPCAST" "$UPDATES_DIR" --download-url-prefix "$DOWNLOAD_URL_PREFIX"
+# --maximum-versions begrenzt den Feed auf die 5 neuesten Eintraege. Der Appcast
+# bestimmt, was im Bucket liegen MUSS: alles, was er bewirbt, muss abrufbar sein,
+# sonst laeuft ein Update ins 404. Umgekehrt darf geloescht werden, was aus dem
+# Feed herausgefallen ist — ohne diese Grenze waechst der Bucket unbegrenzt und
+# nichts ist je gefahrlos entfernbar.
+#
+# BEWUSST OHNE --auto-prune-update-files: das loescht die alten DMGs auch LOKAL,
+# und generate_appcast braucht sie, um kuenftige Deltas dagegen zu rechnen.
+# Lokal bleibt also alles liegen; aufgeraeumt wird nur im Bucket, von Hand.
+"$GEN_APPCAST" "$UPDATES_DIR" \
+    --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
+    --maximum-versions 5
 echo "  ✓ $UPDATES_DIR/appcast.xml"
 
 # ── 6. Nächste (manuelle) Schritte ─────────────────────────────────────────

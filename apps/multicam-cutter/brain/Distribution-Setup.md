@@ -340,3 +340,21 @@ Update-Datei automatisch mit dem Keychain-Key und schreibt `appcast.xml`:
 4. ⚠️ Die Update-DMGs (~500 MB) NICHT in Vercel/Git — Objekt-Storage nutzen
    (Cloudflare R2 / S3 / B2) und Enclosure-URL dorthin zeigen lassen.
 5. Testen: Über-Dialog → „Auf Update prüfen" muss die neue Version anbieten.
+
+## Was im Bucket liegen muss (und was weg darf)
+
+**Der Appcast ist die Wahrheit.** Alles, was er referenziert — volle DMGs **und
+Delta-Dateien** — muss unter `downloads/` abrufbar sein. Fehlt etwas, laeuft das
+Update ins 404; bei Deltas faellt Sparkle dabei *still* auf die volle DMG zurueck,
+der Fehler bleibt also unsichtbar (siehe `Bekannte-Bugs.md`).
+
+- `release.sh` erzeugt den Feed mit **`--maximum-versions 5`**. Aeltere Eintraege
+  fallen heraus und ihre Dateien werden damit gefahrlos loeschbar.
+- **Lokal** bleibt alles liegen: `generate_appcast` braucht die alten DMGs, um
+  kuenftige Deltas dagegen zu rechnen. Deshalb **kein** `--auto-prune-update-files`.
+- `publish.sh` laedt alles hoch, was der Feed referenziert und lokal vorliegt,
+  prueft **jede** beworbene URL und listet am Ende die **verwaisten** Objekte im
+  Bucket samt fertigem `rclone delete`-Befehl. Geloescht wird **von Hand** —
+  unwiderruflich, und laufende Downloads koennten noch daran haengen.
+
+Faustregel: erst veroeffentlichen, dann die gemeldeten Waisen loeschen. Nie umgekehrt.

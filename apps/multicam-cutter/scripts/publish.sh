@@ -303,6 +303,25 @@ for i in $(seq 1 18); do
     sleep 5
 done
 
+# Verwaiste Objekte melden — NICHT loeschen. Mit --maximum-versions 5 fallen
+# alte Eintraege aus dem Feed; ihre Dateien werden damit gefahrlos entfernbar.
+# Bewusst nur ein Hinweis: Loeschen im Bucket ist unwiderruflich und trifft
+# potenziell noch laufende Downloads, das entscheidet ein Mensch.
+if [ "$UPLOADER" = "rclone" ] && command -v rclone >/dev/null 2>&1; then
+    REFERENCED="$(grep -o 'url="[^"]*"' "$APPCAST" | sed 's/url="//;s/"//' \
+                  | xargs -n1 basename | sort -u)"
+    ORPHANS="$(rclone ls "${RCLONE_REMOTE:-r2}:$R2_BUCKET" 2>/dev/null | awk '{print $2}' \
+               | sort -u | comm -23 - <(echo "$REFERENCED") || true)"
+    if [ -n "$ORPHANS" ]; then
+        echo ""
+        echo "───── Nicht mehr im Feed referenziert ─────"
+        echo "$ORPHANS" | sed 's/^/  · /'
+        echo "  Diese Objekte bewirbt der Appcast nicht mehr und kann sie niemand"
+        echo "  mehr anfordern. Loeschen (nach eigener Pruefung):"
+        echo "$ORPHANS" | sed "s|^|      rclone delete ${RCLONE_REMOTE:-r2}:$R2_BUCKET/|"
+    fi
+fi
+
 echo ""
 echo "=== $VERSION ist live ==="
 echo "  DMG:   $ENCLOSURE_URL"
