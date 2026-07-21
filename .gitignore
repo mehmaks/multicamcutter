@@ -78,3 +78,6 @@ apps/multicam-cutter/release/
 **/.build/
 **/.swiftpm/
 *.dmg
+
+# wrangler-Cache (enthaelt Account-Daten)
+.wrangler/

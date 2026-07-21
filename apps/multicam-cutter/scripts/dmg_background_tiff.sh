@@ -46,11 +46,21 @@ import sys
 from PIL import Image
 src, dst1x, dst2x = sys.argv[1], sys.argv[2], sys.argv[3]
 im = Image.open(src).convert("RGB")
+# Unten in der eigenen Randfarbe auslaufen lassen. Die Inhaltshoehe des
+# Finder-Fensters haengt von der Titelleiste ab (variiert je macOS-Version);
+# ohne Zugabe bleibt dort ein heller Streifen, weil Finder den Hintergrund
+# oben links verankert und NICHT skaliert. 40 Punkte Zugabe decken das sicher
+# ab und sind unsichtbar, solange der untere Bildrand einfarbig ist.
+BLEED = 80  # in 2x-Pixeln
+row = im.crop((0, im.height - 1, im.width, im.height)).resize((im.width, BLEED))
+padded = Image.new("RGB", (im.width, im.height + BLEED))
+padded.paste(im, (0, 0)); padded.paste(row, (0, im.height))
+im = padded
 # dpi ZWINGEND setzen: macOS leitet die Punktgroesse aus der Aufloesung ab.
 # Eine 1280x800-Grafik mit 300 dpi gilt als 307x192 PUNKTE statt 640x400 --
 # tiffutil warnt dann ("do not follow Aqua guidelines") und der Hintergrund
 # waere auf Retina voellig falsch skaliert. 72 dpi = 1x, 144 dpi = 2x.
-im.resize((640, 400), Image.LANCZOS).save(dst1x, "PNG", dpi=(72, 72))
+im.resize((640, 400 + BLEED // 2), Image.LANCZOS).save(dst1x, "PNG", dpi=(72, 72))
 im.save(dst2x, "PNG", dpi=(144, 144))
 PY
     echo "  1x erzeugt (Pillow/Lanczos), dpi auf 72/144 normalisiert"
@@ -73,5 +83,5 @@ if echo "$TIFF_OUT" | grep -qi "do not follow"; then
 fi
 echo ""
 echo "✓ $OUT"
-echo "  enthaelt 640x400 (Layout) + 1280x800 (Retina)"
+echo "  enthaelt 640x440 (Layout) + 1280x880 (Retina) — 40 pt Zugabe unten"
 echo "  Wird beim naechsten 'bash scripts/release.sh <version>' automatisch verwendet."
