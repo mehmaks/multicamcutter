@@ -20,6 +20,20 @@
   gegen die ueber die Referenz abgeleitete Differenz geprueft (Toleranz 2 Frames).
 - **Verifikation**: synthetische Quellen mit bekannten Versaetzen, alle fuenf
   Offsets exakt getroffen (`scratchpad/synctest`).
+- **Nachtrag 21.07. — die Kreuzprobe hat sofort zugeschlagen** (Episode 38,
+  2 Cams / 3 Mics): MIC1↔CAM1 lieferte bei nur **21,3x** Confidence einen um
+  2895 Frames falschen Offset, waehrend MIC1↔CAM2 (642,8x) und CAM1↔CAM2 (237,5x)
+  stimmten. **Ursache**: die Rekorder liefen ~100 s vor den Kameras, und das
+  Analysefenster wird von JEDEM Dateianfang genommen — von 180 s ueberlappten
+  also nur ~78 s. Zu wenig fuer ein eindeutiges Maximum, aber genug, um die
+  Schwelle von 5,0x zu passieren (bekannter Gotcha in
+  `modules/multicam_cutter/CLAUDE.md`).
+  **Ohne die Kreuzprobe haette der alte Code MIC1 mit dem falschen Wert gesetzt
+  und ihn an MIC2 und MIC3 vererbt** — drei um 100 s verschobene Tonspuren, ohne
+  jede Warnung.
+  **Reaktion**: bei uneiniger Kreuzprobe wird die schwaechste Messung mit
+  vierfachem Fenster nachgemessen und nur bei besserer Confidence uebernommen;
+  erst wenn auch das nicht aufloest, wird abgebrochen.
 
 ### Deltas wurden nie hochgeladen — jedes Update lud die volle DMG
 - **Symptom**: keines. Updates funktionierten, nur langsam.

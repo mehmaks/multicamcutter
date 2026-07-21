@@ -106,12 +106,18 @@ def _sync_pair(
     target_label: str,
     fps: float,
     cache: dict = None,
+    start_duration: float = None,
 ) -> SyncResult:
     """
     Syncs one pair of audio/video sources against a reference.
     Expands analysis window in CHUNK_STEP increments until confidence is met.
+
+    start_duration: groesseres Startfenster erzwingen. Noetig, wenn eine Quelle
+    einen langen Vorlauf hat: das Fenster wird von JEDEM Dateianfang genommen,
+    bei 100 s Vorlauf ueberlappen zwei 180-s-Fenster also nur 80 s. Das reicht
+    fuer ein falsches Maximum, das die Confidence-Schwelle trotzdem passiert.
     """
-    duration = CHUNK_SECONDS
+    duration = start_duration or CHUNK_SECONDS
     max_duration = None  # will probe on first failure
 
     while True:
@@ -192,6 +198,11 @@ def _probe_duration(path: str) -> float:
 # (jede Messung rundet einmal), alles darueber ist ein echter Widerspruch.
 CROSSCHECK_TOLERANCE_FRAMES = 2
 
+# Faktor fuers Nachmessen der schwaechsten Quelle bei uneiniger Kreuzprobe.
+# 4x180s = 12 min deckt auch lange Vorlaeufe ab, ohne den Normalfall zu bremsen
+# (es greift nur nach einem Widerspruch).
+RETRY_WINDOW_FACTOR = 4
+
 
 def sync_sources(
     cam_paths: list[str],
@@ -269,14 +280,39 @@ def sync_sources(
         direct = _sync_pair(sources["CAM1"], sources["CAM2"], "CAM1", "CAM2", fps)
         ref_cache.clear()   # ab hier nicht mehr gebraucht
         drift = abs(direct.offset_frames - offsets["CAM2"])
+
+        if drift > CROSSCHECK_TOLERANCE_FRAMES:
+            # Nicht sofort aufgeben. Die Confidence zeigt, WELCHE Messung
+            # verdaechtig ist — die schwaechste. Ursache ist fast immer zu wenig
+            # ueberlappendes Material (Rekorder liefen vor den Kameras), und
+            # dagegen hilft schlicht ein groesseres Fenster.
+            suspect = min(confidences, key=confidences.get)
+            print(f"  ⚠ Kreuzprobe uneinig ({drift} Frames Abweichung).")
+            print(f"    Schwaechste Messung: {ref_label} ↔ {suspect} "
+                  f"({confidences[suspect]:.1f}x) — messe mit mehr Material nach...")
+            retry = _sync_pair(ref_path, sources[suspect], ref_label, suspect, fps,
+                               cache=ref_cache,
+                               start_duration=CHUNK_SECONDS * RETRY_WINDOW_FACTOR)
+            if retry.confidence > confidences[suspect]:
+                rel[suspect] = retry.offset_frames
+                confidences[suspect] = retry.confidence
+                cam1_rel = rel["CAM1"]
+                offsets = {l: v - cam1_rel for l, v in rel.items()}
+                drift = abs(direct.offset_frames - offsets["CAM2"])
+                if drift <= CROSSCHECK_TOLERANCE_FRAMES:
+                    print(f"    ✓ behoben — {suspect} jetzt {retry.offset_frames:+d} "
+                          f"Frames bei {retry.confidence:.1f}x")
+
         if drift > CROSSCHECK_TOLERANCE_FRAMES:
             raise SyncError(
                 f"Kreuzprobe fehlgeschlagen: ueber {ref_label} ergibt CAM2 "
                 f"{offsets['CAM2']:+d} Frames, direkt gemessen "
                 f"{direct.offset_frames:+d} Frames "
                 f"(Abweichung {drift} Frames, erlaubt {CROSSCHECK_TOLERANCE_FRAMES}).\n"
-                f"Mindestens eine Korrelation hat ein falsches Maximum getroffen. "
-                f"Bitte Material pruefen oder manuell synchronisieren."
+                f"Mindestens eine Korrelation hat ein falsches Maximum getroffen; "
+                f"Nachmessen mit mehr Material hat es nicht aufgeloest.\n"
+                f"Haeufigste Ursache: eine Quelle hat einen langen Vorlauf, sodass "
+                f"die Analysefenster kaum gemeinsames Material enthalten."
             )
         print(f"  Kreuzprobe CAM1 ↔ CAM2: ✓ (Abweichung {drift} Frames)")
 
