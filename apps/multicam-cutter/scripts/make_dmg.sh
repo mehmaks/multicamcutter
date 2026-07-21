@@ -84,10 +84,23 @@ fi
 # ein schreibgeschuetztes Volume nimmt keine .DS_Store mit den Ansichtsoptionen an.
 BG_DIR="$STAGING/.background"
 mkdir -p "$BG_DIR"
+# Eigene Grafik hat Vorrang: liegt scripts/dmg-background.(tiff|png) vor, wird
+# sie genommen; sonst erzeugt make_dmg_background.py eine generische.
+BG_FILE=""
+for cand in dmg-background.tiff dmg-background.png; do
+    if [ -f "$SCRIPT_DIR/$cand" ]; then
+        cp "$SCRIPT_DIR/$cand" "$BG_DIR/$cand"; BG_FILE="$cand"; break
+    fi
+done
 PYBIN="${PYBIN:-$APP_DIR/../../venv/bin/python3}"
 [ -x "$PYBIN" ] || PYBIN="python3"
-echo "► Hintergrundgrafik erzeugen..."
-"$PYBIN" "$SCRIPT_DIR/make_dmg_background.py" "$BG_DIR/background.png"
+if [ -n "$BG_FILE" ]; then
+    echo "► Hintergrundgrafik: eigene ($BG_FILE)"
+else
+    echo "► Hintergrundgrafik erzeugen (generisch)..."
+    "$PYBIN" "$SCRIPT_DIR/make_dmg_background.py" "$BG_DIR/background.png"
+    BG_FILE="background.png"
+fi
 
 RW_DMG="$APP_DIR/release/.rw.dmg"
 rm -f "$RW_DMG"
@@ -118,14 +131,20 @@ tell application "Finder"
         set current view of container window to icon view
         set toolbar visible of container window to false
         set statusbar visible of container window to false
-        set the bounds of container window to {200, 120, 840, 520}
+        -- Hoehe enthaelt die Titelleiste: 440 statt 400, damit die
+        -- INHALTSflaeche rund 400 Punkte hoch wird und die 640x400-Grafik passt.
+        set the bounds of container window to {200, 120, 840, 560}
         set opts to the icon view options of container window
         set arrangement of opts to not arranged
         set icon size of opts to 128
         set text size of opts to 12
         -- POSIX-Pfad statt Doppelpunkt-Notation: letztere scheitert bei einem
         -- versteckten Ordner mit Fehler -10006 ("kann nicht gesetzt werden").
-        set background picture of opts to POSIX file "$MOUNT_DIR/.background/background.png"
+        -- Hintergrund: Finder legt das Bild in PIXELN = PUNKTEN an und verankert
+        -- es oben links. Es wird NICHT skaliert. Die Datei muss daher 640x400
+        -- sein (bzw. eine TIFF mit 640x400 + 1280x800 fuer Retina, erzeugt via
+        -- "tiffutil -cathidpicheck bg.png bg@2x.png -out background.tiff").
+        set background picture of opts to POSIX file "$MOUNT_DIR/.background/$BG_FILE"
         set position of item "MultiCamCutter.app" of container window to {170, 186}
         set position of item "Programme" of container window to {470, 186}
         update without registering applications

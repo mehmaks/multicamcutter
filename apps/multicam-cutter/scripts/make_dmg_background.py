@@ -23,7 +23,11 @@ LILAC     = (203, 166, 247)     # Zweitfarbe #CBA6F7
 TEXT      = (236, 240, 232)
 MUTED     = (128, 136, 122)
 
-SCALE     = 2
+# 1x! Finder legt den Hintergrund in PIXELN = PUNKTEN an und skaliert NICHT.
+# Ein 1280x800-Bild wuerde als 1280x800 Punkte behandelt -> nur das linke obere
+# Viertel waere sichtbar. Fuer Retina stattdessen eine Multi-Representation-TIFF
+# (siehe make_dmg.sh).
+SCALE     = 1
 W, H      = 640 * SCALE, 400 * SCALE
 
 # Icon-Mittelpunkte in Punkten — muessen zu den Werten in make_dmg.sh passen!

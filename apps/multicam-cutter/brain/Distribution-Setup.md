@@ -46,6 +46,51 @@ Alle drei müssen grün sein. `stapler validate` allein reicht **nicht** — es
 bestätigt nur, dass ein Ticket angeheftet ist, nicht dass Gatekeeper das Paket
 akzeptiert.
 
+## DMG-Gestaltung (Hintergrund, Fenster, Icon-Positionen)
+
+`make_dmg.sh` baut ein gestaltetes Installations-Fenster: UDRW erzeugen →
+mounten → Finder via AppleScript einstellen → auswerfen → UDZO komprimieren.
+Direkt UDZO ginge nicht — ein schreibgeschütztes Volume nimmt keine `.DS_Store`
+mit Ansichtsoptionen an.
+
+### Eigene Hintergrundgrafik einsetzen
+Datei als **`scripts/dmg-background.tiff`** (oder `.png`) ablegen — sie hat
+Vorrang. Fehlt sie, erzeugt `make_dmg_background.py` eine generische.
+
+⚠️ **Format: 640 × 400 Pixel.** Finder legt den Hintergrund in **Pixeln =
+Punkten** an, verankert ihn oben links und **skaliert nicht**. Eine
+1280 × 800-Datei erscheint deshalb als 1280 × 800 Punkte — sichtbar ist nur das
+linke obere Viertel (genau so passiert, 21.07.).
+
+| Element | Position im 640×400-Raster (Ursprung oben links) |
+|---|---|
+| App-Icon, Mitte | **170, 186** → belegt x 106–234, y 122–250 |
+| `Programme`-Icon, Mitte | **470, 186** → belegt x 406–534, y 122–250 |
+| Icon-Beschriftungen | zeichnet **Finder selbst** → y 250–278 freihalten, keine eigenen Labels |
+| freier Mittelbereich | x 240–400 zwischen den Icons |
+| unterer Rand | letzte ~20 px nicht mit Wichtigem belegen (Titelleistenhöhe variiert) |
+
+**Retina:** eine PNG wird weich gezeichnet. Stattdessen eine TIFF mit zwei
+Auflösungen:
+```
+tiffutil -cathidpicheck bg.png bg@2x.png -out scripts/dmg-background.tiff
+```
+`bg.png` 640×400, `bg@2x.png` 1280×800.
+
+⚠️ Ändern sich Icon-Positionen, müssen **beide** Stellen mit: die AppleScript-
+Werte in `make_dmg.sh` und `APP_XY`/`DEST_XY` in `make_dmg_background.py`.
+
+### Fallstricke (alle erlebt)
+- `hdiutil create -size` braucht viel Reserve — +120 MB reichten nicht
+  („kein Platz verfügbar" trotz 400 GB frei; gemeint ist das **Image**).
+  Jetzt +25 % +200 MB.
+- `background picture` per Doppelpunkt-Notation scheitert bei versteckten
+  Ordnern mit **-10006**. POSIX-Pfad funktioniert.
+- Das AppleScript **muss das Fenster schließen**, sonst hält der Finder das
+  Volume und `hdiutil convert` scheitert mit „Ressource zeitweilig nicht
+  verfügbar". Auswerfen zusätzlich mit Wiederholung.
+- Läuft nur in einer GUI-Sitzung (Finder-Automatisierung), nicht headless.
+
 ## Release-Checkliste (Update ausliefern)
 
 Kompletter Weg von „neue Version" bis „Nutzer bekommt das Update". Zum Aufzählen
