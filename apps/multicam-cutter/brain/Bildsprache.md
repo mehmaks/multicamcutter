@@ -171,6 +171,22 @@ Menge, dieselbe Kamera. Nur *ob* geschnitten wird, unterscheidet sich.
 
 Ist nur „zurück" aktiv, entsteht das Muster **A → X → T → A**.
 
+### Die Brücke wird je Übergang bestimmt, nicht einmal
+
+Naheliegende Abkürzung, die **falsch** wäre: „Bei binärer Diarisierung ist die
+Brücke immer dieselbe Kamera." Das stimmt sogar — betrifft jeder Sprecherwechsel
+dieselben zwei Personen, ist die kleinste gemeinsame Kamera fest. Aber es ist
+eine Eigenschaft der **heutigen Einschränkung**, keine der Sache:
+
+- Mit N-facher Diarisierung (Stufe 2) gibt es Wechsel wie P1→P3. Jedes Paar kann
+  eine andere kleinste gemeinsame Kamera haben — genau das ist R8.
+- Schon **heute** bricht die Annahme bei **zwei gleich weiten Kameras**: immer
+  dieselbe zu wählen widerspräche R5 (Dynamik).
+
+`insert_transition_events` fragt deshalb je Übergang einen `resolve_bridge`
+-Aufruf. Ein Aufrufer, der nur eine Brücke kennt, gibt sie immer zurück — aber
+die Schnittstelle nimmt die Einschränkung nicht in sich auf.
+
 ### Zwei Regeln brauchen Gedächtnis
 
 R4 (wer war wie lange nicht zu sehen) und R5 (was lief zuletzt) sind die einzigen,

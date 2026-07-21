@@ -840,8 +840,7 @@ def _slice_event(event: dict, start_frame: int, end_frame: int, fps: float) -> d
 
 
 def insert_transition_events(events: list, fps: float,
-                            bridge_clip: str, bridge_ref: int,
-                            bridge_timeline_zero_video: int,
+                            resolve_bridge,
                             bridge_len_frames, min_shot_frames: int) -> list:
     """Setzt bei jedem Sprecherwechsel eine Zwischeneinstellung davor.
 
@@ -861,8 +860,22 @@ def insert_transition_events(events: list, fps: float,
 
     bridge_len_frames: Aufruf ohne Argumente, liefert je Uebergang eine Laenge
     (der Zufallsfaktor soll pro Schnitt neu wuerfeln, nicht einmal global).
+
+    resolve_bridge(von_clip, nach_clip) -> (clip, ref, timeline_zero_video) oder
+    None. BEWUSST je Uebergang befragt, nicht einmal global:
+
+    - Unter binaerer Diarisierung ist das Ergebnis zwar konstant (alle Wechsel
+      betreffen dieselben zwei Personen), aber das ist eine Eigenschaft der
+      heutigen Einschraenkung, keine der Sache. Mit N-facher Diarisierung gibt es
+      Wechsel wie P1->P3, und jedes Paar kann eine andere kleinste gemeinsame
+      Kamera haben.
+    - Schon heute bricht die Annahme, wenn es ZWEI gleich weite Kameras gibt:
+      immer dieselbe zu waehlen widerspraeche der Dynamik-Regel (R5 in
+      brain/Bildsprache.md).
+
+    Ein Aufrufer, der nur eine Bruecke kennt, gibt sie einfach immer zurueck.
     """
-    if not bridge_clip or bridge_ref is None or len(events) < 2:
+    if resolve_bridge is None or len(events) < 2:
         return events
 
     result = [events[0]]
@@ -872,6 +885,12 @@ def insert_transition_events(events: list, fps: float,
         if prev['clip_name'] == event['clip_name']:
             result.append(event)
             continue
+
+        chosen = resolve_bridge(prev['clip_name'], event['clip_name'])
+        if not chosen:
+            result.append(event)          # keine gemeinsame Kamera -> wie bisher
+            continue
+        bridge_clip, bridge_ref, bridge_timeline_zero_video = chosen
 
         # Wurde das VORHERIGE Event bereits zur Bruecke verlaengert, stehen wir
         # schon im weiten Bild. Eine zweite Bruecke davor waere ein Schnitt auf
