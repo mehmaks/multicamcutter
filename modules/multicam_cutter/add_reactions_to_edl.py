@@ -175,6 +175,7 @@ def build_events_with_cutaways(
     config: Dict,
     fps: float,
     decision_log: Optional[List] = None,
+    base_reason: str = "speaker",
 ) -> List[EDLEvent]:
     """
     Baut Events für eine Section mit Cutaways von einer oder mehreren OFF-Kameras.
@@ -312,7 +313,7 @@ def build_events_with_cutaways(
                 source_out=frames_to_timecode(on_reference_frame + vo, fps),
                 record_in=frames_to_timecode(current_pos, fps),
                 record_out=frames_to_timecode(cutaway_frame, fps),
-                fps=fps, reason="speaker",
+                fps=fps, reason=base_reason,
             ))
 
         # Cutaway-Dauer: natürliche Pattern-Länge (Start→Peak+Tail) oder Minimum
@@ -357,7 +358,7 @@ def build_events_with_cutaways(
                         source_out=frames_to_timecode(on_reference_frame + vo, fps),
                         record_in=frames_to_timecode(current_pos, fps),
                         record_out=frames_to_timecode(section_end, fps),
-                        fps=fps, reason="speaker",
+                        fps=fps, reason=base_reason,
                     ))
                     current_pos = section_end
                     break
@@ -379,7 +380,7 @@ def build_events_with_cutaways(
                     source_out=frames_to_timecode(on_reference_frame + vo, fps),
                     record_in=frames_to_timecode(current_pos, fps),
                     record_out=frames_to_timecode(cut_start, fps),
-                    fps=fps, reason="speaker",
+                    fps=fps, reason=base_reason,
                 ))
 
                 # Cutaway in der Mitte
@@ -418,7 +419,7 @@ def build_events_with_cutaways(
                 source_out=frames_to_timecode(on_reference_frame + vo, fps),
                 record_in=frames_to_timecode(current_pos, fps),
                 record_out=frames_to_timecode(section_end, fps),
-                fps=fps, reason="speaker",
+                fps=fps, reason=base_reason,
             ))
 
     return events
@@ -1226,6 +1227,11 @@ def main():
                 'timeline_start': event.record_in_frame,
                 'timeline_end':   event.record_out_frame,
                 'video_start':    video_start,
+                # Begruendung aus der Basis-EDL mitfuehren. PASS 2 baut die
+                # ON-Clip-Events neu; ohne das hier bekaemen sie pauschal
+                # 'speaker' und eine Uebergangs-Einstellung waere danach nicht
+                # mehr von einem gewoehnlichen Sprecherbild zu unterscheiden.
+                'reason':         getattr(event, 'reason', 'speaker'),
             })
 
     print(f"\n  Sections: " + ", ".join(f"{k}: {len(v)}" for k, v in cam_sections.items()))
@@ -1269,7 +1275,11 @@ def main():
             continue
         cutaway_cams = [cam_dicts[n] for n in cam_dicts if n != on_name]
         if not cutaway_cams:
-            # Keine OFF-Kamera → Sections direkt als Speaker-Events übernehmen
+            # Keine OFF-Kamera → Sections direkt als Events übernehmen.
+            # Genau hier landen die Uebergangs-Einstellungen: die Bruecke ist die
+            # Totale, und fuer sie gibt es keine Cutaway-Quellen. Ohne die
+            # Begruendung aus der Section haetten ausgerechnet SIE wieder
+            # 'speaker' getragen.
             for sec in sections:
                 vi = sec['video_start']
                 vo = vi + (sec['timeline_end'] - sec['timeline_start'])
@@ -1279,7 +1289,7 @@ def main():
                     source_out=frames_to_timecode(reference_frames[on_name] + vo, args.fps),
                     record_in=frames_to_timecode(sec['timeline_start'], args.fps),
                     record_out=frames_to_timecode(sec['timeline_end'], args.fps),
-                    fps=args.fps, reason="speaker",
+                    fps=args.fps, reason=sec.get('reason', 'speaker'),
                 ))
             continue
 
@@ -1290,6 +1300,7 @@ def main():
                 on_name, reference_frames[on_name],
                 cutaway_cams, settings, args.fps,
                 decision_log=decision_log,
+                base_reason=sec.get('reason', 'speaker'),
             )
             all_events.extend(evs)
             cam_cutaways += sum(1 for e in evs if e.clip_name != on_name)
