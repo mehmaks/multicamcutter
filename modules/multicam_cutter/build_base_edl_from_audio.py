@@ -839,6 +839,92 @@ def _slice_event(event: dict, start_frame: int, end_frame: int, fps: float) -> d
     }
 
 
+def insert_transition_events(events: list, fps: float,
+                            bridge_clip: str, bridge_ref: int,
+                            bridge_timeline_zero_video: int,
+                            bridge_len_frames, min_shot_frames: int) -> list:
+    """Setzt bei jedem Sprecherwechsel eine Zwischeneinstellung davor.
+
+    Aus `Close P1 → Close P2` wird `Close P1 → Bruecke → Close P2`. Die Bruecke
+    ist die kleinste Kamera, die BEIDE zeigt (siehe transition_rule.py); bei
+    binaerer Diarisierung ist das immer dieselbe, naemlich die Totale.
+
+    WOHER DIE ZEIT KOMMT: vom EINGEHENDEN Event. Die Bruecke belegt dessen erste
+    Frames, danach folgt der Rest als Nahaufnahme. Man hoert den neuen Sprecher
+    also bereits, waehrend noch die Totale steht — und schneidet dann hinein.
+
+    ZU KURZER REST (User, 21.07.): Bliebe vom eingehenden Event weniger als die
+    Mindest-Schnittlaenge uebrig, wird die Bruecke stattdessen bis zum naechsten
+    Sprecherwechsel VERLAENGERT. Dort wird ohnehin wieder eine Stufe enger
+    geschnitten. Wer nur eine Sekunde spricht, bekommt so keine
+    Zehntelsekunden-Nahaufnahme, sondern bleibt im weiten Bild.
+
+    bridge_len_frames: Aufruf ohne Argumente, liefert je Uebergang eine Laenge
+    (der Zufallsfaktor soll pro Schnitt neu wuerfeln, nicht einmal global).
+    """
+    if not bridge_clip or bridge_ref is None or len(events) < 2:
+        return events
+
+    result = [events[0]]
+    inserted = extended = skipped_offcam = already = 0
+
+    for prev, event in zip(events, events[1:]):
+        if prev['clip_name'] == event['clip_name']:
+            result.append(event)
+            continue
+
+        # Wurde das VORHERIGE Event bereits zur Bruecke verlaengert, stehen wir
+        # schon im weiten Bild. Eine zweite Bruecke davor waere ein Schnitt auf
+        # dieselbe Kamera. Massgeblich ist, was tatsaechlich ausgegeben wurde —
+        # nicht das urspruengliche Event.
+        if result[-1]['clip_name'] == bridge_clip:
+            already += 1
+            result.append(event)
+            continue
+
+        ev_start = timecode_to_frames(event['record_in'],  fps)
+        ev_end   = timecode_to_frames(event['record_out'], fps)
+
+        vid_start = bridge_timeline_zero_video + ev_start
+        if vid_start < 0:
+            # Bruecken-Kamera laeuft an dieser Stelle noch nicht.
+            skipped_offcam += 1
+            result.append(event)
+            continue
+
+        want = bridge_len_frames()
+        rest = (ev_end - ev_start) - want
+        if rest < min_shot_frames:
+            bridge_end = ev_end          # Bruecke deckt das ganze Event ab
+            extended += 1
+        else:
+            bridge_end = ev_start + want
+            inserted += 1
+
+        result.append({
+            'clip_name':  bridge_clip,
+            'source_in':  frames_to_timecode(bridge_ref + vid_start, fps),
+            'source_out': frames_to_timecode(bridge_ref + bridge_timeline_zero_video + bridge_end, fps),
+            'record_in':  frames_to_timecode(ev_start,   fps),
+            'record_out': frames_to_timecode(bridge_end, fps),
+            'reason':     'transition',
+        })
+        if bridge_end < ev_end:
+            result.append(_slice_event(event, bridge_end, ev_end, fps))
+
+    total = inserted + extended
+    if total or skipped_offcam or already:
+        msg = f"  {total} Uebergangs-Einstellung(en) bei Sprecherwechseln"
+        if extended:
+            msg += f" — davon {extended} bis zum naechsten Wechsel verlaengert (Rest zu kurz)"
+        if already:
+            msg += f"; {already} entfallen (stand bereits im weiten Bild)"
+        if skipped_offcam:
+            msg += f"; {skipped_offcam} ausgelassen (Bruecken-Kamera noch nicht gestartet)"
+        print(msg)
+    return result
+
+
 def insert_totale_events(events: list, simul_segments: list, fps: float,
                           totale_clip: str, totale_ref: int,
                           totale_timeline_zero_video: int,
