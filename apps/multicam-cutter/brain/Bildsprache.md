@@ -132,6 +132,45 @@ Kamera-Personen-Graphen. Das ist zugleich die **Abdeckungsregel B3** aus
 `Plan-Multicam-3plus.md`, angewandt auf *Übergänge* statt auf *Sprecher* —
 beide Vorhaben teilen sich also eine Mechanik.
 
+### Die Übergangsregel ist nicht ein Schalter, sondern eine Matrix
+
+Präzisierung des Users (21.07.): Die Regel muss **je Anlass** ein- und
+ausschaltbar sein — und bei Cutaways zusätzlich **je Richtung**.
+
+Der Grund ist eine Ungleichheit, die vorher untergegangen war:
+
+| Vorgang | Form | Übergänge |
+|---|---|---|
+| **Sprecherwechsel** | einseitig, A → B | **einer** |
+| **Cutaway** | Ausflug, A → X → A | **zwei**, unabhängig voneinander |
+
+> „Sicher gibt es auch Schnittstile, die zwar nicht zu einem Nicken hin über die
+> nächst größere Einstellung schneiden (weil wir Reaktionen ja instant wahrnehmen
+> wollen) aber von einem Nicken über die nächstgrößere Einstellung zurück zum
+> aktiven Sprecher."
+
+Zum Cutaway **hin** ist die Zeit knapp: eine Zwischeneinstellung verschleppt die
+Reaktion und nimmt ihr die Wirkung. **Zurück** gibt es keinen Zeitdruck — dort
+kann eine größere Einstellung weich landen und den Raum wieder herstellen.
+
+Vorgeschlagene Oberfläche — Kästchen je Zelle, **Voreinstellung: nur
+Sprecherwechsel**:
+
+|  | hin | zurück |
+|---|---|---|
+| Sprecherwechsel | **✓ Standard** | — (entfällt) |
+| Nicken | ☐ | ☐ |
+| Sprachreaktion | ☐ | ☐ |
+| Max-Zeit | ☐ | ☐ |
+| Pause | ☐ | ☐ |
+
+Die Formel bleibt in allen Zellen dieselbe: **kleinste Einstellung, die beide
+beteiligten Personen enthält** (`smallest_containing` in `shot_sizes.py`). Beim
+Hinweg sind das Sprecher und Ziel, beim Rückweg Ziel und Sprecher — dieselbe
+Menge, dieselbe Kamera. Nur *ob* geschnitten wird, unterscheidet sich.
+
+Ist nur „zurück" aktiv, entsteht das Muster **A → X → T → A**.
+
 ### Zwei Regeln brauchen Gedächtnis
 
 R4 (wer war wie lange nicht zu sehen) und R5 (was lief zuletzt) sind die einzigen,
@@ -174,7 +213,13 @@ in zwei Stellungen ab.
   Und zählt eine Totale, auf der die Person klein zu sehen ist, als „gezeigt"?
 - **R5**: Bezieht sich Dynamik auf die Einstellungsgröße, auf die Kamera, oder
   auf beides?
-- **R7**: Nur bei Sprecherwechsel oder bei jedem Schnitt? (als Parameter denkbar)
+- ~~R7: Nur bei Sprecherwechsel oder bei jedem Schnitt?~~ **Beantwortet (21.07.)**:
+  Kästchen je Anlass UND je Richtung, Voreinstellung nur Sprecherwechsel.
+- **Wie lang ist die Zwischeneinstellung?** Eigener Parameter oder an
+  `min_shot_duration` gekoppelt? Zu kurz wirkt sie wie ein Fehler, zu lang
+  bremst sie den Wechsel aus.
+- **Was, wenn es keine gemeinsame Kamera gibt?** Übergang auslassen (harter
+  Schnitt wie heute) oder die größte verfügbare nehmen?
 - Welche Regeln sind im Standard-Preset aktiv? Voreinstellung sollte sich wie
   der heutige Stand verhalten.
 
