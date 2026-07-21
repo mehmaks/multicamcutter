@@ -125,6 +125,25 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
+- [ ] **Dock-Fortschritt auch bei der FPS-Konvertierung.** Aufwand: **leicht**.
+  🎨 Kosmetisch, blockt nichts — aber die Konvertierung dauert laenger als vieles
+  andere (Faustregel im UI-Text: ~10 min pro GB; im Test 67 min Material →
+  ~15 min geschaetzt). Genau dann legt man die App in den Hintergrund und will
+  am Dock-Icon sehen, wie weit sie ist.
+  **Ist-Zustand:** Der Dock-Balken haengt ausschliesslich am Analyse-Lebenszyklus
+  (`ContentView.handleMacIntegrations`, `updateDockProgress` → `guard engine.state
+  == .running`). Waehrend `isConverting` passiert am Dock nichts.
+  **Zu tun:** Auf `isConverting` genauso reagieren wie auf `.running` — beim Start
+  `DockProgress.shared.show(0)`, beim Ende `hide()`.
+  **Fortschritt ist schon da** (`EngineController`): `convertFileIndex` /
+  `convertFileCount` (Datei n von m) plus `convertDone` / `convertTotal`
+  (Sekunden innerhalb der Datei). Sinnvolle Gesamtfraktion:
+  `(convertFileIndex - 1 + convertDone / max(convertTotal, 1)) / convertFileCount`.
+  ⚠️ **Achtung bei `convertTotal == 0`** — laut `brain/Engine-Protokoll.md` heisst
+  das „wird vorbereitet", nicht „fertig". Sonst springt der Balken auf 100 %.
+  ⚠️ Analyse und Konvertierung schliessen sich aus, aber der Abbruch-Pfad
+  (SIGTERM) muss den Balken ebenfalls ausblenden, sonst bleibt er stehen.
+
 - [x] **CLIP-Schritt: „ETA: 199/382" ist keine ETA.** UMGESETZT (21.07.):
   Der CLIP-Pass rechnet seine ETA jetzt selbst (`add_reactions_to_edl.py`,
   `clip_start_time` + Hochrechnung wie bei Nodding) und sendet
