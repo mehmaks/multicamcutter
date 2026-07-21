@@ -9,6 +9,51 @@ wertlos. Teil B baut darauf auf.
 
 ---
 
+# Stand & getroffene Entscheidungen (21.07.)
+
+Der Plan wurde gegen den Code geprüft und ist inhaltlich weiter gültig. Umgesetzt ist
+davon **nichts**; erledigt sind nur Vorarbeiten (Personen-Modell, Wizard, `camRoles()`,
+`shotLadder()` — alle in Swift).
+
+**Entschieden:**
+- **B3 (Abdeckungsregel) gilt.** Der konkurrierende TODO-Entwurf `totale_mode`
+  (Zufall/Round-Robin an den `wide_cams[0]`-Stellen) ist damit **verworfen** — er wäre
+  Wegwerfarbeit und wählt die Totale ohne Bezug dazu, wer gerade spricht.
+- **AAF-als-Eingang gehört NICHT in diesen Plan.** Im TODO stand es als Alternative,
+  die den Sync-Umbau ersetzen könnte — das ist falsch gerahmt. Es löst ein anderes
+  Problem: GoPro-/DJI-Kameras splitten lange Aufnahmen, und statt die Teile in der App
+  zusammenzusetzen, bereitet der User sie im NLE vor und übergibt eine AAF, in der jede
+  Videospur ein Clip ist. Eigene Baustelle, eigene Priorität.
+
+**Beim Prüfen zusätzlich gefunden — drei Dinge, die der Plan nicht nennt:**
+
+1. **Die Kern-Invariante lebt nur in Swift.** `camRoles()` (Totale-Regel) und
+   `orderedAnalysisCams` (Closes zuerst, Totalen ans Ende) existieren ausschließlich in
+   der App (`EngineController.swift:467-484`, `:524-541`). Python vertraut blind auf
+   `cam_paths[0]`/`[1]`. Steht dort eine Totale, kippt die Diarisierung — lautlos. Wer
+   `run_from_bin.py` direkt aufruft, hat keinerlei Schutz.
+2. **Nodding läuft über ALLE Kameras, auch Totalen** (`run_from_bin.py:720-742`), aber
+   PASS 2 verwirft deren Ergebnisse grundsätzlich (`add_reactions_to_edl.py:189`).
+   Das sind ~30 min Rechenzeit pro Totale, vollständig umsonst.
+3. **PASS 2b filtert nicht nach Typ.** Der Kommentar sagt „erste andere **Close**-Kamera",
+   der Code prüft nur `cam['name'] != on_clip` (`add_reactions_to_edl.py:552-558`).
+   Je nach Reihenfolge landet dort die Totale.
+
+---
+
+# Stufe 0 — Sofortmaßnahmen (unabhängig vom Umbau)
+
+Klein, ohne Abhängigkeit zu Teil A/B, und sie machen stille Fehler laut. Vorziehen.
+
+- [ ] **PASS 2b nach `type` filtern** — Kommentar und Code in Übereinstimmung bringen.
+- [ ] **Nodding auf Totalen überspringen** — spart ~30 min je Totale und Lauf. Achtung:
+      nur überspringen, wenn die Cam auch wirklich nirgends als Reaktionsquelle dient.
+- [ ] **Python-seitiger Abbruch, wenn Position 1 oder 2 eine Totale ist.** Die Engine
+      soll die Invariante selbst durchsetzen, statt sich auf den Aufrufer zu verlassen.
+      Ein Abbruch mit klarer Meldung ist einer still gekippten Diarisierung vorzuziehen.
+
+---
+
 # Teil A — Sync für N Quellen (Voraussetzung)
 
 ## Ist-Zustand (Code-Fakten)
@@ -136,7 +181,8 @@ Alles Bisherige fällt als Spezialfall heraus:
 
 `close`/`wide` wird damit ein **abgeleitetes Anzeige-Label**, kein Steuerparameter mehr.
 
-### B4 — Mehrere Totalen
+### B4 — Mehrere Totalen  ✅ Entwurf entschieden (21.07.): fällt aus B3 ab,
+`totale_mode` aus der TODO-Liste ist verworfen
 Fällt mit B3 automatisch ab: `totale_idx` entfällt; `insert_totale_events` bekommt pro
 Simultan-Segment die passende Cam statt einer global fixen.
 

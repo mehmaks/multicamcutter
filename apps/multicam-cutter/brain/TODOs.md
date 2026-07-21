@@ -169,8 +169,10 @@ Python-Runtime dazubekommt.
   **Beim Schreiben zwei Annahmen korrigiert:** Bildraten muessen NICHT
   uebereinstimmen (die App erkennt Abweichungen ueber `fpsMismatches` und bietet
   `--convert-fps` an) — steht jetzt als Entwarnung drin. Und die Grenze sind zwei
-  **Sprecher**, nicht zwei Kameras: `rms_diarize` vergleicht genau zwei Seiten,
-  weitere Kameras funktionieren als Totale/Cutaway.
+  **Kameras**, nicht zwei Sprecher: `rms_diarize` vergleicht zwei Seiten, aber jede
+  Seite nimmt eine LISTE von Mics (`combine_audios` → elementweises **Maximum**).
+  Mehrere Personen pro Kamera funktionieren deshalb vollständig.
+  (Diese Zeile stand zwischenzeitlich falsch herum — korrigiert 21.07.)
   Alte Beschreibung:
   Erst-Start-Sheet (einmalig, `@AppStorage`-Flag), das die Anforderungen ans Material
   erklärt — bevor der User in einen unnötigen Fehlversuch läuft. Mindestens:
@@ -241,7 +243,9 @@ Python-Runtime dazubekommt.
   Laufzeit aus `LicenseConfig.apiBase`). Details: `brain/Feedback-API.md`.
 - [x] Log-View: Analysiere-Zeilen gefiltert (Progress-Bar zeigt Fortschritt)
 
-### 🔴 N-Sprecher-Diarisierung (3+ Personen) — PRIORISIERT (Engine) — Aufwand: **mittel**
+### 🟠 N-Sprecher-Diarisierung (3 Personen auf 3 EIGENEN Cams) — Aufwand: **mittel**
+*(war 🔴 PRIORISIERT — herabgestuft 21.07., siehe Hinweis unten: der haeufige Fall
+Host + 2 Gaeste laeuft bereits, solange sich die Gaeste eine Kamera teilen.)*
 - [ ] **Basis-EDL von binär (2 Cams) auf N-fach umstellen.** User-Kontext: Podcast hat
   **häufig Host + 2 Gäste = 3 Personen**, also kein Edge-Case.
   ⚠️ **Weniger dringend als hier lange behauptet** (geklärt 21.07.): Die Grenze sind
@@ -272,8 +276,14 @@ Python-Runtime dazubekommt.
   **Zu lösen:** Split-Gruppen erkennen (Namensschema / fortlaufender TC / Timestamps) oder
   manuell gruppieren lassen; die Teile für die Analyse virtuell konkatenieren (Sync + EDL
   + AAF müssen über die Segmentgrenzen stimmen). Betrifft Scan, Wizard-Zuordnung, Engine-Args.
-- [ ] **ALTERNATIVE (evtl. schneller am Ziel): AAF als Eingang statt Ordner.** Aufwand:
-  **mittel–schwer**, aber löst zwei Probleme auf einmal.
+- [ ] **AAF als Eingang statt Ordner.** Aufwand: **mittel–schwer**.
+  ⚠️ **Rahmung korrigiert (21.07.):** Hier stand "ALTERNATIVE (evtl. schneller am
+  Ziel)" und weiter unten, es ersetze den Sync-Umbau teilweise. Das ist FALSCH und
+  hat die Priorisierung verzerrt. Es loest ein **anderes** Problem: GoPro-/DJI-Cams
+  splitten lange Aufnahmen, und statt die Teile in der App zusammenzusetzen,
+  bereitet der User sie im NLE vor und uebergibt eine AAF, in der jede Videospur
+  EIN Clip ist. Eigene Baustelle — **kein Ersatz fuer Teil A**, das den echten
+  Sync-Bug (Cams ab Nr. 3 bekommen still Offset 0) behebt.
   **Idee:** Der User sortiert und synchronisiert das Material in seinem NLE selbst und
   exportiert eine AAF, in der alle benötigten Spuren **bereits im Sync** liegen. Die App
   importiert diese AAF als Quelle — damit entfällt unser erster Workflow-Schritt
@@ -289,9 +299,8 @@ Python-Runtime dazubekommt.
   **Technisch:** AAF **lesen** können wir noch nicht (pyaaf2 kann es, wir schreiben bisher
   nur — Referenz: `brain/…` AAF-Export). Zu extrahieren: Spuren, Clips je Spur mit
   Timeline-Position + Source-Pfad + Source-In/Out. Spur → Kamera bzw. Mic mappen.
-  **Reiz:** umgeht Split-Erkennung UND Sync-Fragilität, weil der User beides im NLE
-  bereits verantwortet. Vor Umsetzung gegen `Plan-Multicam-3plus.md` (Teil A) abwägen —
-  ggf. ersetzt es den Sync-Umbau teilweise.
+  **Reiz:** umgeht die Split-Erkennung, weil der User die Teile im NLE bereits
+  aneinandergelegt hat.
 
 ### 🟡 Sync-Robustheit: gegen Mics statt gegen CAM1 — Aufwand: **mittel**
 > 📋 **Detaillierter Umbauplan: `brain/Plan-Multicam-3plus.md`** (Sync + Schnitt-Logik,
@@ -602,7 +611,8 @@ Python-Runtime dazubekommt.
   denselben Cam↔Mic-Graphen → **Engine-Kontrakt unangetastet** (weiter `--cam-mics`
   + `--cam-types`), Null Pipeline-Risiko. Der rechte Inspector hat jetzt zwei Reiter
   **„Quellen | Personen"** (`InspectorPanel`); `PersonsInspector` gruppiert nach
-  Person und zeigt „Geteilte Totalen" + „Ohne Person". `sharedWideCams` = Totale
+  Person und zeigt „Geteilte Totalen" + „Ohne Person". `sharedWideCams` (18.07.
+  ENTFERNT, s.u.) = Totale
   ohne Mic. Zuordnen läuft weiter per Drag&Drop auf dem Canvas.
   **Noch offen (nächste Stufen):** eigenständiger Personenname (heute = Mic-Name) ·
   Zuordnung aus der Personen-Sicht heraus · Rollen an der Person · Totale↔Person
@@ -628,7 +638,9 @@ Python-Runtime dazubekommt.
   korrekt); Cutaway-Pass nutzt Mics gar nicht. **ABER:** die Basis-EDL diarisiert
   BINÄR die ERSTEN ZWEI `--cams` (RMS CAM1 vs CAM2 — run_from_bin.py:546-557 →
   build_base_edl_from_audio.py:67-93). Die zwei müssen disjunkte Mic-Sets sein und
-  dürfen NICHT die Totale sein (summiert alle Mics → Diarisierung kippt).
+  dürfen NICHT die Totale sein (`combine_audios` nimmt das **Maximum** über
+  alle Mics der Cam → die Totale waere fast immer die lauteste Seite und die
+  Diarisierung kippt. Nicht "summiert", wie hier lange stand.)
   **Fix umgesetzt (Swift, keine Engine-Änderung):** `orderedAnalysisCams` sortiert
   Close-Cams zuerst, Totalen ans Ende → Diarisierungs-Paar = garantiert zwei Closes;
   ALLE positionalen Args nutzen diese Ordnung (verändert nur die AAF-Track-Reihenfolge).
