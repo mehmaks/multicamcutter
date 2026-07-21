@@ -1016,7 +1016,14 @@ def write_edl(events: list, output_path: str, title: str = "Audio Base Timeline"
             f.write(f"{i:03d}  AX       V     C        "
                     f"{ev['source_in']} {ev['source_out']} "
                     f"{ev['record_in']} {ev['record_out']}\n")
-            f.write(f"* FROM CLIP NAME: {ev['clip_name']}\n\n")
+            f.write(f"* FROM CLIP NAME: {ev['clip_name']}\n")
+            # Begruendung mitschreiben, sonst geht sie beim Wiedereinlesen
+            # verloren: add_reactions setzt dann pauschal 'speaker'. Betraf die
+            # Uebergangs-Einstellungen — im AAF hiessen sie 'Sprecher' statt
+            # 'Uebergang', und der Schutz in PASS 3 konnte nie greifen.
+            if ev.get('reason') and ev['reason'] != 'speaker':
+                f.write(f"* CUT REASON: {ev['reason']}\n")
+            f.write("\n")
     print(f"\n✓ EDL geschrieben: {output_path}")
 
 

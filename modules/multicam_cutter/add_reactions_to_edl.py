@@ -84,16 +84,29 @@ def parse_resolve_edl(edl_path: str, fps: float = 25.0) -> List[EDLEvent]:
         m = re.match(r'^(\d+)\s+\w+\s+V\s+C\s+(\S+)\s+(\S+)\s+(\S+)\s+(\S+)', line)
         if m:
             event_num = int(m.group(1))
-            if i + 1 < len(lines):
-                cn = re.match(r'\* FROM CLIP NAME:\s*(.+)', lines[i + 1].strip())
+            # Die Kommentarzeilen NACH dem Event einsammeln statt nur die
+            # unmittelbar folgende: seit die Basis-EDL auch '* CUT REASON'
+            # schreibt, stehen dort zwei. Ein fester Blick auf i+1 haette die
+            # Begruendung uebersehen oder — je nach Reihenfolge — den Clipnamen.
+            clip_name, reason = None, "speaker"
+            j = i + 1
+            while j < len(lines) and lines[j].strip().startswith('*'):
+                cm = lines[j].strip()
+                cn = re.match(r'\* FROM CLIP NAME:\s*(.+)', cm)
+                rs = re.match(r'\* CUT REASON:\s*(\S+)', cm)
                 if cn:
-                    events.append(EDLEvent(
-                        event_num=event_num,
-                        clip_name=cn.group(1).strip(),
-                        source_in=m.group(2), source_out=m.group(3),
-                        record_in=m.group(4), record_out=m.group(5),
-                        fps=fps,
-                    ))
+                    clip_name = cn.group(1).strip()
+                elif rs:
+                    reason = rs.group(1).strip()
+                j += 1
+            if clip_name:
+                events.append(EDLEvent(
+                    event_num=event_num,
+                    clip_name=clip_name,
+                    source_in=m.group(2), source_out=m.group(3),
+                    record_in=m.group(4), record_out=m.group(5),
+                    fps=fps, reason=reason,
+                ))
         i += 1
     print(f"  ✓ {len(events)} Video-Events gefunden")
     return events
