@@ -2,6 +2,24 @@
 
 ## OFFEN
 
+### Deltas wurden nie hochgeladen — jedes Update lud die volle DMG
+- **Symptom**: keines. Updates funktionierten, nur langsam.
+- **Ursache**: `publish.sh` lud genau **eine** Datei hoch (`$OBJECT_KEY`, die
+  versionierte DMG). Die von `generate_appcast` erzeugten `.delta`-Dateien blieben
+  liegen, obwohl der Appcast sie bewirbt. Ebenso pruefte Schritt [2/4] nur die
+  erste Enclosure-URL.
+- **Warum es niemandem auffiel**: Sparkle versucht das Delta und faellt bei einem
+  Fehler **still** auf die volle DMG zurueck. Das Update gelingt also — es
+  uebertraegt nur **346 MB statt 832 KB** (Faktor ~400). Kein Fehler, keine Meldung.
+- **Nachgewiesen (21.07.)**: Im Bucket lagen nur `0.5.0.dmg` und `0.5.2.dmg`.
+  Der Feed bewarb zusaetzlich `0.5.1.dmg` und **drei** Deltas — alle 404.
+- **Fix (21.07.)**: `publish.sh` laedt jetzt **alles hoch, was der Appcast
+  referenziert** und lokal in `release/updates/` liegt, und die Pruefung geht
+  ueber **jede** Enclosure-URL statt nur die erste. Bei einer nicht abrufbaren
+  Datei wird der Appcast nicht veroeffentlicht.
+- **Grundregel**: Der Appcast definiert, was im Bucket liegen muss. Was dort nicht
+  mehr referenziert wird, darf geloescht werden — und nur das.
+
 ### notarize.sh direkt aufgerufen -> unsigniertes DMG
 - **Symptom**: `⚠ SIGN_IDENTITY nicht gesetzt — DMG bleibt unsigniert`, danach
   laeuft die Einreichung bei Apple trotzdem weiter.

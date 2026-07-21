@@ -117,6 +117,37 @@ if [ "$OBJECT_KEY" != "MultiCamCutter-$VERSION.dmg" ]; then
     exit 1
 fi
 
+# ── Weitere Dateien, die der Feed BEWIRBT ──────────────────────────────────
+# Sparkle laedt zuerst das Delta und faellt nur bei Fehler auf die volle DMG
+# zurueck. Fehlt das Delta im Bucket, "funktioniert" das Update deshalb
+# trotzdem -- es laedt bloss ein paar hundert MB statt ein paar hundert KB,
+# ohne dass irgendwo ein Fehler auftaucht. Genau so lag es bis 0.5.2: der
+# Feed bewarb drei Deltas, hochgeladen wurde nie eines.
+#
+# Grundregel: ALLES, was der Appcast referenziert, muss im Bucket liegen.
+EXTRA_KEYS=()
+while read -r key; do
+    [ -n "$key" ] || continue
+    [ "$key" = "$OBJECT_KEY" ] && continue          # Haupt-DMG laeuft separat
+    [ -f "$UPDATES/$key" ] || continue              # nicht lokal -> nichts zu tun
+    EXTRA_KEYS+=("$key")
+done < <(grep -o 'url="[^"]*"' "$APPCAST" | sed 's/url="//;s/"//' | xargs -n1 basename | sort -u)
+
+upload_object() {   # $1 = lokale Datei, $2 = Objekt-Key
+    case "$UPLOADER" in
+      rclone)
+        rclone copyto "$1" "${RCLONE_REMOTE:-r2}:$R2_BUCKET/$2" \
+            --header-upload "Content-Type: application/octet-stream" \
+            --s3-no-check-bucket --s3-chunk-size 64M ;;
+      aws)
+        aws s3 cp "$1" "s3://$R2_BUCKET/$2" \
+            --endpoint-url "$R2_ENDPOINT" --content-type "application/octet-stream" ;;
+      wrangler)
+        npx --yes wrangler r2 object put "$R2_BUCKET/$2" \
+            --file="$1" --content-type="application/octet-stream" --remote ;;
+    esac
+}
+
 # ── Vorschau + eine Rückfrage ──────────────────────────────────────────────
 echo ""
 echo "═══ Publish MultiCamCutter $VERSION ═══"
@@ -133,6 +164,13 @@ else
     echo "       Objekt-Key:   $OBJECT_KEY"
     echo "       Content-Type: application/octet-stream"
     echo "       Werkzeug:     $UPLOADER"
+fi
+if [ "${#EXTRA_KEYS[@]}" -gt 0 ]; then
+    echo ""
+    echo "  1b. Weitere vom Feed beworbene Dateien (Deltas o.ae.):"
+    for k in "${EXTRA_KEYS[@]}"; do
+        echo "       · $k ($(stat -f%z "$UPDATES/$k" | awk '{printf "%.1f MB", $1/1048576}'))"
+    done
 fi
 echo ""
 echo "  2. appcast.xml → $WEB_REPO/public/appcast.xml"
@@ -175,6 +213,12 @@ case "$UPLOADER" in
         --file="$DMG" --content-type="application/octet-stream" --remote
     ;;
 esac
+
+# Deltas und alles andere, was der Feed bewirbt.
+for k in "${EXTRA_KEYS[@]}"; do
+    echo "► $k"
+    upload_object "$UPDATES/$k" "$k"
+done
 fi
 
 # ── 2. Upload prüfen — BEVOR der Feed live geht ────────────────────────────
@@ -198,6 +242,33 @@ if [ "${GOT_CODE:-}" != "200" ] || [ "${GOT_LEN:-}" != "$EXPECTED_LEN" ]; then
     exit 1
 fi
 echo "  ✓ abrufbar und vollständig"
+
+# JEDE vom Feed beworbene URL pruefen, nicht nur die erste. Bis 0.5.2 pruefte
+# dieser Schritt ausschliesslich die Haupt-DMG -- die drei beworbenen Deltas
+# lagen gar nicht im Bucket, und weil Sparkle bei einem fehlenden Delta still
+# auf die volle DMG zurueckfaellt, sah jedes Update trotzdem erfolgreich aus.
+MISSING=0
+while read -r u; do
+    [ -n "$u" ] || continue
+    [ "$u" = "$ENCLOSURE_URL" ] && continue
+    code="$(curl -sSL -o /dev/null -w '%{http_code}' "$u" || true)"
+    name="$(basename "$u")"
+    if [ "$code" = "200" ]; then
+        echo "  ✓ $name"
+    else
+        echo "  ✗ $name  → HTTP $code"
+        MISSING=$((MISSING + 1))
+    fi
+done < <(grep -o 'url="[^"]*"' "$APPCAST" | sed 's/url="//;s/"//' | sort -u)
+if [ "$MISSING" -gt 0 ]; then
+    echo ""
+    echo "✗ $MISSING vom Feed beworbene Datei(en) sind nicht abrufbar."
+    echo "  Der Appcast wird NICHT veröffentlicht — er darf nichts bewerben,"
+    echo "  was nicht existiert. Fehlen Deltas, laden alle Nutzer unnötig die"
+    echo "  volle DMG; das faellt sonst nirgends auf."
+    echo "  Liegen die Dateien lokal in release/updates/, genuegt ein erneuter Lauf."
+    exit 1
+fi
 
 # ── 3. Appcast veröffentlichen ─────────────────────────────────────────────
 echo ""
