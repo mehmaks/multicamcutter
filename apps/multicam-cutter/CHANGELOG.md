@@ -5,6 +5,15 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.2
+
+Klarere Meldungen bei der Tonsynchronisierung:
+
+- Lässt sich eine Tonspur nicht sicher einordnen, nennt die Meldung jetzt den
+  Dateinamen statt einer internen Bezeichnung (etwa „MIC3"). So ist sofort
+  erkennbar, welche deiner Dateien betroffen ist.
+- Das Protokoll zeigt am Anfang, welche Datei zu welcher Spur gehört.
+
 ## 0.6.1
 
 Kleine Korrekturen an der Oberfläche:
