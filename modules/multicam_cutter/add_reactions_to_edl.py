@@ -425,6 +425,21 @@ def build_events_with_cutaways(
     return events
 
 
+def _nearest_speaker(seq):
+    """Erster Nicht-Übergang in `seq` (Reihenfolge wie übergeben), sonst None.
+
+    Der Sandwich-Schutz muss durch eingefügte Brücken HINDURCHSEHEN: eine
+    Übergangs-Einstellung zwischen B und dem zurückkehrenden A ist ein
+    gewollter Schnitt, kein echter Nachbar. Wer nur auf das unmittelbar
+    angrenzende Event schaut, haelt B faelschlich fuer ungeschuetzt, sobald eine
+    Bruecke daneben steht — genau so verschwand ein echter Sprecherwechsel.
+    """
+    for e in seq:
+        if getattr(e, 'reason', 'speaker') != "transition":
+            return e
+    return None
+
+
 def _is_diarization_switch(event, prev, next_event) -> bool:
     """Prüft ob ein kurzes Event ein reiner Diarization-Sprecherwechsel ist.
 
@@ -433,10 +448,13 @@ def _is_diarization_switch(event, prev, next_event) -> bool:
     - Vorgänger und Nachfolger ebenfalls reason='speaker' haben
     - Das Event einen anderen Clip hat als Vorgänger UND Nachfolger
     - Vorgänger und Nachfolger denselben Clip haben (CAM1→CAM2→CAM1)
+
+    `prev`/`next_event` sind die nächsten SPRECHER-Nachbarn (Brücken werden von
+    `_nearest_speaker` übersprungen), damit der Schutz auch bei A→B→T→A greift.
     """
     if event.reason != "speaker":
         return False
-    if prev.reason != "speaker":
+    if prev is None or prev.reason != "speaker":
         return False
     if next_event is None or next_event.reason != "speaker":
         return False
@@ -457,17 +475,19 @@ def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float
     skipped_diarization = 0
     for i, event in enumerate(events):
         if event.duration_frames() < min_frames and cleaned:
-            next_event = events[i + 1] if i + 1 < len(events) else None
             prev = cleaned[-1]
             # Bruecken sind BEWUSST gesetzte Einstellungen, keine Fragmente.
             # PASS 3 raeumt Reste weg — eine Uebergangs-Einstellung ist keiner,
-            # auch wenn sie kurz ist. Ohne das hier verschwaende die
-            # Uebergangsregel ihre Arbeit: _is_diarization_switch schuetzt nur
-            # A -> B -> A mit gleichem Clip aussen, eine Bruecke ist A -> T -> B.
+            # auch wenn sie kurz ist.
             if event.reason == "transition":
                 cleaned.append(event)
                 continue
-            if _is_diarization_switch(event, prev, next_event):
+            # Sandwich-Nachbarn durch etwaige Bruecken hindurch bestimmen: ein
+            # echter Sprecherwechsel A->B->A bleibt geschuetzt, auch wenn eine
+            # Bruecke daneben eingefuegt wurde (A->B->T->A).
+            prev_speaker = _nearest_speaker(reversed(cleaned))
+            next_speaker = _nearest_speaker(events[i + 1:])
+            if _is_diarization_switch(event, prev_speaker, next_speaker):
                 cleaned.append(event)
                 skipped_diarization += 1
                 print(f"  ⏭ Sprecherwechsel beibehalten: {event.clip_name} @ {event.record_in} ({event.duration_frames()} Frames)")
