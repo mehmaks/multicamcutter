@@ -465,6 +465,25 @@ Host + 2 Gaeste laeuft bereits, solange sich die Gaeste eine Kamera teilen.)*
   Wie bei Lizenz/Feedback vorab eine **Contract-MD** schreiben (`brain/Telemetrie-API.md`).
   Alternative erwägen: fertiger Dienst (PostHog/Plausible) statt Eigenbau-Storage.
 
+### CLIP-Pass: Kamera tauschen statt Cutaway verschieben (User, 22.07.)
+- [ ] **Statt (nur) zeitlich zu verschieben, auf eine Kamera schalten, die die
+  geflagte Person nicht zeigt.** Heute verschiebt `clip_filter_cutaways`
+  (PASS 5) einen geflagten Cutaway alternierend um ±`shift_step_s`, bis das
+  unerwünschte Bild (z. B. „trinkt") weg ist. Alternative ohne jede
+  Zeitverschiebung: **dieselbe Zeit, andere Kamera** — eine, die die Person aus
+  dem geflagten Clip NICHT enthält.
+  **Passt in die Bildsprache-Mechanik:** das ist das Gegenstück zu
+  `smallest_containing` — gesucht ist die (kleinste?) Kamera, deren
+  Personenmenge die geflagte Person *ausschließt*. Ist es eine größere
+  Einstellung, wird es zugleich ein Einsatz für Totalen/Medium.
+  **Reihenfolge der Strategien** (zu entscheiden): erst Kamera-Tausch am selben
+  Zeitpunkt versuchen, und nur wenn keine Kamera die Person ausschließt (oder
+  keine verfügbar/gestartet ist), auf die Zeitverschiebung zurückfallen. Der
+  Tausch ist der ruhigere Eingriff — er verändert den Schnittrhythmus nicht.
+  ⚠️ Der neue Ziel-Clip muss selbst wieder gegen die Ignore-Liste geprüft werden
+  (könnte ein anderes geflagtes Bild zeigen) — also derselbe `_clip_score`-Check
+  wie heute, nur über Kamera-Kandidaten statt über Zeit-Offsets.
+
 ### CLIP-Einstellungen
 - [x] **Settings-Tab „CLIP"** — UMGESETZT (immer sichtbar als 3. Tab; der frühere
   „nur im Expertenmodus"-Plan ist obsolet, seit der globale Expertenmodus weg ist).
