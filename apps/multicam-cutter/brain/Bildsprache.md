@@ -293,9 +293,13 @@ in zwei Stellungen ab.
    Die Rückkehr verlangt mehr Raum: ein Ausflug, der gleich wieder zurückführt,
    wirkt sonst hektisch. Wird die Schwelle unterschritten, bleibt B
    **unangetastet** — kein Ersatz, keine Notlösung.
-   **Offen zur Beobachtung:** Auf dem Rückweg von einem kurzen B kann trotzdem
-   eine Brücke stehen (`A → B → T → A`). Der User will sich das im Schnitt
-   ansehen, bevor entschieden wird.
+   **Gelöst (22.07.):** Der zuerst offen gelassene Fall `A → B → T → A` war ein
+   Bug — Hin- und Rückweg wurden unabhängig entschieden, sodass bei kurzem B der
+   Rückweg trotzdem eine Brücke baute. PASS 3 entfernte danach das nicht mehr
+   umschlossene B, übrig blieb eine Totale als Übergang zum SELBEN Sprecher
+   (`A → T → A`, vom User in der Timeline entdeckt). Jetzt wird A-B-A als Einheit
+   entschieden: maßgeblich ist immer die Länge von B, beide Wege prüfen sie gegen
+   dieselbe 2,5×-Schwelle. Kurzes B → gar keine Brücke, B bleibt sichtbar.
    - **Cutaways:** Umgekehrt — passt der Rückweg nicht, wird **auf die Brücke
      verzichtet**. Eine Verlängerung würde hier die Rückkehr zum Sprecher
      verschlucken.

@@ -913,13 +913,31 @@ def insert_transition_events(events: list, fps: float,
         want   = bridge_len_frames()
         ev_len = ev_end - ev_start
 
-        # Kehrt der Schnitt danach zum vorherigen Sprecher zurueck (A-B-A)?
+        # A-B-A muss als EINHEIT entschieden werden. Frueher wurden Hin- und
+        # Rueckweg unabhaengig geprueft: bei kurzem B liess der Hinweg (A→B) die
+        # Bruecke zu Recht weg, der Rueckweg (B→A) baute sie aber trotzdem ein.
+        # Ergebnis A-B-T-A — und PASS 3 entfernte danach das nicht mehr von zwei
+        # gleichen Sprechern umschlossene B, sodass eine Totale als Uebergang zum
+        # SELBEN Sprecher stehenblieb (A-T-A).
+        #
+        # Massgeblich ist immer die Laenge von B. Auf dem Hinweg ist B das
+        # `event`, auf dem Rueckweg der `prev`. Beide Wege pruefen dieselbe Laenge
+        # gegen dieselbe 2,5x-Schwelle und entscheiden damit gleich.
         nxt = events[i + 1] if i + 1 < len(events) else None
-        returns = nxt is not None and nxt['clip_name'] == prev['clip_name']
-        required = (int(round(return_min_factor * min_shot_frames)) if returns
-                    else want + min_shot_frames)
+        forward_aba = nxt is not None and nxt['clip_name'] == prev['clip_name']
+        return_aba = (i >= 2 and events[i - 2]['clip_name'] == event['clip_name']
+                      and events[i - 2]['clip_name'] != prev['clip_name'])
 
-        if ev_len < required:
+        if forward_aba:                       # A→B, B ist das event
+            b_len, required = ev_len, int(round(return_min_factor * min_shot_frames))
+        elif return_aba:                      # B→A, B ist der prev
+            b_len = timecode_to_frames(prev['record_out'], fps) - \
+                    timecode_to_frames(prev['record_in'], fps)
+            required = int(round(return_min_factor * min_shot_frames))
+        else:                                 # A→B→C, gewoehnlicher Weitergang
+            b_len, required = ev_len, want + min_shot_frames
+
+        if b_len < required:
             too_short += 1
             result.append(event)
             continue
