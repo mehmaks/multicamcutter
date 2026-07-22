@@ -822,8 +822,13 @@ def run_pipeline(folder, fps, params, output_path,
 
     # ── 2. Waveform-Sync ─────────────────────────────────────────────────────
     next_step("Waveform-Sync")
+    # Bestaetigt der Nutzer, dass alle Mikrofone aus einem Mehrspur-Recorder
+    # stammen, teilen sie sich eine Clock: still aufgenommene Spuren erben dann
+    # den Referenz-Offset statt den Lauf abzubrechen (siehe waveform_sync.py).
+    mics_same_recorder = bool(params.get("mics_same_recorder", False))
     try:
-        offsets = sync_sources(cam_paths, mic_paths, fps=fps)
+        offsets = sync_sources(cam_paths, mic_paths, fps=fps,
+                               mics_same_recorder=mics_same_recorder)
     except SyncError as e:
         raise RuntimeError(f"Waveform-Sync fehlgeschlagen: {e}")
 

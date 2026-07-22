@@ -218,6 +218,7 @@ def sync_sources(
     mic_paths: list[str],
     fps: float = 25.0,
     reference: str = None,
+    mics_same_recorder: bool = False,
 ) -> dict[str, int]:
     """
     Ermittelt Sync-Offsets fuer BELIEBIG VIELE Kameras und Mikrofone.
@@ -235,6 +236,13 @@ def sync_sources(
     eine Quelle, die alle anderen zeitlich ueberlappt, ist die verlaesslichere
     Bezugsgroesse. Am Ende wird auf CAM1 = 0 normalisiert, damit EDL, AAF und
     `_cam_shift` unveraendert weiterrechnen.
+
+    mics_same_recorder: Bestaetigt der Nutzer (Wizard-Checkbox), dass ALLE
+    Mikrofone aus EINEM Mehrspur-Recorder stammen, teilen sie sich zwangslaeufig
+    eine Clock und damit denselben Offset. Eine still aufgenommene Spur (der
+    Traeger schweigt im Analysefenster) korreliert dann nicht — statt daran den
+    ganzen Lauf abzubrechen, erbt sie den Offset der Referenz. Gut korrelierte
+    Mikrofone behalten ihre Messung; weicht eine deutlich ab, kommt eine Warnung.
     """
     sources: dict[str, str] = {}
     for i, path in enumerate(cam_paths, start=1):
@@ -303,11 +311,15 @@ def sync_sources(
     for _label in sources:
         print(f"    {_label} = {_name(_label)}")
     print(f"  FPS: {fps}")
+    if mics_same_recorder:
+        print("  Mehrspur-Recorder bestaetigt: alle Mikrofone teilen sich eine "
+              "Clock (stille Spuren werden nicht einzeln korreliert).")
     print()
 
     # ── Jede Quelle einzeln gegen die Referenz ──
     rel: dict[str, int] = {ref_label: 0}
     confidences: dict[str, float] = {}
+    sibling_assigned: set[str] = set()
     ref_cache: dict = {}
     for label, path in sources.items():
         if label == ref_label:
@@ -315,6 +327,33 @@ def sync_sources(
         result = _sync_pair(ref_path, path, ref_label, label, fps, cache=ref_cache)
         rel[label] = result.offset_frames
         confidences[label] = result.confidence
+
+    # ── Mehrspur-Geschwister: gemeinsamer Offset statt Einzelkorrelation ──
+    # Bei bestaetigtem Ein-Recorder-Setup teilen sich alle Mikrofone eine Clock.
+    # Ein still aufgenommenes Mikro korreliert nicht — es erbt dann den Offset der
+    # Referenz (die selbst ein Mikro ist), statt den Lauf zum Absturz zu bringen.
+    # Gut korrelierte Mikros behalten ihre Messung; weicht eine trotz "ein
+    # Recorder" deutlich von der Referenz ab, ist die Angabe fuer dieses Mikro
+    # vermutlich falsch → Warnung, aber Messung wird respektiert. Kameras bleiben
+    # unberuehrt (eigene Geraete, echte Korrelation).
+    if mics_same_recorder and ref_label.startswith("MIC"):
+        mic_labels = [l for l in sources if l.startswith("MIC")]
+        if len(mic_labels) >= 2:
+            for label in mic_labels:
+                if label == ref_label:
+                    continue
+                if confidences.get(label, 0.0) >= TRUST_CONFIDENCE:
+                    drift = rel[label] - rel[ref_label]
+                    if abs(drift) > CROSSCHECK_TOLERANCE_FRAMES:
+                        print(f"  ⚠ {label} ({_name(label)}) misst {drift:+d} Frames gegen "
+                              f"die Referenz, obwohl als Recorder-Geschwister erklaert "
+                              f"(erwartet 0). Nutze die Messung — stammt {label} aus einem "
+                              f"anderen Geraet, Checkbox pruefen.")
+                else:
+                    rel[label] = rel[ref_label]
+                    sibling_assigned.add(label)
+                    print(f"  {label} ({_name(label)}) = Recorder-Geschwister → Offset der "
+                          f"Referenz {ref_label} uebernommen (nicht einzeln korreliert)")
 
     # ── Auf CAM1 = 0 normalisieren ──
     cam1_rel = rel["CAM1"]
@@ -374,6 +413,8 @@ def sync_sources(
     for label, conf in sorted(confidences.items(), key=lambda kv: kv[1]):
         if conf >= TRUST_CONFIDENCE:
             continue
+        if label in sibling_assigned:
+            continue  # bewusst der Referenz-Offset zugewiesen, keine echte Messung
         # Als Pruefer die sicherste ANDERE Quelle nehmen.
         others = [l for l in confidences if l != label]
         if not others:
@@ -418,7 +459,12 @@ def sync_sources(
     for label, offset in offsets.items():
         seconds = offset / fps
         conf = confidences.get(label)
-        conf_txt = f"  [Confidence {conf:.1f}x]" if conf is not None else "  [Referenz]"
+        if label in sibling_assigned:
+            conf_txt = "  [Recorder-Geschwister → Referenz-Offset]"
+        elif conf is not None:
+            conf_txt = f"  [Confidence {conf:.1f}x]"
+        else:
+            conf_txt = "  [Referenz]"
         print(f"  {label} ({_name(label)}): {offset:+d} frames ({seconds:+.3f}s){conf_txt}")
 
     return offsets

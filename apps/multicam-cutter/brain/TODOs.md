@@ -385,9 +385,28 @@ Python-Runtime dazubekommt.
   **Sofort-Workaround (heute):** Die Problem-Mic im Personen/Mic-Schritt
   **abwählen** (`included=false`) — dann ist sie nicht im Sync und der Lauf
   läuft. Nachteil: die Person auf dieser Spur wird nicht diarisiert.
-  **Offen zur Diagnose:** Warum korreliert MIC3 mit nichts? Separater Recorder
-  (Clock-Drift?), Funk-Lav ohne Raumklang, oder problematische/stille Spur?
-  Entscheidet, ob Baustein 1 (gegen Kamera) reicht oder nur manueller Offset hilft.
+
+  **Diagnose GEKLÄRT (23.07.):** MIC3 ist **Track 3 desselben Mehrspur-Recorders**
+  wie MIC1/MIC2 (Beweis: `MIC1↔MIC2 = +0 Frames @ 230×` = gemeinsame Clock; Namen
+  `Track1/2/3`). Es ist **keine** Positions-/Drift-Sache — Person 3 spricht nur in
+  den ersten 180 s kaum, und der Sync nimmt das Ziel-Chunk **immer ab Sekunde 0**
+  (`_sync_pair`: `-t` ohne `-ss`, nur die REFERENZ wächst). Leeres Ziel-Chunk →
+  flache ~15× über alle Fenster. Zusätzlich wird eine schwache Quelle nur gegen
+  **die eine** beste Quelle gegengeprüft (hier MIC2, auch ein Lav) — **nie gegen
+  eine Cam** (Baustein 1 unten bestätigt sinnvoll).
+
+  **✅ TEIL-FIX geliefert (23.07., v-tbd): Recorder-Geschwister.** Wizard-Checkbox
+  „Alle Tonspuren stammen aus einem Mehrspur-Recorder" (Screen 1, ab 2 Mics) →
+  `sync_sources(..., mics_same_recorder=True)`: still aufgenommene Mic-Spuren erben
+  den Referenz-Offset (0), statt den Lauf abzubrechen; gut korrelierte Mics behalten
+  ihre Messung, weicht eine ab → Warnung. Deckt den Kollegen-Realfall komplett ab.
+  Verkabelt: `waveform_sync.py`, `multicam_engine.py:~826`, `EngineController.swift`
+  (PipelineParams `micsSameRecorder`), `WizardView.swift` (PersonsStep), `ParamHelp`.
+
+  **NOCH OFFEN — für ECHT getrennte Quellen** (separater Recorder mit Clock-Drift,
+  Funk-Lav ohne Raumklang): Bausteine 1–3 oben (gegen ALLE Partner inkl. Cams
+  probieren; „nicht syncbar"-Liste zurückgeben statt abbrechen; manueller Offset).
+  Plus Fenster-Fix: **Ziel-Chunk aus der lautesten Region** wählen, nicht ab Sek. 0.
 
 ### 🔴 N-Sprecher-Diarisierung (3 Personen auf 3 EIGENEN Cams) — HOCHPRIORISIERT (22.07.) — Aufwand: **mittel**
 *(Vom User am 22.07. wieder nach oben gesetzt: Das ist die letzte Beschraenkung, die

@@ -202,6 +202,16 @@ struct PersonsStep: View {
                     .font(.callout).foregroundStyle(.wizMuted)
             }
 
+            // Nur sinnvoll ab 2 Spuren: bestätigt der Nutzer ein Ein-Recorder-Setup,
+            // erbt eine still aufgenommene Spur den gemeinsamen Offset, statt den
+            // Sync abzubrechen (siehe waveform_sync.py → mics_same_recorder).
+            if engine.activeMics.count >= 2 {
+                WizToggle("Alle Tonspuren stammen aus einem Mehrspur-Recorder",
+                          $engine.params.micsSameRecorder,
+                          help: ParamHelp.micsSameRecorder)
+                    .padding(.top, 4)
+            }
+
             if !engine.excludedMics.isEmpty {
                 WizRestoreChips(title: "Ausgeblendete Spuren",
                                 items: engine.excludedMics.map { (id: $0.id, name: $0.displayName) },

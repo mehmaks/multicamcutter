@@ -108,6 +108,12 @@ struct PipelineParams: Equatable {
     var transitionCutawayCooldown: Int = 6
     var transitionCutawayCooldownS: Double = 8.0
 
+    // Material-Eigenschaft, kein Kreativregler: Bestätigt der Nutzer, dass alle
+    // Mikrofone aus EINEM Mehrspur-Recorder kommen, teilen sie sich eine Clock.
+    // Eine still aufgenommene Spur bremst den Sync dann nicht mehr aus (sie erbt
+    // den gemeinsamen Offset, statt den Lauf abzubrechen). Nur relevant ab 2 Mics.
+    var micsSameRecorder: Bool = false
+
     /// Occasion-Liste für die Engine (transition_cutaway_back) aus den drei Schaltern.
     var cutawayBackList: [String] {
         var l: [String] = []
@@ -160,6 +166,7 @@ struct PipelineParams: Equatable {
             "transition_cutaway_back": cutawayBackList,
             "transition_cutaway_cooldown": transitionCutawayCooldown,
             "transition_cutaway_cooldown_s": transitionCutawayCooldownS,
+            "mics_same_recorder": micsSameRecorder,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let str = String(data: data, encoding: .utf8) else { return "{}" }
@@ -191,6 +198,7 @@ struct PipelineParams: Equatable {
             "transition_cutaway_back": cutawayBackList,
             "transition_cutaway_cooldown": transitionCutawayCooldown,
             "transition_cutaway_cooldown_s": transitionCutawayCooldownS,
+            "mics_same_recorder": micsSameRecorder,
         ]
     }
 
@@ -238,6 +246,7 @@ struct PipelineParams: Equatable {
             transitionCutawaySpeaking = list.contains("speaking_reaction")
             transitionCutawayPause    = list.contains("pause")
         }
+        if let v = dict["mics_same_recorder"] as? Bool { micsSameRecorder = v }
     }
 }
 

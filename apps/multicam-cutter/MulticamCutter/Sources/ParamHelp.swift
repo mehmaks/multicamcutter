@@ -54,6 +54,7 @@ enum ParamHelp {
 
     // Allgemein (app-spezifisch, nicht im Web-Schema)
     static let fps = "Bildrate der Timeline. Muss zur Framerate deiner Kameras passen, sonst sitzen die Schnitte nicht korrekt."
+    static let micsSameRecorder = "Aktiviere das, wenn alle deine Tonspuren aus demselben Aufnahmegerät (Mehrspur-Recorder) stammen. Dann misst die App sie gemeinsam ein — eine Spur, auf der gerade niemand spricht, kann die Synchronisierung so nicht mehr durcheinanderbringen."
 
     // Bildsprache — Übergänge über größere Einstellungen
     static let bildspracheIntro = "Diese Einstellungen betreffen Schnitte auf eine größere Einstellung — etwa eine Totale, auf der mehrere Personen zu sehen sind. Sie werden als sanfter Zwischenschritt genutzt, statt hart von einer Nahaufnahme zur nächsten zu springen."
