@@ -18,7 +18,7 @@ struct FirstRunSheet: View {
     /// Tag gingen 0.5.0, 0.5.1 und 0.5.2 raus. Bei Versionsbindung waere derselbe
     /// unveraenderte Text dreimal erschienen — nach zweimal Wegklicken liest ihn
     /// niemand mehr, gerade dann nicht, wenn er sich wirklich mal aendert.
-    static let contentRevision = 2
+    static let contentRevision = 3
 
     /// Zuletzt bestaetigter Stand. 0 = noch nie gesehen.
     @AppStorage("firstRunInfoSeenRevision") private var seenRevision = 0
@@ -44,18 +44,10 @@ struct FirstRunSheet: View {
               detail: "Wer spricht, wird über die Lautstärke der einzelnen "
                     + "Mikrofone bestimmt. Ein gemeinsames Mikrofon für mehrere "
                     + "Personen lässt sich nicht auftrennen."),
-        .init(icon: "person.2",
-              // rms_diarize ist binaer: der Sprecherwechsel laeuft zwischen genau
-              // zwei NAHAUFNAHMEN (cam_paths[0]/[1]). Seit der Waechter Totalen
-              // erlaubt (unsupportedCloseCams) darf es aber MEHR als zwei Kameras
-              // geben — daher "zwei Nahaufnahmen", nicht "zwei Kameras": sonst
-              // widerspraeche die Ueberschrift dem "weitere Kameras" im Text.
-              // Mehrere Mikrofone pro Kamera werden zusammengefasst (Maximum).
-              title: "Der Sprecherwechsel läuft zwischen zwei Nahaufnahmen",
-              detail: "Mehrere Personen dürfen sich eine Kamera teilen — ihre "
-                    + "Mikrofone werden dann zusammengefasst. Zusätzliche Totalen "
-                    + "sind erlaubt und werden für Cutaways und Übergänge genutzt, "
-                    + "aber nicht als eigenes Sprecherbild angeschnitten."),
+        // Bewusst KEIN Punkt zur Kamera-/Sprecherwechsel-Mechanik hier (22.07.):
+        // Das ist App-Verhalten, keine Material-Anforderung, und passte nicht zur
+        // Überschrift „Was dein Material mitbringen muss". Erklärung dazu gehört
+        // in die Bildsprache-Hilfetexte, nicht in diese Einstiegs-Checkliste.
         .init(icon: "clock.arrow.2.circlepath",
               title: "Die Aufnahmen müssen sich zeitlich überlappen",
               detail: "Ohne gemeinsamen Zeitraum findet die Synchronisierung "

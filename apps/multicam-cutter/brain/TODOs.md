@@ -125,8 +125,8 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
-- [ ] **Materialhinweis: Punkt „Sprecherwechsel zwischen zwei Nahaufnahmen" streichen**
-  (User, 22.07., für die NÄCHSTE Version — nicht 0.6.1). Er passt nicht zur Überschrift
+- [x] **Materialhinweis: Punkt „Sprecherwechsel zwischen zwei Nahaufnahmen" gestrichen**
+  (22.07., doch noch in 0.6.1 gezogen). Ersatzlos raus, contentRevision 2→3. Er passt nicht zur Überschrift
   „Was dein Material mitbringen muss": die anderen drei Punkte sind echte Anforderungen
   (Tonspur je Kamera, Mikro je Person, zeitliche Überlappung), dieser beschreibt
   App-Verhalten (binäre Diarisierung, Totalen als Cutaway) und ist zudem zu komplex

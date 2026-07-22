@@ -451,32 +451,45 @@ struct FlowLayout: Layout {
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
         let result = arrange(proposal: proposal, subviews: subviews)
-        for (index, origin) in result.origins.enumerated() {
-            subviews[index].place(at: CGPoint(x: bounds.minX + origin.x, y: bounds.minY + origin.y),
-                                  proposal: .unspecified)
+        for (index, item) in result.items.enumerated() {
+            subviews[index].place(
+                at: CGPoint(x: bounds.minX + item.origin.x, y: bounds.minY + item.origin.y),
+                // MIT der gemessenen (auf die Containerbreite gedeckelten) Groesse
+                // platzieren, nicht .unspecified. Sonst rendert ein zu breites Kind
+                // in seiner vollen Wunschbreite und ragt aus dem Container — genau
+                // der Fall langer Kameranamen in der Bildgroessen-Pill bei schmalem
+                // Fenster.
+                proposal: ProposedViewSize(width: item.size.width, height: item.size.height))
         }
     }
 
-    private func arrange(proposal: ProposedViewSize, subviews: Subviews) -> (size: CGSize, origins: [CGPoint]) {
+    private func arrange(proposal: ProposedViewSize, subviews: Subviews)
+        -> (size: CGSize, items: [(origin: CGPoint, size: CGSize)]) {
         let maxWidth = proposal.width ?? .infinity
-        var origins: [CGPoint] = []
+        // Kinder gegen die Containerbreite messen (statt .unspecified): ein zu
+        // langes Element kuerzt sich damit auf die verfuegbare Breite, statt sie
+        // zu ueberschreiten. Kurze Elemente bleiben unveraendert kompakt, weil sie
+        // sich ohne maxWidth:.infinity nicht aufblaehen.
+        let childProposal = ProposedViewSize(width: maxWidth, height: nil)
+        var items: [(origin: CGPoint, size: CGSize)] = []
         var x: CGFloat = 0
         var y: CGFloat = 0
         var rowHeight: CGFloat = 0
 
         for subview in subviews {
-            let size = subview.sizeThatFits(.unspecified)
+            var size = subview.sizeThatFits(childProposal)
+            size.width = min(size.width, maxWidth)   // Sicherheitsnetz
             if x + size.width > maxWidth && x > 0 {
                 x = 0
                 y += rowHeight + spacing
                 rowHeight = 0
             }
-            origins.append(CGPoint(x: x, y: y))
+            items.append((CGPoint(x: x, y: y), size))
             rowHeight = max(rowHeight, size.height)
             x += size.width + spacing
         }
 
-        return (CGSize(width: maxWidth, height: y + rowHeight), origins)
+        return (CGSize(width: maxWidth, height: y + rowHeight), items)
     }
 }
 

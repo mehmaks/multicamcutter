@@ -9,10 +9,10 @@ Website-Seite erzeugt.
 
 Kleine Korrekturen an der Oberfläche:
 
-- Ein Hinweis beim ersten Start sprach von „zwei Kameras", obwohl auch mehr möglich
-  sind — zwei Nahaufnahmen plus zusätzliche Totalen. Der Text ist jetzt eindeutig.
-- In der Übersicht ragte ein sehr langer Kameraname aus seiner Markierung heraus.
-  Er wird jetzt sauber gekürzt (Anfang und Dateiendung bleiben sichtbar).
+- Der Hinweis beim ersten Start ist schlanker: ein Punkt, der eher die Funktionsweise
+  als eine Anforderung ans Material beschrieb, ist entfallen.
+- In der Übersicht ragte ein sehr langer Kameraname aus seiner Markierung heraus. Er
+  wird jetzt sauber gekürzt und passt sich der Fensterbreite an.
 
 ## 0.6.0
 
