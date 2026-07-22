@@ -294,9 +294,14 @@ def sync_sources(
             ref_label = "CAM1"
     ref_path = sources[ref_label]
 
+    def _name(label: str) -> str:
+        return Path(sources[label]).name
+
     print("Waveform-Sync gestartet")
-    print(f"  Referenz: {ref_label} ({Path(ref_path).name})")
-    print(f"  Quellen:  {len(sources)} ({', '.join(sources)})")
+    print(f"  Referenz: {ref_label} ({_name(ref_label)})")
+    print(f"  Quellen ({len(sources)}) — welche Datei welches Label ist:")
+    for _label in sources:
+        print(f"    {_label} = {_name(_label)}")
     print(f"  FPS: {fps}")
     print()
 
@@ -349,9 +354,9 @@ def sync_sources(
 
         if drift > CROSSCHECK_TOLERANCE_FRAMES:
             raise SyncError(
-                f"Kreuzprobe fehlgeschlagen: ueber {ref_label} ergibt CAM2 "
-                f"{offsets['CAM2']:+d} Frames, direkt gemessen "
-                f"{direct.offset_frames:+d} Frames "
+                f"Kreuzprobe fehlgeschlagen: ueber {ref_label} ({_name(ref_label)}) "
+                f"ergibt CAM2 ({_name('CAM2')}) {offsets['CAM2']:+d} Frames, direkt "
+                f"gemessen {direct.offset_frames:+d} Frames "
                 f"(Abweichung {drift} Frames, erlaubt {CROSSCHECK_TOLERANCE_FRAMES}).\n"
                 f"Mindestens eine Korrelation hat ein falsches Maximum getroffen; "
                 f"Nachmessen mit mehr Material hat es nicht aufgeloest.\n"
@@ -386,10 +391,14 @@ def sync_sources(
 
     if unreliable:
         lines = "\n".join(
-            f"    {l}: ueber {ref_label} {a:+d} Frames, ueber {v} {b:+d} Frames "
-            f"(Abweichung {sp}, Confidence nur {c:.1f}x)"
+            f"    {l} ({_name(l)}): ueber {ref_label} {a:+d} Frames, "
+            f"ueber {v} {b:+d} Frames (Abweichung {sp}, Confidence nur {c:.1f}x)"
             for l, c, a, b, v, sp in unreliable
         )
+        # Die betroffenen DATEIEN klar benennen: der Nutzer kennt nur seine
+        # Dateinamen, nicht die internen Labels (MIC3). Ohne das weiss er nicht,
+        # welches seiner Files gemeint ist.
+        files = ", ".join(f'„{_name(l)}"' for l, *_ in unreliable)
         raise SyncError(
             f"Diese Quelle(n) lassen sich nicht verlaesslich einordnen:\n{lines}\n"
             f"Zwei unabhaengige Wege kommen zu verschiedenen Ergebnissen, und die "
@@ -399,7 +408,9 @@ def sync_sources(
             f"wahre Versatz bisher ausserhalb des durchsuchten Bereichs — das faengt die "
             f"Fenster-Erweiterung inzwischen ab. Bleibt es auch danach uneinig, stammt "
             f"der Ton der Quelle vermutlich aus einer ganz anderen Position (weit "
-            f"entfernte Totale, Wind). Dann manuell synchronisieren oder ausschliessen."
+            f"entfernte Totale, Wind).\n"
+            f"Betroffene Datei(en): {files}. Diese Datei manuell synchronisieren "
+            f"oder im Schritt Personen/Kameras abwaehlen."
         )
 
     print()
@@ -408,7 +419,7 @@ def sync_sources(
         seconds = offset / fps
         conf = confidences.get(label)
         conf_txt = f"  [Confidence {conf:.1f}x]" if conf is not None else "  [Referenz]"
-        print(f"  {label}: {offset:+d} frames ({seconds:+.3f}s){conf_txt}")
+        print(f"  {label} ({_name(label)}): {offset:+d} frames ({seconds:+.3f}s){conf_txt}")
 
     return offsets
 
