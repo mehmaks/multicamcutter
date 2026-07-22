@@ -1,0 +1,198 @@
+"""
+Regressions- und Verhaltenstests fuer die RMS-Diarisierung.
+
+Traegt den Umbau von binaer (2 Cams) auf N-fach (rms_diarize_n): Der wichtigste
+Test beweist, dass der N=2-Shim `rms_diarize` byte-identisch zur FRUEHEREN
+binaeren Logik bleibt. Dafuer liegt hier eine woertliche Kopie der alten
+Implementierung (`_rms_diarize_old`) als Referenz — sie darf NICHT veraendert
+werden, sie ist der eingefrorene Vergleichsstand.
+
+Aufruf:  python3 modules/multicam_cutter/test_diarize.py
+oder:    pytest modules/multicam_cutter/test_diarize.py
+"""
+
+import os
+import sys
+import numpy as np
+
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+from multicam_cutter.build_base_edl_from_audio import (  # noqa: E402
+    compute_rms_db, rms_diarize, rms_diarize_n,
+)
+
+
+# ── Eingefrorene Referenz: die alte binaere rms_diarize, WOERTLICH ──────────────
+def _rms_diarize_old(audio1, audio2, sr, window_s, threshold_db,
+                     change_delay_s, min_edit_s,
+                     silence_gate_db=-55.0, silence_gate_db2=None):
+    if silence_gate_db2 is None:
+        silence_gate_db2 = silence_gate_db
+    rms1 = compute_rms_db(audio1, sr, window_s)
+    rms2 = compute_rms_db(audio2, sr, window_s)
+    n = min(len(rms1), len(rms2))
+    rms1, rms2 = rms1[:n], rms2[:n]
+
+    diff = rms1 - rms2
+    dominant = np.full(n, None, dtype=object)
+    dominant[diff > threshold_db] = 'CAM1'
+    dominant[diff < -threshold_db] = 'CAM2'
+    both_quiet = (rms1 < silence_gate_db) & (rms2 < silence_gate_db2)
+    dominant[both_quiet] = None
+
+    delay_wins = max(1, int(change_delay_s / window_s))
+    smoothed = list(dominant)
+    current, streak = None, 0
+    for i in range(n):
+        raw = dominant[i]
+        if raw == current or raw is None:
+            streak = 0
+            smoothed[i] = current
+        else:
+            streak += 1
+            if streak < delay_wins:
+                smoothed[i] = current
+            else:
+                for j in range(i - streak + 1, i + 1):
+                    smoothed[j] = raw
+                current = raw
+
+    segments, seg_start, seg_spk = [], 0, smoothed[0]
+    for i in range(1, n):
+        if smoothed[i] != seg_spk:
+            segments.append({'speaker': seg_spk, 'start': seg_start, 'end': i})
+            seg_start, seg_spk = i, smoothed[i]
+    segments.append({'speaker': seg_spk, 'start': seg_start, 'end': n})
+
+    min_wins = max(1, int(min_edit_s / window_s))
+    changed = True
+    while changed:
+        changed = False
+        out, i = [], 0
+        while i < len(segments):
+            seg = segments[i]
+            if (seg['end'] - seg['start']) < min_wins and seg['speaker'] is not None:
+                prev_dur = segments[i-1]['end'] - segments[i-1]['start'] if i > 0 else 0
+                next_dur = segments[i+1]['end'] - segments[i+1]['start'] if i < len(segments)-1 else 0
+                if prev_dur >= next_dur and out:
+                    out[-1]['end'] = seg['end']
+                elif i < len(segments) - 1:
+                    segments[i+1]['start'] = seg['start']
+                    i += 1
+                    continue
+                changed = True
+            else:
+                out.append(seg)
+            i += 1
+        segments = out
+
+    for i, seg in enumerate(segments):
+        if seg['speaker'] is None:
+            seg['speaker'] = segments[i-1]['speaker'] if i > 0 else \
+                             (segments[i+1]['speaker'] if i < len(segments)-1 else 'CAM1')
+
+    final = []
+    for seg in segments:
+        s_s = seg['start'] * window_s
+        e_s = seg['end'] * window_s
+        if final and final[-1]['speaker'] == seg['speaker']:
+            final[-1]['end_s'] = e_s
+        else:
+            final.append({'speaker': seg['speaker'], 'start_s': s_s, 'end_s': e_s})
+    return final
+
+
+# ── Signalgenerator: Rauschen, blockweise moduliert (erzeugt Wechsel + Stille) ──
+def _gen(n_samples, sr, rng, seg_len_s=1.5,
+         levels=(0.0, 0.002, 0.02, 0.1, 0.4, 1.0)):
+    audio = rng.standard_normal(n_samples).astype(np.float32)
+    seg = int(seg_len_s * sr)
+    for start in range(0, n_samples, seg):
+        audio[start:start + seg] *= float(rng.choice(levels))
+    return audio
+
+
+# ── Test 1: N=2-Shim byte-identisch zur eingefrorenen Referenz ─────────────────
+def test_shim_matches_old_binary():
+    sr = 8000
+    mismatches = 0
+    for seed in range(80):
+        rng = np.random.default_rng(seed)
+        dur = int(rng.integers(30, 90))            # 30–90 s
+        a1 = _gen(dur * sr, sr, rng)
+        a2 = _gen(dur * sr, sr, rng)
+        window_s   = float(rng.choice([0.05, 0.1, 0.2]))
+        threshold  = float(rng.choice([3.0, 6.0, 10.0]))
+        change_del = float(rng.choice([0.0, 0.2, 0.5]))
+        min_edit   = float(rng.choice([0.3, 0.8, 1.5]))
+        g1 = float(rng.choice([-55.0, -50.0, -45.0]))
+        g2 = None if rng.random() < 0.4 else float(rng.choice([-55.0, -50.0, -45.0]))
+
+        old = _rms_diarize_old(a1, a2, sr, window_s, threshold, change_del, min_edit, g1, g2)
+        new = rms_diarize(a1, a2, sr, window_s, threshold, change_del, min_edit, g1, g2)
+        if old != new:
+            mismatches += 1
+            print(f"  ✗ seed {seed}: {len(old)} vs {len(new)} Segmente")
+    assert mismatches == 0, f"{mismatches} Abweichungen zwischen alt und Shim"
+
+
+# ── Test 2: N=3 — jeder Sprecher wird seiner Kamera zugeordnet ──────────────────
+def test_three_speakers_each_attributed():
+    sr = 8000
+    win = 0.1
+    n = 90 * sr
+    silence = np.full(n, 0.001, dtype=np.float32)   # Grundrauschen unter Gate
+
+    def loud(block_start_s, block_len_s):
+        a = silence.copy()
+        s = int(block_start_s * sr)
+        e = int((block_start_s + block_len_s) * sr)
+        a[s:e] = np.random.default_rng(0).standard_normal(e - s).astype(np.float32)
+        return a
+
+    # Person k spricht in Sekunde [k*20, k*20+15]
+    a1 = loud(0, 15)
+    a2 = loud(20, 15)
+    a3 = loud(40, 15)
+    segs = rms_diarize_n([a1, a2, a3], sr, win, threshold_db=6.0,
+                         change_delay_s=0.3, min_edit_s=0.8,
+                         labels=['CAM1', 'CAM2', 'CAM3'],
+                         silence_gates_db=[-55.0, -55.0, -55.0])
+
+    def speaker_at(t):
+        for s in segs:
+            if s['start_s'] <= t < s['end_s']:
+                return s['speaker']
+        return None
+
+    assert speaker_at(7) == 'CAM1', f"bei 7s erwartet CAM1, bekam {speaker_at(7)}"
+    assert speaker_at(27) == 'CAM2', f"bei 27s erwartet CAM2, bekam {speaker_at(27)}"
+    assert speaker_at(47) == 'CAM3', f"bei 47s erwartet CAM3, bekam {speaker_at(47)}"
+    labels_seen = {s['speaker'] for s in segs}
+    assert 'CAM3' in labels_seen, "CAM3 kommt im Schnitt gar nicht vor — das war der Bug"
+
+
+# ── Test 3: klarer Vorsprung entscheidet, knapper Gleichstand → kein Wechsel ────
+def test_margin_gate_blocks_ambiguous():
+    sr = 8000
+    win = 0.1
+    n = 40 * sr
+    rng = np.random.default_rng(1)
+    base = rng.standard_normal(n).astype(np.float32)
+    # Zwei fast gleiche Pegel (Differenz < threshold) → keine klare Dominanz,
+    # Default-Label bleibt (labels[0]); keine wilden Wechsel.
+    a1 = base * 0.5
+    a2 = base * 0.48
+    segs = rms_diarize_n([a1, a2], sr, win, threshold_db=6.0,
+                         change_delay_s=0.3, min_edit_s=0.8,
+                         labels=['CAM1', 'CAM2'],
+                         silence_gates_db=[-55.0, -55.0])
+    assert all(s['speaker'] == 'CAM1' for s in segs), \
+        "knapper Gleichstand haette nicht zu CAM2-Wechseln fuehren duerfen"
+
+
+if __name__ == "__main__":
+    for name, fn in list(globals().items()):
+        if name.startswith("test_") and callable(fn):
+            fn()
+            print(f"✓ {name}")
+    print("\nAlle Diarisierungs-Tests bestanden.")

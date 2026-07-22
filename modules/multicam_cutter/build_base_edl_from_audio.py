@@ -64,38 +64,58 @@ def compute_rms_db(audio: np.ndarray, sr: int, window_s: float) -> np.ndarray:
     return np.array(rms_db)
 
 
-def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
-                window_s: float, threshold_db: float,
-                change_delay_s: float, min_edit_s: float,
-                silence_gate_db: float = -55.0,
-                silence_gate_db2: float = None):
+def rms_diarize_n(audios: list, sr: int, window_s: float, threshold_db: float,
+                  change_delay_s: float, min_edit_s: float,
+                  labels: list, silence_gates_db: list):
     """
-    RMS-Pegelvergleich → Segmente mit 'CAM1'/'CAM2' Speaker-Label.
-    audio1 = Mikrofon für CAM1, audio2 = Mikrofon für CAM2.
-    silence_gate_db: Schwelle für MIC1 (beide Mics unter Schwelle → kein Speaker).
-    silence_gate_db2: Schwelle für MIC2 (wenn None, wird silence_gate_db verwendet).
-    """
-    if silence_gate_db2 is None:
-        silence_gate_db2 = silence_gate_db
-    rms1 = compute_rms_db(audio1, sr, window_s)
-    rms2 = compute_rms_db(audio2, sr, window_s)
-    n = min(len(rms1), len(rms2))
-    rms1, rms2 = rms1[:n], rms2[:n]
+    N-fache RMS-Diarisierung → Segmente mit Kamera-Label als Speaker.
 
-    diff = rms1 - rms2
+    Pro Fenster gewinnt die LAUTESTE Kamera-Gruppe, aber nur wenn ihr Vorsprung
+    zum Zweitplatzierten groesser als threshold_db ist — sonst None (keine klare
+    Dominanz). Liegt JEDE Gruppe unter IHREM Silence-Gate, spricht niemand → None.
+
+    audios[k]           = (kombiniertes) Mikrofonsignal fuer Kamera labels[k]
+    silence_gates_db[k] = Stille-Schwelle fuer diese Gruppe
+
+    Bei genau 2 Gruppen ist das Ergebnis identisch zur frueheren binaeren
+    Differenz-Logik (siehe rms_diarize-Shim + test_diarize.py). Das ist die
+    Regressions-Invariante, die den Umbau auf N traegt: fuer K=2 ist
+    „Vorsprung Platz1→Platz2 > threshold" exakt |rms1-rms2| > threshold, und
+    „jede Gruppe unter Gate" exakt das alte both_quiet.
+    """
+    assert len(audios) == len(labels) == len(silence_gates_db) >= 1, \
+        "audios, labels und silence_gates_db muessen gleich lang und nicht leer sein"
+
+    rms = [compute_rms_db(a, sr, window_s) for a in audios]
+    n = min(len(r) for r in rms)
+    mat = np.stack([r[:n] for r in rms], axis=1)          # (n, K)
+    gates = np.asarray(silence_gates_db, dtype=float)     # (K,)
+    label_arr = np.array(labels, dtype=object)
+    rows = np.arange(n)
+
+    if mat.shape[1] == 1:
+        leader = np.zeros(n, dtype=int)
+        margin = np.full(n, np.inf)
+    else:
+        order  = np.argsort(mat, axis=1)                  # aufsteigend
+        leader = order[:, -1]                             # lauteste Gruppe
+        second = order[:, -2]                             # zweitlauteste
+        margin = mat[rows, leader] - mat[rows, second]    # Vorsprung Platz 1 → 2
+
     dominant = np.full(n, None, dtype=object)
-    dominant[diff >  threshold_db] = 'CAM1'
-    dominant[diff < -threshold_db] = 'CAM2'
+    clear = margin > threshold_db                         # klare Dominanz?
+    dominant[clear] = label_arr[leader][clear]
 
-    # Stille-Gate: Wenn beide Mics unter ihrer jeweiligen Schwelle liegen,
-    # spricht niemand → keinen Speaker zuweisen (vorheriger bleibt)
-    both_quiet = (rms1 < silence_gate_db) & (rms2 < silence_gate_db2)
-    dominant[both_quiet] = None
+    # Stille-Gate: nur wenn JEDE Gruppe unter IHRER Schwelle liegt → niemand.
+    all_quiet = np.all(mat < gates, axis=1)
+    dominant[all_quiet] = None
 
-    # Change-Delay smoothing
-    # Wechsel wird erst akzeptiert wenn der neue Sprecher delay_wins
-    # aufeinanderfolgende Fenster dominant ist. Der Schnitt wird dann
-    # rückwirkend auf den Beginn des Streaks gesetzt.
+    default_label = labels[0]
+
+    # ── Ab hier WOERTLICH die fruehere binaere Logik (label-agnostisch) ──
+    # Change-Delay smoothing: ein Wechsel wird erst akzeptiert, wenn der neue
+    # Sprecher delay_wins Fenster in Folge dominant ist; der Schnitt wird dann
+    # rueckwirkend auf den Streak-Beginn gesetzt.
     delay_wins = max(1, int(change_delay_s / window_s))
     smoothed = list(dominant)
     current, streak = None, 0
@@ -109,8 +129,6 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
             if streak < delay_wins:
                 smoothed[i] = current
             else:
-                # Streak bestätigt: rückwirkend alle Fenster des Streaks
-                # auf den neuen Sprecher setzen
                 for j in range(i - streak + 1, i + 1):
                     smoothed[j] = raw
                 current = raw
@@ -150,7 +168,7 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
     for i, seg in enumerate(segments):
         if seg['speaker'] is None:
             seg['speaker'] = segments[i-1]['speaker'] if i > 0 else \
-                             (segments[i+1]['speaker'] if i < len(segments)-1 else 'CAM1')
+                             (segments[i+1]['speaker'] if i < len(segments)-1 else default_label)
 
     # Nachbarn mergen
     final = []
@@ -163,6 +181,24 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
             final.append({'speaker': seg['speaker'], 'start_s': s_s, 'end_s': e_s})
 
     return final
+
+
+def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
+                window_s: float, threshold_db: float,
+                change_delay_s: float, min_edit_s: float,
+                silence_gate_db: float = -55.0,
+                silence_gate_db2: float = None):
+    """
+    Binaerer N=2-Shim auf rms_diarize_n — byte-identisch zur frueheren Logik.
+    Erhalten fuer run_from_resolve, den sequencer-Pfad und als Regressionsanker.
+    audio1 = Mikrofon fuer CAM1, audio2 = Mikrofon fuer CAM2.
+    """
+    if silence_gate_db2 is None:
+        silence_gate_db2 = silence_gate_db
+    return rms_diarize_n([audio1, audio2], sr, window_s, threshold_db,
+                         change_delay_s, min_edit_s,
+                         labels=['CAM1', 'CAM2'],
+                         silence_gates_db=[silence_gate_db, silence_gate_db2])
 
 
 def rms_gate(audio1: np.ndarray, audio2: np.ndarray, sr: int,

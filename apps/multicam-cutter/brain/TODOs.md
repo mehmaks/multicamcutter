@@ -422,6 +422,17 @@ der binaeren Diarisierung. `rms_diarize` vergleicht zwei Seiten (CAM1/CAM2); ein
 dritte Nahaufnahme kann nie als Sprecher gewaehlt werden. Loesung: argmax ueber N
 Mics statt Differenz zweier Seiten — Teil B in Plan-Multicam-3plus.md. Der Sync
 (Teil A) ist bereits N-faehig, es fehlt nur noch die Diarisierung.)*
+
+**✅ KERN GEBAUT (23.07.) — B1:** `rms_diarize_n(audios, ..., labels, silence_gates_db)`
+in `build_base_edl_from_audio.py`: pro Fenster gewinnt die lauteste Gruppe, aber nur
+mit Vorsprung > threshold; Stille nur wenn JEDE Gruppe unter ihrem Gate. `rms_diarize`
+ist jetzt ein byte-identischer N=2-Shim darauf. Sicherheitsnetz: `test_diarize.py`
+(80 Zufallslaeufe alt==Shim + N=3-Attribution + Margin-Gate). **NOCH offen (invasiv):**
+`build_base_edl_from_audio.main` (`--mic-cam1/2` → N Gruppen, Label→Clip ueber Liste,
+Vor-Start-Swap, `detect_*`/`insert_totale_events` verallgemeinern), `run_analysis`
+(`cam_paths[0/1]`-Bindung, `_wide_at_front`, `totale_idx`), B3 (`smallest_containing`),
+und die 3 Waechter entfernen (Swift `unsupportedCloseCams`, `_wide_at_front`, sequencer
+`NotImplementedError`).
 - [ ] **Basis-EDL von binär (2 Cams) auf N-fach umstellen.** User-Kontext: Podcast hat
   **häufig Host + 2 Gäste = 3 Personen**, also kein Edge-Case.
   ⚠️ **Weniger dringend als hier lange behauptet** (geklärt 21.07.): Die Grenze sind
