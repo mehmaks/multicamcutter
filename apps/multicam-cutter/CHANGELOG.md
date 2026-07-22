@@ -5,6 +5,33 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.3
+
+**Neu: Mehr als zwei Nahaufnahmen — Setups mit drei und mehr Personen**
+
+Bisher konnte der Schnitt nur zwischen zwei Nahaufnahmen wählen; eine dritte
+Person auf einer eigenen Kamera blieb im Schnitt stumm. Jetzt erkennt die App
+beliebig viele Sprecher und schneidet jede Person auf die Kamera, die sie am
+engsten zeigt — eine dritte Person, die nur auf der Totale zu sehen ist, landet
+also auf der Totale. Sprechen mehrere gleichzeitig, wird auf die kleinste
+Einstellung geschnitten, die alle Beteiligten zeigt, und auch die
+Bildsprache-Übergänge funktionieren über mehrere Personen. Setups mit genau zwei
+Personen verhalten sich unverändert.
+
+**Neu: Mehrspur-Recorder**
+
+Kommen alle Tonspuren aus einem Mehrspur-Recorder, kannst du das jetzt im Schritt
+„Personen" bestätigen. Dann wird eine Spur, auf der gerade niemand spricht, nicht
+mehr fälschlich als „nicht synchronisierbar" abgelehnt — sie übernimmt den
+gemeinsamen Versatz der übrigen Spuren.
+
+**Zuverlässigere Tonsynchronisierung**
+
+Fängt eine Person erst spät an zu sprechen, wurde ihre Spur bisher manchmal nicht
+eingemessen. Die Synchronisierung sucht jetzt die sprechreichste Stelle einer
+Spur, statt stur den Anfang — auch spät einsetzende Sprecher werden zuverlässig
+gefunden.
+
 ## 0.6.2
 
 Klarere Meldungen bei der Tonsynchronisierung:
