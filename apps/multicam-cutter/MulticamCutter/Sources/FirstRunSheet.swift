@@ -18,7 +18,7 @@ struct FirstRunSheet: View {
     /// Tag gingen 0.5.0, 0.5.1 und 0.5.2 raus. Bei Versionsbindung waere derselbe
     /// unveraenderte Text dreimal erschienen — nach zweimal Wegklicken liest ihn
     /// niemand mehr, gerade dann nicht, wenn er sich wirklich mal aendert.
-    static let contentRevision = 1
+    static let contentRevision = 2
 
     /// Zuletzt bestaetigter Stand. 0 = noch nie gesehen.
     @AppStorage("firstRunInfoSeenRevision") private var seenRevision = 0
@@ -45,16 +45,17 @@ struct FirstRunSheet: View {
                     + "Mikrofone bestimmt. Ein gemeinsames Mikrofon für mehrere "
                     + "Personen lässt sich nicht auftrennen."),
         .init(icon: "person.2",
-              // rms_diarize vergleicht genau ZWEI Seiten (run_from_bin.py:554-561:
-              // cam_paths[0] und cam_paths[1]). Die Grenze sind damit zwei
-              // KAMERAS, nicht zwei Personen: mehrere Mikrofone pro Kamera sind
-              // erlaubt und werden zusammengefasst (load_and_combine, Maximum).
-              // Drei Personen auf zwei Kameras funktionieren deshalb vollstaendig.
-              title: "Der Sprecherwechsel läuft zwischen zwei Kameras",
+              // rms_diarize ist binaer: der Sprecherwechsel laeuft zwischen genau
+              // zwei NAHAUFNAHMEN (cam_paths[0]/[1]). Seit der Waechter Totalen
+              // erlaubt (unsupportedCloseCams) darf es aber MEHR als zwei Kameras
+              // geben — daher "zwei Nahaufnahmen", nicht "zwei Kameras": sonst
+              // widerspraeche die Ueberschrift dem "weitere Kameras" im Text.
+              // Mehrere Mikrofone pro Kamera werden zusammengefasst (Maximum).
+              title: "Der Sprecherwechsel läuft zwischen zwei Nahaufnahmen",
               detail: "Mehrere Personen dürfen sich eine Kamera teilen — ihre "
-                    + "Mikrofone werden dann zusammengefasst. Weitere Kameras "
-                    + "funktionieren als Totale oder für Cutaways, werden aber "
-                    + "nicht selbst angeschnitten, wenn dort jemand spricht."),
+                    + "Mikrofone werden dann zusammengefasst. Zusätzliche Totalen "
+                    + "sind erlaubt und werden für Cutaways und Übergänge genutzt, "
+                    + "aber nicht als eigenes Sprecherbild angeschnitten."),
         .init(icon: "clock.arrow.2.circlepath",
               title: "Die Aufnahmen müssen sich zeitlich überlappen",
               detail: "Ohne gemeinsamen Zeitraum findet die Synchronisierung "
