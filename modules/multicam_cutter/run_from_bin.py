@@ -675,6 +675,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--min-edit-duration', str(params.get('min_edit', 1.0)),
             '--change-delay',      str(params.get('change_delay', 0.3)),
             '--threshold-db',      str(params.get('threshold_db', 6.0)),
+            '--totale-simul-min-duration', str(params.get('totale_simul_dur', 3.0)),
         ]
         if params.get('pause_silence_db') is not None:
             builder_args += ['--pause-silence-db', str(params['pause_silence_db'])]

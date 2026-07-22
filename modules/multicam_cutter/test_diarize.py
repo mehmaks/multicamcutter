@@ -223,6 +223,52 @@ def test_n_base_edl_routes_to_tightest_camera():
         f"erwartet [C, B, A] (Person1→C, Person2→B, Person3→Totale A), bekam {clips}"
 
 
+# ── Test 5: Simultan-Sprechen → kleinste gemeinsame Kamera (P2) ────────────────
+def test_n_simultaneous_speech_cuts_to_common_camera():
+    from multicam_cutter.build_base_edl_from_audio import (
+        detect_simultaneous_speech_n, insert_totale_events_n, timecode_to_frames,
+    )
+    sr = 8000
+    p1, p2, p3 = 'mic1.wav', 'mic2.wav', 'mic3.wav'
+    cameras = [
+        {'name': 'A', 'clip': 'A', 'mics': [p1, p2, p3], 'edl_frame': 0, 'ref': 1000},
+        {'name': 'B', 'clip': 'B', 'mics': [p1, p2],      'edl_frame': 0, 'ref': 2000},
+        {'name': 'C', 'clip': 'C', 'mics': [p1],          'edl_frame': 0, 'ref': 3000},
+    ]
+    dur = 36
+    rng = np.random.default_rng(2)
+    a1 = np.full(dur * sr, 0.001, dtype=np.float32)
+    a2 = np.full(dur * sr, 0.001, dtype=np.float32)
+    a3 = np.full(dur * sr, 0.001, dtype=np.float32)
+    a1[0:8 * sr] = rng.standard_normal(8 * sr).astype(np.float32)     # p1 solo
+    sim = rng.standard_normal(8 * sr).astype(np.float32)             # p1+p2 gleich
+    a1[12 * sr:20 * sr] = sim
+    a2[12 * sr:20 * sr] = sim
+    a3[26 * sr:32 * sr] = rng.standard_normal(6 * sr).astype(np.float32)  # p3 solo
+    person_audio = {p1: a1, p2: a2, p3: a3}
+    persons = [p1, p2, p3]
+
+    simul = detect_simultaneous_speech_n(person_audio, persons, sr, 0.1, 6.0, 3.0)
+    assert len(simul) == 1, f"erwartet 1 Simul-Region, bekam {len(simul)}"
+    assert set(simul[0]['persons']) == {p1, p2}, \
+        f"beteiligte Personen {simul[0]['persons']} (erwartet p1, p2)"
+
+    base = build_base_edl_n(cameras, person_audio, sr, 25.0, 0, 0.1, 6.0, 0.3, 0.8,
+                            {p1: -55.0, p2: -55.0, p3: -55.0})
+    events = insert_totale_events_n(base, simul, cameras, 25.0, 0, cam_shift=0)
+
+    def clip_at(t):
+        f = round(t * 25)
+        for e in events:
+            if timecode_to_frames(e['record_in'], 25) <= f < timecode_to_frames(e['record_out'], 25):
+                return e['clip_name']
+        return None
+
+    assert clip_at(16) == 'B', f"waehrend Simul p1+p2 erwartet B, bekam {clip_at(16)}"
+    assert clip_at(4) == 'C',  f"p1 solo erwartet C, bekam {clip_at(4)}"
+    assert clip_at(28) == 'A', f"p3 solo erwartet A (Totale), bekam {clip_at(28)}"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

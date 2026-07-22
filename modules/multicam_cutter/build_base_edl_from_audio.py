@@ -1159,6 +1159,101 @@ def write_edl(events: list, output_path: str, title: str = "Audio Base Timeline"
     print(f"\n✓ EDL geschrieben: {output_path}")
 
 
+def detect_simultaneous_speech_n(person_audios: dict, persons: list, sr: int,
+                                 window_s: float, threshold_db: float,
+                                 min_duration_s: float) -> list:
+    """
+    N-Version von detect_simultaneous_speech. Ein Fenster gilt als simultan, wenn
+    >=2 Personen ueber dem Noise-Floor liegen UND der Abstand der zwei lautesten
+    aktiven Personen < threshold_db ist (keine klare Dominanz).
+
+    Rueckgabe: Liste {start_s, end_s, persons:[beteiligte Personen-IDs]}. Bei
+    genau 2 Personen entspricht das dem binaeren Verhalten (both_active &
+    |rms1-rms2| < threshold).
+    """
+    NOISE_FLOOR_DB = -50.0
+    rms = [compute_rms_db(person_audios[p], sr, window_s) for p in persons]
+    n = min(len(r) for r in rms)
+    mat = np.stack([r[:n] for r in rms], axis=1)      # (n, K)
+    active = mat > NOISE_FLOOR_DB
+
+    win_persons = [None] * n
+    for i in range(n):
+        act_idx = np.where(active[i])[0]
+        if len(act_idx) < 2:
+            continue
+        top2 = np.sort(mat[i, act_idx])[::-1][:2]     # zwei lauteste Aktiven
+        if (top2[0] - top2[1]) < threshold_db:
+            win_persons[i] = [persons[j] for j in act_idx]
+
+    min_wins = max(1, int(min_duration_s / window_s))
+    segments, i = [], 0
+    while i < n:
+        if win_persons[i] is None:
+            i += 1
+            continue
+        j, involved = i, set()
+        while j < n and win_persons[j] is not None:
+            involved.update(win_persons[j])
+            j += 1
+        if (j - i) >= min_wins:
+            segments.append({'start_s': i * window_s, 'end_s': j * window_s,
+                             'persons': sorted(involved)})
+        i = j
+    return segments
+
+
+def insert_totale_events_n(events: list, simul_segments: list, cameras: list,
+                           fps: float, wav_edl_frame: int, cam_shift: int) -> list:
+    """
+    N-Version von insert_totale_events: legt waehrend Simultan-Sprechen die
+    KLEINSTE Kamera, die ALLE beteiligten Personen zeigt (smallest_containing),
+    ueber die Events — je Region die passende, statt einer festen Totale.
+    """
+    from shot_sizes import smallest_containing
+    if not simul_segments:
+        return events
+
+    regions = []
+    for seg in simul_segments:
+        cam = smallest_containing(cameras, seg['persons'])
+        if cam is None:
+            continue                                   # keine Kamera zeigt alle
+        s = max(0, round(seg['start_s'] * fps) + wav_edl_frame + cam_shift)
+        e = round(seg['end_s'] * fps) + wav_edl_frame + cam_shift
+        if e > s:
+            regions.append((s, e, cam))
+
+    result = []
+    for event in events:
+        ev_start = timecode_to_frames(event['record_in'],  fps)
+        ev_end   = timecode_to_frames(event['record_out'], fps)
+        overlaps = [(max(s, ev_start), min(e, ev_end), cam)
+                    for s, e, cam in regions if e > ev_start and s < ev_end]
+        if not overlaps:
+            result.append(event)
+            continue
+        cursor = ev_start
+        for simul_start, simul_end, cam in sorted(overlaps, key=lambda r: r[0]):
+            if cursor < simul_start:
+                result.append(_slice_event(event, cursor, simul_start, fps))
+            e_frame = cam['edl_frame'] + cam_shift
+            tot_video_start = simul_start - e_frame
+            tot_video_end   = simul_end   - e_frame
+            if tot_video_start >= 0:
+                result.append({
+                    'clip_name':  cam['clip'],
+                    'source_in':  frames_to_timecode(cam['ref'] + tot_video_start, fps),
+                    'source_out': frames_to_timecode(cam['ref'] + tot_video_end,   fps),
+                    'record_in':  frames_to_timecode(simul_start, fps),
+                    'record_out': frames_to_timecode(simul_end,   fps),
+                })
+            cursor = simul_end
+        if cursor < ev_end:
+            result.append(_slice_event(event, cursor, ev_end, fps))
+    return result
+
+
 # ─── N-Personen-Pfad ────────────────────────────────────────────────────────────
 
 def _run_n_path(args):
@@ -1243,7 +1338,19 @@ def _run_n_path(args):
         cameras, person_audio, sr, args.fps, wav_edl_frame,
         args.analysis_window, args.threshold_db,
         args.change_delay, args.min_edit_duration, gates)
-    print(f"  {len(events)} Events")
+    print(f"  {len(events)} Events (Grundschnitt)")
+
+    # Simultan-Sprechen → kleinste Kamera, die ALLE Beteiligten zeigt (Totale).
+    # Gleiche Zeitursprungs-Verschiebung wie build_base_edl_n.
+    cam_shift = max(0, -min(c['edl_frame'] for c in cameras))
+    simul = detect_simultaneous_speech_n(
+        person_audio, persons, sr, args.analysis_window, args.threshold_db,
+        args.totale_simul_min_duration)
+    if simul:
+        print(f"  {len(simul)} Simultan-Region(en) → kleinste gemeinsame Kamera")
+        events = insert_totale_events_n(events, simul, cameras, args.fps,
+                                        wav_edl_frame, cam_shift)
+        print(f"  {len(events)} Events (nach Simultan→Totale)")
 
     write_edl(events, args.output)
     return 0
