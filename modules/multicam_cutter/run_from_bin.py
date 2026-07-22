@@ -647,10 +647,21 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     clip_filter_enabled = bool(params.get('clip_filter_enabled', False))
     crossbleed_gate_enabled = bool(params.get('crossbleed_gate_enabled', False))
 
+    # Sprech-/Pausen-Reaktionen (beide opt-in) sind fuer >2 Personen noch nicht
+    # verfuegbar — die Rolling-Baseline-Detektoren sind bisher rein binaer. Bewusst
+    # deaktivieren mit klarer Meldung, statt sie still fehlen zu lassen. Nicken,
+    # Simultan→Totale und Uebergaenge laufen im N-Pfad normal.
+    if use_n_path and (speaking_enabled or pause_cutaway_enabled):
+        print("  ⚠️  Sprech-/Pausen-Reaktionen sind fuer mehr als zwei Personen noch "
+              "nicht verfuegbar und werden in diesem Lauf uebersprungen.")
+        print("      (Nicken-Cutaways, Simultan→Totale und Uebergaenge laufen normal.)")
+        speaking_enabled = False
+        pause_cutaway_enabled = False
+
     # ── Schritt 1 (N-Pfad): Base-EDL ueber Personen → engste Kamera ──────────
     # Diarisiert ueber die Personen-Mics und schneidet jede auf ihre engste
-    # Kamera. Die Extras (Reaktions-Cutaways, Simultan→Totale, Uebergaenge)
-    # werden schrittweise nachgezogen; hier steht erst der Grundschnitt.
+    # Kamera. Nicken/Simultan/Uebergaenge laufen; Sprech-/Pausen-Reaktionen (s.o.)
+    # sind fuer N noch deaktiviert.
     if not skip_base_edl and use_n_path:
         cams_json_path = work_dir / 'cams.json'
         cams_spec = {
