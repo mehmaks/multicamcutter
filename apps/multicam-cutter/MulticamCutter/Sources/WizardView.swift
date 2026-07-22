@@ -492,7 +492,7 @@ struct FpsMismatchBanner: View {
     }
 }
 
-// MARK: - Warnung: auffällig kurze Kamera (abgebrochene Konvertierung)
+// MARK: - Warnung: auffällig kurze Kamera
 
 struct ShortCamBanner: View {
     @EnvironmentObject var engine: EngineController
@@ -510,10 +510,12 @@ struct ShortCamBanner: View {
             }
             .foregroundStyle(.brandSecondary)
 
-            Text("Diese Kamera ist viel kürzer als die anderen Quellen — meist eine "
-                 + "abgebrochene Konvertierung, deren Teildatei liegen blieb. So entstehen "
-                 + "Video-Sync-Versatz und eine AAF, die in Resolve nicht verlinkt. Bitte die "
-                 + "Datei löschen und erneut konvertieren (diesmal nicht abbrechen).")
+            Text("Diese Kamera ist deutlich kürzer als die anderen Quellen. Ab der Stelle, "
+                 + "an der sie endet, bleibt ihr Bild stehen — im Schnitt entsteht dort ein "
+                 + "Standbild. Ist das ungewollt (etwa eine abgebrochene Umwandlung, deren "
+                 + "Teildatei liegen blieb), ersetze die Datei durch die vollständige. War die "
+                 + "Kamera wirklich nur kürzer aktiv, kannst du fortfahren — beachte dann das "
+                 + "Standbild ab ihrem Ende.")
                 .font(.caption).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
 

@@ -125,12 +125,12 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
-- [ ] ⚠️ **TEST-DEFAULT entfernen vor Release:** `run_from_bin.py` belegt
+- [x] ⚠️ **TEST-DEFAULT entfernt (22.07.):** ~~`run_from_bin.py` belegt
   `transition_cutaway_back` mit `['nodding']` vor, damit die Dev-App die
   Cutaway-Rückwege ohne UI zeigt. Der Matrix-Default ist AUS. Sobald die
-  Bildsprache-Rubrik existiert, diesen `setdefault` löschen und den Wert aus den
-  Einstellungen kommen lassen (22.07.). Betrifft auch `transition_cutaway_cooldown`
-  (R10-Erstversion, Test-Default 6) — gehört als Regler in dieselbe Rubrik.
+  Bildsprache-Rubrik existiert…~~ Erledigt: Werte kommen jetzt aus den
+  Experteneinstellungen (Bildsprache-Gruppe), `run_from_bin` hat keine
+  transition-setdefaults mehr.
 
 - [ ] **Clipnamen im AAF: Schnittgrund vor Quellname.** Aufwand: **leicht** (Stufe 1).
   Heute `{stem} - {label}` (`build_aaf.py:483`), z.B.
@@ -337,12 +337,13 @@ Host + 2 Gaeste laeuft bereits, solange sich die Gaeste eine Kamera teilen.)*
   Grenze greift NUR bei **3+ Personen mit je EIGENER Cam**.
 
 ### 🟠 Datei-Splits als EINE logische Quelle — Aufwand: **mittel**
-- [ ] **Warnung „Auffällig kurze Kamera" differenzieren.** Sie behauptet heute
-  „meist eine abgebrochene Konvertierung" und rät „Datei löschen und erneut
-  konvertieren". Bei ECHTEN Split-Fragmenten (GoPro/DJI) ist beides falsch und
-  führt in die Irre — beobachtet am 21.07. an C0002/C0352 (30-min-Teile einer
-  97-min-Aufnahme). Sobald zusammengehörige Fragmente erkannt werden, gehört die
-  Warnung dort unterdrückt.
+- [x] **Warnung „Auffällig kurze Kamera" entschärft (22.07.):** Der Text behauptete
+  „meist eine abgebrochene Konvertierung" und riet „Datei löschen und neu
+  konvertieren" — bei legitim kurzen Kameras (Gast früher weg, GoPro/DJI-Fragment)
+  irreführend. Neu: beschreibt das Symptom (Standbild ab dem Kamera-Ende) und
+  nennt BEIDE Fälle (ungewollt → Datei ersetzen; wirklich kürzer aktiv →
+  fortfahren, Standbild beachten). Das eigentliche Unterdrücken bei erkannten
+  Split-Fragmenten bleibt für die Split-Logik offen.
 - [ ] **Mehrere Dateien einer Quelle nahtlos als eine behandeln.** User-Kontext: GoPro-Cams
   und DJI-Mic-Rekorder splitten lange Aufnahmen in mehrere Dateien (z. B. 2-h-Folge → 4
   nahtlos aneinander passende Teile). Die gehören zu EINER Person/Cam („Mic 2"), nicht zu
