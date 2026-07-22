@@ -125,6 +125,22 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
+- [ ] **Changelog mehrsprachig (DE/EN)** — Aufwand: **mittel**, braucht Website-Absprache.
+  Die Website bietet DE/EN, das Changelog sollte das auch. Sparkle unterstuetzt
+  `xml:lang` auf `<description>` (mehrere pro `<item>`, Auswahl nach Systemsprache).
+  Drei Bausteine:
+  1. **Englischer Changelog**: entweder EN-Abschnitte in `CHANGELOG.md` oder ein
+     separates `CHANGELOG.en.md`. (Entscheidung: eine Datei mit beiden vs. zwei.)
+  2. **`generate_appcast` kann kein `xml:lang`** — es bettet nur EINE `<description>`
+     ein. Also: nach `generate_appcast` den Appcast nachbearbeiten und je Item eine
+     zweite `<description xml:lang="en">` (CDATA) einfuegen, ODER die Items selbst
+     bauen. `changelog_to_html.py` bekommt einen Sprach-Parameter.
+  3. **⚠️ Website-Contract abstimmen** (mit der Web-Session): wie liest die Website
+     die Sprache? Ueber `xml:lang` auf `<description>` (naheliegend) oder ueber
+     `sparkle:releaseNotesLink` je Sprache? Beide Seiten muessen dasselbe Format
+     erwarten. NICHT einseitig festlegen.
+  Nicht fuer 0.6.1 (geht deutsch-only raus). Fuer die naechste inhaltliche Version.
+
 - [x] **Materialhinweis: Punkt „Sprecherwechsel zwischen zwei Nahaufnahmen" gestrichen**
   (22.07., doch noch in 0.6.1 gezogen). Ersatzlos raus, contentRevision 2→3. Er passt nicht zur Überschrift
   „Was dein Material mitbringen muss": die anderen drei Punkte sind echte Anforderungen

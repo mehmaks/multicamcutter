@@ -151,3 +151,7 @@ eingebettet**, nicht extern verlinkt:
   committet (`updates/` ist gitignored).
 - **Fehlt der Abschnitt** in `CHANGELOG.md`, bricht `release.sh` ab (Exit 2 des
   Konverters) — kein stillschweigendes Release ohne Notizen.
+- **Derzeit einsprachig (DE).** `generate_appcast` bettet nur EINE
+  `<description>` ein. Mehrsprachig (DE/EN via `xml:lang`) ist moeglich, aber
+  offen — braucht englischen Changelog + Appcast-Nachbearbeitung + Absprache
+  mit der Web-Session ueber das Format. Siehe TODOs.md.
