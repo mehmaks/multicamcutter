@@ -756,6 +756,9 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     # Cooldown je Zusatzkamera in Schnitten (R10). 0 = aus. Zum Ausprobieren
     # vorbelegt; spaeter Regler in der Bildsprache-Rubrik.
     params.setdefault('transition_cutaway_cooldown', 6)
+    # Zeit-Schwelle parallel zum Schnitt-Zaehler; freigegeben, was zuerst faellt.
+    # Kleiner = mehr Rueckwege kommen durch (gibt frueher frei). 0 = nur Schnitte.
+    params.setdefault('transition_cutaway_cooldown_s', 8.0)
 
     # params.json für Subprozesse schreiben (Analyzer, etc.)
     params_json_path = work_dir / 'params.json'

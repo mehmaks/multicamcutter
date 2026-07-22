@@ -477,20 +477,35 @@ CUTAWAY_RETURN_REASONS = {
 }
 
 
-def _camera_on_cooldown(out: List[EDLEvent], cam: str, cooldown: int) -> bool:
-    """Wurde `cam` innerhalb der letzten `cooldown` Events schon benutzt?
+def _camera_on_cooldown(out: List[EDLEvent], cam: str, cut_cooldown: int,
+                        time_cooldown_frames: int, current_frame: int) -> bool:
+    """Ist `cam` noch gesperrt — nach SCHNITTEN oder ZEIT, was zuerst faellt?
 
-    Erster Baustein des in brain/Bildsprache.md vorgesehenen `cooldown_ok`-Helfers
-    (R10): eine Zusatzkamera soll nicht bei jedem 3./4. Schnitt wiederkehren. Zaehlt
-    ALLE bisherigen Vorkommen dieser Kamera im Ausgabestrom — Bruecken, Cutaways,
-    Sprecherwechsel-Bruecken — nicht nur die aus diesem Pass. Pro Kamera, weil nach
-    `cam` gefiltert wird: mehrere Totalen bremsen sich unabhaengig.
+    Baustein des in brain/Bildsprache.md vorgesehenen `cooldown_ok`-Helfers (R10):
+    eine Zusatzkamera soll nicht staendig wiederkehren. Zaehlt ALLE bisherigen
+    Vorkommen dieser Kamera im Ausgabestrom (Bruecken, Cutaways,
+    Sprecherwechsel-Bruecken), pro Kamera.
+
+    ZWEI Schwellen (User, 22.07.): der reine Schnitt-Zaehler wird von den haeufigen
+    Sprecherwechsel-Bruecken staendig zurueckgesetzt, sodass zwischendurch kaum ein
+    Rueckweg durchkommt. Deshalb laeuft parallel eine Zeit-Schwelle. Freigegeben
+    wird, sobald EINE greift: genug Schnitte ODER genug Zeit seit der letzten
+    Verwendung. Gesperrt bleibt nur, wenn beide (aktiven) Schwellen noch unter dem
+    Limit liegen.
     """
-    if cooldown <= 0:
+    cut_active  = cut_cooldown > 0
+    time_active = time_cooldown_frames > 0
+    if not (cut_active or time_active):
         return False
-    for e in out[-cooldown:]:
+
+    for back, e in enumerate(reversed(out), start=1):
         if e.clip_name == cam:
-            return True
+            cut_blocks  = cut_active  and back <= cut_cooldown
+            time_blocks = time_active and (current_frame - e.record_out_frame) < time_cooldown_frames
+            # Nur eine aktive Schwelle blockiert → diese entscheidet. Beide aktiv →
+            # Sperre nur, solange BEIDE noch blockieren (die zuerst fallende gibt frei).
+            return (cut_blocks or not cut_active) and (time_blocks or not time_active) \
+                   and (cut_blocks or time_blocks)
     return False
 
 
@@ -498,7 +513,7 @@ def insert_cutaway_return_transitions(
     events: List[EDLEvent], cameras: List[Dict],
     reference_frames: Dict[str, int], timeline_zero_video_frames: Dict[str, int],
     enabled_reasons: set, bridge_len_frames, min_shot_frames: int, fps: float,
-    cooldown: int = 0,
+    cooldown: int = 0, cooldown_frames: int = 0,
 ) -> List[EDLEvent]:
     """Weiche Landung zurueck zum Sprecher nach einem Close-Cutaway.
 
@@ -539,7 +554,8 @@ def insert_cutaway_return_transitions(
                 # Cooldown: kam diese Kamera gerade erst? Dann keine Bruecke, der
                 # Rueckweg bleibt ein harter Schnitt. Verhindert, dass dieselbe
                 # Totale bei jedem Rueckweg wiederkehrt (R10).
-                if _camera_on_cooldown(out, bc, cooldown):
+                if _camera_on_cooldown(out, bc, cooldown, cooldown_frames,
+                                       ev.record_in_frame):
                     skipped_cooldown += 1
                     out.append(ev)
                     continue
@@ -1303,6 +1319,8 @@ def main():
     # Cooldown je Zusatzkamera in SCHNITTEN (R10): 0 = aus. Bremst, dass dieselbe
     # Totale bei jedem Rueckweg wiederkehrt.
     transition_cutaway_cooldown = int(params.get('transition_cutaway_cooldown', 0))
+    # Zeit-Schwelle parallel zum Schnitt-Zaehler: freigegeben, was zuerst faellt.
+    transition_cutaway_cooldown_s = float(params.get('transition_cutaway_cooldown_s', 0.0))
 
     cutaway_enabled = {
         'nodding': bool(params.get('nodding_enabled', True)),
@@ -1483,6 +1501,7 @@ def main():
             all_events, cameras, reference_frames, timeline_zero_video_frames,
             enabled, _cutaway_bridge_len, min_shot_frames, args.fps,
             cooldown=transition_cutaway_cooldown,
+            cooldown_frames=int(transition_cutaway_cooldown_s * args.fps),
         )
 
     # Pass 3: Cleanup

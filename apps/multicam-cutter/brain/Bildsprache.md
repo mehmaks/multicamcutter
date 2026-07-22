@@ -243,8 +243,11 @@ allgemein:** Im aktuellen Setup gibt es nur eine Totale, die immer wieder
 verwendet wird; die soll gebremst werden. Sind mehrere da, bremst der Cooldown
 jede einzeln, sodass ein Wechsel zwischen ihnen weiter erlaubt bleibt.
 
-**Einordnung:** Gemessen in SCHNITTEN, nicht in Sekunden (der User denkt in
-„jedem 7. Schnitt"). Damit ist es eine **Gedächtnis-Regel** wie R4/R5 — die
+**Einordnung:** ZWEI Schwellen parallel — Schnitte UND Zeit, freigegeben was
+zuerst faellt (User, 22.07.). Der reine Schnitt-Zaehler allein wird von den
+haeufigen Sprecherwechsel-Bruecken staendig zurueckgesetzt, sodass zwischendurch
+kaum ein Rueckweg durchkommt; die Zeit-Schwelle gibt nach genug Wall-Clock-Zeit
+frei, unabhaengig davon. Kleinere Zeit = mehr Rueckwege kommen durch. Damit ist es eine **Gedächtnis-Regel** wie R4/R5 — die
 Auswahl muss je Kamera mitführen, wie viele Schnitte seit der letzten
 Verwendung vergangen sind. Verwandt mit R5 (Dynamik-Faktor): R5 bestraft
 Wiederholung graduell (weich), R10 sperrt sie für N Schnitte (hart). Denkbar
