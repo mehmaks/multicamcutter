@@ -2,6 +2,31 @@
 
 ## OFFEN
 
+### Kamera-ENDE wird nicht geprueft — Standbild + Asynchronitaet
+- **Symptom (Testordner, TC 00:18:45:00)**: C0352 friert ein, ab dem naechsten
+  Schnitt laeuft alles asynchron. Bestaetigt: C0352 ist exakt **18:45,6** lang,
+  die Timeline aber 67 min. Jeder Schnitt auf C0352 danach greift auf nicht
+  vorhandene Quell-Frames zu → Resolve haelt das letzte Bild als Standbild, der
+  Ton laeuft weiter.
+- **Ursache**: Der EDL-Bau prueft `off_vi < 0` (Kamera schon GESTARTET?), aber
+  nirgends, ob sie am Cut-Zeitpunkt noch LAEUFT. Stellen: `add_reactions_to_edl.py`
+  :295, :402, :716, :783 — alle nur Start, kein Ende. Wieder ein stiller Fehler:
+  keine Meldung, das Ergebnis sieht gebaut aus.
+- **Realer Anlass (User)**: Gast geht vor Folgenende, seine Kamera wird schon
+  abgeschaltet, der Host moderiert weiter. Kein Edge-Case, sondern Alltag.
+- **Gewuenschte Loesung (User)**: Ab dem Frame, an dem eine Quelle endet, die
+  Kamera in der Engine **deaktivieren** — als waere sie ab da nicht mehr als
+  Objekt vorhanden und damit fuer keinen Schnitt mehr verfuegbar (weder Sprecher
+  noch Cutaway noch Bruecke). Symmetrisch zur bestehenden Start-Pruefung, nur am
+  anderen Ende.
+- **Anknuepfpunkt**: Die Laenge liegt bereits vor (`_probe_duration` in
+  `waveform_sync.py`, und `shot_sizes` kennt die Kameras). Zusammen mit dem
+  Sync-Offset ergibt das je Kamera ein gueltiges Frame-Fenster
+  `[start, start+laenge)`, gegen das jeder Kandidat geprueft werden kann.
+  Beruehrt Diarisierung (Sprecher-Wahl), PASS 2/4 (Cutaway-Wahl) und die
+  Uebergangsregel — also am besten EINE zentrale „ist Cam X bei Frame f
+  verfuegbar?"-Funktion, die alle nutzen.
+
 ### Schnitt-Begruendung ging zweimal auf dem Weg verloren
 - **Symptom**: Uebergangs-Einstellungen hiessen im AAF „Sprecher" statt
   „Uebergang". Sichtbar war der Schnitt korrekt — nur nicht zuzuordnen.
