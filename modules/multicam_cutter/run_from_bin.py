@@ -558,8 +558,27 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     # abbricht. Die Mac-App sortiert deshalb Closes nach vorn (orderedAnalysisCams),
     # aber diese Invariante lebte bisher NUR dort: wer run_from_bin direkt aufruft,
     # hatte keinerlei Schutz. Die Engine setzt sie jetzt selbst durch.
-    _wide_at_front = [i for i in (0, 1)
-                      if i < len(cam_types) and cam_types[i] == 'wide']
+    # ── N-Entscheidung: mehr als zwei Close-Kameras → Personen-basierter Pfad ──
+    # Den Personen-Graphen (Kamera → gezeigte Personen) aus den Mic-Zuordnungen
+    # ableiten und die Rollen bestimmen. Genau die Konstellation, die der alte
+    # Waechter (unsupportedCloseCams / _wide_at_front) sperrte, faehrt jetzt den
+    # N-Weg (build_base_edl_n) statt binaer CAM1/CAM2.
+    _cams_for_roles = [
+        {'name': Path(cp).name,
+         'mics': [mic_paths[j]
+                  for j in (cam_mic_map[i] if i < len(cam_mic_map) else [])
+                  if j < len(mic_paths)]}
+        for i, cp in enumerate(cam_paths)
+    ]
+    _n_close = sum(1 for r in camera_roles(_cams_for_roles).values() if r == 'close')
+    use_n_path = _n_close > 2
+    if use_n_path:
+        print(f"\n  ℹ️  {_n_close} Close-Kameras → N-Personen-Pfad (build_base_edl_n).")
+
+    # Der binaere Pfad vergleicht genau Position 1 und 2 — dort darf keine Totale
+    # stehen. Fuer den N-Pfad gibt es diese ausgezeichneten Positionen nicht.
+    _wide_at_front = [] if use_n_path else [
+        i for i in (0, 1) if i < len(cam_types) and cam_types[i] == 'wide']
     if _wide_at_front:
         _names = ', '.join(f"CAM{i + 1} ({Path(cam_paths[i]).name})"
                            for i in _wide_at_front)
@@ -628,8 +647,41 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     clip_filter_enabled = bool(params.get('clip_filter_enabled', False))
     crossbleed_gate_enabled = bool(params.get('crossbleed_gate_enabled', False))
 
+    # ── Schritt 1 (N-Pfad): Base-EDL ueber Personen → engste Kamera ──────────
+    # Diarisiert ueber die Personen-Mics und schneidet jede auf ihre engste
+    # Kamera. Die Extras (Reaktions-Cutaways, Simultan→Totale, Uebergaenge)
+    # werden schrittweise nachgezogen; hier steht erst der Grundschnitt.
+    if not skip_base_edl and use_n_path:
+        cams_json_path = work_dir / 'cams.json'
+        cams_spec = {
+            'cameras': [
+                {'clip': Path(cp).name, 'video': cp,
+                 'mics': [mic_paths[j]
+                          for j in (cam_mic_map[i] if i < len(cam_mic_map) else [])
+                          if j < len(mic_paths)],
+                 'edl_frame': offsets.get(f'CAM{i + 1}', 0)}
+                for i, cp in enumerate(cam_paths)
+            ],
+            'mic_offsets': {mic_paths[k]: offsets.get(f'MIC{k + 1}', 0)
+                            for k in range(len(mic_paths))},
+        }
+        cams_json_path.write_text(json.dumps(cams_spec, ensure_ascii=False),
+                                  encoding='utf-8')
+        builder_args = [
+            str(SCRIPT_DIR / 'build_base_edl_from_audio.py'),
+            '--cams-json',         str(cams_json_path),
+            '--fps',               str(fps),
+            '--output',            str(base_edl),
+            '--min-edit-duration', str(params.get('min_edit', 1.0)),
+            '--change-delay',      str(params.get('change_delay', 0.3)),
+            '--threshold-db',      str(params.get('threshold_db', 6.0)),
+        ]
+        if params.get('pause_silence_db') is not None:
+            builder_args += ['--pause-silence-db', str(params['pause_silence_db'])]
+        run(builder_args, "Base-EDL aus Audio (N Personen)")
+
     # ── Schritt 1: Base-EDL aus Audio (binäre Diarisierung CAM1/CAM2) ────────
-    if not skip_base_edl:
+    elif not skip_base_edl:
         cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
         cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
         builder_args = [

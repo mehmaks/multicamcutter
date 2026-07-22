@@ -1159,29 +1159,125 @@ def write_edl(events: list, output_path: str, title: str = "Audio Base Timeline"
     print(f"\n✓ EDL geschrieben: {output_path}")
 
 
+# ─── N-Personen-Pfad ────────────────────────────────────────────────────────────
+
+def _run_n_path(args):
+    """Basis-EDL fuer >2 Personen. Liest die Kamera-Spezifikation aus
+    args.cams_json, richtet die Personen-Mics auf einen gemeinsamen Zeitursprung
+    aus, diarisiert ueber Personen und schneidet jede auf ihre engste Kamera
+    (build_base_edl_n). Umgeht den gesamten binaeren main()-Code.
+
+    cams_json-Format:
+        {"cameras": [{"clip","video","mics":[...Mic-Pfade...],"edl_frame"}],
+         "mic_offsets": {Mic-Pfad: Frame-Offset relativ zu CAM1}}
+    """
+    spec = json.loads(Path(args.cams_json).read_text(encoding='utf-8'))
+    cameras_in = spec['cameras']
+    mic_offsets = spec.get('mic_offsets', {})
+
+    print("=" * 70)
+    print(f"🎙️  BUILD BASE EDL — {len(cameras_in)} Kameras, N Personen")
+    print("=" * 70)
+
+    # Alle unterschiedlichen Personen-Mics (Reihenfolge stabil).
+    persons = []
+    for cam in cameras_in:
+        for m in cam['mics']:
+            if m not in persons:
+                persons.append(m)
+    if not persons:
+        print("✗ Keine Personen-Mics in --cams-json. Abbruch.")
+        return 1
+
+    print("\n📂 Lade Personen-Audio...")
+    person_audio, sr = {}, None
+    for m in persons:
+        a, s = load_audio(m)
+        sr = s if sr is None else sr
+        assert s == sr, f"Sample rates differ: {s} vs {sr}"
+        person_audio[m] = a
+        print(f"  {Path(m).name}: {len(a)/s/60:.1f} min")
+
+    # Auf gemeinsamen Zeitursprung ausrichten: die frueheste Person ist Frame 0,
+    # spaeter startende werden vorne mit Stille aufgefuellt — sonst stimmt die
+    # Diarisierungs-Zeitachse ueber die Mics nicht. Bei einem Mehrspur-Recorder
+    # (gleiche Offsets) passiert hier nichts.
+    o_min = min(int(mic_offsets.get(m, 0)) for m in persons)
+    for m in persons:
+        pad_frames = int(mic_offsets.get(m, 0)) - o_min
+        if pad_frames > 0:
+            pad = np.zeros(int(round(pad_frames / args.fps * sr)),
+                           dtype=person_audio[m].dtype)
+            person_audio[m] = np.concatenate([pad, person_audio[m]])
+    wav_edl_frame = o_min
+
+    # Silence-Gate je Person (adaptiv wie im binaeren Pfad: kmeans-Schwelle - 15,
+    # oder manueller Override).
+    gates = {}
+    if args.pause_silence_db is not None:
+        gates = {m: args.pause_silence_db - 15 for m in persons}
+        print(f"\n🔇 Silence-Schwelle: {args.pause_silence_db:.0f} dB (manuell)")
+    else:
+        from shared.audio_analysis import suggest_threshold_kmeans
+        for m in persons:
+            th = suggest_threshold_kmeans(person_audio[m], sr)
+            gates[m] = float(th['threshold']) - 15
+        print("\n🔇 Silence-Schwelle je Person adaptiv (K-Means).")
+
+    # Kameras mit embedded-TC-Ref anreichern.
+    print("\n🎯 Lese embedded Timecodes...")
+    cameras = []
+    for cam in cameras_in:
+        ref, tc = get_reference_frame(cam['video'], args.fps)
+        if ref is None:
+            print(f"✗ Konnte embedded TC nicht lesen fuer {cam['clip']}. Abbruch.")
+            return 1
+        print(f"  {cam['clip']}: TC {tc} = {ref} frames, zeigt {len(cam['mics'])} Person(en)")
+        cameras.append({'name': cam['clip'], 'clip': cam['clip'],
+                        'mics': cam['mics'], 'edl_frame': int(cam['edl_frame']),
+                        'ref': ref})
+
+    print(f"\n📊 N-Diarisierung ({len(persons)} Personen, "
+          f"threshold={args.threshold_db:.1f} dB)...")
+    events = build_base_edl_n(
+        cameras, person_audio, sr, args.fps, wav_edl_frame,
+        args.analysis_window, args.threshold_db,
+        args.change_delay, args.min_edit_duration, gates)
+    print(f"  {len(events)} Events")
+
+    write_edl(events, args.output)
+    return 0
+
+
 # ─── Main ──────────────────────────────────────────────────────────────────────
 
 def main():
     parser = argparse.ArgumentParser(description='Build Base EDL from Audio (RMS)')
 
-    # Audio (nargs='+' erlaubt mehrere MICs pro Kamera)
-    parser.add_argument('--mic-cam1', required=True, nargs='+',
+    # N-Personen-Pfad (>2 Sprecher): umgeht den gesamten binaeren Code unten.
+    parser.add_argument('--cams-json', default=None,
+                        help='JSON-Spezifikation fuer >2 Personen. Wenn gesetzt, '
+                             'wird der binaere 2-Personen-Pfad komplett umgangen '
+                             '(siehe _run_n_path / build_base_edl_n).')
+
+    # Audio (nargs='+' erlaubt mehrere MICs pro Kamera). Ohne --cams-json Pflicht.
+    parser.add_argument('--mic-cam1', nargs='+',
                         help='Mikrofon-Spur(en) für CAM1 (WAV). Mehrere Pfade = aggregiert.')
-    parser.add_argument('--mic-cam2', required=True, nargs='+',
+    parser.add_argument('--mic-cam2', nargs='+',
                         help='Mikrofon-Spur(en) für CAM2 (WAV). Mehrere Pfade = aggregiert.')
 
-    # Video (für ffprobe embedded TC)
-    parser.add_argument('--cam1-video', required=True, help='CAM1 Video-Datei')
-    parser.add_argument('--cam2-video', required=True, help='CAM2 Video-Datei')
-    parser.add_argument('--cam1-clip',  required=True, help='CAM1 Clip-Name in der EDL')
-    parser.add_argument('--cam2-clip',  required=True, help='CAM2 Clip-Name in der EDL')
+    # Video (für ffprobe embedded TC). Ohne --cams-json Pflicht.
+    parser.add_argument('--cam1-video', help='CAM1 Video-Datei')
+    parser.add_argument('--cam2-video', help='CAM2 Video-Datei')
+    parser.add_argument('--cam1-clip',  help='CAM1 Clip-Name in der EDL')
+    parser.add_argument('--cam2-clip',  help='CAM2 Clip-Name in der EDL')
 
-    # Sync-Offsets (vom User aus Resolve)
-    parser.add_argument('--wav-edl-frame',  type=int, required=True,
+    # Sync-Offsets (vom User aus Resolve). Ohne --cams-json Pflicht.
+    parser.add_argument('--wav-edl-frame',  type=int,
                         help='EDL-Frame bei dem WAV Frame 0 liegt')
-    parser.add_argument('--cam1-edl-frame', type=int, required=True,
+    parser.add_argument('--cam1-edl-frame', type=int,
                         help='EDL-Frame bei dem CAM1 Frame 0 liegt')
-    parser.add_argument('--cam2-edl-frame', type=int, required=True,
+    parser.add_argument('--cam2-edl-frame', type=int,
                         help='EDL-Frame bei dem CAM2 Frame 0 liegt')
 
     # RMS-Parameter
@@ -1300,6 +1396,21 @@ def main():
     parser.add_argument('--pause-cutaway-min-pause', type=float, default=2.0,
                         help='Min. Pausenlänge für Stille-Cutaway (s, default: 2.0)')
     args = parser.parse_args()
+
+    # N-Personen-Pfad: eigener Weg, umgeht den binaeren Code komplett.
+    if args.cams_json:
+        return _run_n_path(args)
+
+    # Binaerer 2-Personen-Pfad: die paarweisen Argumente sind dann Pflicht.
+    _need = {'--mic-cam1': args.mic_cam1, '--mic-cam2': args.mic_cam2,
+             '--cam1-video': args.cam1_video, '--cam2-video': args.cam2_video,
+             '--cam1-clip': args.cam1_clip, '--cam2-clip': args.cam2_clip,
+             '--wav-edl-frame': args.wav_edl_frame,
+             '--cam1-edl-frame': args.cam1_edl_frame,
+             '--cam2-edl-frame': args.cam2_edl_frame}
+    _missing = [k for k, v in _need.items() if v is None]
+    if _missing:
+        parser.error("ohne --cams-json erforderlich: " + ", ".join(_missing))
 
     print("=" * 70)
     print("🎙️  BUILD BASE EDL FROM AUDIO")
