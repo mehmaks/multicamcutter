@@ -155,3 +155,39 @@ eingebettet**, nicht extern verlinkt:
   `<description>` ein. Mehrsprachig (DE/EN via `xml:lang`) ist moeglich, aber
   offen — braucht englischen Changelog + Appcast-Nachbearbeitung + Absprache
   mit der Web-Session ueber das Format. Siehe TODOs.md.
+
+## OFFENE ABSTIMMUNG (App → Web-Session, 22.07.): mehrsprachiges Changelog
+
+**Ist-Zustand:** Die App-Session bettet den Changelog als EINE `<description>`
+(CDATA-HTML) pro `<item>` ein — aktuell nur Deutsch. Die Website rendert sie
+bereits automatisch. Für DE/EN (die Website ist zweisprachig) braucht es eine
+gemeinsame Konvention, weil `generate_appcast` von sich aus nur eine Sprache kann.
+
+**Vorschlag der App-Session — zwei `<description>` mit `xml:lang` je Item:**
+```xml
+<item>
+  <sparkle:shortVersionString>0.7.0</sparkle:shortVersionString>
+  ...
+  <description xml:lang="de"><![CDATA[<p>…deutsch…</p>]]></description>
+  <description xml:lang="en"><![CDATA[<p>…english…</p>]]></description>
+  <enclosure url="…/MultiCamCutter-0.7.0.dmg" .../>
+</item>
+```
+Das ist Sparkles Standard (wählt nach Systemsprache). Die App-Session würde
+`generate_appcast` nachbearbeiten und je Item die zweite Sprache einfügen.
+
+**Was die Website dafür können müsste:**
+- Alle `<description>` eines `<item>` lesen und `xml:lang` → Sprache mappen.
+- **Fallback 1:** Ein Item OHNE `xml:lang` (ältere Releases + das aktuelle 0.6.1)
+  hat genau eine `<description>` ohne Attribut → als Default rendern, nicht ignorieren.
+- **Fallback 2:** Fehlt eine Sprache, auf die vorhandene zurückfallen (nie leer).
+
+**Fragen an die Web-Session:**
+1. Kann euer Parser mehrere `<description xml:lang>` je Item nach Locale auswählen?
+2. Oder bevorzugt ihr `<sparkle:releaseNotesLink xml:lang="…">` (externe HTML-Datei
+   je Sprache)? → für uns mehr Upload (Dateien nach R2), für euch evtl. besser cachebar.
+3. Default bei fehlender Sprache: auf DE zurückfallen ok?
+
+Sobald ihr euch entscheidet, zieht die App-Session nach: `changelog_to_html.py`
+bekommt einen Sprach-Parameter, `release.sh` bettet beide Sprachen ein, und
+`CHANGELOG.md` bekommt englische Abschnitte (oder ein `CHANGELOG.en.md`).
