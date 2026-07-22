@@ -154,7 +154,7 @@ Python-Runtime dazubekommt.
     `{reason} · {person} ({source})`. Erst bauen, wenn ein konkreter Bedarf über
     die zwei festen Varianten hinausgeht — sonst ist es Konfiguration ohne Nachfrage.
 
-- [ ] **Changelog: in der App sichtbar UND auf der Website.** Aufwand: **mittel**.
+- [x] **Changelog: in der App sichtbar UND auf der Website.** UMGESETZT (22.07.):
   Nutzer sollen sehen, was ein Update bringt — heute steht im Update-Dialog nur
   eine Versionsnummer.
 

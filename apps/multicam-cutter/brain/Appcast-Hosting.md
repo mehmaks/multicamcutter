@@ -133,3 +133,21 @@ appcast.xml → `public/appcast.xml`. **Vollständige Schritt-für-Schritt-Check
 - **Private-Key**: nur in meinem Login-Keychain, gesichert im Passwort-Manager.
   Kommt **nicht** an den Server (anders als der Lizenz-Private-Key).
 - ⚠️ Sparkle-Keypair und Lizenz-Keypair NICHT verwechseln — zwei verschiedene Paare.
+
+## Release-Notes / Changelog (eingebettet)
+
+Die Update-Notizen kommen aus `CHANGELOG.md` und werden **in den Appcast
+eingebettet**, nicht extern verlinkt:
+
+- `scripts/changelog_to_html.py <version>` extrahiert den `## <version>`-Abschnitt
+  und gibt ein HTML-Fragment aus (kein DOCTYPE/body).
+- `release.sh` schreibt es als `release/updates/MultiCamCutter-<version>.html` —
+  **gleicher Name wie das Archiv**. `generate_appcast --embed-release-notes`
+  bettet es dann automatisch als `<description>` (CDATA) ins `<item>` ein.
+- **Sparkle** zeigt die `<description>` im „Nach Update suchen"-Dialog.
+- **Die Website** rendert dieselbe `<description>` automatisch ab dem nächsten
+  Feed-Update (Contract der Web-Session, 22.07.) — keine weitere Absprache nötig.
+- Die `.html` wird NICHT separat hochgeladen (sie steckt im Appcast) und nicht
+  committet (`updates/` ist gitignored).
+- **Fehlt der Abschnitt** in `CHANGELOG.md`, bricht `release.sh` ab (Exit 2 des
+  Konverters) — kein stillschweigendes Release ohne Notizen.

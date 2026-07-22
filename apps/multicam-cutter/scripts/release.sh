@@ -78,6 +78,24 @@ mkdir -p "$UPDATES_DIR"
 # die komplette Update-Historie (inkl. Deltas) behält.
 cp "$DMG" "$UPDATES_DIR/$DMG_NAME"
 
+# Changelog als Release-Notes. generate_appcast bettet eine .html-Datei mit
+# demselben Namen wie das Archiv automatisch als CDATA-<description> ins <item>
+# ein (kein DOCTYPE/body); Sparkle zeigt sie im Update-Dialog, die Website
+# rendert dieselbe <description> (Contract Web-Session, 22.07.).
+# Fehlt der Abschnitt in CHANGELOG.md, bricht der Konverter mit Exit 2 ab —
+# und damit dieses Release. Kein stillschweigendes Release ohne Notizen.
+PYBIN="${PYBIN:-$APP_DIR/../../venv/bin/python3}"
+[ -x "$PYBIN" ] || PYBIN="python3"
+NOTES_HTML="$UPDATES_DIR/MultiCamCutter-$VERSION.html"
+echo "► Changelog → Release-Notes ($VERSION)..."
+if ! "$PYBIN" "$SCRIPT_DIR/changelog_to_html.py" "$VERSION" > "$NOTES_HTML"; then
+    rm -f "$NOTES_HTML"
+    echo "✗ Kein Changelog-Abschnitt für $VERSION in CHANGELOG.md — Release abgebrochen."
+    echo "  Bitte '## $VERSION' mit Nutzernotizen ergänzen und erneut starten."
+    exit 1
+fi
+echo "  ✓ $NOTES_HTML"
+
 echo "► generate_appcast (signiert jede DMG mit dem Sparkle-Schlüssel)..."
 # --maximum-versions begrenzt den Feed auf die 5 neuesten Eintraege. Der Appcast
 # bestimmt, was im Bucket liegen MUSS: alles, was er bewirbt, muss abrufbar sein,
@@ -90,7 +108,8 @@ echo "► generate_appcast (signiert jede DMG mit dem Sparkle-Schlüssel)..."
 # Lokal bleibt also alles liegen; aufgeraeumt wird nur im Bucket, von Hand.
 "$GEN_APPCAST" "$UPDATES_DIR" \
     --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
-    --maximum-versions 5
+    --maximum-versions 5 \
+    --embed-release-notes
 echo "  ✓ $UPDATES_DIR/appcast.xml"
 
 # ── 6. Nächste (manuelle) Schritte ─────────────────────────────────────────
