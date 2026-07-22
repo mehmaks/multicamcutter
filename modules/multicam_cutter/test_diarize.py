@@ -269,6 +269,22 @@ def test_n_simultaneous_speech_cuts_to_common_camera():
     assert clip_at(28) == 'A', f"p3 solo erwartet A (Totale), bekam {clip_at(28)}"
 
 
+# ── Test 6: Reset-Kamera = breiteste (P3a, byte-identisch im 2er-Fall) ─────────
+def test_pick_widest_reset_camera():
+    from multicam_cutter.add_reactions_to_edl import _pick_widest
+    # Totale (3 Personen) gewinnt als Reset, auch wenn sie nicht zuerst steht.
+    cams = [
+        {'name': 'C', 'mics': ['p1']},
+        {'name': 'A', 'mics': ['p1', 'p2', 'p3']},
+        {'name': 'B', 'mics': ['p1', 'p2']},
+    ]
+    assert _pick_widest(cams)['name'] == 'A', "breiteste Kamera muss gewinnen"
+    # Gleichstand → erste (entspricht dem alten close_cams[0] im 2-Close-Fall).
+    tie = [{'name': 'X', 'mics': ['p1']}, {'name': 'Y', 'mics': ['p2']}]
+    assert _pick_widest(tie)['name'] == 'X', "Gleichstand → erste (byte-identisch)"
+    assert _pick_widest([]) is None
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

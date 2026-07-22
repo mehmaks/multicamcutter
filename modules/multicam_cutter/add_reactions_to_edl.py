@@ -165,6 +165,15 @@ def calculate_reference_frames(
     return reference_frames, timeline_zero_video_frames
 
 
+def _pick_widest(cams: List[Dict]) -> Optional[Dict]:
+    """Kamera mit den meisten gezeigten Personen (breiteste Einstellung) — der
+    N-Ersatz fuer „die Totale", wenn keine Kamera ausdruecklich als 'wide' gilt.
+    Bei Gleichstand die erste (max ist stabil); ohne 'mics' hat jede Stufe 1,
+    dann faellt es auf die erste zurueck — genau wie das alte close_cams[0]."""
+    from shot_sizes import shot_level
+    return max(cams, key=shot_level) if cams else None
+
+
 def build_events_with_cutaways(
     section_start: int,
     section_end: int,
@@ -343,8 +352,11 @@ def build_events_with_cutaways(
 
     # Rest der Section
     if current_pos < section_end:
-        # Wide als bevorzugter Reset-Schnitt; Fallback: erste Close-Kamera
-        reset_cam = wide_cams[0] if wide_cams else (close_cams[0] if close_cams else None)
+        # Wide als bevorzugter Reset-Schnitt; ohne Totale die breiteste Kamera
+        # (meiste Personen) statt stur der ersten Close. Fuer den binaeren Fall
+        # mit Totale unveraendert (wide_cams[0]); ohne Totale bei gleichen Stufen
+        # ebenfalls die erste — also byte-identisch, nur fuer N besser.
+        reset_cam = wide_cams[0] if wide_cams else _pick_widest(close_cams)
         if section_end - current_pos > max_shot_frames:
             while current_pos < section_end:
                 remaining = section_end - current_pos
@@ -1420,6 +1432,7 @@ def main():
             cam_dicts[name] = {
                 'name':                name,
                 'type':                cam.get('type', 'close'),
+                'mics':                cam.get('mics', []),
                 'reference_frame':     reference_frames[name],
                 'timeline_zero_video': timeline_zero_video_frames[name],
                 'reactions':           reactions_by_cam.get(name, []),
