@@ -465,6 +465,92 @@ def _is_diarization_switch(event, prev, next_event) -> bool:
     return True
 
 
+# Nur diese Cutaways schneiden auf eine andere CLOSE-Kamera und kommen fuer einen
+# Rueckweg ueber eine groessere Einstellung in Frage. Max-Zeit und die
+# *_wide-Varianten SIND schon die Totale (Reset bzw. Mehrpersonen-Reaktion) und
+# brauchen keinen Uebergang zurueck. Exakter Match schliesst '_wide' automatisch
+# aus. Occasion-Schluessel (wie in der Bildsprache-Matrix) → EDL-reason:
+CUTAWAY_RETURN_REASONS = {
+    'nodding':           'reaction_nodding',
+    'speaking_reaction': 'reaction_speaking_reaction',
+    'pause':             'pause_cutaway',
+}
+
+
+def insert_cutaway_return_transitions(
+    events: List[EDLEvent], cameras: List[Dict],
+    reference_frames: Dict[str, int], timeline_zero_video_frames: Dict[str, int],
+    enabled_reasons: set, bridge_len_frames, min_shot_frames: int, fps: float,
+) -> List[EDLEvent]:
+    """Weiche Landung zurueck zum Sprecher nach einem Close-Cutaway.
+
+    Aus `Sprecher A → Cutaway X → Sprecher A` wird `A → X → Bruecke → A`: nach dem
+    Cutaway fuehrt eine groessere Einstellung (die kleinste Kamera, die die Person
+    im Cutaway UND den zurueckkehrenden Sprecher zeigt) zurueck aufs enge Bild.
+
+    Nur der RUECKWEG, kein Hinweg: die Reaktion soll sofort sichtbar sein, der
+    Schnitt HIN zum Cutaway bleibt hart (siehe Matrix in brain/Bildsprache.md).
+
+    Die Bruecke frisst den Anfang des zurueckkehrenden Sprechers (nicht den
+    Cutaway) — analog zum Sprecherwechsel. Bedingung wie dort: der Sprecher muss
+    nach der Bruecke noch min_shot uebrig haben. Sonst kein Uebergang; der Cleanup
+    faengt Reste zwar ab, aber schon vorab zu pruefen erzeugt weniger Fragmente
+    (User, 22.07.).
+    """
+    from shot_sizes import smallest_containing, person_ids
+    if not enabled_reasons:
+        return events
+
+    by_name = {c['name']: c for c in cameras}
+
+    def people(clip):
+        c = by_name.get(clip)
+        return set(person_ids(c)) if c else set()
+
+    out: List[EDLEvent] = []
+    inserted = 0
+    for i, ev in enumerate(events):
+        prev = events[i - 1] if i > 0 else None
+        if (prev is not None and ev.reason == "speaker"
+                and prev.reason in enabled_reasons):
+            ppl = people(prev.clip_name) | people(ev.clip_name)
+            bridge = smallest_containing(cameras, list(ppl)) if ppl else None
+            if (bridge and bridge['name'] not in (prev.clip_name, ev.clip_name)
+                    and (not out or out[-1].clip_name != bridge['name'])):
+                bc   = bridge['name']
+                want = bridge_len_frames()
+                ev_len = ev.record_out_frame - ev.record_in_frame
+                tzv    = timeline_zero_video_frames.get(bc, 0)
+                ref    = reference_frames.get(bc, 0)
+                vid_start = tzv + ev.record_in_frame
+                # Sprecher braucht Platz; Bruecken-Kamera muss laufen.
+                if ev_len >= want + min_shot_frames and vid_start >= 0:
+                    bridge_end = ev.record_in_frame + want
+                    out.append(EDLEvent(
+                        0, bc,
+                        frames_to_timecode(ref + vid_start, fps),
+                        frames_to_timecode(ref + tzv + bridge_end, fps),
+                        frames_to_timecode(ev.record_in_frame, fps),
+                        frames_to_timecode(bridge_end, fps),
+                        fps=fps, reason="transition",
+                    ))
+                    src_off = ev.source_in_frame - ev.record_in_frame
+                    ev = EDLEvent(
+                        0, ev.clip_name,
+                        frames_to_timecode(src_off + bridge_end, fps),
+                        ev.source_out,
+                        frames_to_timecode(bridge_end, fps),
+                        ev.record_out,
+                        fps=fps, reason=ev.reason,
+                    )
+                    inserted += 1
+        out.append(ev)
+
+    if inserted:
+        print(f"  {inserted} Cutaway-Rueckwege eingefügt (weiche Landung)")
+    return out
+
+
 def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float,
                          decision_log: Optional[List] = None) -> List[EDLEvent]:
     print(f"\n🧹 PASS 3: Cleanup kurzer Events")
@@ -1182,6 +1268,10 @@ def main():
     cutaway_randomness      = float(params.get('randomness', 0.0))
     cluster_max_gap_frames  = int(params.get('cluster_max_gap_frames', 75))
     pre_roll_frames         = int(params.get('pre_roll', 0))
+    # Cutaway-Rueckwege: Liste von Occasion-Schluesseln ('nodding',
+    # 'speaking_reaction', 'pause'). Leer = aus (Matrix-Default). Siehe
+    # brain/Bildsprache.md und CUTAWAY_RETURN_REASONS.
+    transition_cutaway_back = params.get('transition_cutaway_back', []) or []
 
     cutaway_enabled = {
         'nodding': bool(params.get('nodding_enabled', True)),
@@ -1341,6 +1431,26 @@ def main():
             reference_frames, timeline_zero_video_frames,
             min_shot_frames, args.fps,
             decision_log=decision_log,
+        )
+
+    # Pass 2c: Cutaway-Rueckwege (weiche Landung zurueck zum Sprecher).
+    # NACH allen Cutaways (2 + 2b), damit die Positionen feststehen, aber VOR
+    # dem Cleanup: der transition-bewusste PASS 3 schuetzt die eingefuegten
+    # Bruecken und raeumt eventuelle Reste auf.
+    if transition_cutaway_back:
+        enabled = {CUTAWAY_RETURN_REASONS[k] for k in transition_cutaway_back
+                   if k in CUTAWAY_RETURN_REASONS}
+        min_shot_frames = int(min_shot_duration * args.fps)
+
+        def _cutaway_bridge_len():
+            import random as _r
+            factor = 1.0 + _r.uniform(0.0, cutaway_randomness) if cutaway_randomness > 0 else 1.0
+            return max(1, int(round(min_shot_duration * factor * args.fps)))
+
+        print(f"\n🎬 PASS 2c: Cutaway-Rueckwege ({', '.join(transition_cutaway_back)})")
+        all_events = insert_cutaway_return_transitions(
+            all_events, cameras, reference_frames, timeline_zero_video_frames,
+            enabled, _cutaway_bridge_len, min_shot_frames, args.fps,
         )
 
     # Pass 3: Cleanup

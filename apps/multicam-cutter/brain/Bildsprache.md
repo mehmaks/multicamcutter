@@ -199,6 +199,21 @@ die Schnittstelle nimmt die Einschränkung nicht in sich auf.
 
 ### Übergangsregel auf Cutaway-Ebene — dieselbe Art wie am Sprecherwechsel
 
+**Max-Zeit ist ausgenommen (User, 22.07.):** Max-Zeit-Cutaways schneiden bereits
+als Reset in die nächstgrößere Einstellung (die Totale) — sie SIND schon das
+große Bild. Ein Übergang zurück braucht dort keine Zwischenstufe. Betroffen sind
+also nur die Cutaways, die auf eine andere CLOSE-Kamera schneiden: Nicken,
+Sprachreaktion, Pause. (Auch die `*_wide`-Varianten bei Mehrpersonen-Reaktionen
+sind schon die Totale und damit ausgenommen.)
+
+**Idee für später (User, 22.07.):** Ein eigener Parameter für Max-Zeit-Cutaways,
+der die Ziel-Einstellung wählt — zufällig auf andere Kameras / immer die
+nächstgrößere / immer die größte. Davon hinge dann ab, ob NACH einem Max-Zeit-Cut
+ein Übergang gesetzt wird: landet Max-Zeit schon auf der größten Einstellung,
+entfällt er; sonst könnte er greifen. Bewusst zurückgestellt, bis die
+Cutaway-Rückwege für Nicken/Sprachreaktion/Pause stehen.
+
+
 Bestätigung des Users (22.07.), nachdem der Sprecherwechsel-Fall im Schnitt
 überzeugte: Die Regel lässt sich auf Cutaways übertragen, derselben Art nach.
 Gemeint ist vor allem der Rückweg — nach einem Cutaway über eine andere Größe
