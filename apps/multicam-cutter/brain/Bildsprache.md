@@ -88,6 +88,15 @@ Unverändert übernommen. Meine Einordnung steht getrennt darunter.
 > Close P1 auf Close P2 wegen Sprecherwechsel war, wird dann zu Close P1 auf
 > Totale auf Close P2 und umgekehrt.
 
+**R9 — Kein gleicher Blick über einen Pause-Trim hinweg** (User, 22.07.)
+> Vor und hinter einem Pause-Trim möglichst keine Kameras schneiden, die
+> dieselben Personen zeigen, da man den Sprung sehen könnte durch das
+> Wegschneiden von Material. Wenn vor Trim P1 in einer Cam ist, sollte nach
+> Trim eine Cam genutzt werden, in der P1 nicht vorkommt. Muss für ALLE
+> gezeigten Personen gelten: ist vor Trim P1 und P2 zusammen zu sehen, darf
+> nach dem Trim keine der beiden gezeigt werden — AUSSER es gibt keine Lösung.
+
+
 **R8 — Schnitt nach „Entfernung" der Personen**
 > 4 Personen im Podcast, jede hat eine Close für sich selbst, es gibt 2 Kameras,
 > die jeweils 2 Personen zeigen und es gibt eine Totale auf der alle 4 zu sehen
@@ -111,6 +120,7 @@ Unverändert übernommen. Meine Einordnung steht getrennt darunter.
 | Kontext → Zielgröße | R2, R3 | wählen die Größe situationsabhängig |
 | Pflicht mit Gedächtnis | R4 | sammelt „Schuld" über Zeit an |
 | Übergangsregel | R6, R7, R8 | betreffen das PAAR aus Vorher und Nachher |
+| Schnitt-Nachbarschaft | R9 | Kamerawahl beidseits eines Pause-Trims |
 
 Daraus folgt die Aufteilung in den Einstellungen: **R1 und R5 sind
 Grundeinstellungen**, die übrigen einzeln zuschaltbare Regeln.
@@ -186,6 +196,22 @@ eine Eigenschaft der **heutigen Einschränkung**, keine der Sache:
 `insert_transition_events` fragt deshalb je Übergang einen `resolve_bridge`
 -Aufruf. Ein Aufrufer, der nur eine Brücke kennt, gibt sie immer zurück — aber
 die Schnittstelle nimmt die Einschränkung nicht in sich auf.
+
+### Übergangsregel auf Cutaway-Ebene — dieselbe Art wie am Sprecherwechsel
+
+Bestätigung des Users (22.07.), nachdem der Sprecherwechsel-Fall im Schnitt
+überzeugte: Die Regel lässt sich auf Cutaways übertragen, derselben Art nach.
+Gemeint ist vor allem der Rückweg — nach einem Cutaway über eine andere Größe
+zurück zum Sprecher (die zurück-Spalte der Matrix). Der Hinweg zum Cutaway
+bleibt knapp (Reaktion sofort sichtbar), der Rückweg darf weich landen.
+
+Dieselben Bedingungen wie am Sprecherwechsel gelten auch hier: der Folgepart
+nach der Brücke muss return_factor × Mindest-Schnittlänge erfüllen (2,5×). Der
+User ausdrücklich: zwar fängt der Cleanup-Pass Edge-Cases ab, aber schon vorab
+zu prüfen erzeugt weniger unschöne Fragmente, als sie nachträglich
+wegzuräumen. → Die insert_transition_events-Mechanik (inkl. der A-B-A-Einheit-
+Logik) ist damit auch die Grundlage für die Cutaway-Rückwege; sie muss nur an
+den Cutaway-Positionen statt an der Basis-EDL laufen (zweite Anwendung).
 
 ### Zwei Regeln brauchen Gedächtnis
 
