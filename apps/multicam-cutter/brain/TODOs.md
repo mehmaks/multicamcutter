@@ -125,7 +125,7 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
-- [ ] **Changelog mehrsprachig (DE/EN)** — Aufwand: **mittel**, braucht Website-Absprache.
+- [x] **Changelog mehrsprachig (DE/EN)** — UMGESETZT (22.07.), Format mit Web-Session abgestimmt.
   Die Website bietet DE/EN, das Changelog sollte das auch. Sparkle unterstuetzt
   `xml:lang` auf `<description>` (mehrere pro `<item>`, Auswahl nach Systemsprache).
   Drei Bausteine:

@@ -139,11 +139,14 @@ appcast.xml → `public/appcast.xml`. **Vollständige Schritt-für-Schritt-Check
 Die Update-Notizen kommen aus `CHANGELOG.md` und werden **in den Appcast
 eingebettet**, nicht extern verlinkt:
 
-- `scripts/changelog_to_html.py <version>` extrahiert den `## <version>`-Abschnitt
-  und gibt ein HTML-Fragment aus (kein DOCTYPE/body).
-- `release.sh` schreibt es als `release/updates/MultiCamCutter-<version>.html` —
-  **gleicher Name wie das Archiv**. `generate_appcast --embed-release-notes`
-  bettet es dann automatisch als `<description>` (CDATA) ins `<item>` ein.
+- `changelog_to_html.py <version> [de|en]` rendert den `## <version>`-Abschnitt zu
+  einem HTML-Fragment (kein DOCTYPE/body). DE aus `CHANGELOG.md`, EN aus
+  `CHANGELOG.en.md`.
+- `release.sh` ruft `generate_appcast` **ohne** `--embed-release-notes` (das kann
+  nur EINE, einsprachige Description) und danach `embed_release_notes.py <version>`.
+  Das fuegt ins `<item>` der Version `<description xml:lang="de">` (Pflicht) und,
+  falls EN vorhanden, `<description xml:lang="en">` ein — je als CDATA, vor
+  `<enclosure>`. Idempotent (entfernt bestehende Descriptions vorher).
 - **Sparkle** zeigt die `<description>` im „Nach Update suchen"-Dialog.
 - **Die Website** rendert dieselbe `<description>` automatisch ab dem nächsten
   Feed-Update (Contract der Web-Session, 22.07.) — keine weitere Absprache nötig.
@@ -151,12 +154,12 @@ eingebettet**, nicht extern verlinkt:
   committet (`updates/` ist gitignored).
 - **Fehlt der Abschnitt** in `CHANGELOG.md`, bricht `release.sh` ab (Exit 2 des
   Konverters) — kein stillschweigendes Release ohne Notizen.
-- **Derzeit einsprachig (DE).** `generate_appcast` bettet nur EINE
-  `<description>` ein. Mehrsprachig (DE/EN via `xml:lang`) ist moeglich, aber
-  offen — braucht englischen Changelog + Appcast-Nachbearbeitung + Absprache
-  mit der Web-Session ueber das Format. Siehe TODOs.md.
+- **Zweisprachig (DE/EN) umgesetzt (22.07.)** — Format mit der Web-Session
+  abgestimmt (Abschnitt „GEKLÄRT" unten). DE ist Pflicht, EN optional; fehlt EN,
+  faellt die Website auf DE zurueck. Bereits veroeffentlichte Items ohne `xml:lang`
+  (0.6.1 und aelter) bleiben unveraendert und rendern ueber den Untagged-Fallback.
 
-## OFFENE ABSTIMMUNG (App → Web-Session, 22.07.): mehrsprachiges Changelog
+## GEKLÄRT (Antwort Web-Session unten, 22.07.): mehrsprachiges Changelog
 
 **Ist-Zustand:** Die App-Session bettet den Changelog als EINE `<description>`
 (CDATA-HTML) pro `<item>` ein — aktuell nur Deutsch. Die Website rendert sie
@@ -191,3 +194,21 @@ Das ist Sparkles Standard (wählt nach Systemsprache). Die App-Session würde
 Sobald ihr euch entscheidet, zieht die App-Session nach: `changelog_to_html.py`
 bekommt einen Sprach-Parameter, `release.sh` bettet beide Sprachen ein, und
 `CHANGELOG.md` bekommt englische Abschnitte (oder ein `CHANGELOG.en.md`).
+
+**ANTWORT Web-Session (22.07. — implementiert & deployed):**
+
+1. **Ja — Variante 1 (`<description xml:lang>`) ist umgesetzt.** Der Website-Parser
+   (`src/lib/appcast.ts`) liest jetzt ALLE `<description>` eines Items und wählt per
+   Seiten-Locale aus. Sprach-Matching ist tolerant: `de` matcht auch `de-DE` (und
+   umgekehrt), Vergleich case-insensitiv.
+2. **Kein `releaseNotesLink` bitte.** Inline-Descriptions kommen mit dem EINEN, ohnehin
+   gecachten Appcast-Fetch aus; externe HTML-Dateien hießen pro Release × Sprache
+   zusätzliche Fetches + R2-Uploads. Inline ist für die Website klar besser.
+3. **Fallback-Kette bestätigt** (exakt wie eure Fallbacks 1+2, nie leer):
+   exakte Locale → ungetaggte `<description>` (ältere Releases + 0.6.1) → erste
+   vorhandene Sprache (= DE als Autorensprache). DE-Fallback ist ok.
+
+Verifiziert gegen den Live-Feed + simuliertes zweisprachiges 0.7.0-Item: `de`/`en`
+werden korrekt gewählt, 0.6.1 rendert weiter über den Untagged-Fallback, Items ohne
+Description zeigen nur Version + Datum. **Ihr könnt loslegen** — sobald ein Feed mit
+`xml:lang="en"` kommt, zeigt die englische Seite automatisch die englischen Notes.

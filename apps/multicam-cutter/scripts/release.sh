@@ -78,23 +78,8 @@ mkdir -p "$UPDATES_DIR"
 # die komplette Update-Historie (inkl. Deltas) behält.
 cp "$DMG" "$UPDATES_DIR/$DMG_NAME"
 
-# Changelog als Release-Notes. generate_appcast bettet eine .html-Datei mit
-# demselben Namen wie das Archiv automatisch als CDATA-<description> ins <item>
-# ein (kein DOCTYPE/body); Sparkle zeigt sie im Update-Dialog, die Website
-# rendert dieselbe <description> (Contract Web-Session, 22.07.).
-# Fehlt der Abschnitt in CHANGELOG.md, bricht der Konverter mit Exit 2 ab —
-# und damit dieses Release. Kein stillschweigendes Release ohne Notizen.
 PYBIN="${PYBIN:-$APP_DIR/../../venv/bin/python3}"
 [ -x "$PYBIN" ] || PYBIN="python3"
-NOTES_HTML="$UPDATES_DIR/MultiCamCutter-$VERSION.html"
-echo "► Changelog → Release-Notes ($VERSION)..."
-if ! "$PYBIN" "$SCRIPT_DIR/changelog_to_html.py" "$VERSION" > "$NOTES_HTML"; then
-    rm -f "$NOTES_HTML"
-    echo "✗ Kein Changelog-Abschnitt für $VERSION in CHANGELOG.md — Release abgebrochen."
-    echo "  Bitte '## $VERSION' mit Nutzernotizen ergänzen und erneut starten."
-    exit 1
-fi
-echo "  ✓ $NOTES_HTML"
 
 echo "► generate_appcast (signiert jede DMG mit dem Sparkle-Schlüssel)..."
 # --maximum-versions begrenzt den Feed auf die 5 neuesten Eintraege. Der Appcast
@@ -106,11 +91,28 @@ echo "► generate_appcast (signiert jede DMG mit dem Sparkle-Schlüssel)..."
 # BEWUSST OHNE --auto-prune-update-files: das loescht die alten DMGs auch LOKAL,
 # und generate_appcast braucht sie, um kuenftige Deltas dagegen zu rechnen.
 # Lokal bleibt also alles liegen; aufgeraeumt wird nur im Bucket, von Hand.
+# OHNE --embed-release-notes: das kann nur EINE, einsprachige <description>.
+# Die zweisprachige Einbettung macht embed_release_notes.py danach.
 "$GEN_APPCAST" "$UPDATES_DIR" \
     --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
-    --maximum-versions 5 \
-    --embed-release-notes
+    --maximum-versions 5
 echo "  ✓ $UPDATES_DIR/appcast.xml"
+
+# Changelog zweisprachig ins <item> einbetten: <description xml:lang="de"> (Pflicht)
+# und, falls CHANGELOG.en.md den Abschnitt hat, xml:lang="en". Die Website waehlt
+# per Locale mit Fallback auf DE (Contract, brain/Appcast-Hosting.md → GEKLÄRT).
+# Exit 2 = deutscher Abschnitt fehlt → Release abbrechen. Kein Release ohne Notizen.
+echo "► Changelog → Release-Notes ($VERSION, de + optional en)..."
+"$PYBIN" "$SCRIPT_DIR/embed_release_notes.py" "$VERSION" "$UPDATES_DIR/appcast.xml"
+_notes_rc=$?
+if [ "$_notes_rc" = "2" ]; then
+    echo "✗ Kein deutscher Changelog-Abschnitt für $VERSION in CHANGELOG.md — abgebrochen."
+    echo "  Bitte '## $VERSION' ergänzen (englisch optional in CHANGELOG.en.md)."
+    exit 1
+elif [ "$_notes_rc" != "0" ]; then
+    echo "✗ Release-Notes konnten nicht eingebettet werden (Code $_notes_rc)."
+    exit 1
+fi
 
 # ── 6. Nächste (manuelle) Schritte ─────────────────────────────────────────
 echo ""
