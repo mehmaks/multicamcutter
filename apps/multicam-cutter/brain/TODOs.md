@@ -125,6 +125,31 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
+- [ ] **Waveform je Audiospur + Klick-zum-Abspielen** (Fremd-Feedback, 22.07.) —
+  Aufwand: **mittel**.
+  **User-Story:** Cutter bekommen teils UNBEKANNTES Material und müssen schnell
+  rausfinden, wer auf welcher Spur spricht. Der heutige Ansatz — Play-Button
+  spielt die getrimmte Vorschau ab der ersten lauten Stelle (`previewPath`) — ist
+  dafür **zu unzuverlässig**: man hört einen Ausschnitt, kann aber nicht gezielt
+  an eine Stelle springen.
+  **Gewünscht:** Jede Audiospur (im Personen/Mic-Schritt, `MicRow` in
+  WizardView) zeigt eine **visualisierte Waveform**. **Klick auf eine Position**
+  → Wiedergabe genau dort. So hört man in Sekunden rein, an mehreren Stellen,
+  und ordnet die Spur einer Person zu.
+  **Technik:**
+  - Wiedergabe ab Position: `AVAudioPlayer.currentTime` setzen (statt neu vom
+    Anfang) — der Player-Umbau in `toggleMicPreview`/`playingMicId`
+    (`EngineController`) ist überschaubar. Play/Pause + Fortschritts-Cursor.
+  - Waveform-Daten: heruntergerechnete Peak-Werte je Pixel. Entweder in Swift
+    (`AVAudioFile` → Samples lesen → Min/Max je Bucket) oder die Engine liefert
+    beim Scan ein Peak-Array je Datei (JSON). Swift-seitig hält die Daten aus
+    dem Prozess raus; Engine-seitig ist es zentral und cachebar. **Entscheiden.**
+  - Über die volle Datei, nicht nur die Vorschau — sonst bleibt die
+    Navigations-Lücke. `previewPath` wird damit für diesen Zweck obsolet.
+  **Verwandt:** die früher gewünschte NLE-artige Timeline-Darstellung des
+  fertigen Schnitts nutzt dieselbe Waveform-Rendering-Basis — beim Bau
+  zusammendenken.
+
 - [x] **Changelog mehrsprachig (DE/EN)** — UMGESETZT (22.07.), Format mit Web-Session abgestimmt.
   Die Website bietet DE/EN, das Changelog sollte das auch. Sparkle unterstuetzt
   `xml:lang` auf `<description>` (mehrere pro `<item>`, Auswahl nach Systemsprache).
