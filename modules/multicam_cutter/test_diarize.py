@@ -17,7 +17,7 @@ import numpy as np
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from multicam_cutter.build_base_edl_from_audio import (  # noqa: E402
-    compute_rms_db, rms_diarize, rms_diarize_n,
+    compute_rms_db, rms_diarize, rms_diarize_n, build_base_edl_n,
 )
 
 
@@ -188,6 +188,39 @@ def test_margin_gate_blocks_ambiguous():
                          silence_gates_db=[-55.0, -55.0])
     assert all(s['speaker'] == 'CAM1' for s in segs), \
         "knapper Gleichstand haette nicht zu CAM2-Wechseln fuehren duerfen"
+
+
+# ── Test 4: N-Basis-EDL routet jede Person auf ihre ENGSTE Kamera ──────────────
+def test_n_base_edl_routes_to_tightest_camera():
+    """Setup des Kollegen: Totale (3 Pers.), B-Cam (2 Pers.), C-Cam (1 Pers.).
+    Person 3 ist nur auf der Totale → muss dort landen (heute waere sie stumm)."""
+    sr = 8000
+    p1, p2, p3 = 'mic1.wav', 'mic2.wav', 'mic3.wav'
+    cameras = [
+        {'name': 'A', 'clip': 'A', 'mics': [p1, p2, p3], 'edl_frame': 0, 'ref': 1000},  # Totale
+        {'name': 'B', 'clip': 'B', 'mics': [p1, p2],      'edl_frame': 0, 'ref': 2000},
+        {'name': 'C', 'clip': 'C', 'mics': [p1],          'edl_frame': 0, 'ref': 3000},
+    ]
+
+    dur = 45
+    rng = np.random.default_rng(0)
+
+    def track(loud_from, loud_to):
+        a = np.full(dur * sr, 0.001, dtype=np.float32)   # Grundrauschen unter Gate
+        s, e = loud_from * sr, loud_to * sr
+        a[s:e] = rng.standard_normal(e - s).astype(np.float32)
+        return a
+
+    person_audios = {p1: track(0, 10), p2: track(15, 25), p3: track(30, 40)}
+    gates = {p1: -55.0, p2: -55.0, p3: -55.0}
+
+    events = build_base_edl_n(cameras, person_audios, sr, fps=25.0, wav_edl_frame=0,
+                              window_s=0.1, threshold_db=6.0, change_delay_s=0.3,
+                              min_edit_s=0.8, silence_gates_db=gates)
+
+    clips = [e['clip_name'] for e in events]
+    assert clips == ['C', 'B', 'A'], \
+        f"erwartet [C, B, A] (Person1→C, Person2→B, Person3→Totale A), bekam {clips}"
 
 
 if __name__ == "__main__":

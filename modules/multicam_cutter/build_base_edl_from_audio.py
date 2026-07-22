@@ -201,6 +201,85 @@ def rms_diarize(audio1: np.ndarray, audio2: np.ndarray, sr: int,
                          silence_gates_db=[silence_gate_db, silence_gate_db2])
 
 
+def build_base_edl_n(cameras: list, person_audios: dict, sr: int, fps: float,
+                     wav_edl_frame: int, window_s: float, threshold_db: float,
+                     change_delay_s: float, min_edit_s: float,
+                     silence_gates_db: dict):
+    """
+    N-fache Basis-EDL: diarisiert ueber PERSONEN (ein Mikro je Person) und
+    schneidet jedes Sprech-Segment auf die ENGSTE Kamera, die diese Person zeigt.
+
+    Das ist der additive Weg fuer >2 Personen — der binaere 2-Personen-Pfad
+    (main() + rms_diarize-Shim) bleibt davon UNBERUEHRT und damit byte-identisch.
+
+    cameras: Liste von Dicts mit
+        'clip'      – Clip-Name in der EDL
+        'mics'      – Personen-IDs (Mic-Pfade), die diese Kamera zeigt
+        'edl_frame' – EDL-Frame, bei dem Frame 0 dieser Kamera liegt
+        'ref'       – embedded-TC-Frame (get_reference_frame(video)[0])
+        'name'      – (fuer shot_sizes; darf = clip sein)
+    person_audios:    {Personen-ID: np.ndarray}, alle mit Sample-Rate sr
+    silence_gates_db: {Personen-ID: float} Stille-Schwelle je Person
+    wav_edl_frame:    EDL-Frame, bei dem Audio-Frame 0 liegt
+
+    Rueckgabe: EDL-Events (gleiche Struktur wie der binaere Pfad).
+    """
+    from shot_sizes import ladder_for_person
+
+    # Stabile Personen-Reihenfolge aus den Kamera-Zuordnungen (kein dict-Zufall).
+    persons = []
+    for cam in cameras:
+        for pid in (cam.get('mics') or []):
+            if pid not in persons:
+                persons.append(pid)
+    if not persons:
+        return []
+
+    audios = [person_audios[p] for p in persons]
+    gates  = [silence_gates_db[p] for p in persons]
+
+    # Frueheste Kamera = Timeline-Ursprung (wie im binaeren Pfad). Verschiebt nur
+    # die Record-Positionen; die Source-Frames sind davon unabhaengig.
+    cam_shift = max(0, -min(c['edl_frame'] for c in cameras))
+
+    segments = rms_diarize_n(audios, sr, window_s, threshold_db,
+                             change_delay_s, min_edit_s,
+                             labels=persons, silence_gates_db=gates)
+
+    events, skipped = [], 0
+    for seg in segments:
+        person    = seg['speaker']
+        edl_start = round(seg['start_s'] * fps) + wav_edl_frame + cam_shift
+        edl_end   = round(seg['end_s']   * fps) + wav_edl_frame + cam_shift
+
+        # Engste Kamera, die diese Person zeigt UND bei edl_start schon laeuft.
+        # ladder_for_person liefert die Kameras engste-zuerst; die erste, deren
+        # (verschobener) Start <= edl_start ist, gewinnt. Laeuft die engste noch
+        # nicht, greift automatisch die naechstgroessere (bis zur Totale).
+        ladder = ladder_for_person(cameras, person)
+        cam = next((c for c in ladder
+                    if (c['edl_frame'] + cam_shift) <= edl_start), None)
+        if cam is None:
+            skipped += 1
+            continue
+
+        e_frame     = cam['edl_frame'] + cam_shift
+        video_start = edl_start - e_frame
+        video_end   = edl_end   - e_frame
+        events.append({
+            'clip_name':  cam['clip'],
+            'source_in':  frames_to_timecode(cam['ref'] + video_start, fps),
+            'source_out': frames_to_timecode(cam['ref'] + video_end,   fps),
+            'record_in':  frames_to_timecode(edl_start, fps),
+            'record_out': frames_to_timecode(edl_end,   fps),
+        })
+
+    if skipped:
+        print(f"  {skipped} Segmente uebersprungen (keine Kamera dieser Person "
+              f"war zum Zeitpunkt schon gestartet)")
+    return events
+
+
 def rms_gate(audio1: np.ndarray, audio2: np.ndarray, sr: int,
              window_ms: float = 80, attack_ms: float = 15, release_ms: float = 80,
              floor_db: float = -25, hysteresis_db: float = 2.0,
