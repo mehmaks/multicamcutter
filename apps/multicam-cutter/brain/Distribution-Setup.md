@@ -185,14 +185,19 @@ gedacht — wenn du danach fragst, ist das die Liste.
    Build automatisch, steigt also immer.
 2. **Im eigenen Terminal** (nicht headless!): `bash scripts/release.sh 0.5.0`
    → baut Developer-ID-signiert (Hardened Runtime) → notarisiert + stapelt →
-   erzeugt den signierten `appcast.xml`. Beim allerersten Mal je einmal „Immer
-   erlauben" für codesign und generate_appcast. Dauer ~10–15 min (Build + ~1 GB
-   Upload zu Apple).
+   erzeugt den signierten `appcast.xml` → **hängt direkt `publish.sh` an** (siehe
+   unten). Beim allerersten Mal je einmal „Immer erlauben" für codesign und
+   generate_appcast. Dauer ~10–15 min (Build + ~1 GB Upload zu Apple).
+   Nur bauen, nicht veröffentlichen: `SKIP_PUBLISH=1 bash scripts/release.sh 0.5.0`.
 
-**Publish — `bash scripts/publish.sh 0.5.0`** (bewusst separat, „geht nach außen"):
+**Publish — hängt an `release.sh` an** (früher separat; „geht nach außen"):
 
-Das Skript nimmt die Tipparbeit ab, **nicht die Entscheidung**: Es zeigt zuerst
-vollständig, was es tun wird, und fragt einmal. Braucht `R2_BUCKET` (z. B. `multicamcutter-downloads`) und **rclone**.
+Läuft am Ende von `release.sh` automatisch (`publish.sh <version>`), weil beide
+ohnehin immer nacheinander liefen. Der Gate bleibt: `publish.sh` zeigt zuerst
+vollständig, was es tun wird, und fragt **einmal** `[j/N]` — `release.sh` setzt
+kein `ASSUME_YES`. Standalone geht weiterhin: `bash scripts/publish.sh 0.5.0`.
+`R2_BUCKET` hat jetzt den Default `multicamcutter-downloads` (per Env
+überschreibbar); braucht **rclone**.
 
 ⚠️ **wrangler scheidet aus**: harte Grenze von **300 MiB** pro Upload, kein
 Multipart (`Wrangler only supports uploading files up to 300 MiB in size`,
@@ -253,7 +258,8 @@ dann bis zu 90 s auf den Vercel-Deploy warten und den Live-Feed gegenprüfen.
 
 </details>
 
-Kurzform: **release.sh → publish.sh → aus alter Installation testen.**
+Kurzform: **`release.sh` (publisht am Ende selbst, fragt einmal) → aus alter
+Installation testen.**
 
 Einmalige Voraussetzungen (alle erledigt): Developer-ID-Zertifikat + Notary-Profil
 `MulticamNotary` + Sparkle-Private-Key im Keychain + R2-Storage & `/downloads`-Route

@@ -20,7 +20,7 @@ set -euo pipefail
 # Entscheidung: es zeigt zuerst vollständig, was es tun wird, und fragt einmal.
 #
 # Env:
-#   R2_BUCKET     Name des R2-Buckets (Pflicht), z. B. multicamcutter-downloads
+#   R2_BUCKET     Name des R2-Buckets (Default: multicamcutter-downloads)
 #   RCLONE_REMOTE rclone-Remote (Default: r2)
 #   R2_ENDPOINT   nur für den aws-CLI-Pfad
 #   WEB_REPO     Website-Repo (Default: ~/Developer/multicamcutter-web)
@@ -47,17 +47,16 @@ UPDATES="$APP_DIR/release/updates"
 DMG="$UPDATES/MultiCamCutter-$VERSION.dmg"
 APPCAST="$UPDATES/appcast.xml"
 WEB_REPO="${WEB_REPO:-$HOME/Developer/multicamcutter-web}"
+# Fixer Contract: der Bucket hinter multicamcutter.pantake.com/downloads/ heisst
+# so (analog zum DOWNLOAD_URL_PREFIX-Default in release.sh). Ist der Name mal ein
+# anderer, per Env ueberschreiben. Kein Geheimnis — die R2-Zugangsdaten liegen in
+# der rclone-Config, nicht hier.
+R2_BUCKET="${R2_BUCKET:-multicamcutter-downloads}"
 
 # ── Vorbedingungen ─────────────────────────────────────────────────────────
 [ -f "$DMG" ]     || { echo "✗ DMG fehlt: $DMG"; echo "  Erst: bash scripts/release.sh $VERSION"; exit 1; }
 [ -f "$APPCAST" ] || { echo "✗ appcast.xml fehlt: $APPCAST"; exit 1; }
 [ -d "$WEB_REPO/.git" ] || { echo "✗ Website-Repo nicht gefunden: $WEB_REPO"; echo "  Mit WEB_REPO=… überschreiben."; exit 1; }
-[ -n "${R2_BUCKET:-}" ] || [ "${SKIP_UPLOAD:-0}" = "1" ] || {
-    echo "✗ R2_BUCKET nicht gesetzt."
-    echo "  Bucket-Name findest du mit: npx wrangler r2 bucket list"
-    echo "  Dann: R2_BUCKET=<name> bash scripts/publish.sh $VERSION"
-    exit 1
-}
 
 # ── Uploader wählen ────────────────────────────────────────────────────────
 # wrangler kann nur bis 300 MiB (harte Grenze, kein Multipart) — unsere DMGs

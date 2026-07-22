@@ -8,11 +8,13 @@ set -euo pipefail
 #   1. Version setzen (an build_app.sh durchgereicht)
 #   2. Mit Developer ID signiert bauen (Hardened Runtime)
 #   3. Notarisieren + stapeln + verifizieren (scripts/notarize.sh)
-#   4. Sparkle-Appcast erzeugen — NUR wenn DOWNLOAD_URL_PREFIX gesetzt ist
+#   4. Sparkle-Appcast erzeugen + Release-Notes einbetten
+#   5. Publish: scripts/publish.sh haengt direkt an (Upload → Verifikation → Feed)
 #
-# Das Hochladen (DMG → Objekt-Storage, appcast.xml → Website) bleibt bewusst ein
-# separater, bestätigter Schritt („nach außen gehen") — release.sh zeigt am Ende,
-# was zu tun ist.
+# Der Publish laeuft jetzt automatisch hinten dran, weil release und publish
+# ohnehin immer nacheinander liefen. Der „nach außen"-Gate bleibt trotzdem:
+# publish.sh zeigt vollstaendig, was es tut, und fragt EINMAL ([j/N]) — nur das
+# erneute Tippen entfaellt. SKIP_PUBLISH=1 baut nur (kein Upload).
 #
 # MUSS im eigenen Terminal laufen (nicht headless): codesign UND generate_appcast
 # greifen auf private Schlüssel im Login-Schlüsselbund zu. Beim ersten Mal je ein
@@ -50,19 +52,19 @@ echo "  Notary:    ${NOTARY_PROFILE:-MulticamNotary}"
 echo ""
 
 # ── 3. Signiert bauen ──────────────────────────────────────────────────────
-echo "───── [1/3] Build + Developer-ID-Signierung ─────"
+echo "───── [1/4] Build + Developer-ID-Signierung ─────"
 MARKETING_VERSION="$VERSION" SIGN_IDENTITY="$SIGN_IDENTITY" bash "$SCRIPT_DIR/build_app.sh"
 
 # ── 4. Notarisieren ────────────────────────────────────────────────────────
 echo ""
-echo "───── [2/3] Notarisierung ─────"
+echo "───── [2/4] Notarisierung ─────"
 SIGN_IDENTITY="$SIGN_IDENTITY" bash "$SCRIPT_DIR/notarize.sh"
 
 DMG="$APP_DIR/release/MultiCamCutter.dmg"
 
 # ── 5. Appcast (optional) ──────────────────────────────────────────────────
 echo ""
-echo "───── [3/3] Appcast ─────"
+echo "───── [3/4] Appcast ─────"
 # Prefix ist ein fixer Contract (R2 hinter multicamcutter.pantake.com/downloads/
 # ist live) — daher Default, kein Überspringen mehr. Per Env überschreibbar.
 DOWNLOAD_URL_PREFIX="${DOWNLOAD_URL_PREFIX:-https://multicamcutter.pantake.com/downloads/}"
@@ -114,16 +116,23 @@ elif [ "$_notes_rc" != "0" ]; then
     exit 1
 fi
 
-# ── 6. Nächste (manuelle) Schritte ─────────────────────────────────────────
 echo ""
-echo "=== Release $VERSION fertig ==="
+echo "=== Release $VERSION gebaut ==="
 echo "  DMG:     $DMG"
 echo "  Appcast: $UPDATES_DIR/appcast.xml"
-echo ""
-echo "Noch von Hand (Publish — bewusst separat):"
-echo "  1. release/updates/$DMG_NAME → Cloudflare R2 hochladen"
-echo "     · Objekt-Key EXAKT = \"$DMG_NAME\" (muss zur Enclosure-URL passen)"
-echo "     · Content-Type: application/octet-stream"
-echo "  2. release/updates/appcast.xml → Website-Repo, Vercel public/appcast.xml"
-echo "  3. Testen: Über-Dialog → „Auf Update prüfen\" bietet $VERSION an"
-echo "  Details: brain/Appcast-Hosting.md"
+
+# ── 6. Publish (nach außen) ────────────────────────────────────────────────
+# Haengt direkt an. publish.sh laedt das DMG (+ evtl. Deltas) nach R2, prueft
+# JEDE beworbene URL, veroeffentlicht dann erst den Appcast und verifiziert den
+# Live-Feed. Die einmalige Rueckfrage ([j/N]) in publish.sh bleibt der bewusste
+# „nach außen"-Gate — release.sh setzt KEIN ASSUME_YES.
+if [ "${SKIP_PUBLISH:-0}" = "1" ]; then
+    echo ""
+    echo "SKIP_PUBLISH=1 — nur gebaut, nichts veröffentlicht. Später von Hand:"
+    echo "  bash scripts/publish.sh $VERSION"
+    echo "  Details: brain/Appcast-Hosting.md"
+else
+    echo ""
+    echo "───── [4/4] Publish ─────"
+    bash "$SCRIPT_DIR/publish.sh" "$VERSION"
+fi
