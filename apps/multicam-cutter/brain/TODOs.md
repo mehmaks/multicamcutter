@@ -483,6 +483,12 @@ Host + 2 Gaeste laeuft bereits, solange sich die Gaeste eine Kamera teilen.)*
   ⚠️ Der neue Ziel-Clip muss selbst wieder gegen die Ignore-Liste geprüft werden
   (könnte ein anderes geflagtes Bild zeigen) — also derselbe `_clip_score`-Check
   wie heute, nur über Kamera-Kandidaten statt über Zeit-Offsets.
+  ⚠️ **Ziel-Kamera ≠ Nachbarn** (User, 22.07.): Die Tausch-Kamera darf weder die
+  davor noch die danach sein. Aus A-B-C darf weder A-A-C noch A-C-C werden — sonst
+  entsteht ein Schnitt auf dieselbe Kamera (verschwindender bzw. sichtbarer
+  Nicht-Schnitt). Dieselbe Invariante wie bei der Übergangsregel. Findet sich
+  keine Kamera, die BEIDE Bedingungen erfüllt (Person ausschließen UND ≠ Nachbarn),
+  → Rückfall auf die Zeitverschiebung.
 
 ### CLIP-Einstellungen
 - [x] **Settings-Tab „CLIP"** — UMGESETZT (immer sichtbar als 3. Tab; der frühere
