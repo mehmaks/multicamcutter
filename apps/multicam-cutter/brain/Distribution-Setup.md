@@ -166,6 +166,19 @@ gedacht — wenn du danach fragst, ist das die Liste.
    > gegengeprüft; unsichere Ergebnisse führen zu einem klaren Abbruch statt zu
    > einem stillen Fehler.
 
+   **Beide Sprachen (seit 0.6.x zweisprachig):**
+   - Deutschen Abschnitt `## <version>` in `CHANGELOG.md` schreiben — **Pflicht**.
+     Fehlt er, bricht `release.sh` ab (Exit 2 von `embed_release_notes.py`).
+   - Englischen Abschnitt `## <version>` in `CHANGELOG.en.md` — **gleiche
+     Versions-Überschrift, gespiegelter Inhalt**. Technisch optional (fehlt EN,
+     rendert die Website via Fallback das Deutsche), aber die Website ist
+     zweisprachig → EN gehört dazugeschrieben, außer bei reinen Notfall-Patches.
+   - Beide dem User zur Freigabe vorlegen. `release.sh` bettet dann automatisch
+     `<description xml:lang="de">` und (falls vorhanden) `xml:lang="en">` ein; die
+     Website wählt per Locale. Mechanik: `brain/Appcast-Hosting.md`.
+   - **Prüfen vor dem Freigeben:** `python3 scripts/changelog_to_html.py <version> en`
+     muss das englische Fragment ausgeben (nicht Exit 3) — sonst fehlt EN.
+
 **Auf meinem Mac (ein Befehl):**
 1. **Version festlegen** — höher als die letzte. Anzeige-Version (`0.5.0`) wählst
    du; die für Sparkle entscheidende `CFBundleVersion` (Zeitstempel) setzt der
