@@ -908,6 +908,29 @@ struct WizardSettings: View {
                     WizToggle("Aktiv", $engine.params.pauseCutawayEnabled)
                     WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s")
                 }
+                // Bildsprache: nur wenn es eine größere Einstellung gibt — sonst
+                // haben die Übergänge keine gemeinsame Kamera und wären wirkungslos.
+                if engine.hasWideCamera {
+                    group("Bildsprache") {
+                        WizToggle("Übergang bei Sprecherwechsel", $engine.params.transitionSpeakerChange)
+                        WizSlider("Übergangs-Schwelle", $engine.params.transitionReturnFactor,
+                                  1.5...4.0, suffix: "×", format: "%.1f")
+                    }
+                    subLabel("Rückweg nach Cutaway über größere Einstellung")
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
+                        WizToggle("Nach Kopfnicken", $engine.params.transitionCutawayNodding)
+                        WizToggle("Nach Sprachreaktion", $engine.params.transitionCutawaySpeaking)
+                        WizToggle("Nach Pause", $engine.params.transitionCutawayPause)
+                    }
+                    LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
+                        WizSlider("Cooldown (Schnitte)", Binding(
+                            get: { Double(engine.params.transitionCutawayCooldown) },
+                            set: { engine.params.transitionCutawayCooldown = Int($0) }),
+                                  0...20, suffix: "", format: "%.0f")
+                        WizSlider("Cooldown (Zeit)", $engine.params.transitionCutawayCooldownS,
+                                  0...30, suffix: " s", format: "%.0f")
+                    }
+                }
             }
         }
         .frame(maxHeight: 300)

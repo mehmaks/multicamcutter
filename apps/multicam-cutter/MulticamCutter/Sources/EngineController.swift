@@ -97,6 +97,26 @@ struct PipelineParams: Equatable {
     // Expert: Totale
     var totaleSimulDur: Double = 3.0
 
+    // Expert: Bildsprache (Übergänge über größere Einstellungen). Greift nur mit
+    // einer Totale/Medium — siehe brain/Bildsprache.md. Ship-Default: nur
+    // Sprecherwechsel an, Cutaway-Rückwege aus.
+    var transitionSpeakerChange: Bool = true
+    var transitionReturnFactor: Double = 2.5
+    var transitionCutawayNodding: Bool = false
+    var transitionCutawaySpeaking: Bool = false
+    var transitionCutawayPause: Bool = false
+    var transitionCutawayCooldown: Int = 6
+    var transitionCutawayCooldownS: Double = 8.0
+
+    /// Occasion-Liste für die Engine (transition_cutaway_back) aus den drei Schaltern.
+    var cutawayBackList: [String] {
+        var l: [String] = []
+        if transitionCutawayNodding  { l.append("nodding") }
+        if transitionCutawaySpeaking { l.append("speaking_reaction") }
+        if transitionCutawayPause    { l.append("pause") }
+        return l
+    }
+
     // Nodding-Pattern-Toggles PRO PRESET: pattern-name → enabled. Leer = alle
     // Defaults aus nodding_patterns.json. Geht als "nodding_patterns" an die Engine
     // (überschreibt dort je Pattern das enabled) und wird mit dem Preset gespeichert.
@@ -135,6 +155,11 @@ struct PipelineParams: Equatable {
             "threshold_db": thresholdDb,
             "totale_simul_dur": totaleSimulDur,
             "nodding_patterns": noddingPatterns,
+            "transition_speaker_change": transitionSpeakerChange,
+            "transition_return_factor": transitionReturnFactor,
+            "transition_cutaway_back": cutawayBackList,
+            "transition_cutaway_cooldown": transitionCutawayCooldown,
+            "transition_cutaway_cooldown_s": transitionCutawayCooldownS,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: dict),
               let str = String(data: data, encoding: .utf8) else { return "{}" }
@@ -161,6 +186,11 @@ struct PipelineParams: Equatable {
             "gate_use_filtered": gateUseFiltered,
             "threshold_db": thresholdDb, "totale_simul_dur": totaleSimulDur,
             "nodding_patterns": noddingPatterns,
+            "transition_speaker_change": transitionSpeakerChange,
+            "transition_return_factor": transitionReturnFactor,
+            "transition_cutaway_back": cutawayBackList,
+            "transition_cutaway_cooldown": transitionCutawayCooldown,
+            "transition_cutaway_cooldown_s": transitionCutawayCooldownS,
         ]
     }
 
@@ -198,6 +228,15 @@ struct PipelineParams: Equatable {
         // Aus JSON kommen Bools als NSNumber(CFBoolean) → `as? Bool` bridged sie.
         if let raw = dict["nodding_patterns"] as? [String: Any] {
             noddingPatterns = raw.compactMapValues { $0 as? Bool }
+        }
+        if let v = dict["transition_speaker_change"] as? Bool { transitionSpeakerChange = v }
+        if let v = dict["transition_return_factor"] as? Double { transitionReturnFactor = v }
+        if let v = dict["transition_cutaway_cooldown"] as? Int { transitionCutawayCooldown = v }
+        if let v = dict["transition_cutaway_cooldown_s"] as? Double { transitionCutawayCooldownS = v }
+        if let list = dict["transition_cutaway_back"] as? [String] {
+            transitionCutawayNodding  = list.contains("nodding")
+            transitionCutawaySpeaking = list.contains("speaking_reaction")
+            transitionCutawayPause    = list.contains("pause")
         }
     }
 }
@@ -528,6 +567,12 @@ class EngineController: ObservableObject {
     /// Flag mehr. Regel: Für jede Person ist ihre engste Kamera die mit den WENIGSTEN
     /// Personen. Eine Kamera ist TOTALE, wenn JEDE Person darauf woanders enger ist;
     /// ist sie für ≥1 Person die engste, ist sie ein CLOSE („Close gewinnt").
+    /// Hat das Setup eine größere Einstellung (Totale/Medium)? Nur dann greifen
+    /// die Bildsprache-Regeln — sonst gibt es keine gemeinsame größere Kamera.
+    var hasWideCamera: Bool {
+        camRoles().values.contains(.wide)
+    }
+
     func camRoles() -> [Int: CamRole] {
         // Minimale Personen-Anzahl je Person über alle Kameras, die sie zeigen.
         var minCount: [Int: Int] = [:]

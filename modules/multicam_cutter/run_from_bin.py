@@ -747,19 +747,6 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         cam1_path: cam1_off_sections,
         cam2_path: cam2_off_sections,
     }
-    # ── TEST-DEFAULT (22.07.) — Cutaway-Rueckwege zum Ausprobieren einschalten ──
-    # Es gibt noch keine UI dafuer (gehoert spaeter in die Bildsprache-Rubrik).
-    # Bis dahin hier vorbelegt, damit die Dev-App den Effekt zeigt. Bewusst NUR
-    # 'nodding', um ihn isoliert zu beurteilen. setdefault: ein spaeterer
-    # App-Wert gewinnt. VOR dem Ausliefern entfernen — Matrix-Default ist aus.
-    params.setdefault('transition_cutaway_back', ['nodding', 'speaking_reaction', 'pause'])
-    # Cooldown je Zusatzkamera in Schnitten (R10). 0 = aus. Zum Ausprobieren
-    # vorbelegt; spaeter Regler in der Bildsprache-Rubrik.
-    params.setdefault('transition_cutaway_cooldown', 6)
-    # Zeit-Schwelle parallel zum Schnitt-Zaehler; freigegeben, was zuerst faellt.
-    # Kleiner = mehr Rueckwege kommen durch (gibt frueher frei). 0 = nur Schnitte.
-    params.setdefault('transition_cutaway_cooldown_s', 8.0)
-
     # params.json für Subprozesse schreiben (Analyzer, etc.)
     params_json_path = work_dir / 'params.json'
     params_json_path.write_text(json.dumps(params, indent=2), encoding='utf-8')

@@ -301,6 +301,26 @@ in zwei Stellungen ab.
   verkleinern könnte und immer noch eine schöne Schnittfrequenz bekommt." → als
   Regler in die Bildsprache-Rubrik, damit man ihn am Material justieren kann.
 
+## Einstellungen: Ship-Entscheidungen (22.07.)
+
+Beim Bau der „Bildsprache"-Gruppe in den erweiterten Einstellungen (fuers erste
+Release an einen Test-Kollegen):
+
+- **Ship-Default:** nur **Sprecherwechsel an**, Cutaway-Rueckwege **aus** (der
+  Matrix-Default). Der Kollege schaltet die Rueckwege bewusst zu.
+- **Sichtbarkeit:** Die Bildsprache-Gruppe erscheint **nur, wenn das Setup eine
+  Totale hat** (mind. eine `wide`-Kamera laut `camRoles()`). Bei reinen
+  2-Close-Setups ohne groessere Einstellung bleibt sie unsichtbar — dort haetten
+  die Regeln ohnehin keinen Effekt (keine gemeinsame groessere Kamera).
+- **Folge:** Fuer ein 2-Kamera-Setup aendert sich nichts. Engine-Defaults ohne
+  App-Werte erzeugen exakt dieses Verhalten (speaker_change default an, aber nur
+  im Totale-Block aktiv; cutaway_back default leer).
+- **Erledigt (22.07.):** TEST-DEFAULTs aus `run_from_bin.py` entfernt; Gruppe
+  „BILDSPRACHE" in den Experteneinstellungen (`WizardView.expertList`), gegatet
+  auf `engine.hasWideCamera`. Parameter in `PipelineParams` (7 Felder, alle 4
+  Stellen: Property/toJSON/toDict/apply). `transition_cutaway_back` wird aus drei
+  Bool-Schaltern zur Liste (`cutawayBackList`).
+
 ## Gemeinsame Hilfsfunktionen (Architektur-Überlegung, User 22.07.)
 
 Mehrere Regeln greifen auf **dieselben Kamera-Entscheidungen** zurück. Diese
