@@ -125,6 +125,12 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
+- [ ] ⚠️ **TEST-DEFAULT entfernen vor Release:** `run_from_bin.py` belegt
+  `transition_cutaway_back` mit `['nodding']` vor, damit die Dev-App die
+  Cutaway-Rückwege ohne UI zeigt. Der Matrix-Default ist AUS. Sobald die
+  Bildsprache-Rubrik existiert, diesen `setdefault` löschen und den Wert aus den
+  Einstellungen kommen lassen (22.07.).
+
 - [ ] **Clipnamen im AAF: Schnittgrund vor Quellname.** Aufwand: **leicht** (Stufe 1).
   Heute `{stem} - {label}` (`build_aaf.py:483`), z.B.
   `VID_20250710_101101_00_002_004_25… - Übergang`. Bei langen Quellnamen (GoPro/DJI,
