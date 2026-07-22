@@ -346,3 +346,13 @@ hängen am selben `SPUUpdater`). Zeigt die installierte Version, den Schalter
   (`UpdaterController.isActive`). Dann erscheint statt der Bedienelemente ein
   Hinweis — sonst gäbe es einen Button, der ins Leere greift.
 - Der automatische Lauf **meldet** nur; installiert wird nach Bestätigung.
+
+## Parameter-Hilfetexte (Tooltips)
+
+Jeder feste Regler/Toggle im Wizard zeigt ein (?) neben dem Label
+(`WizHelpBadge`), das den Hilfetext als nativen macOS-Tooltip beim Überfahren
+zeigt. `WizSlider`/`WizToggle`/`WizSegmented` haben dafür einen optionalen
+`help:`-Parameter. Texte kommen aus `ParamHelp.swift` (verbatim aus dem
+Web-Schema). Rubriken mit einem `group(..., description:)` zeigen zusätzlich
+einen Einleitungssatz unter der Überschrift (z.B. „Bildsprache"). Textstil:
+siehe Memory feedback_ui_texte — einfach, menschlich, kein Fachjargon.

@@ -825,14 +825,14 @@ struct WizardSettings: View {
     // Kuratierte 8 Essentials
     private var simpleList: some View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-            WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s")
-            WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s")
-            WizToggle("Sprech-Erkennung", $engine.params.speakingEnabled)
-            WizToggle("Kopfnicken erkennen", $engine.params.noddingEnabled)
-            WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled)
-            WizToggle("Pausen-Cutaways", $engine.params.pauseCutawayEnabled)
-            WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB")
-            WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s")
+            WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
+            WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)
+            WizToggle("Sprech-Erkennung", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
+            WizToggle("Kopfnicken erkennen", $engine.params.noddingEnabled, help: ParamHelp.noddingEnabled)
+            WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
+            WizToggle("Pausen-Cutaways", $engine.params.pauseCutawayEnabled, help: ParamHelp.pauseCutawayEnabled)
+            WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
+            WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
         }
     }
 
@@ -842,50 +842,53 @@ struct WizardSettings: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 group("Generelle Schnittregeln", first: true) {
-                    WizSlider("Min. Shotlänge", $engine.params.minShot, 0.5...10, suffix: " s")
-                    WizSlider("Cleanup-Mindestlänge", $engine.params.cleanupDur, 0.1...5, suffix: " s")
-                    WizSlider("Max. Shotlänge", $engine.params.maxShot, 1...60, suffix: " s")
+                    WizSlider("Min. Shotlänge", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
+                    WizSlider("Cleanup-Mindestlänge", $engine.params.cleanupDur, 0.1...5, suffix: " s", help: ParamHelp.cleanupDur)
+                    WizSlider("Max. Shotlänge", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
                 }
                 group("Sprecher-Erkennung") {
-                    WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB")
-                    WizSlider("Min. Segmentlänge", $engine.params.minEdit, 0.1...5, suffix: " s")
-                    WizSlider("Wechsel-Verzögerung", $engine.params.changeDelay, 0...2, suffix: " s")
+                    WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
+                    WizSlider("Min. Segmentlänge", $engine.params.minEdit, 0.1...5, suffix: " s", help: ParamHelp.minEdit)
+                    WizSlider("Wechsel-Verzögerung", $engine.params.changeDelay, 0...2, suffix: " s", help: ParamHelp.changeDelay)
                 }
                 group("Pausen-Trimming") {
-                    WizToggle("Pausen trimmen", $engine.params.pauseTrimEnabled)
-                    WizSlider("Max. Pause", $engine.params.maxPause, 0.1...3, suffix: " s")
-                    WizSlider("Stille-Schwelle", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f")
+                    WizToggle("Pausen trimmen", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
+                    WizSlider("Max. Pause", $engine.params.maxPause, 0.1...3, suffix: " s", help: ParamHelp.maxPause)
+                    WizSlider("Stille-Schwelle", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f", help: ParamHelp.pauseSilenceDb)
                     // Werte 1:1 aus dem Schema/der Pipeline (pause_trim_edl.py):
                     // middle | l-cut | j-cut | random — NICHT none/end.
                     WizSegmented("Schnittmodus", $engine.params.pauseCutMode,
                                  options: [("middle", "Mitte"), ("l-cut", "L-Cut"),
-                                           ("j-cut", "J-Cut"), ("random", "Zufall")])
+                                           ("j-cut", "J-Cut"), ("random", "Zufall")],
+                                 help: ParamHelp.pauseCutMode)
                 }
                 group("Crossbleed-Filter") {
-                    WizToggle("Crossbleed-Gate", $engine.params.crossbleedGateEnabled)
-                    WizSlider("Dämpfung", $engine.params.gateFloor, -60...(-5), suffix: " dB", format: "%.0f")
-                    WizSlider("Hysterese", $engine.params.gateHysteresis, 0.5...10, suffix: " dB")
-                    WizSlider("Fenster", $engine.params.gateWindow, 20...500, suffix: " ms", format: "%.0f")
-                    WizSlider("Attack", $engine.params.gateAttack, 1...200, suffix: " ms", format: "%.0f")
-                    WizSlider("Release", $engine.params.gateRelease, 10...500, suffix: " ms", format: "%.0f")
-                    WizSlider("Gleichzeitig-Schwelle", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB")
+                    WizToggle("Crossbleed-Gate", $engine.params.crossbleedGateEnabled, help: ParamHelp.crossbleedGateEnabled)
+                    WizSlider("Dämpfung", $engine.params.gateFloor, -60...(-5), suffix: " dB", format: "%.0f", help: ParamHelp.gateFloor)
+                    WizSlider("Hysterese", $engine.params.gateHysteresis, 0.5...10, suffix: " dB", help: ParamHelp.gateHysteresis)
+                    WizSlider("Fenster", $engine.params.gateWindow, 20...500, suffix: " ms", format: "%.0f", help: ParamHelp.gateWindow)
+                    WizSlider("Attack", $engine.params.gateAttack, 1...200, suffix: " ms", format: "%.0f", help: ParamHelp.gateAttack)
+                    WizSlider("Release", $engine.params.gateRelease, 10...500, suffix: " ms", format: "%.0f", help: ParamHelp.gateRelease)
+                    WizSlider("Gleichzeitig-Schwelle", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB", help: ParamHelp.gateBothThreshold)
                 }
                 // Allgemeine Cutaway-Regeln (gelten für ALLE Cutaway-Typen)
                 group("Cutaway Regeln") {
-                    WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s")
+                    WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)
                     WizSlider("Pre-Roll", Binding(
                         get: { Double(engine.params.preRoll) },
-                        set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f")
-                    WizSlider("Zufallsfaktor", $engine.params.randomness, 0...0.5, format: "%.2f")
-                    WizToggle("Ungünstige Cutaways verschieben", $engine.params.clipFilterEnabled)
+                        set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f",
+                                  help: ParamHelp.preRoll)
+                    WizSlider("Zufallsfaktor", $engine.params.randomness, 0...0.5, format: "%.2f", help: ParamHelp.randomness)
+                    WizToggle("Ungünstige Cutaways verschieben", $engine.params.clipFilterEnabled, help: ParamHelp.clipFilterEnabled)
                 }
                 // Je Cutaway-Typ eine eigene Rubrik: Master-Toggle + NUR die Parameter,
                 // die wirklich dazugehören.
                 group("Kopfnicken") {
-                    WizToggle("Aktiv", $engine.params.noddingEnabled)
+                    WizToggle("Aktiv", $engine.params.noddingEnabled, help: ParamHelp.noddingEnabled)
                     WizSlider("Min. Konfidenz", Binding(
                         get: { engine.params.minConf * 100 },
-                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f")
+                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f",
+                                  help: ParamHelp.minConf)
                 }
                 // Muster-Toggles — PRO PRESET (engine.params.noddingPatterns), dynamisch
                 // aus nodding_patterns.json. Gehören zu „Kopfnicken".
@@ -900,35 +903,42 @@ struct WizardSettings: View {
                     }
                 }
                 group("Sprachreaktionen") {
-                    WizToggle("Aktiv", $engine.params.speakingEnabled)
-                    WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB")
-                    WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s")
+                    WizToggle("Aktiv", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
+                    WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB", help: ParamHelp.riseDb)
+                    WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s", help: ParamHelp.speakingMaxDur)
                 }
                 group("Stille") {
-                    WizToggle("Aktiv", $engine.params.pauseCutawayEnabled)
-                    WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s")
+                    WizToggle("Aktiv", $engine.params.pauseCutawayEnabled, help: ParamHelp.pauseCutawayEnabled)
+                    WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s", help: ParamHelp.pauseCutawayMinPause)
                 }
                 // Bildsprache: nur wenn es eine größere Einstellung gibt — sonst
                 // haben die Übergänge keine gemeinsame Kamera und wären wirkungslos.
                 if engine.hasWideCamera {
-                    group("Bildsprache") {
-                        WizToggle("Übergang bei Sprecherwechsel", $engine.params.transitionSpeakerChange)
+                    group("Bildsprache", description: ParamHelp.bildspracheIntro) {
+                        WizToggle("Übergang bei Sprecherwechsel", $engine.params.transitionSpeakerChange,
+                                  help: ParamHelp.transitionSpeakerChange)
                         WizSlider("Übergangs-Schwelle", $engine.params.transitionReturnFactor,
-                                  1.5...4.0, suffix: "×", format: "%.1f")
+                                  1.5...4.0, suffix: "×", format: "%.1f",
+                                  help: ParamHelp.transitionReturnFactor)
                     }
                     subLabel("Rückweg nach Cutaway über größere Einstellung")
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-                        WizToggle("Nach Kopfnicken", $engine.params.transitionCutawayNodding)
-                        WizToggle("Nach Sprachreaktion", $engine.params.transitionCutawaySpeaking)
-                        WizToggle("Nach Pause", $engine.params.transitionCutawayPause)
+                        WizToggle("Nach Kopfnicken", $engine.params.transitionCutawayNodding,
+                                  help: ParamHelp.transitionCutawayNodding)
+                        WizToggle("Nach Sprachreaktion", $engine.params.transitionCutawaySpeaking,
+                                  help: ParamHelp.transitionCutawaySpeaking)
+                        WizToggle("Nach Pause", $engine.params.transitionCutawayPause,
+                                  help: ParamHelp.transitionCutawayPause)
                     }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
                         WizSlider("Cooldown (Schnitte)", Binding(
                             get: { Double(engine.params.transitionCutawayCooldown) },
                             set: { engine.params.transitionCutawayCooldown = Int($0) }),
-                                  0...20, suffix: "", format: "%.0f")
+                                  0...20, suffix: "", format: "%.0f",
+                                  help: ParamHelp.transitionCutawayCooldown)
                         WizSlider("Cooldown (Zeit)", $engine.params.transitionCutawayCooldownS,
-                                  0...30, suffix: " s", format: "%.0f")
+                                  0...30, suffix: " s", format: "%.0f",
+                                  help: ParamHelp.transitionCutawayCooldownS)
                     }
                 }
             }
@@ -937,7 +947,7 @@ struct WizardSettings: View {
     }
 
     @ViewBuilder
-    private func group<C: View>(_ title: String, first: Bool = false,
+    private func group<C: View>(_ title: String, first: Bool = false, description: String = "",
                                 @ViewBuilder _ content: () -> C) -> some View {
         // Trennlinie über jeder Rubrik (wie unter „Einstellungen") — außer der ersten,
         // die direkt unter der Einstellungen-Trennlinie sitzt.
@@ -947,6 +957,14 @@ struct WizardSettings: View {
         Text(title.uppercased())
             .font(.caption2).fontWeight(.bold).foregroundStyle(.brandSecondary).tracking(0.8)
             .padding(.top, first ? 16 : 12).padding(.bottom, 2)
+        // Optionaler Einleitungstext für Rubriken, deren Sinn sich nicht aus den
+        // Parameternamen erschließt (z.B. Bildsprache).
+        if !description.isEmpty {
+            Text(description)
+                .font(.caption2).foregroundStyle(.wizMuted)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.bottom, 6)
+        }
         LazyVGrid(columns: columns, alignment: .leading, spacing: 0) { content() }
     }
 
@@ -960,22 +978,37 @@ struct WizardSettings: View {
 
 // ── Slider-/Toggle-Zeilen (2-spaltig, Label nah am Wert) ──
 
+/// Kleines (?) neben einem Parameter. Zeigt den Hilfetext als nativen Tooltip beim
+/// Überfahren (macOS `.help`). Nur sichtbar, wenn ein Text hinterlegt ist.
+struct WizHelpBadge: View {
+    let text: String
+    init(_ text: String) { self.text = text }
+    var body: some View {
+        Image(systemName: "questionmark.circle")
+            .font(.system(size: 12))
+            .foregroundStyle(.wizFaint)
+            .help(text)
+    }
+}
+
 struct WizSlider: View {
     let label: String
     @Binding var value: Double
     let range: ClosedRange<Double>
     var suffix: String = ""
     var format: String = "%.1f"
+    var help: String = ""
 
     init(_ label: String, _ value: Binding<Double>, _ range: ClosedRange<Double>,
-         suffix: String = "", format: String = "%.1f") {
+         suffix: String = "", format: String = "%.1f", help: String = "") {
         self.label = label; self._value = value; self.range = range
-        self.suffix = suffix; self.format = format
+        self.suffix = suffix; self.format = format; self.help = help
     }
 
     var body: some View {
         HStack(spacing: 12) {
             Text(label).font(.system(size: 14)).lineLimit(1)
+            if !help.isEmpty { WizHelpBadge(help) }
             Spacer(minLength: 8)
             WizSliderControl(value: $value, range: range)
             Text(String(format: format, value).replacingOccurrences(of: ".", with: ",") + suffix)
@@ -992,12 +1025,16 @@ struct WizSlider: View {
 struct WizToggle: View {
     let label: String
     @Binding var isOn: Bool
+    var help: String = ""
 
-    init(_ label: String, _ isOn: Binding<Bool>) { self.label = label; self._isOn = isOn }
+    init(_ label: String, _ isOn: Binding<Bool>, help: String = "") {
+        self.label = label; self._isOn = isOn; self.help = help
+    }
 
     var body: some View {
         HStack {
             Text(label).font(.system(size: 14)).lineLimit(1)
+            if !help.isEmpty { WizHelpBadge(help) }
             Spacer()
             WizSwitch(isOn: $isOn)
         }
@@ -1015,15 +1052,18 @@ struct WizSegmented: View {
     let label: String
     @Binding var selection: String
     let options: [(value: String, display: String)]
+    var help: String = ""
 
-    init(_ label: String, _ selection: Binding<String>, options: [(String, String)]) {
+    init(_ label: String, _ selection: Binding<String>, options: [(String, String)], help: String = "") {
         self.label = label; self._selection = selection
         self.options = options.map { (value: $0.0, display: $0.1) }
+        self.help = help
     }
 
     var body: some View {
         HStack(spacing: 12) {
             Text(label).font(.system(size: 14)).lineLimit(1)
+            if !help.isEmpty { WizHelpBadge(help) }
             Spacer(minLength: 8)
             HStack(spacing: 2) {
                 ForEach(options, id: \.value) { opt in

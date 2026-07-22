@@ -54,6 +54,16 @@ enum ParamHelp {
 
     // Allgemein (app-spezifisch, nicht im Web-Schema)
     static let fps = "Bildrate der Timeline. Muss zur Framerate deiner Kameras passen, sonst sitzen die Schnitte nicht korrekt."
+
+    // Bildsprache — Übergänge über größere Einstellungen
+    static let bildspracheIntro = "Diese Einstellungen betreffen Schnitte auf eine größere Einstellung — etwa eine Totale, auf der mehrere Personen zu sehen sind. Sie werden als sanfter Zwischenschritt genutzt, statt hart von einer Nahaufnahme zur nächsten zu springen."
+    static let transitionSpeakerChange = "Beim Wechsel zwischen zwei sprechenden Personen kurz auf eine größere Einstellung schneiden, die beide zeigt, statt direkt umzuschneiden. Wirkt weicher als ein harter Schnitt."
+    static let transitionReturnFactor = "Wie lang ein kurzer Einwurf mindestens sein muss, damit für ihn eine größere Einstellung eingebaut wird. Höhere Werte bauen sie seltener ein — nur bei längeren Beiträgen."
+    static let transitionCutawayNodding = "Nach einem Schnitt auf ein Nicken über eine größere Einstellung zurück zur sprechenden Person, statt direkt zurückzuschneiden."
+    static let transitionCutawaySpeaking = "Nach einem Schnitt auf einen kurzen Einwurf über eine größere Einstellung zurück zur sprechenden Person."
+    static let transitionCutawayPause = "Nach einem Pausen-Cutaway über eine größere Einstellung zurück zur sprechenden Person."
+    static let transitionCutawayCooldown = "Wie viele Schnitte vergehen müssen, bevor dieselbe größere Einstellung erneut als Übergang genutzt wird. Verhindert, dass sie zu oft hintereinander kommt."
+    static let transitionCutawayCooldownS = "Wie viele Sekunden vergehen müssen, bevor dieselbe größere Einstellung erneut genutzt wird. Freigegeben wird, was zuerst erreicht ist — Schnitte oder Zeit."
 }
 
 // MARK: - (?)-Badge + Wrapper
