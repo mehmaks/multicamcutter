@@ -403,10 +403,17 @@ Python-Runtime dazubekommt.
   Verkabelt: `waveform_sync.py`, `multicam_engine.py:~826`, `EngineController.swift`
   (PipelineParams `micsSameRecorder`), `WizardView.swift` (PersonsStep), `ParamHelp`.
 
+  **✅ Fenster-Fix geliefert (23.07.):** `_sync_pair` nimmt das Ziel-Chunk jetzt
+  bei schwachem Auftakt aus der ENERGIEREICHSTEN Region (`_loudest_window_start`)
+  statt stur ab Sekunde 0, und rechnet die Verschiebung aus dem Versatz heraus.
+  Der schnelle Normalfall (Auftakt lockt) bleibt unverändert. Deckt spät redende
+  Träger ab. Getestet: später Sprechbeginn → +30s exakt bei 751×.
+
   **NOCH OFFEN — für ECHT getrennte Quellen** (separater Recorder mit Clock-Drift,
-  Funk-Lav ohne Raumklang): Bausteine 1–3 oben (gegen ALLE Partner inkl. Cams
-  probieren; „nicht syncbar"-Liste zurückgeben statt abbrechen; manueller Offset).
-  Plus Fenster-Fix: **Ziel-Chunk aus der lautesten Region** wählen, nicht ab Sek. 0.
+  Funk-Lav ohne Raumklang): „nicht syncbar"-Liste zurückgeben statt abbrechen +
+  manueller Offset/Ausschluss pro Quelle in der App (Baustein 2+3). Baustein 1
+  (gegen ALLE Partner inkl. Cams gegenprüfen) — siehe unten, wird als Nächstes
+  gebaut.
 
 ### 🔴 N-Sprecher-Diarisierung (3 Personen auf 3 EIGENEN Cams) — HOCHPRIORISIERT (22.07.) — Aufwand: **mittel**
 *(Vom User am 22.07. wieder nach oben gesetzt: Das ist die letzte Beschraenkung, die

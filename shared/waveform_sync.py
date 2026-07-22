@@ -118,6 +118,13 @@ def _sync_pair(
     das 30 min in die Aufnahme hinein beginnt, ist mit einer 3-Minuten-Referenz
     nicht auffindbar — die Fenster haben nicht einmal gemeinsamen Inhalt.
 
+    ZIEL-FENSTER AB DER LAUTESTEN STELLE (Fallback): Das Ziel-Chunk kommt zuerst
+    vom Anfang (schnell, deckt den Normalfall). Bleibt die Confidence dort flach
+    unter TRUST, liegt das oft daran, dass der Traeger im ersten Fenster kaum
+    spricht — ein inhaltsleeres Chunk findet keinen Gipfel, egal wie gross die
+    Referenz wird. Dann wird das Chunk aus der ENERGIEREICHSTEN Region des Ziels
+    genommen und der Versatz um diese Verschiebung korrigiert.
+
     Erweitert wird bis TRUST_CONFIDENCE, nicht bis MIN_CONFIDENCE: 14x ist
     Rauschen, das die 5.0 muehelos passiert. Ist das Referenzmaterial
     erschoepft, wird das BESTE gefundene Ergebnis zurueckgegeben (sofern
@@ -125,54 +132,93 @@ def _sync_pair(
     entscheidet dann, ob es tragfaehig ist.
     """
     target_duration = start_duration or CHUNK_SECONDS
-    ref_duration    = target_duration
     max_ref         = _probe_duration(ref_path) or target_duration * 8
-    best            = None
 
-    while True:
-        print(f"  {ref_label} ↔ {target_label}: {target_duration:.0f}s gegen "
-              f"{ref_duration:.0f}s Referenz ...", end=" ", flush=True)
+    def _measure(target_audio, chunk_start_samples, note=""):
+        """Referenzfenster wachsen lassen, das FESTE Ziel-Chunk korrelieren.
+        Gibt (bestes SyncResult, ob TRUST erreicht) zurueck. Der Versatz ist um
+        chunk_start_samples korrigiert (das Chunk begann erst spaeter im Ziel)."""
+        ref_duration = target_duration
+        best = None
+        while True:
+            print(f"  {ref_label} ↔ {target_label}: {target_duration:.0f}s{note} gegen "
+                  f"{ref_duration:.0f}s Referenz ...", end=" ", flush=True)
+            if cache is not None and (ref_path, ref_duration) in cache:
+                ref_audio = cache[(ref_path, ref_duration)]
+            else:
+                ref_audio = extract_audio(ref_path, duration_s=ref_duration)
+                if cache is not None:
+                    cache[(ref_path, ref_duration)] = ref_audio
 
-        if cache is not None and (ref_path, ref_duration) in cache:
-            ref_audio = cache[(ref_path, ref_duration)]
-        else:
-            ref_audio = extract_audio(ref_path, duration_s=ref_duration)
-            if cache is not None:
-                cache[(ref_path, ref_duration)] = ref_audio
-        target_audio = extract_audio(target_path, duration_s=target_duration)
-
-        offset_samples, confidence = _correlate_offset(ref_audio, target_audio)
-        result = SyncResult(
-            ref_label=ref_label,
-            target_label=target_label,
-            offset_frames=_samples_to_frames(offset_samples, fps),
-            offset_seconds=offset_samples / SAMPLE_RATE,
-            confidence=confidence,
-            analyzed_seconds=ref_duration,
-        )
-        if best is None or confidence > best.confidence:
-            best = result
-
-        if confidence >= TRUST_CONFIDENCE:
-            print(f"Confidence: {confidence:.1f}x ✓ → Offset: "
-                  f"{result.offset_frames:+d} frames ({result.offset_seconds:+.3f}s)")
-            return result
-
-        if ref_duration >= max_ref:
-            if best.confidence >= MIN_CONFIDENCE:
-                print(f"Confidence: {confidence:.1f}x (bestes: {best.confidence:.1f}x) "
-                      f"→ Offset: {best.offset_frames:+d} frames — wird gegengeprueft")
-                return best
-            raise SyncError(
-                f"Kein verlaesslicher Sync fuer {ref_label} ↔ {target_label} "
-                f"(beste Confidence {best.confidence:.1f}x bei {max_ref:.0f}s "
-                f"Referenzmaterial). Bitte manuell synchronisieren."
+            offset_samples, confidence = _correlate_offset(ref_audio, target_audio)
+            offset_samples -= chunk_start_samples   # Chunk-Verschiebung herausrechnen
+            result = SyncResult(
+                ref_label=ref_label,
+                target_label=target_label,
+                offset_frames=_samples_to_frames(offset_samples, fps),
+                offset_seconds=offset_samples / SAMPLE_RATE,
+                confidence=confidence,
+                analyzed_seconds=ref_duration,
             )
+            if best is None or confidence > best.confidence:
+                best = result
 
-        print(f"Confidence: {confidence:.1f}x — erweitere Referenzfenster")
-        # Verdoppeln statt linear erhoehen: der gesuchte Versatz kann Stunden
-        # betragen, in 3-Minuten-Schritten dauerte das ewig.
-        ref_duration = min(ref_duration * 2, max_ref)
+            if confidence >= TRUST_CONFIDENCE:
+                print(f"Confidence: {confidence:.1f}x ✓ → Offset: "
+                      f"{result.offset_frames:+d} frames ({result.offset_seconds:+.3f}s)")
+                return result, True
+            if ref_duration >= max_ref:
+                print(f"Confidence: {confidence:.1f}x (bestes: {best.confidence:.1f}x)")
+                return best, False
+            print(f"Confidence: {confidence:.1f}x — erweitere Referenzfenster")
+            # Verdoppeln statt linear: der gesuchte Versatz kann Stunden betragen.
+            ref_duration = min(ref_duration * 2, max_ref)
+
+    # 1) Ziel-Auftakt (schnell, unveraenderter Normalfall).
+    result, trusted = _measure(extract_audio(target_path, duration_s=target_duration), 0)
+
+    # 2) Fallback: schwacher Auftakt → Chunk aus der lautesten Region des Ziels.
+    #    Nur wenn dahinter ueberhaupt mehr Material liegt. Der ganze Ziel-Ton wird
+    #    dafuer einmal dekodiert; das passiert nur im Ausnahmefall.
+    if not trusted:
+        full = extract_audio(target_path)
+        win = int(round(target_duration * SAMPLE_RATE))
+        if len(full) > win + SAMPLE_RATE:
+            start = _loudest_window_start(full, win)
+            if start > 0:
+                alt, alt_trusted = _measure(full[start:start + win], start,
+                                            note=f" ab {start / SAMPLE_RATE:.0f}s")
+                if alt.confidence > result.confidence:
+                    result, trusted = alt, alt_trusted
+
+    if result.confidence < MIN_CONFIDENCE:
+        raise SyncError(
+            f"Kein verlaesslicher Sync fuer {ref_label} ↔ {target_label} "
+            f"(beste Confidence {result.confidence:.1f}x bei {max_ref:.0f}s "
+            f"Referenzmaterial). Bitte manuell synchronisieren."
+        )
+    if not trusted:
+        print(f"  {ref_label} ↔ {target_label}: bestes Ergebnis "
+              f"{result.offset_frames:+d} frames ({result.confidence:.1f}x) — wird gegengeprueft")
+    return result
+
+
+def _loudest_window_start(audio: np.ndarray, win_samples: int) -> int:
+    """Startindex (Samples) des energiereichsten Fensters der Laenge win_samples.
+    Grobes 1-Sekunden-Raster — reicht, um die sprechreiche Region zu finden, und
+    ist auch fuer stundenlange Dateien schnell."""
+    n = len(audio)
+    if n <= win_samples:
+        return 0
+    block = SAMPLE_RATE  # 1s-Raster
+    nblocks = n // block
+    win_blocks = max(1, win_samples // block)
+    if nblocks <= win_blocks:
+        return 0
+    energy = (audio[:nblocks * block].reshape(nblocks, block) ** 2).sum(axis=1)
+    csum = np.concatenate([[0.0], np.cumsum(energy.astype(np.float64))])
+    window_energy = csum[win_blocks:] - csum[:-win_blocks]   # Energie je Startblock
+    return int(np.argmax(window_energy)) * block
 
 
 def _probe_duration(path: str) -> float:
