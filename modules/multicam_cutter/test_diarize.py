@@ -285,6 +285,28 @@ def test_pick_widest_reset_camera():
     assert _pick_widest([]) is None
 
 
+# ── Test 7: Multi-Person-Reaktion → kleinste gemeinsame Kamera (P3b) ───────────
+def test_multi_person_offcam_smallest_containing():
+    from multicam_cutter.add_reactions_to_edl import _pick_multi_person_offcam
+    A = {'name': 'A', 'mics': ['p1', 'p2', 'p3']}   # Totale
+    B = {'name': 'B', 'mics': ['p1', 'p2']}
+    C = {'name': 'C', 'mics': ['p1']}
+    cutaway = [A, B, C]
+
+    # p1 (auf C) und p2 (auf B) reagieren → kleinste Kamera mit beiden = B
+    assert _pick_multi_person_offcam([C, B], cutaway, wide_cams=[])['name'] == 'B'
+    # alle drei reagieren → Totale A
+    assert _pick_multi_person_offcam([A, B, C], cutaway, wide_cams=[])['name'] == 'A'
+
+    # Binaerer Fallback: keine gemeinsame Kamera, aber feste Totale (ohne Mics).
+    close_only = [{'name': 'X', 'mics': ['p1']}, {'name': 'Y', 'mics': ['p2']}]
+    totale = {'name': 'T', 'mics': []}
+    assert _pick_multi_person_offcam(close_only, close_only,
+                                     wide_cams=[totale])['name'] == 'T'
+    # Keine gemeinsame Kamera, keine Totale → None (bleibt Einzel-Cutaway).
+    assert _pick_multi_person_offcam(close_only, close_only, wide_cams=[]) is None
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

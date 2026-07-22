@@ -174,6 +174,21 @@ def _pick_widest(cams: List[Dict]) -> Optional[Dict]:
     return max(cams, key=shot_level) if cams else None
 
 
+def _pick_multi_person_offcam(reacting_cams: List[Dict], cutaway_cams: List[Dict],
+                              wide_cams: List[Dict]) -> Optional[Dict]:
+    """Bei Multi-Person-Reaktion: kleinste Kamera, die ALLE reagierenden Personen
+    zeigt (Totale-Ersatz via smallest_containing). Fallback auf die feste Totale
+    (wide_cams[0]) — so bleibt der binaere Fall byte-identisch, auch wenn die
+    Totale keine Mics traegt. Gibt None, wenn keine gemeinsame Kamera existiert
+    (dann bleibt es beim Einzel-Cutaway auf die reagierende Kamera)."""
+    from shot_sizes import smallest_containing
+    persons = sorted({p for c in reacting_cams for p in (c.get('mics') or [])})
+    common = smallest_containing(cutaway_cams, persons) if persons else None
+    if common is None and wide_cams:
+        common = wide_cams[0]
+    return common
+
+
 def build_events_with_cutaways(
     section_start: int,
     section_end: int,
@@ -243,15 +258,15 @@ def build_events_with_cutaways(
     for r in valid_reactions:
         close_cam_frames.setdefault(r['cam']['name'], []).append(r['timeline_frame'])
 
+    def _reacting_cams_near(frame: int) -> List[Dict]:
+        """Close-Kameras mit einer Reaktion innerhalb cluster_max_gap von frame."""
+        return [c for c in close_cams
+                if any(abs(f - frame) <= cluster_max_gap
+                       for f in close_cam_frames.get(c['name'], []))]
+
     def _is_multi_person(frame: int) -> bool:
-        """True wenn ≥2 Close-Kameras eine Reaktion innerhalb cluster_max_gap von frame haben."""
-        if not wide_cams:
-            return False
-        active = sum(
-            1 for frames in close_cam_frames.values()
-            if any(abs(f - frame) <= cluster_max_gap for f in frames)
-        )
-        return active >= 2
+        """True wenn ≥2 Close-Kameras nahe frame reagieren."""
+        return len(_reacting_cams_near(frame)) >= 2
 
     events: List[EDLEvent] = []
     current_pos    = section_start
@@ -285,9 +300,16 @@ def build_events_with_cutaways(
                 })
             continue
 
-        # OFF-Cutaway: Multi-Person → Wide-Kamera; Single-Person → beste Close-Kamera
-        if _is_multi_person(cutaway_frame) and wide_cams:
-            off_cam    = wide_cams[0]
+        # OFF-Cutaway: Multi-Person → kleinste Kamera, die ALLE Reagierenden zeigt
+        # (Totale-Ersatz via smallest_containing); Single-Person → beste Close.
+        # Binaer: smallest_containing liefert die Totale; hat sie keine Mics
+        # zugeordnet, faengt der wide_cams[0]-Fallback denselben Fall ab. Ohne
+        # gemeinsame Kamera bleibt es bei reaction['cam'] — wie bisher.
+        _common = (_pick_multi_person_offcam(_reacting_cams_near(cutaway_frame),
+                                             cutaway_cams, wide_cams)
+                   if _is_multi_person(cutaway_frame) else None)
+        if _common is not None:
+            off_cam    = _common
             cut_reason = f"reaction_{rtype}_wide"
         else:
             off_cam    = reaction['cam']
@@ -847,6 +869,7 @@ def split_long_shots(
     all_cam_names: List[str],
     fps: float,
     cam_types_dict: Dict[str, str] = None,  # {clip_name: 'close'|'wide'}
+    cam_shot_levels: Dict[str, int] = None,  # {clip_name: Anzahl gezeigter Personen}
     decision_log: Optional[List] = None,
 ) -> List[EDLEvent]:
     print(f"\n✂️  PASS 4: Split zu lange Shots")
@@ -857,6 +880,7 @@ def split_long_shots(
     split_count = 0
     cutaway_count = 0
     types = cam_types_dict or {}
+    levels = cam_shot_levels or {}
 
     def _emit_speaker(parent, rec_in, rec_out):
         """Speaker-Teilstück aus einem Parent-Event mit korrigierten Source-Frames."""
@@ -893,9 +917,16 @@ def split_long_shots(
             continue
 
         # Wide-Kamera bevorzugt als Split-Ziel (Reset-Schnitt); Fallback: erste andere Close-Kamera
-        wide_others  = [c for c in all_cam_names if c != event.clip_name and types.get(c, 'close') == 'wide']
-        close_others = [c for c in all_cam_names if c != event.clip_name and types.get(c, 'close') != 'wide']
-        other_clip = wide_others[0] if wide_others else (close_others[0] if close_others else None)
+        # Totale bevorzugt als Split-Ziel (Reset-Schnitt); ohne Totale die
+        # breiteste andere Kamera (meiste Personen) statt stur der ersten Close.
+        # Binaer mit Totale unveraendert; ohne Totale bei gleichen Stufen die
+        # erste (max ist stabil) — also byte-identisch, fuer N besser.
+        wide_others = [c for c in all_cam_names if c != event.clip_name and types.get(c, 'close') == 'wide']
+        if wide_others:
+            other_clip = wide_others[0]
+        else:
+            _others = [c for c in all_cam_names if c != event.clip_name]
+            other_clip = max(_others, key=lambda c: levels.get(c, 1)) if _others else None
         if not other_clip or other_clip not in reference_frames:
             new_events.append(event)
             continue
@@ -1528,6 +1559,7 @@ def main():
         final_events, max_shot_duration, cleanup_min_duration,
         reference_frames, timeline_zero_video_frames, all_cam_names, args.fps,
         cam_types_dict=cam_types_dict,
+        cam_shot_levels={c['name']: max(1, len(c.get('mics') or [])) for c in cameras},
         decision_log=decision_log,
     )
 
