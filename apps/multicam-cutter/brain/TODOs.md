@@ -125,6 +125,20 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
+- [ ] **Clipnamen im AAF: Schnittgrund vor Quellname.** Aufwand: **leicht** (Stufe 1).
+  Heute `{stem} - {label}` (`build_aaf.py:483`), z.B.
+  `VID_20250710_101101_00_002_004_25… - Übergang`. Bei langen Quellnamen (GoPro/DJI,
+  Totale) wird der Name vom Resolve-Clipfeld abgeschnitten und der **Grund ist nicht
+  mehr sichtbar** — beobachtet am 21.07. Der Grund ist beim Sichten aber die
+  wichtigere Information.
+  - **Stufe 1:** Reihenfolge umdrehen → `Übergang - C0352` bzw. mit Person
+    `Übergang - Andreas`. Steht der Grund vorn, überlebt er das Abschneiden.
+  - **Stufe 2:** Als **Toggle** in den Einstellungen (Grund-zuerst / Quelle-zuerst),
+    Default noch zu entscheiden.
+  - **Stufe 3 (später, wenn sinnvoll):** freies Muster per Wildcards, z.B.
+    `{reason} · {person} ({source})`. Erst bauen, wenn ein konkreter Bedarf über
+    die zwei festen Varianten hinausgeht — sonst ist es Konfiguration ohne Nachfrage.
+
 - [ ] **Changelog: in der App sichtbar UND auf der Website.** Aufwand: **mittel**.
   Nutzer sollen sehen, was ein Update bringt — heute steht im Update-Dialog nur
   eine Versionsnummer.
