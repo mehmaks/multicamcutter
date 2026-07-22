@@ -311,9 +311,13 @@ Python-Runtime dazubekommt.
   Laufzeit aus `LicenseConfig.apiBase`). Details: `brain/Feedback-API.md`.
 - [x] Log-View: Analysiere-Zeilen gefiltert (Progress-Bar zeigt Fortschritt)
 
-### 🟠 N-Sprecher-Diarisierung (3 Personen auf 3 EIGENEN Cams) — Aufwand: **mittel**
-*(war 🔴 PRIORISIERT — herabgestuft 21.07., siehe Hinweis unten: der haeufige Fall
-Host + 2 Gaeste laeuft bereits, solange sich die Gaeste eine Kamera teilen.)*
+### 🔴 N-Sprecher-Diarisierung (3 Personen auf 3 EIGENEN Cams) — HOCHPRIORISIERT (22.07.) — Aufwand: **mittel**
+*(Vom User am 22.07. wieder nach oben gesetzt: Das ist die letzte Beschraenkung, die
+echte Mehr-Kamera-Setups blockiert — der Waechter sperrt >2 Nahaufnahmen NUR wegen
+der binaeren Diarisierung. `rms_diarize` vergleicht zwei Seiten (CAM1/CAM2); eine
+dritte Nahaufnahme kann nie als Sprecher gewaehlt werden. Loesung: argmax ueber N
+Mics statt Differenz zweier Seiten — Teil B in Plan-Multicam-3plus.md. Der Sync
+(Teil A) ist bereits N-faehig, es fehlt nur noch die Diarisierung.)*
 - [ ] **Basis-EDL von binär (2 Cams) auf N-fach umstellen.** User-Kontext: Podcast hat
   **häufig Host + 2 Gäste = 3 Personen**, also kein Edge-Case.
   ⚠️ **Weniger dringend als hier lange behauptet** (geklärt 21.07.): Die Grenze sind
