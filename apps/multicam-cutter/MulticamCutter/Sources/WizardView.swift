@@ -663,7 +663,12 @@ struct LadderRow: View {
 
     private func shotChip(_ cam: CameraInfo, wide: Bool, tag: String) -> some View {
         HStack(spacing: 5) {
-            Text(cam.displayName).font(.system(.caption2, design: .monospaced)).lineLimit(1)
+            // Breite cappen, sonst nimmt die Pill in der FlowLayout die volle
+            // intrinsische Breite des Dateinamens und ragt aus dem Container.
+            // Mittig kürzen behält Anfang UND Endung (…_25fps.mp4) sichtbar.
+            Text(cam.displayName).font(.system(.caption2, design: .monospaced))
+                .lineLimit(1).truncationMode(.middle)
+                .frame(maxWidth: 180, alignment: .leading)
             Text(tag).font(.system(size: 9)).opacity(0.7)
         }
         .padding(.horizontal, 8).padding(.vertical, 4)

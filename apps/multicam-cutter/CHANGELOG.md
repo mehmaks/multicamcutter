@@ -5,6 +5,15 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.1
+
+Kleine Korrekturen an der Oberfläche:
+
+- Ein Hinweis beim ersten Start sprach von „zwei Kameras", obwohl auch mehr möglich
+  sind — zwei Nahaufnahmen plus zusätzliche Totalen. Der Text ist jetzt eindeutig.
+- In der Übersicht ragte ein sehr langer Kameraname aus seiner Markierung heraus.
+  Er wird jetzt sauber gekürzt (Anfang und Dateiendung bleiben sichtbar).
+
 ## 0.6.0
 
 **Neu: Bildsprache — sanftere Übergänge bei mehreren Einstellungsgrößen**
