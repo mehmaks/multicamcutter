@@ -360,6 +360,35 @@ Python-Runtime dazubekommt.
   Laufzeit aus `LicenseConfig.apiBase`). Details: `brain/Feedback-API.md`.
 - [x] Log-View: Analysiere-Zeilen gefiltert (Progress-Bar zeigt Fortschritt)
 
+### 🔴 Sync-Abbruch bei EINER Problemquelle blockiert alles (Fremd-Feedback, 22.07.)
+- [ ] **Nicht hart abbrechen, wenn eine Quelle nicht syncbar ist.** Realfall vom
+  Kollegen: 6 Quellen (3 Cams, 3 Mics), fünf perfekt synchron (MIC1↔MIC2 230×,
+  Cams 100–400×), nur **MIC3** korreliert mit nichts (über MIC1 +62383 Frames,
+  über MIC2 +19181 — 28 min auseinander, Confidence flach ~15× über die volle
+  Datei). Die Kreuzprobe verweigert **korrekt** (kein echter Gipfel), aber der
+  `SyncError` bricht den GESAMTEN Lauf ab. Der Cutter kommt gar nicht weiter.
+  **Zu bauen — mehrstufig:**
+  1. **Gegen ALLE Partner versuchen, nicht nur die Referenz.** Heute wird jede
+     Quelle nur gegen das längste Mic korreliert (`sync_sources`). Eine
+     Close-Mic teilt oft wenig Raumklang mit einem fernen Mic, aber viel mit der
+     Kamera IHRER Person. Also: scheitert Quelle gegen die Referenz, gegen die
+     anderen bereits sicheren Quellen (Kameras!) probieren, bestes Ergebnis über
+     `TRUST_CONFIDENCE` nehmen. (Deckt sich mit „Sync-Referenz überdenken".)
+  2. **Bleibt sie unsyncbar: nicht abbrechen, sondern melden.** `sync_sources`
+     gibt die ermittelten Offsets zurück PLUS eine Liste „nicht syncbar". Die App
+     bietet dann pro Problemquelle: **(a) manuellen Offset eingeben** (Feld in
+     Frames/Sekunden), **(b) Quelle ausschließen**, **(c) abbrechen**. Die
+     anderen fünf Quellen sind ja fertig.
+  3. **Manueller Offset** ist damit endlich fällig (früher vertagt) — für Quellen,
+     deren Ton aus ganz anderer Position kommt (Funk-Lav ohne Raumklang, separater
+     Recorder mit Clock-Drift).
+  **Sofort-Workaround (heute):** Die Problem-Mic im Personen/Mic-Schritt
+  **abwählen** (`included=false`) — dann ist sie nicht im Sync und der Lauf
+  läuft. Nachteil: die Person auf dieser Spur wird nicht diarisiert.
+  **Offen zur Diagnose:** Warum korreliert MIC3 mit nichts? Separater Recorder
+  (Clock-Drift?), Funk-Lav ohne Raumklang, oder problematische/stille Spur?
+  Entscheidet, ob Baustein 1 (gegen Kamera) reicht oder nur manueller Offset hilft.
+
 ### 🔴 N-Sprecher-Diarisierung (3 Personen auf 3 EIGENEN Cams) — HOCHPRIORISIERT (22.07.) — Aufwand: **mittel**
 *(Vom User am 22.07. wieder nach oben gesetzt: Das ist die letzte Beschraenkung, die
 echte Mehr-Kamera-Setups blockiert — der Waechter sperrt >2 Nahaufnahmen NUR wegen
