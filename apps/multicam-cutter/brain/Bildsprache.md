@@ -121,6 +121,7 @@ Unverändert übernommen. Meine Einordnung steht getrennt darunter.
 | Pflicht mit Gedächtnis | R4 | sammelt „Schuld" über Zeit an |
 | Übergangsregel | R6, R7, R8 | betreffen das PAAR aus Vorher und Nachher |
 | Schnitt-Nachbarschaft | R9 | Kamerawahl beidseits eines Pause-Trims |
+| Pflicht/Gedächtnis | R10 | Cooldown je Zusatzkamera (in Schnitten) |
 
 Daraus folgt die Aufteilung in den Einstellungen: **R1 und R5 sind
 Grundeinstellungen**, die übrigen einzeln zuschaltbare Regeln.
@@ -227,6 +228,33 @@ zu prüfen erzeugt weniger unschöne Fragmente, als sie nachträglich
 wegzuräumen. → Die insert_transition_events-Mechanik (inkl. der A-B-A-Einheit-
 Logik) ist damit auch die Grundlage für die Cutaway-Rückwege; sie muss nur an
 den Cutaway-Positionen statt an der Basis-EDL laufen (zweite Anwendung).
+
+### R10 — Cooldown je Zusatzkamera (User, 22.07.)
+
+> Verhindern, dass jeder 3. oder 4. Schnitt in dieselbe weitere Cam schneidet.
+> „Frequenz" ist das falsche Wort — eher **Cooldown**, und der gilt PRO
+> weiterer Kamera. Eine Kamera darf z. B. erst nach jedem 7. Schnitt wieder
+> benutzt werden. Bei mehreren Zusatzkameras bekommt JEDE ihren eigenen
+> Cooldown, damit nicht kategorisch für 7 Schnitte abgeschaltet wird, dass
+> weitere Einstellungen genutzt werden können.
+
+**Wichtig — bezieht sich auf DIESELBE Kamera, nicht auf „weitere Einstellungen"
+allgemein:** Im aktuellen Setup gibt es nur eine Totale, die immer wieder
+verwendet wird; die soll gebremst werden. Sind mehrere da, bremst der Cooldown
+jede einzeln, sodass ein Wechsel zwischen ihnen weiter erlaubt bleibt.
+
+**Einordnung:** Gemessen in SCHNITTEN, nicht in Sekunden (der User denkt in
+„jedem 7. Schnitt"). Damit ist es eine **Gedächtnis-Regel** wie R4/R5 — die
+Auswahl muss je Kamera mitführen, wie viele Schnitte seit der letzten
+Verwendung vergangen sind. Verwandt mit R5 (Dynamik-Faktor): R5 bestraft
+Wiederholung graduell (weich), R10 sperrt sie für N Schnitte (hart). Denkbar
+als zwei Stellungen derselben Idee — oder R10 als harte Kappung über dem
+weichen R5.
+
+**Greift an zwei Stellen:** bei der Wahl der Cutaway-/Reset-Kamera UND bei der
+Brücken-Kamera der Übergangsregel — sonst umginge die weiche Landung den
+Cooldown. Beide fragen letztlich `smallest_containing` bzw. die Kamerawahl; der
+Cooldown wäre ein Filter davor.
 
 ### Zwei Regeln brauchen Gedächtnis
 

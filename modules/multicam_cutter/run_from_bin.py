@@ -752,7 +752,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     # Bis dahin hier vorbelegt, damit die Dev-App den Effekt zeigt. Bewusst NUR
     # 'nodding', um ihn isoliert zu beurteilen. setdefault: ein spaeterer
     # App-Wert gewinnt. VOR dem Ausliefern entfernen — Matrix-Default ist aus.
-    params.setdefault('transition_cutaway_back', ['speaking_reaction'])
+    params.setdefault('transition_cutaway_back', ['nodding', 'speaking_reaction', 'pause'])
 
     # params.json für Subprozesse schreiben (Analyzer, etc.)
     params_json_path = work_dir / 'params.json'
