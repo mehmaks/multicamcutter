@@ -477,10 +477,28 @@ CUTAWAY_RETURN_REASONS = {
 }
 
 
+def _camera_on_cooldown(out: List[EDLEvent], cam: str, cooldown: int) -> bool:
+    """Wurde `cam` innerhalb der letzten `cooldown` Events schon benutzt?
+
+    Erster Baustein des in brain/Bildsprache.md vorgesehenen `cooldown_ok`-Helfers
+    (R10): eine Zusatzkamera soll nicht bei jedem 3./4. Schnitt wiederkehren. Zaehlt
+    ALLE bisherigen Vorkommen dieser Kamera im Ausgabestrom — Bruecken, Cutaways,
+    Sprecherwechsel-Bruecken — nicht nur die aus diesem Pass. Pro Kamera, weil nach
+    `cam` gefiltert wird: mehrere Totalen bremsen sich unabhaengig.
+    """
+    if cooldown <= 0:
+        return False
+    for e in out[-cooldown:]:
+        if e.clip_name == cam:
+            return True
+    return False
+
+
 def insert_cutaway_return_transitions(
     events: List[EDLEvent], cameras: List[Dict],
     reference_frames: Dict[str, int], timeline_zero_video_frames: Dict[str, int],
     enabled_reasons: set, bridge_len_frames, min_shot_frames: int, fps: float,
+    cooldown: int = 0,
 ) -> List[EDLEvent]:
     """Weiche Landung zurueck zum Sprecher nach einem Close-Cutaway.
 
@@ -508,7 +526,7 @@ def insert_cutaway_return_transitions(
         return set(person_ids(c)) if c else set()
 
     out: List[EDLEvent] = []
-    inserted = 0
+    inserted = skipped_cooldown = 0
     for i, ev in enumerate(events):
         prev = events[i - 1] if i > 0 else None
         if (prev is not None and ev.reason == "speaker"
@@ -518,6 +536,13 @@ def insert_cutaway_return_transitions(
             if (bridge and bridge['name'] not in (prev.clip_name, ev.clip_name)
                     and (not out or out[-1].clip_name != bridge['name'])):
                 bc   = bridge['name']
+                # Cooldown: kam diese Kamera gerade erst? Dann keine Bruecke, der
+                # Rueckweg bleibt ein harter Schnitt. Verhindert, dass dieselbe
+                # Totale bei jedem Rueckweg wiederkehrt (R10).
+                if _camera_on_cooldown(out, bc, cooldown):
+                    skipped_cooldown += 1
+                    out.append(ev)
+                    continue
                 want = bridge_len_frames()
                 ev_len = ev.record_out_frame - ev.record_in_frame
                 tzv    = timeline_zero_video_frames.get(bc, 0)
@@ -546,8 +571,11 @@ def insert_cutaway_return_transitions(
                     inserted += 1
         out.append(ev)
 
-    if inserted:
-        print(f"  {inserted} Cutaway-Rueckwege eingefügt (weiche Landung)")
+    if inserted or skipped_cooldown:
+        msg = f"  {inserted} Cutaway-Rueckwege eingefügt (weiche Landung)"
+        if skipped_cooldown:
+            msg += f"; {skipped_cooldown} per Cooldown ausgelassen"
+        print(msg)
     return out
 
 
@@ -1272,6 +1300,9 @@ def main():
     # 'speaking_reaction', 'pause'). Leer = aus (Matrix-Default). Siehe
     # brain/Bildsprache.md und CUTAWAY_RETURN_REASONS.
     transition_cutaway_back = params.get('transition_cutaway_back', []) or []
+    # Cooldown je Zusatzkamera in SCHNITTEN (R10): 0 = aus. Bremst, dass dieselbe
+    # Totale bei jedem Rueckweg wiederkehrt.
+    transition_cutaway_cooldown = int(params.get('transition_cutaway_cooldown', 0))
 
     cutaway_enabled = {
         'nodding': bool(params.get('nodding_enabled', True)),
@@ -1451,6 +1482,7 @@ def main():
         all_events = insert_cutaway_return_transitions(
             all_events, cameras, reference_frames, timeline_zero_video_frames,
             enabled, _cutaway_bridge_len, min_shot_frames, args.fps,
+            cooldown=transition_cutaway_cooldown,
         )
 
     # Pass 3: Cleanup

@@ -129,7 +129,8 @@ Python-Runtime dazubekommt.
   `transition_cutaway_back` mit `['nodding']` vor, damit die Dev-App die
   Cutaway-Rückwege ohne UI zeigt. Der Matrix-Default ist AUS. Sobald die
   Bildsprache-Rubrik existiert, diesen `setdefault` löschen und den Wert aus den
-  Einstellungen kommen lassen (22.07.).
+  Einstellungen kommen lassen (22.07.). Betrifft auch `transition_cutaway_cooldown`
+  (R10-Erstversion, Test-Default 6) — gehört als Regler in dieselbe Rubrik.
 
 - [ ] **Clipnamen im AAF: Schnittgrund vor Quellname.** Aufwand: **leicht** (Stufe 1).
   Heute `{stem} - {label}` (`build_aaf.py:483`), z.B.
