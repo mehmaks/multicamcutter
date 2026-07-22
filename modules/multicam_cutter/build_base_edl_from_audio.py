@@ -857,13 +857,18 @@ def insert_transition_events(events: list, fps: float,
     Verlaengerung haette den Sprecher unsichtbar gemacht: aus A-B-A wuerde A-T-A,
     B haette gesprochen und waere nie zu sehen.
 
-    Wie viel „zu kurz" ist, haengt vom Muster ab:
+    Die 2,5x-Schwelle (`return_min_factor`) gilt NUR dem HINWEG eines A-B-A:
+    "Ist B lang genug, um ueber die Totale HINEINzuschneiden?" Eine kurze
+    Zwischenrede totalisiert man nicht — das wird hektisch, und die Bruecke wuerde
+    B zusaetzlich kuerzen.
 
-      A-B-A  (Rueckkehr)  B braucht `return_min_factor` x Mindest-Schnittlaenge.
-                          Ein Ausflug, der gleich wieder zurueckfuehrt, braucht
-                          mehr Raum, sonst wird es hektisch.
-      A-B-C  (Weitergang) B braucht Bruecke + Mindest-Schnittlaenge, also genug
-                          fuer die Bruecke UND einen tragfaehigen Rest.
+    Der RUECKWEG (B→A) ist davon unberuehrt: er frisst A, nicht B, und ist eine
+    weiche Landung zurueck zum Sprecher. Fuer ihn zaehlt nur, dass A nach der
+    Bruecke noch min_shot uebrig hat (`want + min_shot`) — dieselbe Bedingung wie
+    beim gewoehnlichen Weitergang A-B-C.
+
+    Kurzes B ergibt damit A-B-T-A: Hinweg unterdrueckt (B bleibt ungekuerzt),
+    Rueckweg gebaut, B durch den transition-bewussten PASS-3-Schutz gehalten.
 
     resolve_bridge(von_clip, nach_clip) -> (clip, ref, timeline_zero_video) oder
     None. BEWUSST je Uebergang befragt, nicht einmal global: unter binaerer
@@ -913,31 +918,25 @@ def insert_transition_events(events: list, fps: float,
         want   = bridge_len_frames()
         ev_len = ev_end - ev_start
 
-        # A-B-A muss als EINHEIT entschieden werden. Frueher wurden Hin- und
-        # Rueckweg unabhaengig geprueft: bei kurzem B liess der Hinweg (A→B) die
-        # Bruecke zu Recht weg, der Rueckweg (B→A) baute sie aber trotzdem ein.
-        # Ergebnis A-B-T-A — und PASS 3 entfernte danach das nicht mehr von zwei
-        # gleichen Sprechern umschlossene B, sodass eine Totale als Uebergang zum
-        # SELBEN Sprecher stehenblieb (A-T-A).
+        # Die 2,5x-Schwelle gilt NUR dem Hinweg. Sie beantwortet: „Ist B lang
+        # genug, um ueber die Totale HINEINzuschneiden?" — eine kurze Zwischenrede
+        # totalisiert man nicht, das wird hektisch. Der Rueckweg ist etwas anderes:
+        # er frisst A, nicht B, und ist eine weiche Landung zurueck zum Sprecher.
+        # Fuer ihn ist die Laenge von B egal (User, 22.07.); massgeblich ist nur,
+        # dass das zurueckkehrende A nach der Bruecke noch min_shot uebrig hat.
         #
-        # Massgeblich ist immer die Laenge von B. Auf dem Hinweg ist B das
-        # `event`, auf dem Rueckweg der `prev`. Beide Wege pruefen dieselbe Laenge
-        # gegen dieselbe 2,5x-Schwelle und entscheiden damit gleich.
+        # Kurzes B ist damit voll abgedeckt: der Hinweg baut keine Totale (B < 2,5x)
+        # und laesst B ungekuerzt, der Rueckweg landet weich, und der
+        # transition-bewusste PASS-3-Schutz haelt B in der Timeline. → A-B-T-A.
         nxt = events[i + 1] if i + 1 < len(events) else None
         forward_aba = nxt is not None and nxt['clip_name'] == prev['clip_name']
-        return_aba = (i >= 2 and events[i - 2]['clip_name'] == event['clip_name']
-                      and events[i - 2]['clip_name'] != prev['clip_name'])
 
-        if forward_aba:                       # A→B, B ist das event
-            b_len, required = ev_len, int(round(return_min_factor * min_shot_frames))
-        elif return_aba:                      # B→A, B ist der prev
-            b_len = timecode_to_frames(prev['record_out'], fps) - \
-                    timecode_to_frames(prev['record_in'], fps)
+        if forward_aba:                       # A→B mit Rueckkehr zu A: Hinweg-Gate
             required = int(round(return_min_factor * min_shot_frames))
-        else:                                 # A→B→C, gewoehnlicher Weitergang
-            b_len, required = ev_len, want + min_shot_frames
+        else:                                 # Rueckweg oder A→B→C: A braucht Platz
+            required = want + min_shot_frames
 
-        if b_len < required:
+        if ev_len < required:
             too_short += 1
             result.append(event)
             continue

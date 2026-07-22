@@ -319,13 +319,34 @@ in zwei Stellungen ab.
    Die Rückkehr verlangt mehr Raum: ein Ausflug, der gleich wieder zurückführt,
    wirkt sonst hektisch. Wird die Schwelle unterschritten, bleibt B
    **unangetastet** — kein Ersatz, keine Notlösung.
-   **Gelöst (22.07.):** Der zuerst offen gelassene Fall `A → B → T → A` war ein
-   Bug — Hin- und Rückweg wurden unabhängig entschieden, sodass bei kurzem B der
-   Rückweg trotzdem eine Brücke baute. PASS 3 entfernte danach das nicht mehr
-   umschlossene B, übrig blieb eine Totale als Übergang zum SELBEN Sprecher
-   (`A → T → A`, vom User in der Timeline entdeckt). Jetzt wird A-B-A als Einheit
-   entschieden: maßgeblich ist immer die Länge von B, beide Wege prüfen sie gegen
-   dieselbe 2,5×-Schwelle. Kurzes B → gar keine Brücke, B bleibt sichtbar.
+   **Aufgeklärt in zwei Schichten (22.07.), nachdem der User in der Timeline
+   `C0002 → Totale (Übergang) → C0002` fand — eine Totale als Übergang zum SELBEN
+   Sprecher:**
+
+   1. **Korrektheit (PASS 3):** Der eigentliche Bug saß nicht in der Brückenlänge,
+      sondern in `_is_diarization_switch`: der Schutz verlangte einen `speaker`-
+      Nachbarn. Die Rückweg-Brücke (`transition`) neben B nahm B diesen Schutz,
+      und PASS 3 löschte einen **echten** Sprecherwechsel → übrig blieb `A → T → A`.
+      `_nearest_speaker` schaut jetzt durch Brücken hindurch; `A → B → T → A`
+      bleibt geschützt. Das ist die robuste Ebene — sie trägt auch die kommenden
+      Cutaway-Brücken.
+   2. **Bildsprache (Hinweg vs. Rückweg):** Die 2,5×-Schwelle gehört NUR an den
+      Hinweg — „ist B lang genug, um über die Totale HINEINzuschneiden?". Der
+      Rückweg frisst A, nicht B, und ist eine weiche Landung; für ihn zählt nur,
+      dass A noch `min_shot` übrig hat. Mein erster Fix legte die Schwelle
+      fälschlich auch auf den Rückweg und sperrte damit genau die Landung, die
+      gewollt ist.
+
+   **Ergebnis je B-Länge:**
+
+   | B | Muster |
+   |---|---|
+   | ≥ 2,5× min | `A → T → B → T → A` (beidseitig) |
+   | < 2,5× min | `A → B → T → A` (B ungekürzt, nur Rückweg) |
+
+   Kurzes B braucht keine Extra-Restriktion (User): der Hinweg kürzt es ohnehin
+   nicht, und seine natürliche Länge stand schon vor der Übergangsregel in der
+   Timeline.
    - **Cutaways:** Umgekehrt — passt der Rückweg nicht, wird **auf die Brücke
      verzichtet**. Eine Verlängerung würde hier die Rückkehr zum Sprecher
      verschlucken.
