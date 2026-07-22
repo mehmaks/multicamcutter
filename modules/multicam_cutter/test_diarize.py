@@ -335,6 +335,41 @@ def test_off_sections_n():
     assert off2['C'] == [[50, 150], [150, 250]], off2['C']
 
 
+# ── Test 9: Bildsprache-Uebergang brueckt ueber die gemeinsame Kamera (P4) ─────
+def test_n_transition_bridges_via_common_camera():
+    from multicam_cutter.build_base_edl_from_audio import (
+        insert_transition_events, frames_to_timecode,
+    )
+    from shot_sizes import smallest_containing
+    cameras = [
+        {'clip': 'T', 'mics': ['p1', 'p2'], 'edl_frame': 0, 'ref': 3000},  # Totale
+        {'clip': 'X', 'mics': ['p1'],       'edl_frame': 0, 'ref': 1000},
+        {'clip': 'Y', 'mics': ['p2'],       'edl_frame': 0, 'ref': 2000},
+    ]
+    persons_by_clip = {c['clip']: c['mics'] for c in cameras}
+    ref_by_clip = {c['clip']: c['ref'] for c in cameras}
+    tzv_by_clip = {c['clip']: -c['edl_frame'] for c in cameras}
+
+    def resolve(fr, to):
+        ppl = sorted(set(persons_by_clip.get(fr, [])) | set(persons_by_clip.get(to, [])))
+        cam = smallest_containing(cameras, ppl) if ppl else None
+        return (cam['clip'], ref_by_clip[cam['clip']], tzv_by_clip[cam['clip']]) if cam else None
+
+    def ev(clip, s, e):
+        return {'clip_name': clip,
+                'source_in':  frames_to_timecode(s, 25),
+                'source_out': frames_to_timecode(e, 25),
+                'record_in':  frames_to_timecode(s, 25),
+                'record_out': frames_to_timecode(e, 25)}
+
+    # Sprecherwechsel X (p1) → Y (p2), Y lang genug fuer die Bruecke.
+    events = [ev('X', 0, 200), ev('Y', 200, 500)]
+    out = insert_transition_events(events, 25, resolve, lambda: 50, 50,
+                                   return_min_factor=2.5)
+    clips = [e['clip_name'] for e in out]
+    assert clips == ['X', 'T', 'Y'], f"erwartet X→T→Y (Bruecke ueber Totale), bekam {clips}"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

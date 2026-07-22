@@ -1394,6 +1394,38 @@ def _run_n_path(args):
                                         wav_edl_frame, cam_shift)
         print(f"  {len(events)} Events (nach Simultan→Totale)")
 
+    # Uebergangsregel (Bildsprache): bei jedem Sprecherwechsel ueber die kleinste
+    # Kamera schneiden, die BEIDE Sprecher zeigt. Bewusst hier auf der ruhigen
+    # Basis-EDL (vor den Cutaways). Der Resolver liefert je Uebergang die
+    # smallest_containing der beiden Sprecher-Personen — genau der N-Fall, fuer
+    # den insert_transition_events schon gebaut ist.
+    if args.transition_on_speaker_change:
+        import random as _rnd
+        from shot_sizes import smallest_containing
+        persons_by_clip = {c['clip']: (c.get('mics') or []) for c in cameras}
+        ref_by_clip     = {c['clip']: c['ref'] for c in cameras}
+        tzv_by_clip     = {c['clip']: -(c['edl_frame'] + cam_shift) for c in cameras}
+        base_f, rnd_f = args.transition_min_shot, args.transition_randomness
+
+        def _bridge_len():
+            factor = 1.0 + _rnd.uniform(0.0, rnd_f) if rnd_f > 0 else 1.0
+            return max(1, int(round(base_f * factor * args.fps)))
+
+        def _resolve(_from_clip, _to_clip):
+            ppl = sorted(set(persons_by_clip.get(_from_clip, [])) |
+                         set(persons_by_clip.get(_to_clip, [])))
+            cam = smallest_containing(cameras, ppl) if ppl else None
+            if cam is None:
+                return None
+            return (cam['clip'], ref_by_clip[cam['clip']], tzv_by_clip[cam['clip']])
+
+        print("\n🎬 Uebergangsregel (Sprecherwechsel)...")
+        events = insert_transition_events(
+            events, args.fps, _resolve, _bridge_len,
+            int(args.transition_min_shot * args.fps),
+            return_min_factor=args.transition_return_factor)
+        print(f"  {len(events)} Events (nach Uebergaengen)")
+
     write_edl(events, args.output)
     return 0
 

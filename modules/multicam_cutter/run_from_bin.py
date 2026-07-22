@@ -690,6 +690,16 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         ]
         if params.get('pause_silence_db') is not None:
             builder_args += ['--pause-silence-db', str(params['pause_silence_db'])]
+        # Bildsprache-Uebergaenge bei Sprecherwechseln (Default an) — im N-Pfad
+        # ueber die kleinste gemeinsame Kamera je Personenpaar (smallest_containing).
+        if params.get('transition_speaker_change', True):
+            builder_args += [
+                '--transition-on-speaker-change',
+                '--transition-min-shot',      str(params.get('min_shot', 2.3)),
+                '--transition-randomness',    str(params.get('randomness', 0.0)),
+                '--transition-return-factor',
+                str(params.get('transition_return_factor', 2.5)),
+            ]
         run(builder_args, "Base-EDL aus Audio (N Personen)")
 
     # ── Schritt 1: Base-EDL aus Audio (binäre Diarisierung CAM1/CAM2) ────────
