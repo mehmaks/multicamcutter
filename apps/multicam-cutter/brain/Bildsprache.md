@@ -298,6 +298,36 @@ in zwei Stellungen ab.
   verkleinern könnte und immer noch eine schöne Schnittfrequenz bekommt." → als
   Regler in die Bildsprache-Rubrik, damit man ihn am Material justieren kann.
 
+## Gemeinsame Hilfsfunktionen (Architektur-Überlegung, User 22.07.)
+
+Mehrere Regeln greifen auf **dieselben Kamera-Entscheidungen** zurück. Diese
+Logik gehört EINMAL zentral, nicht an jeder Aufrufstelle nachgebaut — sonst
+weicht eine Stelle irgendwann ab und niemand merkt es (genau das Muster, das uns
+heute mehrfach Fehler beschert hat). Kandidaten, wie sie sich abzeichnen:
+
+1. **`differs_from_neighbors(cam, prev, next)`** — „kein Schnitt auf dieselbe
+   Kamera". Taucht schon an drei Stellen auf: Übergangsbrücke
+   (`bridge not in (prev, next)`), der A-B-A-Fix, und der geplante CLIP-Tausch
+   (aus A-B-C darf kein A-A-C/A-C-C werden). Eine Funktion, drei Nutzer.
+
+2. **`camera_available(cam, frame)`** — ist die Kamera bei diesem Frame
+   verfügbar? Heute wird nur der START geprüft (`off_vi < 0`), das ENDE gar nicht
+   → der Standbild/Async-Bug (siehe `Bekannte-Bugs.md`, Kamera-Ende). Eine
+   zentrale Verfügbarkeits-Funktion würde Diarisierung, Cutaway-Wahl,
+   Übergangsregel UND CLIP-Tausch gemeinsam absichern.
+
+3. **`smallest_containing(cams, people)`** — existiert bereits in `shot_sizes.py`.
+   Gegenstück fürs CLIP-Tauschen: **`cameras_excluding(cams, person)`** — Kameras,
+   die eine Person NICHT zeigen.
+
+4. **`cooldown_ok(cam, cut_index)`** (R10) — Cooldown je Zusatzkamera. Muss an
+   Cutaway-Wahl UND Brücken-Kamera greifen, also ebenfalls ein gemeinsamer Filter.
+
+Die Kamerawahl würde damit eine kleine Kette gleichartiger Filter über den
+Kandidaten: verfügbar? → ≠ Nachbarn? → Cooldown ok? → nach Größe/Bias wählen.
+Jede Regel setzt dieselben Bausteine anders zusammen. Beim Bau der
+Bildsprache-Rubrik als Erstes diese Basis legen, DANN die Regeln darauf.
+
 ## Offene Fragen
 
 - **R2/R3**: Wie wird „Position im Sprechersegment" auf eine Größe abgebildet —
