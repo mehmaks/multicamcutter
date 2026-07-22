@@ -794,12 +794,20 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         run(builder_args, "Base-EDL aus Audio")
 
     # ── Schritt 2: Nodding-Analyse für ALLE Kameras ───────────────────────────
-    # Off-Sections stehen nur für CAM1/CAM2 zur Verfügung (aus binärer Diarisierung).
-    # Zusätzliche Kameras werden vollständig analysiert.
-    off_sections_map = {
-        cam1_path: cam1_off_sections,
-        cam2_path: cam2_off_sections,
-    }
+    # Off-Sections beschränken die (teure) Nicken-Analyse auf die Frames, in denen
+    # eine Kamera einen Zuhörer zeigt. Im N-Pfad schreibt build_base_edl_n sie je
+    # Kamera (<video_stem>_off_sections.json) — sonst liefe die Analyse bei 3+
+    # Kameras aufs volle Material. Im binären Pfad nur CAM1/CAM2 (Rest voll).
+    if use_n_path:
+        off_sections_map = {
+            cp: work_dir / (Path(cp).stem + '_off_sections.json')
+            for cp in cam_paths
+        }
+    else:
+        off_sections_map = {
+            cam1_path: cam1_off_sections,
+            cam2_path: cam2_off_sections,
+        }
     # params.json für Subprozesse schreiben (Analyzer, etc.)
     params_json_path = work_dir / 'params.json'
     params_json_path.write_text(json.dumps(params, indent=2), encoding='utf-8')

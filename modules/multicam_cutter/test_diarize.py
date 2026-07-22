@@ -307,6 +307,34 @@ def test_multi_person_offcam_smallest_containing():
     assert _pick_multi_person_offcam(close_only, close_only, wide_cams=[]) is None
 
 
+# ── Test 8: Off-Sektionen für N — Kamera off = nicht die On-Kamera (P3c) ───────
+def test_off_sections_n():
+    from multicam_cutter.build_base_edl_from_audio import (
+        compute_off_sections_n, frames_to_timecode,
+    )
+
+    def ev(clip, s, e):
+        return {'clip_name': clip,
+                'record_in':  frames_to_timecode(s, 25),
+                'record_out': frames_to_timecode(e, 25)}
+
+    events = [ev('C', 0, 100), ev('B', 100, 200), ev('A', 200, 300)]
+    cams = [{'clip': 'A', 'edl_frame': 0},
+            {'clip': 'B', 'edl_frame': 0},
+            {'clip': 'C', 'edl_frame': 0}]
+    off = compute_off_sections_n(events, cams, cam_shift=0, fps=25)
+    assert off['A'] == [[0, 100], [100, 200]], off['A']    # A off ausser bei sich
+    assert off['B'] == [[0, 100], [200, 300]], off['B']
+    assert off['C'] == [[100, 200], [200, 300]], off['C']
+
+    # Mit edl_frame-Versatz: C startet 50 Frames spaeter → Video-Frames verschoben.
+    cams2 = [{'clip': 'A', 'edl_frame': 0},
+             {'clip': 'B', 'edl_frame': 0},
+             {'clip': 'C', 'edl_frame': 50}]
+    off2 = compute_off_sections_n(events, cams2, cam_shift=0, fps=25)
+    assert off2['C'] == [[50, 150], [150, 250]], off2['C']
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):

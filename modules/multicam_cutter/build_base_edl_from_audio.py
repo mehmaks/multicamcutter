@@ -1254,6 +1254,34 @@ def insert_totale_events_n(events: list, simul_segments: list, cameras: list,
     return result
 
 
+def compute_off_sections_n(events: list, cameras: list, cam_shift: int,
+                           fps: float) -> dict:
+    """
+    Fuer jede Kamera die VIDEO-Frame-Ranges, in denen sie NICHT die On-Kamera ist
+    (sie zeigt dann einen Zuhoerer/Reaktor). Die Nicken-Analyse muss nur diese
+    Bereiche ansehen — bei N Kameras waere die volle Analyse sonst enorm teuer.
+
+    Mirror der binaeren Off-Sektionen (CAM1 off, wenn CAM2 spricht), fuer N: Kamera
+    X ist off in jedem Event, dessen Clip != X ist. Video-Frame = Timeline-Frame -
+    (X.edl_frame + cam_shift), nur solange die Kamera schon Material hat (>= 0).
+    """
+    off = {c['clip']: [] for c in cameras}
+    e_frame = {c['clip']: c['edl_frame'] + cam_shift for c in cameras}
+    for ev in events:
+        on_clip = ev['clip_name']
+        rec_s = timecode_to_frames(ev['record_in'],  fps)
+        rec_e = timecode_to_frames(ev['record_out'], fps)
+        for c in cameras:
+            clip = c['clip']
+            if clip == on_clip:
+                continue
+            v_s = rec_s - e_frame[clip]
+            v_e = rec_e - e_frame[clip]
+            if v_s >= 0 and v_e > v_s:
+                off[clip].append([int(v_s), int(v_e)])
+    return off
+
+
 # ─── N-Personen-Pfad ────────────────────────────────────────────────────────────
 
 def _run_n_path(args):
@@ -1334,21 +1362,35 @@ def _run_n_path(args):
 
     print(f"\n📊 N-Diarisierung ({len(persons)} Personen, "
           f"threshold={args.threshold_db:.1f} dB)...")
-    events = build_base_edl_n(
+    base_events = build_base_edl_n(
         cameras, person_audio, sr, args.fps, wav_edl_frame,
         args.analysis_window, args.threshold_db,
         args.change_delay, args.min_edit_duration, gates)
-    print(f"  {len(events)} Events (Grundschnitt)")
+    print(f"  {len(base_events)} Events (Grundschnitt)")
+
+    cam_shift = max(0, -min(c['edl_frame'] for c in cameras))
+
+    # Off-Sektionen je Kamera schreiben (nur Zuhoerer-Frames → Nicken-Analyse muss
+    # nicht das volle Material je Kamera durchrechnen). Aus dem GRUNDSCHNITT, also
+    # der Sprecher-Struktur — analog zum binaeren Pfad. Namensschema passt zu dem,
+    # was run_analysis erwartet: <video_stem>_off_sections.json neben der EDL.
+    out_dir = Path(args.output).parent
+    off = compute_off_sections_n(base_events, cameras, cam_shift, args.fps)
+    print("\n📄 Off-Sektionen (Zuhoerer-Frames je Kamera):")
+    for clip, ranges in off.items():
+        (out_dir / (Path(clip).stem + '_off_sections.json')).write_text(
+            json.dumps(ranges), encoding='utf-8')
+        total_s = sum(e - s for s, e in ranges) / args.fps
+        print(f"  {clip}: {len(ranges)} Segmente ({total_s / 60:.1f} min)")
 
     # Simultan-Sprechen → kleinste Kamera, die ALLE Beteiligten zeigt (Totale).
-    # Gleiche Zeitursprungs-Verschiebung wie build_base_edl_n.
-    cam_shift = max(0, -min(c['edl_frame'] for c in cameras))
+    events = base_events
     simul = detect_simultaneous_speech_n(
         person_audio, persons, sr, args.analysis_window, args.threshold_db,
         args.totale_simul_min_duration)
     if simul:
-        print(f"  {len(simul)} Simultan-Region(en) → kleinste gemeinsame Kamera")
-        events = insert_totale_events_n(events, simul, cameras, args.fps,
+        print(f"\n  {len(simul)} Simultan-Region(en) → kleinste gemeinsame Kamera")
+        events = insert_totale_events_n(base_events, simul, cameras, args.fps,
                                         wav_edl_frame, cam_shift)
         print(f"  {len(events)} Events (nach Simultan→Totale)")
 
