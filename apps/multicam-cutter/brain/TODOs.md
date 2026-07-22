@@ -415,25 +415,31 @@ Python-Runtime dazubekommt.
   (gegen ALLE Partner inkl. Cams gegenprüfen) — siehe unten, wird als Nächstes
   gebaut.
 
-### 🔴 N-Sprecher-Diarisierung (3 Personen auf 3 EIGENEN Cams) — HOCHPRIORISIERT (22.07.) — Aufwand: **mittel**
-*(Vom User am 22.07. wieder nach oben gesetzt: Das ist die letzte Beschraenkung, die
-echte Mehr-Kamera-Setups blockiert — der Waechter sperrt >2 Nahaufnahmen NUR wegen
-der binaeren Diarisierung. `rms_diarize` vergleicht zwei Seiten (CAM1/CAM2); eine
-dritte Nahaufnahme kann nie als Sprecher gewaehlt werden. Loesung: argmax ueber N
-Mics statt Differenz zweier Seiten — Teil B in Plan-Multicam-3plus.md. Der Sync
-(Teil A) ist bereits N-faehig, es fehlt nur noch die Diarisierung.)*
+### ✅ N-Sprecher-Diarisierung — AUSGELIEFERT in 0.6.3 (22.07.)
+Mehr als zwei Nahaufnahmen funktionieren jetzt: die Engine diarisiert ueber ALLE
+Personen (`rms_diarize_n`, argmax mit Vorsprungs-Gate) und schneidet jede Person auf
+ihre engste Kamera (`build_base_edl_n` via `--cams-json`, Personen→Kamera per
+`smallest_containing`/`ladder_for_person`). Ende-zu-Ende verkabelt:
+- **P1** `run_analysis` waehlt bei >2 Close den N-Pfad (cams.json); `_wide_at_front` nur
+  noch binaer.
+- **P2** Simultan-Sprechen → kleinste gemeinsame Kamera (`detect_simultaneous_speech_n`
+  + `insert_totale_events_n`).
+- **P3** N-Kamera-Wahl in `add_reactions` (Multi-Person → `smallest_containing`, Reset/
+  Split → `shot_level`), Off-Sektionen je Kamera (`compute_off_sections_n` → Nicken-
+  Analyse nur auf Zuhoerer-Frames, sonst bei 3 Cams enorm teuer).
+- **P4** Bildsprache-Uebergaenge (`insert_transition_events` mit N-Resolver).
+- **P5** Swift-Waechter `unsupportedCloseCams` → `[]`.
+Netz: `test_diarize.py` (9 Tests: N=2 byte-identisch, N=3-Attribution, Simultan,
+Multi-Person, Off-Sektionen, Uebergang). **Zwei-Personen-Pfad byte-identisch.**
 
-**✅ KERN GEBAUT (23.07.) — B1:** `rms_diarize_n(audios, ..., labels, silence_gates_db)`
-in `build_base_edl_from_audio.py`: pro Fenster gewinnt die lauteste Gruppe, aber nur
-mit Vorsprung > threshold; Stille nur wenn JEDE Gruppe unter ihrem Gate. `rms_diarize`
-ist jetzt ein byte-identischer N=2-Shim darauf. Sicherheitsnetz: `test_diarize.py`
-(80 Zufallslaeufe alt==Shim + N=3-Attribution + Margin-Gate). **NOCH offen (invasiv):**
-`build_base_edl_from_audio.main` (`--mic-cam1/2` → N Gruppen, Label→Clip ueber Liste,
-Vor-Start-Swap, `detect_*`/`insert_totale_events` verallgemeinern), `run_analysis`
-(`cam_paths[0/1]`-Bindung, `_wide_at_front`, `totale_idx`), B3 (`smallest_containing`),
-und die 3 Waechter entfernen (Swift `unsupportedCloseCams`, `_wide_at_front`, sequencer
-`NotImplementedError`).
-- [ ] **Basis-EDL von binär (2 Cams) auf N-fach umstellen.** User-Kontext: Podcast hat
+**Noch offen (getesteter Nachzug, unkritisch):**
+- Sprech-/Pausen-Reaktionen fuer N (im N-Pfad bewusst deaktiviert mit Meldung — die
+  Rolling-Baseline-Detektoren sind noch rein binaer; beide opt-in, Default aus).
+- `add_reactions` PASS 2b Pausen-Cutaway-Auswahl (crash-sicher, nur „erste andere Close").
+- sequencer `NotImplementedError` (separate pausierte Pipeline — bleibt bewusst).
+- **End-to-End-Validierung am echten 3-Cam-Material des Kollegen** — bis dahin fahren
+  wir beim N-Pfad blind (Beta 0.6.3).
+- [x] **Basis-EDL von binär (2 Cams) auf N-fach umstellen.** (0.6.3) User-Kontext: Podcast hat
   **häufig Host + 2 Gäste = 3 Personen**, also kein Edge-Case.
   ⚠️ **Weniger dringend als hier lange behauptet** (geklärt 21.07.): Die Grenze sind
   zwei **Kameras**, nicht zwei **Personen**. Jede Seite nimmt eine LISTE von Mikrofonen
