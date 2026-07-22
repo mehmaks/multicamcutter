@@ -531,23 +531,13 @@ class EngineController: ObservableObject {
         }
     }
 
-    /// Nah-Kameras jenseits der ersten beiden — der Rest der Pipeline kann sie nicht
-    /// bedienen.
-    ///
-    /// Die Sprechererkennung ist binaer: `rms_diarize` vergleicht genau die Positionen 1
-    /// und 2 aus `--cams`. Eine dritte NAH-Kamera wuerde nie als Sprecher gewaehlt — die
-    /// Person darauf bliebe im Schnitt stumm, ohne dass etwas fehlschlaegt.
-    ///
-    /// TOTALEN sind dagegen unproblematisch und ausdruecklich erlaubt: sie dienen als
-    /// Cutaway- und Reset-Ziel, `orderedAnalysisCams` sortiert sie ohnehin ans Ende, und
-    /// seit dem Umbau von `sync_sources` (21.07.) wird jede Quelle einzeln gemessen.
-    /// Vorher blockierte diese Pruefung JEDE dritte Kamera, weil Position 3 aufwaerts
-    /// stumm Offset 0 bekam.
-    var unsupportedCloseCams: [CameraInfo] {
-        let roles = camRoles()
-        let closes = orderedAnalysisCams.filter { roles[$0.id] == .close }
-        return closes.count > 2 ? Array(closes.dropFirst(2)) : []
-    }
+    /// Frueher: Nah-Kameras jenseits der ersten beiden, die der binaere Schnitt nicht
+    /// bedienen konnte. Seit der N-fachen Diarisierung (`build_base_edl_n`) sind mehr
+    /// als zwei Nah-Kameras moeglich — die Engine diarisiert ueber alle Personen und
+    /// schneidet jede auf ihre engste Kamera. Der Waechter ist damit aufgehoben; die
+    /// Property bleibt (leer), damit Banner/Blockmeldung, die sie abfragen, still
+    /// verschwinden, ohne dass es weitere Aenderungen braucht.
+    var unsupportedCloseCams: [CameraInfo] { [] }
 
     // MARK: - Personen (abgeleitet)
 
