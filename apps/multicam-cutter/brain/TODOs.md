@@ -125,6 +125,14 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
+- [ ] **Materialhinweis: Punkt „Sprecherwechsel zwischen zwei Nahaufnahmen" streichen**
+  (User, 22.07., für die NÄCHSTE Version — nicht 0.6.1). Er passt nicht zur Überschrift
+  „Was dein Material mitbringen muss": die anderen drei Punkte sind echte Anforderungen
+  (Tonspur je Kamera, Mikro je Person, zeitliche Überlappung), dieser beschreibt
+  App-Verhalten (binäre Diarisierung, Totalen als Cutaway) und ist zudem zu komplex
+  formuliert. Ersatzlos entfernen. `FirstRunSheet.swift`, das `person.2`-Requirement.
+  Danach `contentRevision` erhöhen, damit bestehende Tester die kürzere Fassung sehen.
+
 - [x] ⚠️ **TEST-DEFAULT entfernt (22.07.):** ~~`run_from_bin.py` belegt
   `transition_cutaway_back` mit `['nodding']` vor, damit die Dev-App die
   Cutaway-Rückwege ohne UI zeigt. Der Matrix-Default ist AUS. Sobald die
