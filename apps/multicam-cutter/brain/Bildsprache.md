@@ -262,6 +262,14 @@ in zwei Stellungen ab.
 
 ---
 
+## Für die Einstellungen exposen (wenn die Rubrik gebaut wird)
+
+- **Hinweg-Schwelle `transition_return_factor`** (Default 2,5×). Engine-seitig bereits
+  Parameter (`--transition-return-factor`, durchgereicht), nur ohne UI. User (22.07.):
+  „Ich sehe hier und da Stellen, an denen ich mich frage, ob man den Faktor
+  verkleinern könnte und immer noch eine schöne Schnittfrequenz bekommt." → als
+  Regler in die Bildsprache-Rubrik, damit man ihn am Material justieren kann.
+
 ## Offene Fragen
 
 - **R2/R3**: Wie wird „Position im Sprechersegment" auf eine Größe abgebildet —
