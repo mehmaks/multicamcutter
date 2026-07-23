@@ -135,15 +135,22 @@ wird nicht ueberrascht), das X schliesst sofort, Ausblenden mit
 ## Icons (Lucide)
 
 Icon-Set der Website (lucide.dev, ISC). SVGs FEST im App-Bundle: exakt aus
-lucide-react 1.24.0 des Website-Repos extrahiert (`scripts/extract_lucide.py`),
-stroke-width **2.5** statt Lucide-Default 2 (User-Entscheid 24.07.: kräftiger).
+lucide-react 1.24.0 des Website-Repos extrahiert (`scripts/extract_lucide.py`).
 Rendering: `LucideIcon("name", size: N)` bzw. `LucideLabel("Text", icon:size:)`
 als Drop-in für `Label(_:systemImage:)` — Template-NSImage, tintbar via
 `.foregroundStyle`. Neues Icon: `python3 scripts/extract_lucide.py <name>`
 (Achtung: manche Namen sind Aliase, z. B. circle-help → circle-question-mark).
 
+**Strichstärke — optisch korrigiert** (User-Feedback 25.07.): Die SVGs tragen
+stroke-width 2.5, `LucideIcon` rechnet sie aber pro Rendergröße um, damit die
+SICHTBARE Strichstärke nur mit der Wurzel der Größe wächst:
+`visual = 1.3 · √(size/13)`. Referenzpunkte: 12 pt → 1.25 pt (PoC-Look, der
+gefiel), 19 pt → 1.57 pt (≈ Lucide-Default), 64 pt → 2.9 pt. Ohne Korrektur
+wirkten mittlere Icons (Play 19 pt) fetter als kleine (Pencil 12 pt).
+
 | Kontext | Lucide-Icon |
 |---------|-------------|
+| Episode (Header) | clapperboard |
 | Ordner | folder, folder-plus |
 | Kamera fehlt | video-off |
 | Play/Pause (Mic-Vorschau) | circle-play, circle-pause |

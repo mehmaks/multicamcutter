@@ -132,7 +132,7 @@ struct WizardView: View {
             // Episodenname (editierbar) direkt unter der Titelleiste. Der App-Titel
             // steht in der Leiste selbst. Feedback-Button liegt oben rechts.
             HStack(spacing: 10) {
-                EditableLabel(text: $engine.episodeName, icon: "film.stack")
+                EditableLabel(text: $engine.episodeName, icon: "clapperboard")
                     .font(.headline)
                 Spacer()
             }

@@ -21,7 +21,7 @@ struct LucideIcon: View {
     }
 
     var body: some View {
-        if let image = Self.image(named: name) {
+        if let image = Self.image(named: name, size: size) {
             Image(nsImage: image)
                 .renderingMode(.template)
                 .resizable()
@@ -32,13 +32,26 @@ struct LucideIcon: View {
 
     @MainActor private static var cache: [String: NSImage] = [:]
 
-    @MainActor private static func image(named name: String) -> NSImage? {
-        if let hit = cache[name] { return hit }
+    /// Optische Strichstärken-Korrektur (User-Feedback 25.07.): Ein fester
+    /// SVG-Stroke skaliert linear mit der Icongröße — kleine Icons wirken
+    /// dünn, mittlere fett (Play 19 pt wirkte dicker als Pencil 12 pt).
+    /// Stattdessen wächst die SICHTBARE Strichstärke nur mit der Wurzel der
+    /// Größe: visual = 1.3 · √(size/13). Referenzpunkte: 12 pt → 1.25 pt
+    /// (exakt der PoC-Look, der gefiel), 19 pt → 1.57 pt (≈ Lucide-Default-
+    /// Gewicht), 64 pt → 2.9 pt statt vorher 6.7 pt.
+    @MainActor private static func image(named name: String, size: CGFloat) -> NSImage? {
+        let key = "\(name)@\(Int(size.rounded()))"
+        if let hit = cache[key] { return hit }
         guard let url = Bundle.module.url(forResource: name, withExtension: "svg",
                                           subdirectory: "Icons"),
-              let img = NSImage(contentsOf: url) else { return nil }
+              let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
+        let visual = 1.3 * sqrt(max(size, 1) / 13)
+        let svgStroke = visual * 24 / max(size, 1)   // zurückgerechnet auf die 24er-ViewBox
+        let svg = raw.replacingOccurrences(of: "stroke-width=\"2.5\"",
+                                           with: String(format: "stroke-width=\"%.2f\"", svgStroke))
+        guard let img = NSImage(data: Data(svg.utf8)) else { return nil }
         img.isTemplate = true      // Alpha-Maske → Tint folgt foregroundStyle
-        cache[name] = img
+        cache[key] = img
         return img
     }
 }
