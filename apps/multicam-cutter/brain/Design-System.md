@@ -61,9 +61,11 @@ Noch keine Custom-Fonts. Aktuell System-Defaults:
 
 ### Fenster-Verhalten (24.07., User-Entscheid)
 Das Hauptfenster ist **nicht vom Nutzer skalierbar** — Groesse folgt dem Inhalt:
-- **Inhaltsbreite: 720 pt** fuer ALLE Wizard-Seiten (`WizardLayout.contentWidth`,
-  WizardView.swift) — der Standard stammt von den Audio-Cards auf Screen 1.
-  Fensterbreite = 720 + 2×28 Rand = **776 pt** (`wizardWindowWidth`, ContentView).
+- **Inhaltsbreite: 1080 pt** fuer ALLE Wizard-Seiten (`WizardLayout.contentWidth`,
+  WizardView.swift) — der Standard ist die fruehere Screen-3-Breite (revidiert
+  24.07.: bei 720 brachen die Uebersichts-Spalten der Seite 3 um). Auch die
+  Audio-Cards auf Seite 1 folgen dem Standard.
+  Fensterbreite = 1080 + 2×28 Rand = **1136 pt** (`wizardWindowWidth`, ContentView).
 - **Hoehe: automatisch je Seite** (Content-Fitting): Wizard meldet Inhalts- und
   Viewport-Hoehe per PreferenceKey, die Differenz wird animiert ausgeglichen
   (Oberkante fix). Reagiert auch auf Aenderungen innerhalb einer Seite

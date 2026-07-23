@@ -43,11 +43,12 @@ private func avatar(_ personId: Int, _ name: String, size: CGFloat, _ engine: En
 
 // MARK: - Container
 
-/// Standard-Inhaltsbreite aller Wizard-Seiten (User-Entscheid 24.07.: die
-/// Breite der Audio-Cards auf Screen 1 gilt durchgaengig; das Fenster ist
-/// darauf fixiert, s. ContentView.enforceWizardWindowChrome).
+/// Standard-Inhaltsbreite aller Wizard-Seiten (User-Entscheid 24.07., revidiert:
+/// die fruehere Screen-3-Breite gilt durchgaengig — bei 720 brachen die
+/// Uebersichts-Spalten um. Das Fenster ist darauf fixiert,
+/// s. ContentView.enforceWizardWindowChrome).
 enum WizardLayout {
-    static let contentWidth: CGFloat = 720
+    static let contentWidth: CGFloat = 1080
 }
 
 /// Natuerliche Hoehe des Wizard-Inhalts (fuer Fenster-Fitting, s. ContentView).
@@ -809,9 +810,7 @@ struct OverviewStep: View {
                         text: "Das hat die App aus deinen Zuordnungen abgeleitet — Bildgrößen inklusive. "
                             + "Stimmt etwas nicht, geh einen Schritt zurück und korrigier es. Sonst: Analyse starten.")
 
-            // Bei 720er-Standardbreite gestapelt statt zweispaltig (2x ~350
-            // waere fuer Leiter-Pills und Kamera-Zeilen zu eng).
-            VStack(alignment: .leading, spacing: 24) {
+            HStack(alignment: .top, spacing: 22) {
                 VStack(alignment: .leading, spacing: 12) {
                     sectionTitle("Bildgrößen je Person")
                     if engine.persons.isEmpty {
