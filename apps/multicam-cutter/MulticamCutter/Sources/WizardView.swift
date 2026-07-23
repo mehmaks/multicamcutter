@@ -595,6 +595,13 @@ struct OverviewStep: View {
                              + "kannst du jederzeit etwas ändern.")
                             .font(.caption).foregroundStyle(.wizMuted)
                             .fixedSize(horizontal: false, vertical: true)
+                        Button("Zuordnung zurücksetzen") { engine.resetSession() }
+                            .buttonStyle(.plain)
+                            .font(.caption)
+                            .underline()
+                            .foregroundStyle(Color.brandAccent)
+                            .padding(.top, 2)
+                            .help("Löscht die gespeicherten Zuordnungen (.multicam) und beginnt von vorn")
                     }
                     Spacer()
                     Button { engine.sessionRestored = false } label: {

@@ -749,6 +749,18 @@ class EngineController: ObservableObject {
         folderURL?.appendingPathComponent(".multicam")
     }
 
+    /// Sauberer Reset (Fremd-Feedback-Wunsch): .multicam loeschen und den Ordner
+    /// frisch scannen — die App verhaelt sich dann wie beim allerersten Oeffnen
+    /// (Wizard ab Schritt 1, Zuordnungen aus den Datei-Defaults).
+    func resetSession() {
+        if let url = sessionFileURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        sessionRestored = false
+        guard let folder = folderURL else { return }
+        Task { await runScan(folder: folder, decideWizardStep: true) }
+    }
+
     func saveSession() {
         guard let url = sessionFileURL else { return }
         let session: [String: Any] = [
