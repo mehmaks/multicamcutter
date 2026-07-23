@@ -32,6 +32,37 @@ struct LucideIcon: View {
 
     @MainActor private static var cache: [String: NSImage] = [:]
 
+    /// Wo die Icons liegen koennen — in dieser Reihenfolge durchsucht.
+    ///
+    /// ⚠️ **NIEMALS `Bundle.module` benutzen** (Absturz 0.6.5, 25.07.): Dieser
+    /// vom Compiler erzeugte Zugriff ruft `fatalError` auf, sobald das
+    /// SPM-Ressourcenbundle nicht auffindbar ist — aus einem fehlenden Icon
+    /// wird so ein Absturz beim Start, und der Nutzer kommt nicht einmal mehr
+    /// an die Update-Pruefung heran. Ein Icon-Lookup darf nur `nil` liefern.
+    ///
+    /// Reihenfolge: Icons direkt in den App-Resources (der robuste Ort, den
+    /// `build_app.sh` befuellt) → SPM-Bundle in den Resources (Release) →
+    /// SPM-Bundle neben dem Binary (`swift run`).
+    private static let searchRoots: [URL] = {
+        let spm = "MulticamCutter_MulticamCutter.bundle"
+        var roots: [URL] = []
+        if let res = Bundle.main.resourceURL {
+            roots.append(res)
+            roots.append(res.appendingPathComponent(spm))
+        }
+        roots.append(Bundle.main.bundleURL.appendingPathComponent(spm))
+        return roots
+    }()
+
+    /// Sucht die SVG-Datei; `nil` heisst schlicht „kein Icon", nie Absturz.
+    private static func iconURL(_ name: String) -> URL? {
+        for root in searchRoots {
+            let url = root.appendingPathComponent("Icons/\(name).svg")
+            if FileManager.default.fileExists(atPath: url.path) { return url }
+        }
+        return nil
+    }
+
     /// Optische Strichstärken-Korrektur (User-Feedback 25.07.): Ein fester
     /// SVG-Stroke skaliert linear mit der Icongröße — kleine Icons wirken
     /// dünn, mittlere fett (Play 19 pt wirkte dicker als Pencil 12 pt).
@@ -42,8 +73,7 @@ struct LucideIcon: View {
     @MainActor private static func image(named name: String, size: CGFloat) -> NSImage? {
         let key = "\(name)@\(Int(size.rounded()))"
         if let hit = cache[key] { return hit }
-        guard let url = Bundle.module.url(forResource: name, withExtension: "svg",
-                                          subdirectory: "Icons"),
+        guard let url = iconURL(name),
               let raw = try? String(contentsOf: url, encoding: .utf8) else { return nil }
         let visual = 1.3 * sqrt(max(size, 1) / 13)
         let svgStroke = visual * 24 / max(size, 1)   // zurückgerechnet auf die 24er-ViewBox

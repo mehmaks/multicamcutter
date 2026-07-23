@@ -101,14 +101,24 @@ else
     echo "  ⚠ Sparkle.framework nicht gefunden unter $SPARKLE_FW — Auto-Update fehlt"
 fi
 
-# SPM-Ressourcen-Bundle (Lucide-Icons u. a.): liegt neben dem Binary im
-# .build-Pfad und MUSS mit ins App-Bundle — Bundle.module bricht sonst beim
-# ersten Zugriff hart ab. Ressourcen-only, wird von der App-Signatur abgedeckt.
-if [ -d "$SWIFT_BIN_PATH/MulticamCutter_MulticamCutter.bundle" ]; then
-    echo "  Kopiere SPM-Ressourcen-Bundle (Icons)..."
-    cp -R "$SWIFT_BIN_PATH/MulticamCutter_MulticamCutter.bundle" "$APP_BUNDLE/Contents/Resources/"
+# Lucide-Icons DIREKT in die App-Resources (Contents/Resources/Icons).
+# Das ist der Ort, den LucideIcon zuerst durchsucht — bewusst unabhaengig vom
+# SPM-Ressourcenbundle, weil dessen Auffinden der Absturzgrund in 0.6.5 war
+# (siehe brain/Bekannte-Bugs.md). ABBRUCH statt Warnung: ohne Icons ist die
+# Oberflaeche unbrauchbar, das darf kein Release werden.
+ICON_SRC="$APP_DIR/MulticamCutter/Sources/Icons"
+if [ -d "$ICON_SRC" ] && [ "$(ls -1 "$ICON_SRC"/*.svg 2>/dev/null | wc -l)" -gt 0 ]; then
+    echo "  Kopiere Lucide-Icons ($(ls -1 "$ICON_SRC"/*.svg | wc -l | tr -d ' ') SVGs)..."
+    mkdir -p "$APP_BUNDLE/Contents/Resources/Icons"
+    cp "$ICON_SRC"/*.svg "$APP_BUNDLE/Contents/Resources/Icons/"
 else
-    echo "  ⚠ SPM-Ressourcen-Bundle nicht gefunden — Lucide-Icons fehlen im Release!"
+    echo "  ✗ FEHLER: Keine Icons in $ICON_SRC — Release waere unbrauchbar."
+    exit 1
+fi
+
+# SPM-Ressourcen-Bundle zusaetzlich mitnehmen (zweiter Suchpfad, schadet nicht).
+if [ -d "$SWIFT_BIN_PATH/MulticamCutter_MulticamCutter.bundle" ]; then
+    cp -R "$SWIFT_BIN_PATH/MulticamCutter_MulticamCutter.bundle" "$APP_BUNDLE/Contents/Resources/"
 fi
 
 # Engine-Bundle

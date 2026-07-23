@@ -2,6 +2,32 @@
 
 ## OFFEN
 
+### 0.6.5 stuerzt beim Start ab, wenn die Icons nicht gefunden werden — GEFIXT (25.07.), Ursache der Nicht-Auffindbarkeit noch offen
+- **Symptom**: Nach dem Update 0.6.2 → 0.6.5 (per Sparkle, MacBook des Users)
+  stuerzt die App SOFORT beim Start ab, noch vor dem ersten Fenster.
+  `EXC_BREAKPOINT` in `LucideIcon.image(named:size:)` →
+  `NSBundle.module` → `_assertionFailure`. Die App ist damit unbenutzbar und
+  der Nutzer erreicht nicht einmal mehr die Update-Pruefung — Rettung nur per
+  manuellem DMG-Download.
+- **Ursache (Absturz)**: `Bundle.module` ist ein vom Compiler erzeugter Zugriff,
+  der bei nicht auffindbarem SPM-Ressourcenbundle **`fatalError` aufruft**. Ein
+  fehlendes Icon wurde so zum Totalausfall.
+- **Fix**: `LucideIcon` benutzt kein `Bundle.module` mehr, sondern durchsucht
+  mehrere Orte und liefert `nil` (Icon zeichnet einfach nicht). Zusaetzlich legt
+  `build_app.sh` die SVGs DIREKT nach `Contents/Resources/Icons` — unabhaengig
+  vom SPM-Bundle — und **bricht ab**, wenn keine Icons da sind.
+  Belegt: App mit entfernter Icon-Quelle gestartet → laeuft (vorher: Absturz).
+- **NOCH OFFEN — warum war das Bundle auf dem MacBook nicht auffindbar?**
+  Geprueft und AUSGESCHLOSSEN: (a) DMG/Release enthaelt das Bundle samt 38 Icons;
+  (b) identisches Binary (UUID) startet auf dem Zweit-Mac sauber; (c) der
+  Sparkle-**Delta-Patch** 202607221504 → 202607231746 wurde lokal angewendet und
+  liefert das Bundle vollstaendig, Signatur gueltig. Der Delta-Pfad ist also
+  NICHT die Ursache. Offen bleibt, ob das Bundle auf dem Geraet fehlte oder
+  `Bundle(url:)` es dort ablehnte. Diagnose beim naechsten Auftreten:
+  `ls -la /Applications/MultiCamCutter.app/Contents/Resources/`
+- **Lehre**: Ressourcen-Zugriffe, die eine App zum Absturz bringen koennen,
+  gehoeren nicht in den Startpfad. `Bundle.module` NIE benutzen.
+
 ### Kamera-ENDE wird nicht geprueft — Standbild + Asynchronitaet
 - **Symptom (Testordner, TC 00:18:45:00)**: C0352 friert ein, ab dem naechsten
   Schnitt laeuft alles asynchron. Bestaetigt: C0352 ist exakt **18:45,6** lang,
