@@ -302,8 +302,7 @@ struct PersonRow: View {
                         .onSubmit { commit() }
                         .onChange(of: focused) { _, f in if !f { commit() } }
                         .fixedSize()
-                    Image(systemName: "pencil")
-                        .font(.system(size: 11, weight: .bold))
+                    LucideIcon("pencil", size: 12)
                         .foregroundStyle(.wizFaint)
                         .onTapGesture { focused = true }
                         .help("Namen bearbeiten")
@@ -317,8 +316,7 @@ struct PersonRow: View {
             Spacer()
 
             Button { engine.toggleMicPreview(mic) } label: {
-                Image(systemName: isPlaying ? "pause.circle.fill" : "play.circle")
-                    .font(.title3)
+                LucideIcon(isPlaying ? "circle-pause" : "circle-play", size: 19)
                     .foregroundStyle(isPlaying ? Color.brandAccent : Color.secondary)
             }
             .buttonStyle(.plain)
@@ -326,7 +324,7 @@ struct PersonRow: View {
                   + "oder direkt in die Wellenform klicken")
 
             Button { engine.deletePerson(mic.id) } label: {
-                Image(systemName: "trash").font(.system(size: 15)).foregroundStyle(.wizMuted)
+                LucideIcon("trash-2", size: 15).foregroundStyle(.wizMuted)
             }
             .buttonStyle(.plain)
             .help("Diese Spur ist kein Sprecher — entfernen")

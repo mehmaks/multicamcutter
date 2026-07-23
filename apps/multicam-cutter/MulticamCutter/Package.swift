@@ -14,7 +14,12 @@ let package = Package(
             dependencies: [
                 .product(name: "Sparkle", package: "Sparkle"),
             ],
-            path: "Sources"
+            path: "Sources",
+            resources: [
+                // Lucide-Icons (Marken-Set der Website) — fest im Bundle,
+                // build_app.sh kopiert das SPM-Ressourcen-Bundle mit.
+                .copy("Icons"),
+            ]
         ),
     ]
 )

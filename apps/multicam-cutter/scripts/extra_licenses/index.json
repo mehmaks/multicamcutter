@@ -15,6 +15,14 @@
     "file": "sparkle-MIT.txt"
   },
   {
+    "name": "Lucide",
+    "version": "1.24.0",
+    "license": "ISC",
+    "url": "https://lucide.dev/",
+    "note": "Icon-SVGs, fest im App-Bundle eingebettet (identische Version wie die Website).",
+    "file": "lucide-ISC.txt"
+  },
+  {
     "name": "MediaPipe",
     "version": "0.10.33",
     "license": "Apache-2.0",

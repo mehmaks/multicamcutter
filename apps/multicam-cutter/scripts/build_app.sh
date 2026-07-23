@@ -101,6 +101,16 @@ else
     echo "  ⚠ Sparkle.framework nicht gefunden unter $SPARKLE_FW — Auto-Update fehlt"
 fi
 
+# SPM-Ressourcen-Bundle (Lucide-Icons u. a.): liegt neben dem Binary im
+# .build-Pfad und MUSS mit ins App-Bundle — Bundle.module bricht sonst beim
+# ersten Zugriff hart ab. Ressourcen-only, wird von der App-Signatur abgedeckt.
+if [ -d "$SWIFT_BIN_PATH/MulticamCutter_MulticamCutter.bundle" ]; then
+    echo "  Kopiere SPM-Ressourcen-Bundle (Icons)..."
+    cp -R "$SWIFT_BIN_PATH/MulticamCutter_MulticamCutter.bundle" "$APP_BUNDLE/Contents/Resources/"
+else
+    echo "  ⚠ SPM-Ressourcen-Bundle nicht gefunden — Lucide-Icons fehlen im Release!"
+fi
+
 # Engine-Bundle
 echo "  Kopiere Engine-Bundle..."
 cp -R "$ENGINE_DIR"/* "$APP_BUNDLE/Contents/Resources/multicam-engine/"
