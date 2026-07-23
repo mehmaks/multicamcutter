@@ -355,21 +355,15 @@ struct WaveformStrip: View {
                     return size.width * CGFloat(t / mic.durationSeconds)
                 }()
 
-                // Ein Balken deckt bei langen Spuren viele Sekunden ab. MITTELWERT
-                // statt Maximum zeigt die Sprach-DICHTE des Fensters — sonst meldet
-                // fast jeder Balken „laut", sobald irgendwann jemand spricht.
-                // Hoehe via dB (45-dB-Fenster relativ zum lautesten Bucket, wie in
-                // DAWs): spreizt den relevanten Bereich deutlich besser als sqrt.
-                let dbRange = 45.0
+                // Sample-Peak + sqrt: am echten Material die klarste Darstellung
+                // (RMS/Mittelwert und dB-Mapping sahen flacher aus — Log hebt
+                // leise Passagen an und nimmt genau da Kontrast, wo man ihn will).
                 for i in 0..<count {
                     let start = i * bucketsPerBar
                     let end = min(peaks.count, start + bucketsPerBar)
                     guard start < end else { break }
-                    let slice = peaks[start..<end]
-                    let m = Double(slice.reduce(0, +)) / Double(slice.count)
-                    let db = 20 * log10(max(m, 1e-6))          // 0 dB = lautester Bucket
-                    let frac = min(1, max(0, (db + dbRange) / dbRange))
-                    let amp = max(1.5, CGFloat(frac) * (mid - 2))
+                    let p = peaks[start..<end].max() ?? 0
+                    let amp = max(1.5, CGFloat(Double(p).squareRoot()) * (mid - 2))
                     let x = CGFloat(i) * slot + Self.barWidth / 2
                     var bar = Path()
                     bar.move(to: CGPoint(x: x, y: mid - amp))

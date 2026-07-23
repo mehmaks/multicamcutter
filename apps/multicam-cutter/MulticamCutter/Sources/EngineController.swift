@@ -1054,7 +1054,7 @@ class EngineController: ObservableObject {
     }
 
     /// Cache-Datei fuer eine Audiodatei — nil, wenn die Datei nicht lesbar ist.
-    /// Praefix versioniert das Format: wf1 = Sample-Peaks, wf2 = RMS 640, wf3 = RMS 2048. Alte
+    /// Praefix versioniert das Format: wf1 = Sample-Peaks (Bucket-Zahl egal, das Zeichnen aggregiert). wf2/wf3 waren RMS-Experimente — verworfen. Alte
     /// wf1-Dateien bleiben als winzige Waisen liegen und stoeren nicht.
     nonisolated static func waveformCacheURL(for path: String) -> URL? {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
@@ -1066,7 +1066,7 @@ class EngineController: ObservableObject {
             .map { String(format: "%02x", $0) }.joined()
         let dir = waveformCacheDir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("wf3_\(digest).peaks")
+        return dir.appendingPathComponent("wf1_\(digest).peaks")
     }
 
     nonisolated static func loadCachedPeaks(_ url: URL) -> [Float]? {
@@ -1079,13 +1079,15 @@ class EngineController: ObservableObject {
         peaks.withUnsafeBytes { try? Data($0).write(to: url, options: .atomic) }
     }
 
-    /// Liest die Datei in Bloecken und bildet je Bucket den RMS-Pegel
-    /// (mittlere Energie ≈ empfundene Lautheit): Sprachbloecke zeichnen sich
-    /// deutlich ab, ein einzelner Knacks dominiert seinen Balken nicht mehr —
-    /// frueher Sample-Peak (vDSP_maxmgv). Ein Bucket kann ueber Chunk-Grenzen
-    /// laufen, deshalb Quadratsummen + Anzahl akkumulieren und erst am Ende
-    /// die Wurzel ziehen. Normalisiert aufs Gesamtmaximum. AVAudioFile
-    /// dekodiert jede Bit-Tiefe korrekt.
+    /// Liest die Datei in Bloecken und nimmt je Bucket das Betragsmaximum
+    /// (Sample-Peak, vDSP_maxmgv), normalisiert aufs Gesamtmaximum.
+    ///
+    /// Bewusst Sample-Peak: RMS+Mittelwert und dB-Mapping wurden am echten
+    /// 97-min-Material probiert (23./24.07.) und sahen BEIDE flacher aus —
+    /// die Log-Skala hebt leise Passagen an und komprimiert genau dort, wo
+    /// Spreizung gewuenscht ist. Linear-Peak laesst Raumton klein und Sprache
+    /// herausragen; Urteil des Users am Bild. AVAudioFile dekodiert jede
+    /// Bit-Tiefe korrekt.
     nonisolated static func computeWaveformPeaks(path: String, buckets: Int,
                                                  onProgress: ((Double) -> Void)? = nil) -> [Float]? {
         guard let file = try? AVAudioFile(forReading: URL(fileURLWithPath: path)),
@@ -1095,32 +1097,26 @@ class EngineController: ObservableObject {
         let chunkFrames: AVAudioFrameCount = 1 << 20
         guard let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
                                          frameCapacity: chunkFrames) else { return nil }
-        var sumsq  = [Double](repeating: 0, count: buckets)
-        var counts = [Int](repeating: 0, count: buckets)
+        var peaks = [Float](repeating: 0, count: buckets)
         var frameIndex = 0
         while frameIndex < totalFrames {
             do { try file.read(into: buf, frameCount: chunkFrames) } catch { break }
             let n = Int(buf.frameLength)
             if n == 0 { break }
             guard let ch = buf.floatChannelData?[0] else { break }
-            // Bucketweise Quadratsummen innerhalb dieses Blocks (vDSP).
+            // Bucketweise Betragsmaxima innerhalb dieses Blocks (vDSP).
             var local = 0
             while local < n {
                 let bucket = min(buckets - 1, (frameIndex + local) / framesPerBucket)
                 let bucketEndFrame = (bucket + 1) * framesPerBucket
                 let len = min(n - local, max(1, bucketEndFrame - (frameIndex + local)))
-                var s: Float = 0
-                vDSP_svesq(ch + local, 1, &s, vDSP_Length(len))
-                sumsq[bucket] += Double(s)
-                counts[bucket] += len
+                var m: Float = 0
+                vDSP_maxmgv(ch + local, 1, &m, vDSP_Length(len))
+                if m > peaks[bucket] { peaks[bucket] = m }
                 local += len
             }
             frameIndex += n
             onProgress?(Double(frameIndex) / Double(totalFrames))
-        }
-        var peaks = [Float](repeating: 0, count: buckets)
-        for i in 0..<buckets where counts[i] > 0 {
-            peaks[i] = Float((sumsq[i] / Double(counts[i])).squareRoot())
         }
         let maxV = peaks.max() ?? 0
         guard maxV > 0 else { return peaks }
