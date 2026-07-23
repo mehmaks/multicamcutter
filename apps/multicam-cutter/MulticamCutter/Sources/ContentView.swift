@@ -12,6 +12,9 @@ struct ContentView: View {
     /// bestaetigte INHALTS-Stand, damit geaenderte Voraussetzungen erneut erscheinen.
     @AppStorage("firstRunInfoSeenRevision") private var firstRunInfoSeenRevision = 0
     @State private var showFirstRunInfo = false
+    /// Gemessene Wizard-Hoehen fuers Content-Fitting (s. fitWindowToWizardContent).
+    @State private var wizardContentHeight: CGFloat = 0
+    @State private var wizardViewportHeight: CGFloat = 0
 
     /// Alles, was die Analyse-Sperre überschreibt, um es danach zurückzugeben.
     private struct WindowConstraints {
@@ -73,8 +76,13 @@ struct ContentView: View {
         }
         .onChange(of: engine.stepNum) { _, _ in updateDockProgress() }
         .onChange(of: engine.stepPercent) { _, _ in updateDockProgress() }
-        .onChange(of: engine.wizardStep) { _, step in
-            growWindowForOverview(step)
+        .onPreferenceChange(WizardContentHeightKey.self) { h in
+            wizardContentHeight = h
+            fitWindowToWizardContent()
+        }
+        .onPreferenceChange(WizardViewportHeightKey.self) { h in
+            wizardViewportHeight = h
+            fitWindowToWizardContent()
         }
     }
 
@@ -92,14 +100,32 @@ struct ContentView: View {
         window.backgroundColor = NSColor(srgbRed: 14/255, green: 16/255, blue: 12/255, alpha: 1)
     }
 
-    /// Screen 3 ist höher (Übersicht + Einstellungen). Fenster bei Bedarf wachsen
-    /// lassen (Oberkante fix, nach unten), damit die Einstellungen nicht beschnitten sind.
-    private func growWindowForOverview(_ step: WizardStep) {
-        guard let window = mainWindow, step == .overview else { return }
-        let target: CGFloat = 940
-        guard window.frame.height < target else { return }
+    /// Fenster passt sich je Wizard-Seite dem INHALT an (User-Wunsch 24.07. —
+    /// ersetzt das alte „Screen 3 → fix 940 pt", das unten viel Leerraum liess).
+    ///
+    /// Der Trick: Inhalt und sichtbarer Scroll-Bereich werden gemessen; ihre
+    /// Differenz ist EXAKT das, was dem Fenster fehlt (oder zu viel ist) —
+    /// Titelleiste/Header/Footer muessen nie beziffert werden. Obergrenze:
+    /// Bildschirmhoehe (abzgl. Rand) bzw. 1100 pt — darueber scrollt der
+    /// Inhalt wie bisher. Oberkante bleibt fix (waechst/schrumpft nach unten).
+    private func fitWindowToWizardContent() {
+        guard let window = mainWindow,
+              engine.state == .ready,             // nur im Wizard, nie im Lauf
+              frameBeforeRun == nil,              // nicht waehrend Analyse-Restore
+              !window.styleMask.contains(.fullScreen),
+              wizardContentHeight > 0, wizardViewportHeight > 0 else { return }
+
+        let delta = wizardContentHeight - wizardViewportHeight
+        guard abs(delta) > 2 else { return }      // stabil: passt schon
+
+        let screenLimit = (window.screen ?? NSScreen.main)?.visibleFrame.height ?? 1100
+        let maxH = min(1100, screenLimit - 24)
+        let minH: CGFloat = 520
+
         var f = window.frame
         let top = f.maxY
+        let target = min(max(f.height + delta, minH), maxH)
+        guard abs(target - f.height) > 2 else { return }   // an der Grenze geklemmt
         f.size.height = target
         f.origin.y = top - target
         window.setFrame(f, display: true, animate: true)

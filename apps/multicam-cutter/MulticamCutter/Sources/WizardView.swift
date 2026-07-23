@@ -43,6 +43,22 @@ private func avatar(_ personId: Int, _ name: String, size: CGFloat, _ engine: En
 
 // MARK: - Container
 
+/// Natuerliche Hoehe des Wizard-Inhalts (fuer Fenster-Fitting, s. ContentView).
+struct WizardContentHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
+/// Sichtbare Hoehe des Scroll-Bereichs (fuer Fenster-Fitting, s. ContentView).
+struct WizardViewportHeightKey: PreferenceKey {
+    static let defaultValue: CGFloat = 0
+    static func reduce(value: inout CGFloat, nextValue: () -> CGFloat) {
+        value = max(value, nextValue())
+    }
+}
+
 struct WizardView: View {
     @EnvironmentObject var engine: EngineController
 
@@ -61,7 +77,20 @@ struct WizardView: View {
                 .frame(maxWidth: .infinity)          // Steps setzen eigene Breite + werden zentriert
                 .padding(.horizontal, 28)
                 .padding(.vertical, 24)
+                // Natuerliche Inhaltshoehe melden (inkl. Padding) — ContentView
+                // passt die Fensterhoehe je Wizard-Seite dem Inhalt an.
+                .background(GeometryReader { g in
+                    Color.clear.preference(key: WizardContentHeightKey.self,
+                                           value: g.size.height)
+                })
             }
+            // Sichtbarer Scroll-Bereich: die Differenz Inhalt − Viewport ist exakt
+            // das, was dem Fenster fehlt (oder zu viel ist) — unabhaengig von
+            // Titelleiste/Header/Footer.
+            .background(GeometryReader { g in
+                Color.clear.preference(key: WizardViewportHeightKey.self,
+                                       value: g.size.height)
+            })
             Rectangle().fill(Color.wizBorder).frame(height: 1)
             WizardFooter()
         }
