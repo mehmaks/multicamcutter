@@ -27,101 +27,6 @@
   Uebergangsregel — also am besten EINE zentrale „ist Cam X bei Frame f
   verfuegbar?"-Funktion, die alle nutzen.
 
-### Schnitt-Begruendung ging zweimal auf dem Weg verloren
-- **Symptom**: Uebergangs-Einstellungen hiessen im AAF „Sprecher" statt
-  „Uebergang". Sichtbar war der Schnitt korrekt — nur nicht zuzuordnen.
-- **Zwei getrennte Verlustpunkte**, nacheinander gefunden:
-  1. **`write_edl`** schrieb nur Timecodes und Clipnamen. Beim Wiedereinlesen
-     setzte `parse_resolve_edl` pauschal `speaker`.
-     → Fix: `* CUT REASON`-Kommentar schreiben und lesen. Der Parser sammelt
-     jetzt ALLE Kommentarzeilen nach einem Event ein; bei festem Blick auf `i+1`
-     haette je nach Reihenfolge Clipname oder Begruendung gefehlt.
-  2. **PASS 2 baut die Events NEU.** Die geparsten Events dienen nur als
-     Section-Grenzen; die neuen bekamen den Standardwert.
-     → Fix: Sections tragen `reason` mit, `build_events_with_cutaways` nimmt sie
-     als `base_reason`.
-- **Die entscheidende Stelle war die unscheinbarste**: der Zweig in `main()`
-  „keine OFF-Kamera → Sections direkt uebernehmen". Genau dort landen die
-  Bruecken, denn die Bruecke ist die Totale und fuer sie gibt es keine
-  Cutaway-Quellen. Ohne diese eine Stelle haette der Fix ueberall gegriffen
-  **ausser dort, wo er gebraucht wird**.
-- **Nebenwirkung, die niemand bemerkt haette**: Solange die Begruendung fehlte,
-  war der Schutz in PASS 3 (`reason == 'transition'`) **toter Code**. Dass die
-  Bruecken ueberlebten, lag allein an ihrer Laenge — bei einem kuerzeren Wert
-  waeren sie stillschweigend verschwunden.
-- **Merke**: Eine Eigenschaft, die eine Datei-Serialisierung passieren muss,
-  ueberlebt sie nur, wenn beide Seiten sie kennen. Und ein Schutz, der auf einer
-  solchen Eigenschaft beruht, ist ohne Beweis nur eine Vermutung.
-
-### Schwache Korrelationen wurden ungeprueft uebernommen (Confidence-Schwelle)
-- **Befund (3-Cam-Test, 21.07.)**: Eine Totale (Actioncam, `VID_…`) lieferte bei
-  JEDEM Analysefenster eine Confidence um 12x — und dabei voellig verschiedene
-  Offsets: −478 (180 s), +95 (600 s), −460 (1500 s). Ueber CAM1 gemessen −472,
-  ueber CAM2 −374. **Es gibt bei dieser Quelle keinen echten Korrelationsgipfel**;
-  die Korrelation findet Rauschen und liefert je Fenster eine andere Zufallszahl.
-- **Erkennungsmerkmal**: gleichbleibend niedrige Confidence bei WACHSENDEM Fenster.
-  Bei echtem Signal steigt sie mit mehr Material.
-- **Warum es durchging**: `MIN_CONFIDENCE = 5.0` ist die Schwelle zum
-  Weitersuchen, nicht zum Vertrauen. 12x passiert sie muehelos. Die Kreuzprobe
-  deckte nur CAM1↔CAM2 ab — jede andere Quelle blieb ungeprueft.
-- **Fix (21.07.)**: Neue Schwelle `TRUST_CONFIDENCE = 50.0`. Jede Quelle darunter
-  wird ueber einen ZWEITEN Weg gegengeprueft (sicherste andere Quelle als Pruefer);
-  weichen beide Wege um mehr als 2 Frames ab, bricht der Sync ab und nennt Quelle,
-  beide Ergebnisse und die Confidence.
-- **Wirkung**: Der 3-Cam-Ordner bricht jetzt mit klarer Diagnose ab statt mit
-  einem um bis zu 4 s falschen Offset weiterzurechnen. Beide bekannt guten
-  2-Cam-Episoden laufen unveraendert durch (Confidences dort 100–470x).
-- **KORREKTUR (21.07., wenige Stunden spaeter)**: Die Schlussfolgerung „Totale
-  per Waveform nicht syncbar" war **falsch**. Die flache Confidence war echt,
-  ihre Ursache aber eine andere: der wahre Versatz (30 min) lag ausserhalb des
-  durchsuchbaren Bereichs. `correlate(mode="full")` findet nur Lags bis zur
-  Laenge der REFERENZ — mit 180 s Referenz sind 30 min prinzipiell unauffindbar,
-  und man sieht ausschliesslich Rauschen. Auch der Gegentest mit 1500 s reichte
-  nicht, weil der gesuchte Versatz bei 1808 s liegt.
-  **Merkregel**: flache Confidence bei WACHSENDEM Fenster heisst nicht „kein
-  Signal", sondern zuerst „Suchraum zu klein".
-  Mit asymmetrischen Fenstern (Ziel 180 s, Referenz waechst bis zur vollen Laenge)
-  synct dieselbe Totale mit **177x** statt 12x.
-
-### Unvollstaendige Quelldatei wird beim Scan unbesehen uebernommen
-- **Symptom (Episode 38, 21.07.)**: Waveform-Sync bricht mit „Kreuzprobe
-  fehlgeschlagen" ab. Sieht nach einem Korrelationsproblem aus, ist aber keines.
-- **Wahre Ursache**: `C7451_25fps.MP4` war ein **94-Sekunden-Fragment** einer
-  abgebrochenen FPS-Konvertierung (Original `C7451.MP4`: 99 min). Die App nahm
-  es beim Scan als vollwertige Kamera an — 1,6 min Video gegen 100 min Ton.
-- **Warum die Nachmessung nicht half**: `_sync_pair` kappt beide Seiten per
-  `min_len` auf die kuerzere Datei. Ein groesseres Fenster anzufordern aendert
-  nichts, wenn nur 94 s existieren — Confidence und Offset kamen deshalb auf die
-  Nachkommastelle identisch zurueck. Genau das war der Hinweis.
-- **Der Konverter war nicht schuld**: Er prueft seine Ausgabe seit dem 18.07.
-  (`out_dur < dur * 0.98` → Datei loeschen + Fehler). Das Fragment stammt vom
-  17.07., ist also einen Tag aelter als der Schutz.
-- **Luecke**: Der Schutz griff nur beim KONVERTIEREN. Eine unvollstaendige Datei
-  kann auch anders entstehen — abgebrochener Kopiervorgang, halb geladene
-  Cloud-Datei, Altbestand.
-- **Fix (21.07.), zweiter Anlauf**: Der erste Versuch — Abbruch bei Quellen unter
-  3 min — behandelte das Symptom. Der User wandte zu Recht ein, dass 95 s
-  gemeinsames Material fuer eine Korrelation reichlich sind. Die wahre Ursache
-  lag in `_sync_pair`:
-  ```python
-  min_len = min(len(ref_audio), len(target_audio))
-  ref_audio = ref_audio[:min_len]     # kappt die REFERENZ auf 94 s
-  ```
-  Die Referenz wurde auf die Laenge des kuerzeren Partners gestutzt, **gerechnet
-  ab ihrem eigenen Anfang**. MIC1 blieben so nur die ersten 94 s — reiner
-  Vorlauf, null Ueberlappung mit CAM1 (beginnt bei Sekunde 102). Zugleich sinkt
-  damit der groesste auffindbare Versatz auf ebendiese Laenge: 102 s waren
-  **prinzipiell unauffindbar**.
-  Die Kuerzung war ueberfluessig — `correlate(mode="full")` kommt mit
-  unterschiedlich langen Signalen zurecht. Sie ist entfernt; der harte Abbruch
-  gilt nur noch unter `MIN_SOURCE_SECONDS` (10 s), darunter ist es Rauschen.
-  Quellen unter 50 % der laengsten erzeugen weiter einen Hinweis (kann legitim
-  sein, wenn eine Kamera nur zeitweise lief).
-- **Verifiziert**: 95-s-Fragment bei 102 s Vorlauf synct jetzt exakt; beide
-  frueheren Szenarien (5 Quellen, 100-s-Vorlauf) unveraendert korrekt.
-- **Merke**: Die Kreuzprobe hat hier korruptes EINGANGSMATERIAL aufgedeckt, nicht
-  einen Rechenfehler. Ohne sie waere daraus klaglos ein Schnitt entstanden.
-
 ### ~~Kameras ab Nr. 3 und Zusatz-Mikrofone wurden nie gesynct~~ — BEHOBEN (21.07.)
 - **Symptom**: keines. Der Lauf war erfolgreich, das Material asynchron.
 - **Ursache**: `sync_sources` mass genau zwei Paare — CAM1↔CAM2 und CAM1↔MIC1.
@@ -154,82 +59,6 @@
   **Reaktion**: bei uneiniger Kreuzprobe wird die schwaechste Messung mit
   vierfachem Fenster nachgemessen und nur bei besserer Confidence uebernommen;
   erst wenn auch das nicht aufloest, wird abgebrochen.
-
-### Deltas wurden nie hochgeladen — jedes Update lud die volle DMG
-- **Symptom**: keines. Updates funktionierten, nur langsam.
-- **Ursache**: `publish.sh` lud genau **eine** Datei hoch (`$OBJECT_KEY`, die
-  versionierte DMG). Die von `generate_appcast` erzeugten `.delta`-Dateien blieben
-  liegen, obwohl der Appcast sie bewirbt. Ebenso pruefte Schritt [2/4] nur die
-  erste Enclosure-URL.
-- **Warum es niemandem auffiel**: Sparkle versucht das Delta und faellt bei einem
-  Fehler **still** auf die volle DMG zurueck. Das Update gelingt also — es
-  uebertraegt nur **346 MB statt 832 KB** (Faktor ~400). Kein Fehler, keine Meldung.
-- **Nachgewiesen (21.07.)**: Im Bucket lagen nur `0.5.0.dmg` und `0.5.2.dmg`.
-  Der Feed bewarb zusaetzlich `0.5.1.dmg` und **drei** Deltas — alle 404.
-- **Fix (21.07.)**: `publish.sh` laedt jetzt **alles hoch, was der Appcast
-  referenziert** und lokal in `release/updates/` liegt, und die Pruefung geht
-  ueber **jede** Enclosure-URL statt nur die erste. Bei einer nicht abrufbaren
-  Datei wird der Appcast nicht veroeffentlicht.
-- **Grundregel**: Der Appcast definiert, was im Bucket liegen muss. Was dort nicht
-  mehr referenziert wird, darf geloescht werden — und nur das.
-
-### notarize.sh direkt aufgerufen -> unsigniertes DMG
-- **Symptom**: `⚠ SIGN_IDENTITY nicht gesetzt — DMG bleibt unsigniert`, danach
-  laeuft die Einreichung bei Apple trotzdem weiter.
-- **Ursache**: Die Identitaet wird in `release.sh:39` aus dem Schluesselbund
-  ermittelt und an `notarize.sh` durchgereicht. Wird `notarize.sh` **direkt**
-  gestartet (z.B. um nach einem Abbruch nur die Notarisierung zu wiederholen),
-  ist die Variable leer — `make_dmg.sh` hat dann nur gewarnt und weitergebaut.
-- **Tragweite**: Apple notarisiert das unsignierte DMG anstandslos, aber
-  Gatekeeper lehnt es beim Oeffnen mit `no usable signature` ab. Der Defekt
-  faellt also erst nach Upload, Notarisierung und Download auf.
-- **Fix (21.07.)**: `notarize.sh` ermittelt die Identitaet notfalls selbst aus
-  der **App-Signatur** (`codesign -dv` -> erste `Authority=`-Zeile) — damit wird
-  das DMG zwingend mit derselben Identitaet signiert wie sein Inhalt — und
-  bricht ab, wenn keine ermittelbar ist. `make_dmg.sh` bricht bei `NOTARIZED=1`
-  ohne Identitaet hart ab statt nur zu warnen.
-- **Dateien**: `scripts/notarize.sh`, `scripts/make_dmg.sh`
-
-### DMG-Bau: geratener Mountpunkt gestaltet das falsche Volume
-- **Symptom**: `hdiutil: convert failed - Die Ressource ist zeitweilig nicht
-  verfuegbar` beim Komprimieren. Alternativ — je nach Timing — ein fertiges,
-  aber **ungestaltetes** DMG **ohne Fehlermeldung**.
-- **Ursache**: `make_dmg.sh` setzte `MOUNT_DIR="/Volumes/$VOL"` als Annahme,
-  statt den Mountpunkt aus der `hdiutil attach`-Ausgabe zu lesen. Existiert
-  bereits ein Volume dieses Namens (abgebrochener Vorlauf, Testimage), haengt
-  macOS das neue still als `/Volumes/<Name> 1` ein. Folge: der Finder gestaltete
-  das ALTE Volume, `detach` warf das ALTE aus, die "wirklich weg?"-Pruefung war
-  damit zufrieden — und `convert` lief, waehrend das NEUE Volume noch hing.
-- **Fix (21.07.)**: Mountpunkt wird aus der `attach`-Ausgabe gelesen; der Finder
-  wird ueber `basename "$MOUNT_DIR"` angesprochen statt ueber `$VOL`; verwaiste
-  Volumes gleichen Namens werden vor dem Einhaengen ausgeworfen; die
-  Auswurf-Pruefung befragt zusaetzlich `hdiutil info` nach dem Image, weil ein
-  verschwundenes `/Volumes/...` nicht beweist, dass das Image freigegeben ist.
-- **Datei**: `scripts/make_dmg.sh`
-
-### 🔴 0.5.0 wurde mit einer zwei Tage alten Engine ausgeliefert
-- **Symptom**: Analyse aus 0.5.1 bricht ab mit
-  `unrecognized arguments: --cam-person-names`. Die App sendet das Argument, die
-  gebündelte Engine kennt es nicht.
-- **Ursache**: `build_app.sh` friert die Engine **nicht** ein, es **kopiert** nur
-  `dist/multicam-engine` ins Bundle (`:78`). PyInstaller muss vorher von Hand
-  laufen. Am 21.07. war `dist/` vom **19.07. 20:06**, die Quellen vom 20.07. —
-  der Build meldete trotzdem Erfolg.
-- **Tragweite**: In **0.5.0, das live ist**, fehlt jede Python-Änderung seit dem
-  19.07.: Pause-Trim-Fix (Inhaltsverlust!), AAF-Clipnamen, FP-Filter Regel A,
-  Kopfnicken-Schalter, speaking_debug. Die Swift-Seite war aktuell — deshalb sah
-  die App neu aus, verhielt sich aber wie vorher.
-- **Warum es niemandem auffiel**: Die Versionsnummer stammt aus der Info.plist
-  (Swift-Seite), nicht aus der Engine. Ein Bundle mit neuer Version und alter
-  Engine ist von außen nicht unterscheidbar.
-- **Abgesichert (21.07.)**: `build_app.sh` vergleicht jetzt die mtime der
-  eingefrorenen Engine gegen alle `.py` unter `modules/`, `shared/`,
-  `licensing/`, `engine/` und **bricht ab**, wenn Quellen neuer sind. Bewusst
-  kein Auto-Rebuild — PyInstaller läuft mehrere Minuten und soll eine
-  Entscheidung bleiben. `SKIP_ENGINE_CHECK=1` übergeht die Prüfung.
-- **Zu tun**: `cd apps/multicam-cutter && pyinstaller scripts/multicam_engine.spec`,
-  dann Release neu bauen und **0.5.2 nachschieben** — die Nutzer von 0.5.0 haben
-  den Pause-Trim-Bug weiterhin.
 
 ### 🟢 Pause-Trim entfernt Sprache — gefixt (Praxistest der Schranken offen)
 - **Symptom**: Video UND Audio sind an einer Stelle geschnitten, an der beide
@@ -346,31 +175,6 @@
   (Console-Capture — vermutlich aus demselben Grund ebenfalls wirkungslos, noch
   nicht gegengeprüft).
 
-### Kameras ab Nr. 3 werden nicht gesynct → stillschweigend Offset 0
-- **Symptom**: Bei **3+ Kameras** läuft die dritte (und jede weitere) zeitlich
-  versetzt zum Rest — ohne Fehlermeldung. Bei 2 Cams (bisheriger Normalfall)
-  tritt es NICHT auf.
-- **Ursache**: `sync_sources()` (`shared/waveform_sync.py`) hat eine feste Signatur
-  `(cam1, cam2, mic1, additional_mics)` und misst nur **CAM1↔CAM2** und **CAM1↔MIC1**.
-  Beide Aufrufer (`apps/multicam-cutter/engine/multicam_engine.py:825`,
-  `modules/multicam_cutter/run_from_bin.py:932`) reichen nur `cam_paths[0]` und
-  `cam_paths[1]` durch. CAM3 landet nie im Offsets-Dict; `build_aaf.py:258`
-  (`offsets.get(f'CAM{i+1}', 0)`) macht daraus **stumm eine 0**.
-- **Nebenbefund**: Zusatz-Mics werden ebenfalls nicht gemessen, sie **erben** MIC1s
-  Offset (`waveform_sync.py:206`). Unkritisch, solange alle Mics von einem Recorder
-  kommen (bisheriger Fall), falsch bei getrennten Recordern.
-- **Status**: **abgesichert** (nicht behoben). Ein Wächter in der App verhindert, dass
-  der Fall still eintritt: `EngineController.unsyncedCams` (alles ab Position 3 in
-  `orderedAnalysisCams`) → `UnsyncedCamsBanner` auf Screen 2 + `startBlockedReason`
-  sperrt den Analyse-Start. Lieber laut blockieren als stumm falsch schneiden.
-  Der eigentliche Fix (N-Cam-Sync) folgt in der Multicam-Session.
-- ⚠️ **NICHT die Ursache des Gast-Async-Bugs vom 18.07.** Der Lauf hatte 3 Mics, aber
-  nur **2 Cams**; dort war allein der abgeschnittene CAM1-Clip schuld (s. „Gefixt").
-- **Fix bewusst aufgeschoben**: gehört in die große Multicam/Close-Totale-Session, weil
-  die Sync-Referenzlogik davon abhängt, wie Close/Totale künftig modelliert wird.
-  Richtung (siehe TODO „Sync-Robustheit"): alle Quellen **einzeln** gegen eine
-  **Mic-Referenz** messen, Ausgabe so normalisieren dass CAM1 = 0 bleibt.
-
 ### ffmpeg nicht gefunden in PASS 5 (CLIP-Filter) — Issue #3
 - **Symptom**: Durchlauf bricht ab mit `[Errno 2] No such file or directory: 'ffmpeg'`.
   Log (Issue #3, `mehmaks/resolve-toolkit`): Sync + Nodding liefen bis **96,9 %** durch,
@@ -400,6 +204,204 @@
 - **Workaround**: Expertenmodus → „Ungünstige Cutaways verschieben (CLIP)" AUS.
 
 ## Gefixt
+
+### Schnitt-Begruendung ging zweimal auf dem Weg verloren
+- **Symptom**: Uebergangs-Einstellungen hiessen im AAF „Sprecher" statt
+  „Uebergang". Sichtbar war der Schnitt korrekt — nur nicht zuzuordnen.
+- **Zwei getrennte Verlustpunkte**, nacheinander gefunden:
+  1. **`write_edl`** schrieb nur Timecodes und Clipnamen. Beim Wiedereinlesen
+     setzte `parse_resolve_edl` pauschal `speaker`.
+     → Fix: `* CUT REASON`-Kommentar schreiben und lesen. Der Parser sammelt
+     jetzt ALLE Kommentarzeilen nach einem Event ein; bei festem Blick auf `i+1`
+     haette je nach Reihenfolge Clipname oder Begruendung gefehlt.
+  2. **PASS 2 baut die Events NEU.** Die geparsten Events dienen nur als
+     Section-Grenzen; die neuen bekamen den Standardwert.
+     → Fix: Sections tragen `reason` mit, `build_events_with_cutaways` nimmt sie
+     als `base_reason`.
+- **Die entscheidende Stelle war die unscheinbarste**: der Zweig in `main()`
+  „keine OFF-Kamera → Sections direkt uebernehmen". Genau dort landen die
+  Bruecken, denn die Bruecke ist die Totale und fuer sie gibt es keine
+  Cutaway-Quellen. Ohne diese eine Stelle haette der Fix ueberall gegriffen
+  **ausser dort, wo er gebraucht wird**.
+- **Nebenwirkung, die niemand bemerkt haette**: Solange die Begruendung fehlte,
+  war der Schutz in PASS 3 (`reason == 'transition'`) **toter Code**. Dass die
+  Bruecken ueberlebten, lag allein an ihrer Laenge — bei einem kuerzeren Wert
+  waeren sie stillschweigend verschwunden.
+- **Merke**: Eine Eigenschaft, die eine Datei-Serialisierung passieren muss,
+  ueberlebt sie nur, wenn beide Seiten sie kennen. Und ein Schutz, der auf einer
+  solchen Eigenschaft beruht, ist ohne Beweis nur eine Vermutung.
+
+### Schwache Korrelationen wurden ungeprueft uebernommen (Confidence-Schwelle)
+- **Befund (3-Cam-Test, 21.07.)**: Eine Totale (Actioncam, `VID_…`) lieferte bei
+  JEDEM Analysefenster eine Confidence um 12x — und dabei voellig verschiedene
+  Offsets: −478 (180 s), +95 (600 s), −460 (1500 s). Ueber CAM1 gemessen −472,
+  ueber CAM2 −374. **Es gibt bei dieser Quelle keinen echten Korrelationsgipfel**;
+  die Korrelation findet Rauschen und liefert je Fenster eine andere Zufallszahl.
+- **Erkennungsmerkmal**: gleichbleibend niedrige Confidence bei WACHSENDEM Fenster.
+  Bei echtem Signal steigt sie mit mehr Material.
+- **Warum es durchging**: `MIN_CONFIDENCE = 5.0` ist die Schwelle zum
+  Weitersuchen, nicht zum Vertrauen. 12x passiert sie muehelos. Die Kreuzprobe
+  deckte nur CAM1↔CAM2 ab — jede andere Quelle blieb ungeprueft.
+- **Fix (21.07.)**: Neue Schwelle `TRUST_CONFIDENCE = 50.0`. Jede Quelle darunter
+  wird ueber einen ZWEITEN Weg gegengeprueft (sicherste andere Quelle als Pruefer);
+  weichen beide Wege um mehr als 2 Frames ab, bricht der Sync ab und nennt Quelle,
+  beide Ergebnisse und die Confidence.
+- **Wirkung**: Der 3-Cam-Ordner bricht jetzt mit klarer Diagnose ab statt mit
+  einem um bis zu 4 s falschen Offset weiterzurechnen. Beide bekannt guten
+  2-Cam-Episoden laufen unveraendert durch (Confidences dort 100–470x).
+- **KORREKTUR (21.07., wenige Stunden spaeter)**: Die Schlussfolgerung „Totale
+  per Waveform nicht syncbar" war **falsch**. Die flache Confidence war echt,
+  ihre Ursache aber eine andere: der wahre Versatz (30 min) lag ausserhalb des
+  durchsuchbaren Bereichs. `correlate(mode="full")` findet nur Lags bis zur
+  Laenge der REFERENZ — mit 180 s Referenz sind 30 min prinzipiell unauffindbar,
+  und man sieht ausschliesslich Rauschen. Auch der Gegentest mit 1500 s reichte
+  nicht, weil der gesuchte Versatz bei 1808 s liegt.
+  **Merkregel**: flache Confidence bei WACHSENDEM Fenster heisst nicht „kein
+  Signal", sondern zuerst „Suchraum zu klein".
+  Mit asymmetrischen Fenstern (Ziel 180 s, Referenz waechst bis zur vollen Laenge)
+  synct dieselbe Totale mit **177x** statt 12x.
+
+### Unvollstaendige Quelldatei wird beim Scan unbesehen uebernommen
+- **Symptom (Episode 38, 21.07.)**: Waveform-Sync bricht mit „Kreuzprobe
+  fehlgeschlagen" ab. Sieht nach einem Korrelationsproblem aus, ist aber keines.
+- **Wahre Ursache**: `C7451_25fps.MP4` war ein **94-Sekunden-Fragment** einer
+  abgebrochenen FPS-Konvertierung (Original `C7451.MP4`: 99 min). Die App nahm
+  es beim Scan als vollwertige Kamera an — 1,6 min Video gegen 100 min Ton.
+- **Warum die Nachmessung nicht half**: `_sync_pair` kappt beide Seiten per
+  `min_len` auf die kuerzere Datei. Ein groesseres Fenster anzufordern aendert
+  nichts, wenn nur 94 s existieren — Confidence und Offset kamen deshalb auf die
+  Nachkommastelle identisch zurueck. Genau das war der Hinweis.
+- **Der Konverter war nicht schuld**: Er prueft seine Ausgabe seit dem 18.07.
+  (`out_dur < dur * 0.98` → Datei loeschen + Fehler). Das Fragment stammt vom
+  17.07., ist also einen Tag aelter als der Schutz.
+- **Luecke**: Der Schutz griff nur beim KONVERTIEREN. Eine unvollstaendige Datei
+  kann auch anders entstehen — abgebrochener Kopiervorgang, halb geladene
+  Cloud-Datei, Altbestand.
+- **Fix (21.07.), zweiter Anlauf**: Der erste Versuch — Abbruch bei Quellen unter
+  3 min — behandelte das Symptom. Der User wandte zu Recht ein, dass 95 s
+  gemeinsames Material fuer eine Korrelation reichlich sind. Die wahre Ursache
+  lag in `_sync_pair`:
+  ```python
+  min_len = min(len(ref_audio), len(target_audio))
+  ref_audio = ref_audio[:min_len]     # kappt die REFERENZ auf 94 s
+  ```
+  Die Referenz wurde auf die Laenge des kuerzeren Partners gestutzt, **gerechnet
+  ab ihrem eigenen Anfang**. MIC1 blieben so nur die ersten 94 s — reiner
+  Vorlauf, null Ueberlappung mit CAM1 (beginnt bei Sekunde 102). Zugleich sinkt
+  damit der groesste auffindbare Versatz auf ebendiese Laenge: 102 s waren
+  **prinzipiell unauffindbar**.
+  Die Kuerzung war ueberfluessig — `correlate(mode="full")` kommt mit
+  unterschiedlich langen Signalen zurecht. Sie ist entfernt; der harte Abbruch
+  gilt nur noch unter `MIN_SOURCE_SECONDS` (10 s), darunter ist es Rauschen.
+  Quellen unter 50 % der laengsten erzeugen weiter einen Hinweis (kann legitim
+  sein, wenn eine Kamera nur zeitweise lief).
+- **Verifiziert**: 95-s-Fragment bei 102 s Vorlauf synct jetzt exakt; beide
+  frueheren Szenarien (5 Quellen, 100-s-Vorlauf) unveraendert korrekt.
+- **Merke**: Die Kreuzprobe hat hier korruptes EINGANGSMATERIAL aufgedeckt, nicht
+  einen Rechenfehler. Ohne sie waere daraus klaglos ein Schnitt entstanden.
+
+### Deltas wurden nie hochgeladen — jedes Update lud die volle DMG
+- **Symptom**: keines. Updates funktionierten, nur langsam.
+- **Ursache**: `publish.sh` lud genau **eine** Datei hoch (`$OBJECT_KEY`, die
+  versionierte DMG). Die von `generate_appcast` erzeugten `.delta`-Dateien blieben
+  liegen, obwohl der Appcast sie bewirbt. Ebenso pruefte Schritt [2/4] nur die
+  erste Enclosure-URL.
+- **Warum es niemandem auffiel**: Sparkle versucht das Delta und faellt bei einem
+  Fehler **still** auf die volle DMG zurueck. Das Update gelingt also — es
+  uebertraegt nur **346 MB statt 832 KB** (Faktor ~400). Kein Fehler, keine Meldung.
+- **Nachgewiesen (21.07.)**: Im Bucket lagen nur `0.5.0.dmg` und `0.5.2.dmg`.
+  Der Feed bewarb zusaetzlich `0.5.1.dmg` und **drei** Deltas — alle 404.
+- **Fix (21.07.)**: `publish.sh` laedt jetzt **alles hoch, was der Appcast
+  referenziert** und lokal in `release/updates/` liegt, und die Pruefung geht
+  ueber **jede** Enclosure-URL statt nur die erste. Bei einer nicht abrufbaren
+  Datei wird der Appcast nicht veroeffentlicht.
+- **Grundregel**: Der Appcast definiert, was im Bucket liegen muss. Was dort nicht
+  mehr referenziert wird, darf geloescht werden — und nur das.
+
+### notarize.sh direkt aufgerufen -> unsigniertes DMG
+- **Symptom**: `⚠ SIGN_IDENTITY nicht gesetzt — DMG bleibt unsigniert`, danach
+  laeuft die Einreichung bei Apple trotzdem weiter.
+- **Ursache**: Die Identitaet wird in `release.sh:39` aus dem Schluesselbund
+  ermittelt und an `notarize.sh` durchgereicht. Wird `notarize.sh` **direkt**
+  gestartet (z.B. um nach einem Abbruch nur die Notarisierung zu wiederholen),
+  ist die Variable leer — `make_dmg.sh` hat dann nur gewarnt und weitergebaut.
+- **Tragweite**: Apple notarisiert das unsignierte DMG anstandslos, aber
+  Gatekeeper lehnt es beim Oeffnen mit `no usable signature` ab. Der Defekt
+  faellt also erst nach Upload, Notarisierung und Download auf.
+- **Fix (21.07.)**: `notarize.sh` ermittelt die Identitaet notfalls selbst aus
+  der **App-Signatur** (`codesign -dv` -> erste `Authority=`-Zeile) — damit wird
+  das DMG zwingend mit derselben Identitaet signiert wie sein Inhalt — und
+  bricht ab, wenn keine ermittelbar ist. `make_dmg.sh` bricht bei `NOTARIZED=1`
+  ohne Identitaet hart ab statt nur zu warnen.
+- **Dateien**: `scripts/notarize.sh`, `scripts/make_dmg.sh`
+
+### DMG-Bau: geratener Mountpunkt gestaltet das falsche Volume
+- **Symptom**: `hdiutil: convert failed - Die Ressource ist zeitweilig nicht
+  verfuegbar` beim Komprimieren. Alternativ — je nach Timing — ein fertiges,
+  aber **ungestaltetes** DMG **ohne Fehlermeldung**.
+- **Ursache**: `make_dmg.sh` setzte `MOUNT_DIR="/Volumes/$VOL"` als Annahme,
+  statt den Mountpunkt aus der `hdiutil attach`-Ausgabe zu lesen. Existiert
+  bereits ein Volume dieses Namens (abgebrochener Vorlauf, Testimage), haengt
+  macOS das neue still als `/Volumes/<Name> 1` ein. Folge: der Finder gestaltete
+  das ALTE Volume, `detach` warf das ALTE aus, die "wirklich weg?"-Pruefung war
+  damit zufrieden — und `convert` lief, waehrend das NEUE Volume noch hing.
+- **Fix (21.07.)**: Mountpunkt wird aus der `attach`-Ausgabe gelesen; der Finder
+  wird ueber `basename "$MOUNT_DIR"` angesprochen statt ueber `$VOL`; verwaiste
+  Volumes gleichen Namens werden vor dem Einhaengen ausgeworfen; die
+  Auswurf-Pruefung befragt zusaetzlich `hdiutil info` nach dem Image, weil ein
+  verschwundenes `/Volumes/...` nicht beweist, dass das Image freigegeben ist.
+- **Datei**: `scripts/make_dmg.sh`
+
+### 🔴 0.5.0 wurde mit einer zwei Tage alten Engine ausgeliefert
+- **Symptom**: Analyse aus 0.5.1 bricht ab mit
+  `unrecognized arguments: --cam-person-names`. Die App sendet das Argument, die
+  gebündelte Engine kennt es nicht.
+- **Ursache**: `build_app.sh` friert die Engine **nicht** ein, es **kopiert** nur
+  `dist/multicam-engine` ins Bundle (`:78`). PyInstaller muss vorher von Hand
+  laufen. Am 21.07. war `dist/` vom **19.07. 20:06**, die Quellen vom 20.07. —
+  der Build meldete trotzdem Erfolg.
+- **Tragweite**: In **0.5.0, das live ist**, fehlt jede Python-Änderung seit dem
+  19.07.: Pause-Trim-Fix (Inhaltsverlust!), AAF-Clipnamen, FP-Filter Regel A,
+  Kopfnicken-Schalter, speaking_debug. Die Swift-Seite war aktuell — deshalb sah
+  die App neu aus, verhielt sich aber wie vorher.
+- **Warum es niemandem auffiel**: Die Versionsnummer stammt aus der Info.plist
+  (Swift-Seite), nicht aus der Engine. Ein Bundle mit neuer Version und alter
+  Engine ist von außen nicht unterscheidbar.
+- **Abgesichert (21.07.)**: `build_app.sh` vergleicht jetzt die mtime der
+  eingefrorenen Engine gegen alle `.py` unter `modules/`, `shared/`,
+  `licensing/`, `engine/` und **bricht ab**, wenn Quellen neuer sind. Bewusst
+  kein Auto-Rebuild — PyInstaller läuft mehrere Minuten und soll eine
+  Entscheidung bleiben. `SKIP_ENGINE_CHECK=1` übergeht die Prüfung.
+- **Zu tun**: `cd apps/multicam-cutter && pyinstaller scripts/multicam_engine.spec`,
+  dann Release neu bauen und **0.5.2 nachschieben** — die Nutzer von 0.5.0 haben
+  den Pause-Trim-Bug weiterhin.
+- **Nachtrag (23.07.):** Das „0.5.2 nachschieben" ist durch die 0.6.x-Releases ueberholt — alle Nutzer sind laengst auf neueren Versionen.
+
+### Kameras ab Nr. 3 werden nicht gesynct → stillschweigend Offset 0
+- **Symptom**: Bei **3+ Kameras** läuft die dritte (und jede weitere) zeitlich
+  versetzt zum Rest — ohne Fehlermeldung. Bei 2 Cams (bisheriger Normalfall)
+  tritt es NICHT auf.
+- **Ursache**: `sync_sources()` (`shared/waveform_sync.py`) hat eine feste Signatur
+  `(cam1, cam2, mic1, additional_mics)` und misst nur **CAM1↔CAM2** und **CAM1↔MIC1**.
+  Beide Aufrufer (`apps/multicam-cutter/engine/multicam_engine.py:825`,
+  `modules/multicam_cutter/run_from_bin.py:932`) reichen nur `cam_paths[0]` und
+  `cam_paths[1]` durch. CAM3 landet nie im Offsets-Dict; `build_aaf.py:258`
+  (`offsets.get(f'CAM{i+1}', 0)`) macht daraus **stumm eine 0**.
+- **Nebenbefund**: Zusatz-Mics werden ebenfalls nicht gemessen, sie **erben** MIC1s
+  Offset (`waveform_sync.py:206`). Unkritisch, solange alle Mics von einem Recorder
+  kommen (bisheriger Fall), falsch bei getrennten Recordern.
+- **Status**: **abgesichert** (nicht behoben). Ein Wächter in der App verhindert, dass
+  der Fall still eintritt: `EngineController.unsyncedCams` (alles ab Position 3 in
+  `orderedAnalysisCams`) → `UnsyncedCamsBanner` auf Screen 2 + `startBlockedReason`
+  sperrt den Analyse-Start. Lieber laut blockieren als stumm falsch schneiden.
+  Der eigentliche Fix (N-Cam-Sync) folgt in der Multicam-Session.
+- ⚠️ **NICHT die Ursache des Gast-Async-Bugs vom 18.07.** Der Lauf hatte 3 Mics, aber
+  nur **2 Cams**; dort war allein der abgeschnittene CAM1-Clip schuld (s. „Gefixt").
+- **Fix bewusst aufgeschoben**: gehört in die große Multicam/Close-Totale-Session, weil
+  die Sync-Referenzlogik davon abhängt, wie Close/Totale künftig modelliert wird.
+  Richtung (siehe TODO „Sync-Robustheit"): alle Quellen **einzeln** gegen eine
+  **Mic-Referenz** messen, Ausgabe so normalisieren dass CAM1 = 0 bleibt.
+- **Nachtrag (23.07.):** GEFIXT durch den N-Sync (Teil A, 0.6.0): jede Quelle wird einzeln gegen die Referenz (laengstes Mikrofon) gemessen; der App-Waechter ist seit 0.6.3 ganz aufgehoben.
 
 ### Automatische Update-Pruefung meldete sich nie (Toggle war an)
 - **Symptom (User, 23.07.)**: Trotz aktiviertem „Automatisch nach Updates

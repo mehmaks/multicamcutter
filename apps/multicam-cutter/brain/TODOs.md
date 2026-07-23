@@ -125,8 +125,12 @@ halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich ein
 Python-Runtime dazubekommt.
 
 ### UI / UX
-- [ ] **Waveform je Audiospur + Klick-zum-Abspielen** (Fremd-Feedback, 22.07.) —
-  Aufwand: **mittel**.
+- [x] **Waveform je Audiospur + Klick-zum-Abspielen** (Fremd-Feedback, 22.07.) —
+  Aufwand: **mittel**. — UMGESETZT (23.07.): `WaveformStrip` in jeder PersonRow
+  (Peaks via AVAudioFile+vDSP in Swift, gecacht; entschied die offene Frage
+  Swift vs. Engine → Swift). Klick springt an die Position, Playhead laeuft mit,
+  Play-Knopf spielt die GANZE Spur ab der dominanten Stelle (Engine schickt
+  `preview_offset_s` mit).
   **User-Story:** Cutter bekommen teils UNBEKANNTES Material und müssen schnell
   rausfinden, wer auf welcher Spur spricht. Der heutige Ansatz — Play-Button
   spielt die getrimmte Vorschau ab der ersten lauten Stelle (`previewPath`) — ist
@@ -507,18 +511,22 @@ Multi-Person, Off-Sektionen, Uebergang). **Zwei-Personen-Pfad byte-identisch.**
   **Reiz:** umgeht die Split-Erkennung, weil der User die Teile im NLE bereits
   aneinandergelegt hat.
 
-### 🟡 Sync-Robustheit: gegen Mics statt gegen CAM1 — Aufwand: **mittel**
+### ~~🟡 Sync-Robustheit: gegen Mics statt gegen CAM1 — Aufwand: **mittel**~~ — UMGESETZT (0.6.0, Teil A)
+Referenz ist seit dem N-Sync das laengste Mikrofon (`sync_sources`), CAM1 nur
+noch Normalisierungs-Anker.
 > 📋 **Detaillierter Umbauplan: `brain/Plan-Multicam-3plus.md`** (Sync + Schnitt-Logik,
 > Reihenfolge, Verifikation, offene Produktfragen).
-- [ ] **⚠️ Enthält einen echten Bug: Cams ab Nr. 3 werden gar nicht gesynct** (bekommen
-  stumm Offset 0) — Details in `brain/Bekannte-Bugs.md` → OFFEN. Bewusst **zusammen mit
+- [x] **⚠️ Enthält einen echten Bug: Cams ab Nr. 3 werden gar nicht gesynct** (bekommen
+  stumm Offset 0) — Details in `brain/Bekannte-Bugs.md` → Gefixt. Bewusst **zusammen mit
   der Multicam/Close-Totale-Session** angehen, weil die Referenzlogik davon abhängt.
-  Bei 2 Cams (bisheriger Normalfall) tritt es nicht auf.
-- [ ] **Sync-Referenz überdenken.** Heute ist `cam_paths[0]` (erste Cam) der EINZIGE
+  Bei 2 Cams (bisheriger Normalfall) tritt es nicht auf. — GEFIXT (N-Sync, 0.6.0).
+- [x] **Sync-Referenz überdenken.** Heute ist `cam_paths[0]` (erste Cam) der EINZIGE
   Sync-Anker (`shared/waveform_sync.py:183` „CAM1 is always 0"); alles hängt an Qualität/
   Länge dieser einen Cam-Tonspur. Fragil — siehe abgeschnittener-Host-Bug (18.07., beide
   Symptome, AAF-Link + Gast-Sync, hatten diese eine Wurzel). Robuster: gegen die sauberen,
   vollen **Mic-Spuren** synchronisieren. Der Swift-Ordnungs-Fix (Close-Cams zuerst) entschärft.
+  — UMGESETZT (0.6.0, Teil A): Referenz ist das laengste Mikrofon, CAM1 nur noch
+  Normalisierungs-Anker.
 
 ### Performance: Nodding-Analyse parallelisieren — Aufwand: **mittel–schwer**
 - [ ] **Kameras parallel analysieren statt nacheinander.**
@@ -883,7 +891,9 @@ Multi-Person, Off-Sektionen, Uebergang). **Zwei-Personen-Pfad byte-identisch.**
   Commits: `95ecfed` (Wizard) + `64be61b` (Cleanup).
   ⚠️ **Doku-Schuld:** `brain/UI-Komponenten.md` beschreibt noch die entfernten Views
   (SetupView, Inspector, CameraCard, MicPill) → müsste auf den Wizard umgeschrieben werden.
-  **Phase 5 OFFEN:** Wizard bei vorhandener `.multicam`-Zuordnung überspringen → Übersicht.
+  **✅ Phase 5 UMGESETZT:** Wizard bei vorhandener `.multicam`-Zuordnung überspringen → Übersicht
+  — Wizard springt bei bekannter .multicam zur Uebersicht; seit 23.07. mit
+  Hinweis-Banner + Reset-Link.
 
   **🔒 GELOCKTE DESIGN-ENTSCHEIDUNG (17.07., mit User) — Zuordnungs-Wizard (KISS):**
   Der rohe Personen-Reiter ist Erst-Usern zu undurchsichtig → ersetzt durch einen
@@ -1084,7 +1094,8 @@ Siehe brain/Entscheidungen.md → "Lizenzmodell: Abo via LemonSqueezy".
   (Home/Pricing/Download/FAQ, DE/EN) — Stand dort erfragen
 - [x] **`/api/feedback` → GitHub Issue** — LIVE, Env-Vars gesetzt, verifiziert.
   Issues landen in `mehmaks/resolve-toolkit`. Kein App-Rebuild nötig war.
-- [ ] **`appcast.xml` hosten** (Contract: `brain/Appcast-Hosting.md`) — blockiert Auto-Update
+- [x] **`appcast.xml` hosten** (Contract: `brain/Appcast-Hosting.md`) — ~~blockiert Auto-Update~~
+  ERLEDIGT (Feed live unter multicamcutter.pantake.com, Updates laufen seit 0.5.x real)
 
 ### Design
 - [x] **Log-Fenster** (`LogWindow.swift`): eigene `Window`-Scene, **Cmd+L**, landet
@@ -1154,7 +1165,8 @@ Siehe brain/Entscheidungen.md → "Lizenzmodell: Abo via LemonSqueezy".
   Kurzfristig sinnvoll: **3**, damit die Testrunde nicht blockiert.
 - [x] Sparkle als Swift Package + Framework-Einbettung in build_app.sh
 - [x] "Auf Update prüfen"-Button im Über-Dialog (KVO-gesteuert)
-- [ ] Sparkle scharf schalten (wartet auf Website/Domain):
+- [x] Sparkle scharf schalten ~~(wartet auf Website/Domain)~~ — ERLEDIGT
+  (Auto-Update-Kette mehrfach real durchlaufen, EdDSA-Signierung via generate_appcast):
   - [x] EdDSA-Keypair via `generate_keys` — Public Key `kcPVT…` steckt in
     `SUPublicEDKey` (verifiziert: stimmt mit dem Keychain-Key überein). **Private Key
     ist gesichert** (per `generate_keys -x` exportiert, im Passwort-Manager abgelegt,
@@ -1172,14 +1184,16 @@ Siehe brain/Entscheidungen.md → "Lizenzmodell: Abo via LemonSqueezy".
   `SIGN_IDENTITY=… build_app.sh` signiert inside-out mit Hardened Runtime +
   `scripts/MulticamCutter.entitlements`; `scripts/notarize.sh` macht DMG → submit
   → staple → verify. Details: `brain/Distribution-Setup.md`.
-  ⚠️ Offen: **erster echter End-to-End-Lauf** muss der User im eigenen Terminal
+  ⚠️ ~~Offen~~ ✅ ERLEDIGT (Releases 0.5.0 bis 0.6.4 signiert, notarisiert,
+  gestapelt): **erster echter End-to-End-Lauf** muss der User im eigenen Terminal
   starten (codesign braucht einmal „Immer erlauben" am Schlüsselbund-Dialog —
   headless/Agent hängt daran). Danach ggf. Entitlements nachjustieren, falls die
   notarisierte App unter Hardened Runtime beim Start crasht.
 - [x] DMG-Installer (Test-Verteilung): `scripts/make_dmg.sh` baut `MultiCamCutter.dmg`
   aus release/-App + „Programme"-Verknüpfung + Erste-Start-Anleitung (Gatekeeper-
   Umgehung für ad-hoc/unnotarisierten Build). Finale signierte DMG nach Notarization.
-- [ ] DMG grafisch gestalten (Drag-to-Install-Look): Hintergrundbild im Marken-Stil
+- [x] DMG grafisch gestalten (Drag-to-Install-Look) — UMGESETZT (gestaltetes DMG
+  mit Hintergrund + Layout, 21.07.): Hintergrundbild im Marken-Stil
   (dunkel + Lime, passend zum Orb-Icon) mit Pfeil App → „Programme", feste Icon-
   Positionen, größere Icons, ausgeblendete Toolbar. Umsetzung via `create-dmg`
   (Homebrew, simpel) oder `dmgbuild` (Python, headless/reproduzierbar). Gatekeeper-
