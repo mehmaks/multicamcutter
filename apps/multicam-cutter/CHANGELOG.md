@@ -5,6 +5,45 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.5
+
+**Neu: Wellenform für jede Tonspur — mit Anhören per Klick**
+
+Jede Audiokarte zeigt jetzt die Wellenform ihrer Spur, und ein Klick spielt sie
+direkt ab. So prüfst du in Sekunden, ob die Zuordnung stimmt und ob jede Person
+auf ihrer eigenen Spur am deutlichsten zu hören ist. Die Wellenformen werden
+einmal berechnet (mit Fortschrittsanzeige) und gespeichert — beim nächsten
+Öffnen des Ordners erscheinen sie sofort.
+
+**Bekannte Ordner öffnen sich deutlich schneller**
+
+Vorschaubilder, Tonanalyse und Hörproben werden beim ersten Scan gespeichert
+und danach wiederverwendet, statt jedes Mal neu berechnet zu werden.
+
+**Fenster & Oberfläche**
+
+Das Fenster passt seine Höhe auf jeder Seite automatisch dem Inhalt an — kein
+Leerraum mehr unter der Übersicht, kein manuelles Ziehen nötig (die Breite ist
+jetzt fest). Ab zwei Tonspuren erscheinen die Audiokarten zweispaltig,
+kurzlebige Hinweise blenden sich nach ein paar Sekunden selbst aus, und die
+App nutzt jetzt dasselbe Icon-Set wie die Website.
+
+**Warnung bei abweichender Bildrate direkt an der Kamera**
+
+Passt die Bildrate einer Videodatei nicht zum Projekt, steht die Warnung jetzt
+direkt auf der betroffenen Kamera-Karte — man muss nicht mehr suchen, welche
+Datei gemeint ist.
+
+**Mehrplatz-Lizenzen: belegte Arbeitsplätze sichtbar**
+
+Bei Lizenzen mit mehreren Arbeitsplätzen zeigen die Einstellungen jetzt an, wie
+viele Plätze gerade belegt sind (z. B. „2 von 3 belegt").
+
+**Updates werden schneller gefunden**
+
+Die App prüft jetzt stündlich auf neue Versionen statt einmal täglich — Updates
+kommen damit spürbar früher an.
+
 ## 0.6.4
 
 **Behoben: 24-bit-Tonspuren wurden falsch gelesen**

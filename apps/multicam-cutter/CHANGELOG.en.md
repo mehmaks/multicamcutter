@@ -4,6 +4,43 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 0.6.5
+
+**New: waveform for every audio track — click to listen**
+
+Every audio card now shows its track's waveform, and a click plays it right
+away. That lets you verify in seconds that the assignment is correct and that
+each person is loudest on their own track. Waveforms are computed once (with a
+progress indicator) and cached — the next time you open the folder they appear
+instantly.
+
+**Known folders open much faster**
+
+Thumbnails, audio analysis and listening snippets are saved on the first scan
+and reused afterwards instead of being recomputed every time.
+
+**Window & interface**
+
+The window now fits its height to the content on every page — no more empty
+space below the overview, no manual resizing needed (the width is fixed now).
+With two or more audio tracks the cards arrange in two columns, short-lived
+notices dismiss themselves after a few seconds, and the app now uses the same
+icon set as the website.
+
+**Frame-rate warning right on the camera card**
+
+If a video file's frame rate doesn't match the project, the warning now sits
+directly on the affected camera card — no more guessing which file it means.
+
+**Multi-seat licenses: seat usage visible**
+
+For licenses with multiple seats, the settings now show how many seats are
+currently in use (e.g. "2 of 3 in use").
+
+**Updates arrive sooner**
+
+The app now checks for new versions hourly instead of once a day.
+
 ## 0.6.4
 
 **Fixed: 24-bit audio tracks were read incorrectly**
