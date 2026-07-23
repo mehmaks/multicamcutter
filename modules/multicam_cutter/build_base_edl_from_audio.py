@@ -23,13 +23,34 @@ from frame_utils import timecode_to_frames, frames_to_timecode, get_reference_fr
 # ─── Audio-Analyse ─────────────────────────────────────────────────────────────
 
 def load_audio(path: str):
-    with wave.open(path, 'rb') as wf:
-        sr  = wf.getframerate()
-        n_ch = wf.getnchannels()
-        raw = wf.readframes(wf.getnframes())
-    audio = np.frombuffer(raw, dtype=np.int16).astype(np.float32) / 32768.0
-    if n_ch > 1:
-        audio = audio.reshape(-1, n_ch).mean(axis=1)
+    """
+    Mono-Audio als float32 laden — Dekodierung ueber ffmpeg, damit JEDE
+    Bit-Tiefe korrekt gelesen wird (16/24/32-bit PCM, float).
+
+    Der fruehere wave+int16-Weg hat 24-bit-WAVs fehlinterpretiert: 3 Bytes je
+    Sample als 2 gelesen → 1,5-fache Laenge und Rauschen statt Ton. Folge war
+    eine komplett degenerierte Diarisierung (Realfall 23.07.: pegelidentische
+    Seiten, 1 Segment, alles Simultan — siehe CLAUDE.md → Fixed Bugs). Der
+    Waveform-Sync dekodiert seit jeher ueber ffmpeg und war deshalb korrekt.
+    """
+    import subprocess
+    probe = subprocess.run(
+        ["ffprobe", "-v", "error", "-select_streams", "a:0",
+         "-show_entries", "stream=sample_rate",
+         "-of", "default=noprint_wrappers=1:nokey=1", path],
+        capture_output=True, text=True)
+    try:
+        sr = int(float(probe.stdout.strip()))
+    except ValueError:
+        raise RuntimeError(f"ffprobe: keine Sample-Rate fuer {path}: "
+                           f"{probe.stderr.strip()[:200]}")
+    result = subprocess.run(
+        ["ffmpeg", "-v", "error", "-i", path, "-ac", "1", "-f", "f32le", "-"],
+        capture_output=True)
+    if result.returncode != 0:
+        raise RuntimeError(f"ffmpeg fehlgeschlagen fuer {path}:\n"
+                           + result.stderr.decode(errors="replace")[-300:])
+    audio = np.frombuffer(result.stdout, dtype=np.float32)
     return audio, sr
 
 
