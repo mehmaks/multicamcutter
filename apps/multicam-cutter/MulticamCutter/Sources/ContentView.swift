@@ -15,6 +15,12 @@ struct ContentView: View {
     /// Gemessene Wizard-Hoehen fuers Content-Fitting (s. fitWindowToWizardContent).
     @State private var wizardContentHeight: CGFloat = 0
     @State private var wizardViewportHeight: CGFloat = 0
+    /// Fitting-Sicherungen: waehrend der Animation keine neuen Fits (Zwischen-
+    /// frames liefern veraltete Messwerte → Aufschaukeln, Realfall 24.07.);
+    /// Flip-Flop-Detektor stoppt echte Rueckkopplungen.
+    @State private var windowFitInProgress = false
+    @State private var recentFitTargets: [CGFloat] = []
+    @State private var fitSuppressedAtContent: CGFloat? = nil
 
     /// Alles, was die Analyse-Sperre überschreibt, um es danach zurückzugeben.
     private struct WindowConstraints {
@@ -84,6 +90,12 @@ struct ContentView: View {
             wizardViewportHeight = h
             fitWindowToWizardContent()
         }
+        .onChange(of: engine.wizardStep) { _, _ in
+            // Frischer Start je Seite: Flip-Flop-Gedaechtnis leeren.
+            recentFitTargets = []
+            fitSuppressedAtContent = nil
+            fitWindowToWizardContent()
+        }
     }
 
     /// Vereinheitlichte, dunkle Titelleiste wie im Dummy: transparent, ohne Titeltext,
@@ -113,10 +125,19 @@ struct ContentView: View {
               engine.state == .ready,             // nur im Wizard, nie im Lauf
               frameBeforeRun == nil,              // nicht waehrend Analyse-Restore
               !window.styleMask.contains(.fullScreen),
+              !window.inLiveResize,               // nie gegen den Nutzer ziehen
+              !windowFitInProgress,               // erst ausanimieren, dann messen
               wizardContentHeight > 0, wizardViewportHeight > 0 else { return }
 
+        // Nach erkannter Rueckkopplung: stillhalten, bis sich der Inhalt
+        // WIRKLICH aendert (>10 pt) oder die Seite wechselt.
+        if let s = fitSuppressedAtContent {
+            if abs(s - wizardContentHeight) < 10 { return }
+            fitSuppressedAtContent = nil
+        }
+
         let delta = wizardContentHeight - wizardViewportHeight
-        guard abs(delta) > 2 else { return }      // stabil: passt schon
+        guard abs(delta) > 4 else { return }      // stabil: passt schon
 
         let screenLimit = (window.screen ?? NSScreen.main)?.visibleFrame.height ?? 1100
         let maxH = min(1100, screenLimit - 24)
@@ -125,10 +146,33 @@ struct ContentView: View {
         var f = window.frame
         let top = f.maxY
         let target = min(max(f.height + delta, minH), maxH)
-        guard abs(target - f.height) > 2 else { return }   // an der Grenze geklemmt
+        guard abs(target - f.height) > 4 else { return }   // an der Grenze geklemmt
+
+        // Flip-Flop-Detektor (A → B → A): der Inhalt haengt dann von der
+        // Fensterhoehe ab — anhalten statt endlos pumpen (Realfall 24.07.:
+        // Endlos-Animation auf Screen 3).
+        if recentFitTargets.count >= 2,
+           abs(recentFitTargets[recentFitTargets.count - 2] - target) < 4 {
+            fitSuppressedAtContent = wizardContentHeight
+            return
+        }
+        recentFitTargets.append(target)
+        if recentFitTargets.count > 3 { recentFitTargets.removeFirst() }
+
         f.size.height = target
         f.origin.y = top - target
-        window.setFrame(f, display: true, animate: true)
+        windowFitInProgress = true
+        NSAnimationContext.runAnimationGroup({ ctx in
+            ctx.duration = 0.25
+            window.animator().setFrame(f, display: true)
+        }, completionHandler: {
+            // Nach dem Settle genau EIN Korrekturlauf mit frischen Messwerten —
+            // waehrend der Animation eingetroffene Werte werden bewusst verworfen.
+            DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
+                windowFitInProgress = false
+                fitWindowToWizardContent()
+            }
+        })
     }
 
     /// Die Progress-View braucht deutlich weniger Platz als das Setup: beim
