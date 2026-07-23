@@ -762,6 +762,11 @@ struct OverviewStep: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.brandAccent.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandAccent.opacity(0.35), lineWidth: 1))
+                .transition(.opacity)
+                // Fluechtige Info (Design-System): nach ~7,5 s selbst ausblenden.
+                // Der Reset-Link verschwindet damit bis zum naechsten Start — ok
+                // (User-Entscheid 24.07.); Hover pausiert, X schliesst sofort.
+                .autoDismiss { engine.sessionRestored = false }
             }
 
             WizardIntro(title: "Passt alles?",

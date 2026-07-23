@@ -61,6 +61,19 @@ Noch keine Custom-Fonts. Aktuell System-Defaults:
 
 ## Komponenten-Stile
 
+### Fluechtige Informationen (UI-Regel, 24.07.)
+Info-Banner, die nur informieren und keine Entscheidung blockieren, blenden
+sich nach **~7,5 s automatisch aus** — via `.autoDismiss { … }`
+(`AutoDismiss.swift`). Verhalten: Hover pausiert das Ausblenden (wer liest,
+wird nicht ueberrascht), das X schliesst sofort, Ausblenden mit
+`.transition(.opacity)` + easeOut 0,4 s.
+- **Anwenden auf:** reine Status-/Bestaetigungs-Infos (z. B. „Ordner bekannt —
+  Zuordnungen geladen"; dass dabei der Reset-Link mit verschwindet, ist ok —
+  User-Entscheid).
+- **NICHT anwenden auf:** Warnungen, die eine Handlung erfordern oder einen
+  Zustand beschreiben, der bestehen bleibt (FPS-Mismatch-Badge, Fehler,
+  Blocker, Material-Warnungen).
+
 ### Buttons
 - Primaer: `.buttonStyle(.borderedProminent).controlSize(.large)` (Start-Button)
 - Sekundaer: `.buttonStyle(.bordered)` (Abbrechen)
