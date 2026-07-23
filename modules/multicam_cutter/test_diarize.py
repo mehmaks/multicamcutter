@@ -370,6 +370,38 @@ def test_n_transition_bridges_via_common_camera():
     assert clips == ['X', 'T', 'Y'], f"erwartet X→T→Y (Bruecke ueber Totale), bekam {clips}"
 
 
+# ── Test 10: load_audio liest JEDE Bit-Tiefe korrekt (24-bit-Bug-Regression) ───
+def test_load_audio_all_bit_depths():
+    """Der alte wave+int16-Loader zerlegte 24-bit-WAVs zu Rauschen (1,5x Laenge).
+    Der ffmpeg-Loader muss 16/24/32-bit PCM UND 32-bit-Float (DJI Mics) korrekt
+    lesen: richtige Laenge, richtige Rate, Inhalt identisch zur Referenz."""
+    import subprocess
+    import tempfile
+    from pathlib import Path as _P
+    from multicam_cutter.build_base_edl_from_audio import load_audio
+
+    sr = 48000
+    rng = np.random.default_rng(7)
+    ref = (rng.standard_normal(sr * 2) * 0.1).astype(np.float32)   # 2 s Rauschen
+
+    with tempfile.TemporaryDirectory() as td:
+        raw = _P(td) / "ref.f32"
+        raw.write_bytes(ref.tobytes())
+        for codec, name in [("pcm_s16le", "16-bit"), ("pcm_s24le", "24-bit"),
+                            ("pcm_s32le", "32-bit int"), ("pcm_f32le", "32-bit float")]:
+            wav = _P(td) / f"{codec}.wav"
+            subprocess.run(["ffmpeg", "-v", "error", "-f", "f32le", "-ar", str(sr),
+                            "-ac", "1", "-i", str(raw), "-c:a", codec, str(wav)],
+                           check=True)
+            audio, got_sr = load_audio(str(wav))
+            assert got_sr == sr, f"{name}: Sample-Rate {got_sr} statt {sr}"
+            assert abs(len(audio) - len(ref)) <= 2, \
+                f"{name}: {len(audio)} Samples statt {len(ref)} (Bit-Tiefe falsch gelesen!)"
+            n = min(len(audio), len(ref))
+            corr = float(np.corrcoef(audio[:n], ref[:n])[0, 1])
+            assert corr > 0.999, f"{name}: Inhalt weicht ab (corr={corr:.4f})"
+
+
 if __name__ == "__main__":
     for name, fn in list(globals().items()):
         if name.startswith("test_") and callable(fn):
