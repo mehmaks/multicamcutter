@@ -993,6 +993,8 @@ class EngineController: ObservableObject {
     /// Peaks (0..1) je Mic fuer die Waveform-Anzeige. Einmal pro Datei
     /// berechnet (AVAudioFile, chunked + vDSP) und fuer die Session gecacht.
     @Published var micWaveforms: [Int: [Float]] = [:]
+    /// Fortschritt der laufenden Berechnung in Prozent (nur waehrenddessen gesetzt).
+    @Published var waveformProgress: [Int: Int] = [:]
     private var waveformInFlight: Set<Int> = []
 
     func requestWaveform(for mic: MicInfo, buckets: Int = 640) {
@@ -1001,9 +1003,17 @@ class EngineController: ObservableObject {
         let path = mic.path
         let id = mic.id
         Task.detached(priority: .utility) {
-            let peaks = Self.computeWaveformPeaks(path: path, buckets: buckets)
+            var lastPct = -1
+            let peaks = Self.computeWaveformPeaks(path: path, buckets: buckets) { frac in
+                let pct = Int(frac * 100)
+                if pct != lastPct {           // nur ganze Prozent publizieren
+                    lastPct = pct
+                    Task { @MainActor [weak self] in self?.waveformProgress[id] = pct }
+                }
+            }
             await MainActor.run { [weak self] in
                 self?.waveformInFlight.remove(id)
+                self?.waveformProgress[id] = nil
                 if let peaks { self?.micWaveforms[id] = peaks }
             }
         }
@@ -1012,7 +1022,8 @@ class EngineController: ObservableObject {
     /// Liest die Datei in Bloecken und nimmt je Bucket das Betragsmaximum
     /// (vDSP). Normalisiert aufs Gesamtmaximum, damit auch leise Aufnahmen
     /// sichtbar sind. AVAudioFile dekodiert jede Bit-Tiefe korrekt.
-    nonisolated static func computeWaveformPeaks(path: String, buckets: Int) -> [Float]? {
+    nonisolated static func computeWaveformPeaks(path: String, buckets: Int,
+                                                 onProgress: ((Double) -> Void)? = nil) -> [Float]? {
         guard let file = try? AVAudioFile(forReading: URL(fileURLWithPath: path)),
               file.length > 0, buckets > 0 else { return nil }
         let totalFrames = Int(file.length)
@@ -1039,6 +1050,7 @@ class EngineController: ObservableObject {
                 local += len
             }
             frameIndex += n
+            onProgress?(Double(frameIndex) / Double(totalFrames))
         }
         let maxV = peaks.max() ?? 0
         guard maxV > 0 else { return peaks }

@@ -287,62 +287,108 @@ struct PersonRow: View {
     }
 }
 
-/// Wellenform der ganzen Spur; Klick springt an die Position und spielt ab dort.
+/// Wellenform der ganzen Spur im Voice-Message-Stil: abgerundete Balken mit
+/// Luecken, der gespielte Teil in Akzentfarbe, ein Punkt als Playhead, darunter
+/// Position + Gesamtdauer. Klick springt an die Position und spielt ab dort.
 /// Peaks kommen on-demand aus dem EngineController (einmal je Datei, gecacht);
-/// waehrend der Berechnung steht ein Platzhalter. Laeuft die Spur, zeichnet ein
-/// Playhead die aktuelle Position (TimelineView pausiert sonst).
+/// waehrend der Berechnung steht ein Platzhalter mit Prozentanzeige.
 struct WaveformStrip: View {
     let mic: MicInfo
     @EnvironmentObject var engine: EngineController
 
+    private static let barWidth: CGFloat = 3
+    private static let barGap: CGFloat = 2.5
+
     var body: some View {
-        GeometryReader { geo in
-            Group {
-                if let peaks = engine.micWaveforms[mic.id] {
-                    TimelineView(.animation(minimumInterval: 0.05,
-                                            paused: engine.playingMicId != mic.id)) { _ in
-                        Canvas { ctx, size in
-                            let mid = size.height / 2
-                            let step = size.width / CGFloat(peaks.count)
-                            var bars = Path()
-                            for (i, p) in peaks.enumerated() {
-                                let x = CGFloat(i) * step + step / 2
-                                let amp = max(1, CGFloat(p) * (mid - 1))
-                                bars.move(to: CGPoint(x: x, y: mid - amp))
-                                bars.addLine(to: CGPoint(x: x, y: mid + amp))
-                            }
-                            ctx.stroke(bars, with: .color(Color.brandAccent.opacity(0.55)),
-                                       lineWidth: max(0.5, step * 0.7))
-                            if let t = engine.playbackTime(for: mic.id), mic.durationSeconds > 0 {
-                                let x = size.width * CGFloat(t / mic.durationSeconds)
-                                var head = Path()
-                                head.move(to: CGPoint(x: x, y: 0))
-                                head.addLine(to: CGPoint(x: x, y: size.height))
-                                ctx.stroke(head, with: .color(.white.opacity(0.85)), lineWidth: 1.5)
-                            }
-                        }
+        TimelineView(.animation(minimumInterval: 0.05,
+                                paused: engine.playingMicId != mic.id)) { _ in
+            VStack(spacing: 3) {
+                GeometryReader { geo in
+                    waveformOrPlaceholder
+                        .contentShape(Rectangle())
+                        .gesture(SpatialTapGesture().onEnded { value in
+                            guard mic.durationSeconds > 0, geo.size.width > 0,
+                                  engine.micWaveforms[mic.id] != nil else { return }
+                            let frac = min(max(0, value.location.x / geo.size.width), 1)
+                            engine.playMic(mic, at: frac * mic.durationSeconds)
+                        })
+                }
+                .frame(height: 32)
+
+                HStack {
+                    if let t = engine.playbackTime(for: mic.id) {
+                        Text(Self.fmt(t)).foregroundStyle(Color.brandAccent)
                     }
-                } else {
-                    RoundedRectangle(cornerRadius: 4)
-                        .fill(Color.wizBorder.opacity(0.35))
-                        .overlay(
-                            HStack(spacing: 6) {
-                                ProgressView().controlSize(.mini)
-                                Text("Wellenform wird berechnet …")
-                                    .font(.caption2).foregroundStyle(.wizFaint)
-                            }
-                        )
+                    Spacer()
+                    if mic.durationSeconds > 0 {
+                        Text(Self.fmt(mic.durationSeconds)).foregroundStyle(.wizFaint)
+                    }
+                }
+                .font(.system(.caption2, design: .monospaced))
+            }
+        }
+        .onAppear { engine.requestWaveform(for: mic) }
+    }
+
+    @ViewBuilder
+    private var waveformOrPlaceholder: some View {
+        if let peaks = engine.micWaveforms[mic.id] {
+            Canvas { ctx, size in
+                let mid = size.height / 2
+                let slot = Self.barWidth + Self.barGap
+                let count = max(1, Int(size.width / slot))
+                let bucketsPerBar = max(1, peaks.count / count)
+                let playedX: CGFloat? = {
+                    guard let t = engine.playbackTime(for: mic.id),
+                          mic.durationSeconds > 0 else { return nil }
+                    return size.width * CGFloat(t / mic.durationSeconds)
+                }()
+
+                for i in 0..<count {
+                    let start = i * bucketsPerBar
+                    let end = min(peaks.count, start + bucketsPerBar)
+                    guard start < end else { break }
+                    let p = peaks[start..<end].max() ?? 0
+                    // sqrt = perzeptive Skalierung: leise Passagen bleiben sichtbar
+                    let amp = max(1.5, CGFloat(Double(p).squareRoot()) * (mid - 2))
+                    let x = CGFloat(i) * slot + Self.barWidth / 2
+                    var bar = Path()
+                    bar.move(to: CGPoint(x: x, y: mid - amp))
+                    bar.addLine(to: CGPoint(x: x, y: mid + amp))
+                    let played = playedX.map { x <= $0 } ?? false
+                    ctx.stroke(bar,
+                               with: .color(played ? Color.brandAccent
+                                                   : Color.secondary.opacity(0.45)),
+                               style: StrokeStyle(lineWidth: Self.barWidth, lineCap: .round))
+                }
+
+                if let px = playedX {
+                    let r: CGFloat = 4.5
+                    ctx.fill(Path(ellipseIn: CGRect(x: min(max(px - r, 0), size.width - 2 * r),
+                                                    y: mid - r, width: 2 * r, height: 2 * r)),
+                             with: .color(Color.brandAccent))
                 }
             }
-            .contentShape(Rectangle())
-            .gesture(SpatialTapGesture().onEnded { value in
-                guard mic.durationSeconds > 0, geo.size.width > 0 else { return }
-                let frac = min(max(0, value.location.x / geo.size.width), 1)
-                engine.playMic(mic, at: frac * mic.durationSeconds)
-            })
+        } else {
+            RoundedRectangle(cornerRadius: 4)
+                .fill(Color.wizBorder.opacity(0.35))
+                .overlay(
+                    HStack(spacing: 6) {
+                        ProgressView().controlSize(.mini)
+                        Text("Wellenform wird berechnet … "
+                             + "\(engine.waveformProgress[mic.id] ?? 0) %")
+                            .font(.caption2).foregroundStyle(.wizFaint)
+                    }
+                )
         }
-        .frame(height: 36)
-        .onAppear { engine.requestWaveform(for: mic) }
+    }
+
+    private static func fmt(_ seconds: Double) -> String {
+        let t = Int(seconds.rounded())
+        if t >= 3600 {
+            return String(format: "%d:%02d:%02d", t / 3600, (t % 3600) / 60, t % 60)
+        }
+        return String(format: "%d:%02d", t / 60, t % 60)
     }
 }
 
