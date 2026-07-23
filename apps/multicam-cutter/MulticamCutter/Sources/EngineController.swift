@@ -1007,7 +1007,7 @@ class EngineController: ObservableObject {
     @Published var waveformProgress: [Int: Int] = [:]
     private var waveformInFlight: Set<Int> = []
 
-    func requestWaveform(for mic: MicInfo, buckets: Int = 640) {
+    func requestWaveform(for mic: MicInfo, buckets: Int = 2048) {
         guard micWaveforms[mic.id] == nil, !waveformInFlight.contains(mic.id) else { return }
         waveformInFlight.insert(mic.id)
         let path = mic.path
@@ -1054,7 +1054,7 @@ class EngineController: ObservableObject {
     }
 
     /// Cache-Datei fuer eine Audiodatei — nil, wenn die Datei nicht lesbar ist.
-    /// Praefix versioniert das Format: wf1 = Sample-Peaks, wf2 = RMS. Alte
+    /// Praefix versioniert das Format: wf1 = Sample-Peaks, wf2 = RMS 640, wf3 = RMS 2048. Alte
     /// wf1-Dateien bleiben als winzige Waisen liegen und stoeren nicht.
     nonisolated static func waveformCacheURL(for path: String) -> URL? {
         guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
@@ -1066,7 +1066,7 @@ class EngineController: ObservableObject {
             .map { String(format: "%02x", $0) }.joined()
         let dir = waveformCacheDir
         try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
-        return dir.appendingPathComponent("wf2_\(digest).peaks")
+        return dir.appendingPathComponent("wf3_\(digest).peaks")
     }
 
     nonisolated static func loadCachedPeaks(_ url: URL) -> [Float]? {
