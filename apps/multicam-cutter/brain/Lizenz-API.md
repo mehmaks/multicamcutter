@@ -122,8 +122,12 @@ Seat-Felder im `subscription`-Block (Passthrough, auch auf den Reuse-Pfaden);
 der Block kommt jetzt auch, wenn nur die Seats verfügbar sind (Datums-Felder
 dann fehlend — App liest defensiv). `activation_limit`-Message mit Zahlen:
 „Alle 3 Plätze dieser Lizenz sind belegt." bzw. bei Limit 1 „Der einzige Platz
-dieser Lizenz ist bereits belegt." Bitte einmal mit eurem Test-Key gegenprüfen
-(Mehrplatz-E2E braucht einen Key mit Limit > 1 bzw. Testkauf mit Menge > 1).
+dieser Lizenz ist bereits belegt."
+
+**E2E bestätigt (25.07.):** validate gegen das Live-Backend mit dem Test-Key
+(Limit 2) liefert `activation_usage: 2, activation_limit: 2`; der App-Pfad
+(`_apply_subscription` → `seats_used`/`seats_limit`) parst korrekt. Erste
+Auslieferung der App-Seite: 0.6.5 (Engine eingefroren am Release-Tag).
 
 Negativ (kein `lease`):
 ```json
