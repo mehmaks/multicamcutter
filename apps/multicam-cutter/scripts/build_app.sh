@@ -185,6 +185,14 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
          `true` unterdrueckt zugleich Sparkles Rueckfrage beim ersten Start. -->
     <key>SUEnableAutomaticChecks</key>
     <true/>
+    <!-- Pruefintervall 1 h (Sparkles Minimum; Default waere 24 h). Befund 23.07.:
+         Jeder manuelle Check und jede Update-Installation setzen SULastCheckTime
+         zurueck — bei mehreren Releases pro Tag wurde die automatische Pruefung
+         dadurch NIE faellig, der Nutzer sah trotz aktiviertem Toggle keine
+         Benachrichtigung. Mit 1 h meldet sich die App beim Oeffnen, sobald der
+         letzte Check ueber eine Stunde her ist. -->
+    <key>SUScheduledCheckInterval</key>
+    <integer>3600</integer>
 </dict>
 </plist>
 PLIST
