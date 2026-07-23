@@ -266,8 +266,6 @@ struct GeneralSettingsTab: View {
     // „Experteneinstellungen" ein-/ausklappen (Variante C).
     // Denselben Key liest ScrubbableThumbnail — Umschalten wirkt live.
     @AppStorage("thumbnailAutoContrast") private var thumbnailAutoContrast = false
-    /// Denselben Key setzt FirstRunSheet beim Bestaetigen.
-    @AppStorage("firstRunInfoSeenRevision") private var firstRunInfoSeenRevision = 0
 
     var body: some View {
         Form {
@@ -283,18 +281,10 @@ struct GeneralSettingsTab: View {
                     .foregroundStyle(.secondary)
             }
 
-            Section("Hinweise") {
-                Button("Materialhinweis erneut anzeigen") {
-                    firstRunInfoSeenRevision = 0
-                }
-                .disabled(firstRunInfoSeenRevision == 0)
-                Text(firstRunInfoSeenRevision > 0
-                     ? "Zeigt die Voraussetzungen ans Material beim nächsten Start "
-                       + "wieder an — Tonspur je Kamera, Mikrofon je Person, Überlappung."
-                     : "Wird beim nächsten Start angezeigt.")
-                    .font(.caption)
-                    .foregroundStyle(.secondary)
-            }
+            // Bewusst KEIN "Materialhinweis erneut anzeigen"-Knopf (entfernt
+            // 24.07., User): Der Hinweis erscheint automatisch wieder, sobald
+            // sich sein INHALT aendert (contentRevision in FirstRunSheet) —
+            // das reicht, ein manueller Reset verwirrt nur.
         }
         .formStyle(.grouped)
         .padding()
