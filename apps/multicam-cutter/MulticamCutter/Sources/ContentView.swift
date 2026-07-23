@@ -35,7 +35,8 @@ struct ContentView: View {
     private static let runWidth: CGFloat = 760
     /// Am laufenden Analysefenster ausgemessen (inkl. Titelleiste).
     private static let runHeight: CGFloat = 552
-    /// Standard-Fensterbreite: Wizard-Inhaltsbreite (720) + 2×28 Rand.
+    /// Standard-Fensterbreite: Wizard-Inhaltsbreite (WizardLayout.contentWidth)
+    /// + 2×28 Rand. Wert siehe Design-System.md → Fenster-Verhalten.
     private static let wizardWindowWidth: CGFloat = WizardLayout.contentWidth + 56
 
     var body: some View {
