@@ -401,6 +401,23 @@
 
 ## Gefixt
 
+### Automatische Update-Pruefung meldete sich nie (Toggle war an)
+- **Symptom (User, 23.07.)**: Trotz aktiviertem „Automatisch nach Updates
+  suchen" kam beim App-Oeffnen ueber mehrere Releases hinweg nie eine
+  Benachrichtigung.
+- **Ursache**: KEIN Verkabelungsfehler — Updater startet korrekt beim App-Start
+  (`MulticamCutterApp:7`), Toggle greift. Aber Sparkles Default-Intervall ist
+  **24 h**, und JEDER manuelle Check sowie jede Update-Installation setzen
+  `SULastCheckTime` zurueck. Bei mehreren Releases pro Tag (und staendigem
+  manuellem Pruefen) wurde die automatische Pruefung schlicht nie faellig.
+  Belegt per `defaults read com.jenaunited.multicam-cutter SULastCheckTime`.
+- **Fix**: `SUScheduledCheckInterval = 3600` (Sparkles Minimum) in der
+  Info.plist (build_app.sh). Die App meldet sich beim Oeffnen, sobald der
+  letzte Check ueber eine Stunde her ist. Greift ab dem naechsten Build.
+- **Merke**: Wer haeufiger als das Intervall manuell prueft, sieht per
+  Konstruktion nie eine automatische Meldung — das ist Sparkle-Verhalten,
+  kein Bug.
+
 ### Dock-Fortschrittsbalken bleibt nach Analyse-Ende stehen
 - **Symptom**: Analyse fertig, aber das Dock-Icon zeigt weiter den Balken.
 - **Ursache**: `DockProgress.hide()` setzte `NSApp.dockTile.contentView = nil` und rief
