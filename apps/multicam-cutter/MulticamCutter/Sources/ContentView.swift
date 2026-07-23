@@ -527,7 +527,7 @@ struct EditableLabel: View {
                     editText = text
                     isEditing = true
                 } label: {
-                    Image(systemName: "pencil").font(.caption)
+                    Image(systemName: "pencil").font(.caption.weight(.bold))
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)

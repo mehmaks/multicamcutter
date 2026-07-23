@@ -303,7 +303,7 @@ struct PersonRow: View {
                         .onChange(of: focused) { _, f in if !f { commit() } }
                         .fixedSize()
                     Image(systemName: "pencil")
-                        .font(.system(size: 11))
+                        .font(.system(size: 11, weight: .bold))
                         .foregroundStyle(.wizFaint)
                         .onTapGesture { focused = true }
                         .help("Namen bearbeiten")
