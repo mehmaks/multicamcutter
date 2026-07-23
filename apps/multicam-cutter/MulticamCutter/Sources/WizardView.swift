@@ -254,10 +254,16 @@ struct PersonsStep: View {
             // erbt eine still aufgenommene Spur den gemeinsamen Offset, statt den
             // Sync abzubrechen (siehe waveform_sync.py → mics_same_recorder).
             if engine.activeMics.count >= 2 {
-                WizToggle("Alle Tonspuren stammen aus einem Mehrspur-Recorder",
-                          $engine.params.micsSameRecorder,
-                          help: ParamHelp.micsSameRecorder)
-                    .padding(.top, 4)
+                // Schalter DIREKT neben Label + (?) — ueber die volle
+                // 1080er-Breite gespreizt (WizToggle mit Spacer) las sich
+                // beides nicht mehr als zusammengehoerig.
+                HStack(spacing: 8) {
+                    Text("Alle Tonspuren stammen aus einem Mehrspur-Recorder")
+                        .font(.system(size: 14))
+                    WizHelpBadge(ParamHelp.micsSameRecorder)
+                    WizSwitch(isOn: $engine.params.micsSameRecorder)
+                }
+                .padding(.top, 4)
             }
 
             if !engine.excludedMics.isEmpty {
