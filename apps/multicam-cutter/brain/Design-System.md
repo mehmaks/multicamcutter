@@ -59,6 +59,24 @@ Noch keine Custom-Fonts. Aktuell System-Defaults:
 - Section-Abstaende: 24px vertikal
 - Horizontal-Padding: `.padding(.horizontal)` (16px default)
 
+### Fenster-Verhalten (24.07., User-Entscheid)
+Das Hauptfenster ist **nicht vom Nutzer skalierbar** — Groesse folgt dem Inhalt:
+- **Inhaltsbreite: 720 pt** fuer ALLE Wizard-Seiten (`WizardLayout.contentWidth`,
+  WizardView.swift) — der Standard stammt von den Audio-Cards auf Screen 1.
+  Fensterbreite = 720 + 2×28 Rand = **776 pt** (`wizardWindowWidth`, ContentView).
+- **Hoehe: automatisch je Seite** (Content-Fitting): Wizard meldet Inhalts- und
+  Viewport-Hoehe per PreferenceKey, die Differenz wird animiert ausgeglichen
+  (Oberkante fix). Reagiert auch auf Aenderungen innerhalb einer Seite
+  (Experteneinstellungen, Banner-Auto-Dismiss, viele Audio-Cards).
+- **Max-Hoehe: min(1100 pt, Bildschirm-visibleFrame − 24)** — darueber wird der
+  Inhalt scrollbar (z. B. Seite 1 mit sehr vielen Audioclips).
+- **Min-Hoehe: 520 pt.**
+- **Analyse-Fenster: fix 760×552** (eigene Sperre, unveraendert).
+- Stabilitaets-Sicherungen (Endlos-Pump-Lehre 24.07.): kein Fit waehrend der
+  Animation (ein Korrekturlauf nach Settle), Flip-Flop-Detektor, inLiveResize-
+  Guard. Mechanik: `fitWindowToWizardContent`/`enforceWizardWindowChrome`
+  (ContentView.swift).
+
 ## Komponenten-Stile
 
 ### Fluechtige Informationen (UI-Regel, 24.07.)
