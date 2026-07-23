@@ -406,6 +406,10 @@ final class PresetManager: Sendable {
 class EngineController: ObservableObject {
     @Published var state: AppState = .idle
     @Published var wizardStep: WizardStep = .persons   // aktueller Schritt im Zuordnungs-Wizard
+    // Beim erneuten Oeffnen eines bekannten Ordners springt der Wizard direkt zur
+    // Uebersicht (gespeicherte Zuordnungen). Ohne Hinweis wirkt das wie ein Fehler
+    // ("warum bin ich im dritten Schritt?") — dieses Flag zeigt das Info-Banner.
+    @Published var sessionRestored = false
     @Published var folderURL: URL?
     @Published var episodeName: String = ""
     @Published var cameraInfos: [CameraInfo] = []
@@ -1527,14 +1531,20 @@ class EngineController: ObservableObject {
         }
 
         // Gespeicherte Session laden (Labels, Zuordnungen, Parameter)
+        var restored = false
         if loadSession() {
             logMessages.append("Session wiederhergestellt (.multicam)")
+            restored = true
         }
 
         // Phase 5: Existiert schon eine Zuordnung (Person auf Cam), direkt zur
         // Übersicht springen statt den Wizard von Schritt 1 zu starten.
         if decideWizardStep {
-            wizardStep = cameraInfos.contains { !$0.assignedMics.isEmpty } ? .overview : .persons
+            let hasAssignments = cameraInfos.contains { !$0.assignedMics.isEmpty }
+            wizardStep = hasAssignments ? .overview : .persons
+            // Hinweis nur, wenn wir WEGEN der gespeicherten Session vorspringen —
+            // sonst wundert sich der Nutzer, warum er im dritten Schritt landet.
+            sessionRestored = restored && hasAssignments
         }
 
         state = .ready

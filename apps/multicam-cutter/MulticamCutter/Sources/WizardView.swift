@@ -582,6 +582,33 @@ struct OverviewStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
+            // Beim Wieder-Oeffnen eines bekannten Ordners springt der Wizard direkt
+            // hierher — ohne Erklaerung wirkt das wie ein Fehler (Fremd-Feedback).
+            if engine.sessionRestored {
+                HStack(alignment: .top, spacing: 10) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .foregroundStyle(Color.brandAccent)
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("Ordner bekannt — Zuordnungen geladen").fontWeight(.semibold)
+                        Text("Die App hat deine früheren Personen, Kameras und Einstellungen "
+                             + "für diesen Ordner wiederhergestellt. Über die Schritte oben "
+                             + "kannst du jederzeit etwas ändern.")
+                            .font(.caption).foregroundStyle(.wizMuted)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    Spacer()
+                    Button { engine.sessionRestored = false } label: {
+                        Image(systemName: "xmark").font(.caption)
+                    }
+                    .buttonStyle(.plain).foregroundStyle(.wizMuted)
+                    .help("Hinweis ausblenden")
+                }
+                .padding(12)
+                .frame(maxWidth: .infinity, alignment: .leading)
+                .background(Color.brandAccent.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
+                .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandAccent.opacity(0.35), lineWidth: 1))
+            }
+
             WizardIntro(title: "Passt alles?",
                         text: "Das hat die App aus deinen Zuordnungen abgeleitet — Bildgrößen inklusive. "
                             + "Stimmt etwas nicht, geh einen Schritt zurück und korrigier es. Sonst: Analyse starten.")

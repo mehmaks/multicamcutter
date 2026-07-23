@@ -438,7 +438,12 @@ Multi-Person, Off-Sektionen, Uebergang). **Zwei-Personen-Pfad byte-identisch.**
 - `add_reactions` PASS 2b Pausen-Cutaway-Auswahl (crash-sicher, nur „erste andere Close").
 - sequencer `NotImplementedError` (separate pausierte Pipeline — bleibt bewusst).
 - **End-to-End-Validierung am echten 3-Cam-Material des Kollegen** — bis dahin fahren
-  wir beim N-Pfad blind (Beta 0.6.3).
+  wir beim N-Pfad blind (Beta 0.6.3). ⚠️ **Stand 22.07. abends: weiterhin ungetestet!**
+  Der erste 0.6.3-Lauf des Kollegen nahm den BINAEREN Pfad — seine Zuordnung
+  (Track2+Track3 beide auf der B-Cam) ergibt nur 2 Close-Kameras, das ist korrektes
+  Routing. Sein Lauf scheiterte zudem am MATERIAL (Spuren pegelidentisch, 0% Fenster
+  ueber Schwelle → degenerierte Diarisierung, s. modules CLAUDE.md → Fixed Bugs).
+  Der N-Pfad braucht ein Setup, in dem >=3 Kameras je fuer jemanden die engste sind.
 - [x] **Basis-EDL von binär (2 Cams) auf N-fach umstellen.** (0.6.3) User-Kontext: Podcast hat
   **häufig Host + 2 Gäste = 3 Personen**, also kein Edge-Case.
   ⚠️ **Weniger dringend als hier lange behauptet** (geklärt 21.07.): Die Grenze sind
