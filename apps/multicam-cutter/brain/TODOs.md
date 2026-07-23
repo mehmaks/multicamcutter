@@ -147,7 +147,9 @@ Python-Runtime dazubekommt.
   - Waveform-Daten: heruntergerechnete Peak-Werte je Pixel. Entweder in Swift
     (`AVAudioFile` → Samples lesen → Min/Max je Bucket) oder die Engine liefert
     beim Scan ein Peak-Array je Datei (JSON). Swift-seitig hält die Daten aus
-    dem Prozess raus; Engine-seitig ist es zentral und cachebar. **Entscheiden.**
+    dem Prozess raus; Engine-seitig ist es zentral und cachebar. → **Swift
+    gewählt** (23.07.): Peaks via `AVAudioFile`+vDSP, auf Platte gecacht wie die
+    Thumbnails (`wf1_<hash>.peaks`), invalidiert bei Reset/Dateiänderung.
   - Über die volle Datei, nicht nur die Vorschau — sonst bleibt die
     Navigations-Lücke. `previewPath` wird damit für diesen Zweck obsolet.
   **Verwandt:** die früher gewünschte NLE-artige Timeline-Darstellung des
