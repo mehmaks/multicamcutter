@@ -4,6 +4,28 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 0.6.4
+
+**Fixed: 24-bit audio tracks were read incorrectly**
+
+Audio tracks in 24 bit — the standard on many field recorders — were internally
+misread as noise. Speaker detection then found no differences between the
+tracks, and the run aborted with a technical error. All bit depths are now
+decoded correctly. Audio synchronization was never affected by this bug.
+
+**A clear message instead of a crash**
+
+If speaker detection cannot tell the audio tracks apart, the app now explains
+the likely causes (e.g. a mix instead of individual tracks) and suggests
+listening to the tracks individually — instead of aborting with an unrelated
+error message.
+
+**New: notice for known folders**
+
+When you reopen a folder, the app jumps straight to the overview as before —
+but now also tells you that your previous assignments were loaded. Use "Reset
+assignments" in the notice to start cleanly from scratch when needed.
+
 ## 0.6.3
 
 **New: More than two close-ups — setups with three or more people**

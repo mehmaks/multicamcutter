@@ -5,6 +5,30 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.4
+
+**Behoben: 24-bit-Tonspuren wurden falsch gelesen**
+
+Tonspuren in 24 bit — der Standard vieler Field-Recorder — wurden intern als
+Rauschen fehlinterpretiert. Die Sprechererkennung fand dann keine Unterschiede
+zwischen den Spuren, und der Lauf brach mit einem technischen Fehler ab. Jetzt
+werden alle Bit-Tiefen korrekt dekodiert. Die Tonsynchronisierung war von dem
+Fehler nie betroffen.
+
+**Verständliche Meldung statt Absturz**
+
+Findet die Sprechererkennung keine Unterschiede zwischen den Tonspuren, erklärt
+die App jetzt die wahrscheinlichen Ursachen (z. B. Mix statt Einzelspuren) und
+empfiehlt, die Spuren einzeln anzuhören — statt mit einer Fehlermeldung ohne
+Zusammenhang abzubrechen.
+
+**Neu: Hinweis bei bekannten Ordnern**
+
+Öffnest du einen Ordner erneut, springt die App wie gewohnt direkt zur
+Übersicht — sagt dir jetzt aber auch, dass deine früheren Zuordnungen geladen
+wurden. Über „Zuordnung zurücksetzen" im Hinweis startest du bei Bedarf sauber
+von vorn.
+
 ## 0.6.3
 
 **Neu: Mehr als zwei Nahaufnahmen — Setups mit drei und mehr Personen**
