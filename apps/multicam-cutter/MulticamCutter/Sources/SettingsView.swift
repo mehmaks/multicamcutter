@@ -313,6 +313,9 @@ struct LicenseSettingsTab: View {
     @State private var isActivating: Bool = false
     @State private var licenseKey: String = ""
     @State private var statusCode: String = ""   // roher Server-Status (z.B. activation_limit)
+    // Arbeitsplaetze bei Mehrplatz-Lizenzen (0 = Backend liefert (noch) keine Zahlen)
+    @State private var seatsUsed = 0
+    @State private var seatsLimit = 0
     @State private var showDeactivateConfirm = false
 
     var body: some View {
@@ -334,6 +337,13 @@ struct LicenseSettingsTab: View {
                             Text(subLine)
                                 .font(.caption)
                                 .foregroundStyle(subIsWarning ? .brandSecondary : .secondary)
+                        }
+                        // Nur bei Mehrplatz-Lizenzen (Limit > 1): "1 von 1" waere
+                        // Rauschen. Stand = letzter Serverkontakt (Lease-Refresh).
+                        if isValid && seatsLimit > 1 {
+                            Text("Arbeitsplätze: \(seatsUsed) von \(seatsLimit) belegt")
+                                .font(.caption)
+                                .foregroundStyle(seatsUsed >= seatsLimit ? .brandSecondary : .secondary)
                         }
                     }
                     Spacer()
@@ -478,6 +488,8 @@ struct LicenseSettingsTab: View {
         isGrace = json["grace"] as? Bool ?? false
         statusCode = json["status"] as? String ?? ""
         licenseEmail = json["email"] as? String ?? ""
+        seatsUsed = json["seats_used"] as? Int ?? 0
+        seatsLimit = json["seats_limit"] as? Int ?? 0
 
         if isValid {
             licenseStatus = isGrace ? "Lizenz aktiv (offline)" : "Lizenz aktiv"

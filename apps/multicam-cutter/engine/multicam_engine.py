@@ -1079,6 +1079,8 @@ def main():
                 "sub_status": info.sub_status or "",
                 "renews_at": info.renews_at or "",
                 "ends_at": info.ends_at or "",
+                "seats_used": info.seats_used,
+                "seats_limit": info.seats_limit,
                 "error": info.error or "",
             })
             sys.__stdout__.write(result_json + "\n")
@@ -1116,6 +1118,8 @@ def main():
                 "sub_status": info.sub_status or "",
                 "renews_at": info.renews_at or "",
                 "ends_at": info.ends_at or "",
+                "seats_used": info.seats_used,
+                "seats_limit": info.seats_limit,
                 "error": info.error or "",
             })
             sys.__stdout__.write(result_json + "\n")
@@ -1137,6 +1141,8 @@ def main():
                 "sub_status": info.sub_status or "",
                 "renews_at": info.renews_at or "",
                 "ends_at": info.ends_at or "",
+                "seats_used": info.seats_used,
+                "seats_limit": info.seats_limit,
                 "error": info.error or "",
             }) + "\n")
         except Exception as e:

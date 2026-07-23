@@ -87,7 +87,9 @@ Aktiv:
     "status": "active",
     "renews_at": "2026-08-16",
     "ends_at": null,
-    "card_last_four": "4242"
+    "card_last_four": "4242",
+    "activation_usage": 2,
+    "activation_limit": 3
   }
 }
 ```
@@ -104,11 +106,25 @@ Fenster, KEIN Abo-Ende — nie als „gültig bis" anzeigen).
 | `renews_at` | nächste Verlängerung (ISO date, null bei Kündigung) | „Verlängert sich am …" |
 | `ends_at` | Zugriffsende bei Kündigung (ISO date, sonst null) | „Gekündigt — endet am …" (orange) |
 | `card_last_four` | optional | (noch ungenutzt) |
+| `activation_usage` | belegte Arbeitsplätze (int) | „Arbeitsplätze: 2 von 3 belegt" |
+| `activation_limit` | Arbeitsplätze gesamt (int) | (Zeile nur bei Limit > 1) |
+
+**NEU (24.07.) — Arbeitsplätze bei Mehrplatz-Lizenzen.** Backend reicht
+`activation_usage` + `activation_limit` aus LemonSqueezys **`license_key`-Objekt**
+durch — das steckt bereits in JEDER validate/activate-Antwort, es braucht also
+**keinen zusätzlichen API-Call** (anders als die Subscriptions-Felder). Die
+App-Seite ist fertig und zeigt die Zeile automatisch, sobald die Felder
+ankommen; fehlen sie (älteres Backend), ändert sich nichts. Beide Felder sind
+optional und unsigniert (nur Anzeige).
+
 Negativ (kein `lease`):
 ```json
 { "status": "inactive" | "invalid" | "activation_limit" | "device_mismatch",
   "message": "Menschlich lesbarer Grund (Deutsch)" }
 ```
+Beim Status `activation_limit` bitte die Zahlen in die `message` schreiben
+(z. B. „Alle 3 Plätze dieser Lizenz sind belegt.") — die App zeigt die
+`message` verbatim an, so wird auch der Fehlerfall konkret.
 
 | status | Bedeutung | LS-Ursprung |
 |--------|-----------|-------------|

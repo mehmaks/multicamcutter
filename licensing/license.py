@@ -73,6 +73,8 @@ class LicenseInfo:
     sub_status: Optional[str] = None  # active | on_trial | cancelled | past_due
     renews_at: Optional[str] = None   # nächste Verlängerung (ISO date)
     ends_at: Optional[str] = None     # Zugriffsende bei Kündigung (ISO date)
+    seats_used: Optional[int] = None   # belegte Arbeitsplaetze (LS activation_usage)
+    seats_limit: Optional[int] = None  # Arbeitsplaetze gesamt (LS activation_limit)
 
     def has_module(self, module: str) -> bool:
         """Return True if this license grants access to the given module."""
@@ -241,6 +243,11 @@ def _apply_subscription(info: LicenseInfo, sub: dict) -> None:
     info.sub_status = sub.get("status")
     info.renews_at = sub.get("renews_at")
     info.ends_at = sub.get("ends_at")
+    # Arbeitsplaetze (Mehrplatz-Lizenzen): Passthrough aus LemonSqueezys
+    # license_key-Objekt. Optional — fehlt es (aelteres Backend), bleibt None
+    # und die App zeigt schlicht keine Platz-Zeile.
+    info.seats_used = sub.get("activation_usage")
+    info.seats_limit = sub.get("activation_limit")
 
 
 def _validate_cached_lease(grace: bool = True) -> LicenseInfo:
