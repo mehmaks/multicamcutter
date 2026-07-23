@@ -71,11 +71,19 @@ struct AcknowledgementsView: View {
             if let sel = components.first(where: { $0.id == selection }) {
                 detail(sel)
             } else if components.isEmpty {
-                ContentUnavailableView("Keine Lizenzinfos geladen",
-                                       systemImage: "doc.text.magnifyingglass",
-                                       description: Text("acknowledgements.json fehlt im Bundle."))
+                ContentUnavailableView {
+                    Label { Text("Keine Lizenzinfos geladen") } icon: {
+                        LucideIcon("file-search", size: 40)
+                    }
+                } description: {
+                    Text("acknowledgements.json fehlt im Bundle.")
+                }
             } else {
-                ContentUnavailableView("Komponente wählen", systemImage: "doc.text")
+                ContentUnavailableView {
+                    Label { Text("Komponente wählen") } icon: {
+                        LucideIcon("file-text", size: 40)
+                    }
+                }
             }
         }
         .frame(minWidth: 720, minHeight: 460)
@@ -93,7 +101,7 @@ struct AcknowledgementsView: View {
                     Spacer()
                     if !c.url.isEmpty, let url = URL(string: c.url) {
                         Link(destination: url) {
-                            Label("Projektseite", systemImage: "arrow.up.right.square")
+                            LucideLabel("Projektseite", icon: "external-link", size: 13)
                         }
                         .font(.callout)
                     }

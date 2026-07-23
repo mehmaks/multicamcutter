@@ -32,14 +32,14 @@ struct FirstRunSheet: View {
     }
 
     private let requirements: [Requirement] = [
-        .init(icon: "waveform.badge.magnifyingglass",
+        .init(icon: "audio-waveform",
               title: "Jede Kamera braucht eine eigene Tonspur",
               // shared/waveform_sync.py korreliert jede Quelle gegen eine Referenz
               // (standardmaessig das laengste Mikrofon).
               detail: "Die Synchronisierung vergleicht die Tonspuren der Kameras "
                     + "miteinander. Eine Kamera ohne brauchbaren Ton lässt sich "
                     + "nicht einordnen — auch nicht von Hand."),
-        .init(icon: "person.wave.2",
+        .init(icon: "speech",
               title: "Ein eigenes Mikrofon je Person",
               detail: "Wer spricht, wird über die Lautstärke der einzelnen "
                     + "Mikrofone bestimmt. Ein gemeinsames Mikrofon für mehrere "
@@ -48,7 +48,7 @@ struct FirstRunSheet: View {
         // Das ist App-Verhalten, keine Material-Anforderung, und passte nicht zur
         // Überschrift „Was dein Material mitbringen muss". Erklärung dazu gehört
         // in die Bildsprache-Hilfetexte, nicht in diese Einstiegs-Checkliste.
-        .init(icon: "clock.arrow.2.circlepath",
+        .init(icon: "refresh-cw",
               title: "Die Aufnahmen müssen sich zeitlich überlappen",
               detail: "Ohne gemeinsamen Zeitraum findet die Synchronisierung "
                     + "keinen Bezugspunkt. Ein Vorlauf am Anfang ist unproblematisch."),
@@ -57,8 +57,7 @@ struct FirstRunSheet: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
-                Image(systemName: "checklist")
-                    .font(.system(size: 26))
+                LucideIcon("list-checks", size: 26)
                     .foregroundStyle(.brandAccent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Bevor du startest")
@@ -72,8 +71,7 @@ struct FirstRunSheet: View {
             VStack(alignment: .leading, spacing: 14) {
                 ForEach(requirements) { req in
                     HStack(alignment: .top, spacing: 10) {
-                        Image(systemName: req.icon)
-                            .font(.system(size: 15))
+                        LucideIcon(req.icon, size: 15)
                             .foregroundStyle(.brandAccent)
                             .frame(width: 22, alignment: .center)
                         VStack(alignment: .leading, spacing: 2) {
@@ -91,9 +89,9 @@ struct FirstRunSheet: View {
             // Bewusst als Entwarnung formuliert, nicht als Anforderung: die App
             // erkennt abweichende Bildraten selbst (EngineController.fpsMismatches)
             // und bietet die Umwandlung an (--convert-fps).
-            Label("Unterschiedliche Bildraten sind kein Hindernis — die App erkennt "
-                  + "sie und bietet an, die betroffenen Dateien umzuwandeln.",
-                  systemImage: "info.circle")
+            LucideLabel("Unterschiedliche Bildraten sind kein Hindernis — die App erkennt "
+                        + "sie und bietet an, die betroffenen Dateien umzuwandeln.",
+                        icon: "info", size: 11)
                 .font(.caption)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

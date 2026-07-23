@@ -91,8 +91,7 @@ struct HelpBadge: View {
     let text: String
 
     var body: some View {
-        Image(systemName: "questionmark.circle")
-            .font(.caption)
+        LucideIcon("circle-question-mark", size: 11)
             .foregroundStyle(.secondary)
             .overlay(AppKitToolTip(text: text))   // trägt den Tooltip
             .help(text)                            // Fallback + VoiceOver

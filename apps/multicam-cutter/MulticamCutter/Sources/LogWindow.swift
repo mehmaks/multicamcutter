@@ -25,14 +25,14 @@ struct LogWindow: View {
                 Button {
                     copyAll()
                 } label: {
-                    Label("Kopieren", systemImage: "doc.on.doc")
+                    LucideLabel("Kopieren", icon: "copy", size: 13)
                 }
                 .disabled(engine.logMessages.isEmpty)
 
                 Button {
                     NSWorkspace.shared.open(EngineController.logDirectory)
                 } label: {
-                    Label("Log-Ordner öffnen", systemImage: "folder")
+                    LucideLabel("Log-Ordner öffnen", icon: "folder", size: 13)
                 }
                 .help("Alle bisherigen Läufe als Datei — ~/Library/Logs/MulticamCutter")
             }
@@ -62,11 +62,13 @@ struct LogWindow: View {
             }
             .overlay {
                 if engine.logMessages.isEmpty {
-                    ContentUnavailableView(
-                        "Kein Log für diesen Lauf",
-                        systemImage: "doc.text",
-                        description: Text("Frühere Läufe liegen als Datei im Log-Ordner.")
-                    )
+                    ContentUnavailableView {
+                        Label { Text("Kein Log für diesen Lauf") } icon: {
+                            LucideIcon("file-text", size: 40)
+                        }
+                    } description: {
+                        Text("Frühere Läufe liegen als Datei im Log-Ordner.")
+                    }
                 }
             }
         }

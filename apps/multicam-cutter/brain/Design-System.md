@@ -4,7 +4,7 @@
 
 - Dark Mode als Default (macOS System-Appearance wird respektiert)
 - Native macOS-Controls wo möglich (kein Custom-UI wo SwiftUI reicht)
-- SF Symbols für Icons
+- Lucide-Icons (fest im Bundle, s. u.) — SF Symbols nur in System-Bereichen
 - **Echte Umlaute** in allen UI-Strings (ä, ö, ü, ß) — kein ae/oe/ue
 
 ## Farben
@@ -132,17 +132,40 @@ wird nicht ueberrascht), das X schliesst sofort, Ausblenden mit
 - Bar: `.progressViewStyle(.linear)`, 400px breit
 - Log: `DisclosureGroup`, 500px breit, 180px hoch
 
-## Icons (SF Symbols)
+## Icons (Lucide)
 
-| Kontext | Symbol |
-|---------|--------|
-| Ordner | folder.fill, folder.badge.plus |
-| Kamera | video.fill, video.slash |
-| Mikrofon | mic.fill |
-| Play/Pause | play.circle, pause.circle.fill |
-| Entfernen | xmark.circle.fill |
+Icon-Set der Website (lucide.dev, ISC). SVGs FEST im App-Bundle: exakt aus
+lucide-react 1.24.0 des Website-Repos extrahiert (`scripts/extract_lucide.py`),
+stroke-width **2.5** statt Lucide-Default 2 (User-Entscheid 24.07.: kräftiger).
+Rendering: `LucideIcon("name", size: N)` bzw. `LucideLabel("Text", icon:size:)`
+als Drop-in für `Label(_:systemImage:)` — Template-NSImage, tintbar via
+`.foregroundStyle`. Neues Icon: `python3 scripts/extract_lucide.py <name>`
+(Achtung: manche Namen sind Aliase, z. B. circle-help → circle-question-mark).
+
+| Kontext | Lucide-Icon |
+|---------|-------------|
+| Ordner | folder, folder-plus |
+| Kamera fehlt | video-off |
+| Play/Pause (Mic-Vorschau) | circle-play, circle-pause |
+| Entfernen | x, circle-x, trash-2 |
 | Bearbeiten | pencil |
-| Erfolg | checkmark.circle.fill |
-| Fehler | exclamationmark.triangle.fill |
-| Start | play.fill |
-| Presets | slider.horizontal.3 |
+| Erfolg | check, circle-check |
+| Warnung/Fehler | triangle-alert, octagon-x |
+| Analyse starten | play |
+| Hilfe-Badge (?) | circle-question-mark |
+| Session/Verlauf | history |
+| Zurücksetzen/Konvertieren | undo-2, refresh-cw |
+| Lizenz gültig/ungültig | badge-check, badge-x |
+| CLIP/Magie | sparkles |
+| Totale-Badge | columns-2 |
+| Info | info |
+| Feedback | message-square-warning |
+| Erste Schritte | list-checks, audio-waveform, speech, refresh-cw |
+| Log/Lizenzen | copy, file-text, file-search, external-link |
+| Mehr-Menü | circle-ellipsis |
+| Chevrons | chevron-up, chevron-down |
+| Download/Schutz | circle-arrow-down, shield-check |
+
+**Ausnahmen (bleiben SF Symbols):** Settings-Tab-Icons (gearshape, sparkles,
+chevron.up.chevron.down, key) und Menüeinträge — dort rendert das System die
+Icons selbst, eigene Bilder skalieren unzuverlässig.

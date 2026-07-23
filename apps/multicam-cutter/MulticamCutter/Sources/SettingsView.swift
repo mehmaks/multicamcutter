@@ -86,7 +86,7 @@ struct NoddingSettingsTab: View {
                 Button("Auf Standard zurücksetzen") { reset() }.disabled(source != "user")
                 Spacer()
                 if let message {
-                    Label(message, systemImage: messageIsError ? "xmark.octagon.fill" : "checkmark")
+                    LucideLabel(message, icon: messageIsError ? "octagon-x" : "check", size: 11)
                         .font(.caption).foregroundStyle(messageIsError ? .red : .green).lineLimit(1)
                 }
             }
@@ -157,10 +157,10 @@ struct ClipSettingsTab: View {
             HStack(spacing: 10) {
                 switch modelInstalled {
                 case .some(true):
-                    Label("Modell geladen", systemImage: "checkmark.circle.fill")
+                    LucideLabel("Modell geladen", icon: "circle-check", size: 13)
                         .foregroundStyle(.green)
                 case .some(false):
-                    Label("Modell nicht geladen", systemImage: "arrow.down.circle")
+                    LucideLabel("Modell nicht geladen", icon: "circle-arrow-down", size: 13)
                         .foregroundStyle(.secondary)
                     Button("Herunterladen") { engine.downloadClipModel() }
                         .disabled(engine.isDownloadingClip)
@@ -207,7 +207,7 @@ struct ClipSettingsTab: View {
                     .disabled(source != "user")
                 Spacer()
                 if justSaved {
-                    Label("Gespeichert", systemImage: "checkmark")
+                    LucideLabel("Gespeichert", icon: "check", size: 11)
                         .font(.caption).foregroundStyle(.green)
                 }
             }
@@ -322,9 +322,8 @@ struct LicenseSettingsTab: View {
         Form {
             Section {
                 HStack {
-                    Image(systemName: isValid ? "checkmark.seal.fill" : "xmark.seal.fill")
+                    LucideIcon(isValid ? "badge-check" : "badge-x", size: 22)
                         .foregroundStyle(isValid ? (isGrace ? .brandSecondary : .green) : .red)
-                        .font(.title2)
                     VStack(alignment: .leading, spacing: 2) {
                         Text(licenseStatus)
                             .font(.headline)

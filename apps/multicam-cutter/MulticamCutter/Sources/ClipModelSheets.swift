@@ -13,8 +13,7 @@ struct ClipDownloadPrompt: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(spacing: 10) {
-                Image(systemName: "sparkles")
-                    .font(.system(size: 26))
+                LucideIcon("sparkles", size: 26)
                     .foregroundStyle(.brandAccent)
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Bilderkennung nachladen?")
@@ -32,8 +31,8 @@ struct ClipDownloadPrompt: View {
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Label("Danach läuft alles offline — das Modell bleibt gespeichert, auch nach "
-                  + "App-Updates.", systemImage: "lock.shield")
+            LucideLabel("Danach läuft alles offline — das Modell bleibt gespeichert, auch nach "
+                        + "App-Updates.", icon: "shield-check", size: 11)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
@@ -80,8 +79,7 @@ struct ClipDownloadSheet: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "sparkles")
-                .font(.system(size: 30))
+            LucideIcon("sparkles", size: 30)
                 .foregroundStyle(.brandAccent)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -98,8 +96,7 @@ struct ClipDownloadSheet: View {
             Button {
                 engine.cancelClipDownload()
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
+                LucideIcon("circle-x", size: 22)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)

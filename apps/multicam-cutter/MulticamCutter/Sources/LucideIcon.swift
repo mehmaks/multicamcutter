@@ -8,7 +8,9 @@ import AppKit
 /// Kein Netz, kein Nachladen. Template-Rendering → tintbar via
 /// `.foregroundStyle` wie SF Symbols.
 ///
-/// PoC-Umfang: pencil, circle-play, circle-pause, trash-2 (Personen-Screen).
+/// Vollmigration 24.07. — alle sichtbaren UI-Icons. Bewusste Ausnahmen
+/// (bleiben SF Symbols): Settings-Tab-Icons und Menüeinträge — dort rendert
+/// das System die Icons selbst, eigene Bilder skalieren unzuverlässig.
 struct LucideIcon: View {
     let name: String
     var size: CGFloat = 14
@@ -38,5 +40,22 @@ struct LucideIcon: View {
         img.isTemplate = true      // Alpha-Maske → Tint folgt foregroundStyle
         cache[name] = img
         return img
+    }
+}
+
+/// Drop-in für `Label(_:systemImage:)` mit Lucide-Icon.
+struct LucideLabel: View {
+    let title: String
+    let icon: String
+    var size: CGFloat = 14
+
+    init(_ title: String, icon: String, size: CGFloat = 14) {
+        self.title = title
+        self.icon = icon
+        self.size = size
+    }
+
+    var body: some View {
+        Label { Text(title) } icon: { LucideIcon(icon, size: size) }
     }
 }

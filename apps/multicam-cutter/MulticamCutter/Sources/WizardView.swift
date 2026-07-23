@@ -184,7 +184,7 @@ struct WizardStepBar: View {
                         .overlay(Circle().stroke(done ? Color.brandAccent.opacity(0.5) : Color.wizBorder, lineWidth: 1))
                         .frame(width: 25, height: 25)
                     if done {
-                        Image(systemName: "checkmark").font(.system(size: 11, weight: .bold)).foregroundStyle(.brandAccent)
+                        LucideIcon("check", size: 11).foregroundStyle(.brandAccent)
                     } else {
                         Text("\(index + 1)").font(.system(size: 13, weight: .semibold))
                             .foregroundStyle(active ? Color.black : Color.wizMuted)
@@ -561,7 +561,7 @@ struct WizardCamCard: View {
                     Text(cam.displayName).font(.subheadline).fontWeight(.medium).lineLimit(1)
                     Spacer(minLength: 4)
                     Button { engine.setCamIncluded(cam.id, false) } label: {
-                        Image(systemName: "trash").font(.system(size: 12)).foregroundStyle(.wizMuted)
+                        LucideIcon("trash-2", size: 12).foregroundStyle(.wizMuted)
                     }
                     .buttonStyle(.plain)
                     .help("Diese Kamera gehört nicht zum Projekt — entfernen")
@@ -571,8 +571,7 @@ struct WizardCamCard: View {
                 // weiß man nur "irgendeine Kamera passt nicht" und muss suchen.
                 if engine.isFpsMismatch(cam) {
                     HStack(spacing: 4) {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.system(size: 9))
+                        LucideIcon("triangle-alert", size: 9)
                         Text(cam.fps > 0
                              ? "\(Self.fmtFps(cam.fps)) fps — Projekt: \(Self.fmtFps(engine.fps))"
                              : "Bildrate nicht lesbar")
@@ -626,7 +625,7 @@ struct WizardCamCard: View {
     @ViewBuilder private var rolePill: some View {
         switch role {
         case .wide:
-            Label("Totale", systemImage: "rectangle.split.2x1")
+            LucideLabel("Totale", icon: "columns-2", size: 10)
                 .font(.caption2.weight(.medium)).lineLimit(1).fixedSize()
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Color.brandSecondary).foregroundStyle(.black)
@@ -646,7 +645,7 @@ struct WizardCamCard: View {
             avatar(p.id, p.name, size: 18, engine)
             Text(p.name).font(.caption2).lineLimit(1)
             Button { engine.removePersonFromCam(p.id, cam.id) } label: {
-                Image(systemName: "xmark").font(.system(size: 8, weight: .bold)).foregroundStyle(.wizMuted)
+                LucideIcon("x", size: 8).foregroundStyle(.wizMuted)
             }
             .buttonStyle(.plain)
         }
@@ -669,7 +668,7 @@ struct FpsMismatchBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                LucideIcon("triangle-alert", size: 14)
                 Text("FPS-Mismatch").fontWeight(.semibold)
             }
             .foregroundStyle(.brandSecondary)
@@ -685,8 +684,8 @@ struct FpsMismatchBanner: View {
             }
 
             Button { engine.convertMismatchedFps() } label: {
-                Label("Datei(en) auf \(fpsText(engine.fps)) fps konvertieren",
-                      systemImage: "arrow.triangle.2.circlepath")
+                LucideLabel("Datei(en) auf \(fpsText(engine.fps)) fps konvertieren",
+                            icon: "refresh-cw", size: 12)
             }
             .buttonStyle(.borderedProminent).controlSize(.small)
 
@@ -715,7 +714,7 @@ struct ShortCamBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                LucideIcon("triangle-alert", size: 14)
                 Text("Auffällig kurze Kamera").fontWeight(.semibold)
             }
             .foregroundStyle(.brandSecondary)
@@ -749,7 +748,7 @@ struct UnsupportedCloseCamsBanner: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
-                Image(systemName: "exclamationmark.triangle.fill")
+                LucideIcon("triangle-alert", size: 14)
                 Text("Mehr als 2 Nah-Kameras — noch nicht unterstützt").fontWeight(.semibold)
             }
             .foregroundStyle(.brandSecondary)
@@ -786,7 +785,7 @@ struct OverviewStep: View {
             // hierher — ohne Erklaerung wirkt das wie ein Fehler (Fremd-Feedback).
             if engine.sessionRestored {
                 HStack(alignment: .top, spacing: 10) {
-                    Image(systemName: "clock.arrow.circlepath")
+                    LucideIcon("history", size: 15)
                         .foregroundStyle(Color.brandAccent)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Ordner bekannt — Zuordnungen geladen").fontWeight(.semibold)
@@ -805,7 +804,7 @@ struct OverviewStep: View {
                     }
                     Spacer()
                     Button { engine.sessionRestored = false } label: {
-                        Image(systemName: "xmark").font(.caption)
+                        LucideIcon("x", size: 11)
                     }
                     .buttonStyle(.plain).foregroundStyle(.wizMuted)
                     .help("Hinweis ausblenden")
@@ -1003,7 +1002,7 @@ struct WizardFooter: View {
                 }
                 WizPresetDropdown()
                 Button { engine.start() } label: {
-                    Label("Analyse starten", systemImage: "play.fill")
+                    LucideLabel("Analyse starten", icon: "play", size: 14)
                 }
                 .buttonStyle(WizPrimaryButton())
                 .disabled(startBlockedReason != nil)
@@ -1061,9 +1060,9 @@ struct WizardSettings: View {
                 withAnimation(.easeInOut(duration: 0.15)) { expert.toggle() }
             } label: {
                 HStack(spacing: 6) {
-                    if expert { Image(systemName: "chevron.up").font(.system(size: 9, weight: .bold)) }
+                    if expert { LucideIcon("chevron-up", size: 9) }
                     Text(expert ? "Einfache Ansicht" : "Experteneinstellungen")
-                    if !expert { Image(systemName: "chevron.down").font(.system(size: 9, weight: .bold)) }
+                    if !expert { LucideIcon("chevron-down", size: 9) }
                 }
                 .font(.system(size: 13.5, weight: .medium))
                 .foregroundStyle(.brandSecondary)
@@ -1240,8 +1239,7 @@ struct WizHelpBadge: View {
     let text: String
     init(_ text: String) { self.text = text }
     var body: some View {
-        Image(systemName: "questionmark.circle")
-            .font(.system(size: 12))
+        LucideIcon("circle-question-mark", size: 12)
             .foregroundStyle(.wizFaint)
             .help(text)
     }
@@ -1439,7 +1437,7 @@ struct WizRestoreChips: View {
                 ForEach(items, id: \.id) { item in
                     Button { restore(item.id) } label: {
                         HStack(spacing: 6) {
-                            Image(systemName: "arrow.uturn.left").font(.system(size: 10, weight: .bold))
+                            LucideIcon("undo-2", size: 10)
                             Text(item.name).font(.caption)
                         }
                         .padding(.horizontal, 10).padding(.vertical, 5)
@@ -1503,7 +1501,7 @@ struct WizPresetDropdown: View {
                     _ = PresetManager.shared.exportPreset(engine.params, name: "Mein Preset")
                 }
             } label: {
-                Image(systemName: "ellipsis.circle").font(.system(size: 15)).foregroundStyle(.wizMuted)
+                LucideIcon("circle-ellipsis", size: 15).foregroundStyle(.wizMuted)
             }
             .menuStyle(.borderlessButton)
             .menuIndicator(.hidden)

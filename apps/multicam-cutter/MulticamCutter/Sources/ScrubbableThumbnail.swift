@@ -52,8 +52,7 @@ struct ScrubbableThumbnail: View {
                         Rectangle()
                             .fill(.quaternary)
                             .overlay {
-                                Image(systemName: "video.slash")
-                                    .font(.title)
+                                LucideIcon("video-off", size: 26)
                                     .foregroundStyle(.secondary)
                             }
                     }

@@ -361,8 +361,7 @@ struct FolderDropView: View {
         VStack(spacing: 20) {
             Spacer()
 
-            Image(systemName: "folder.badge.plus")
-                .font(.system(size: 64))
+            LucideIcon("folder-plus", size: 64)
                 .foregroundStyle(isTargeted ? .brandAccent : .secondary)
 
             Text("Episode-Ordner hierher ziehen")
@@ -442,8 +441,7 @@ struct FpsConversionSheet: View {
 
     var body: some View {
         HStack(spacing: 14) {
-            Image(systemName: "film")
-                .font(.system(size: 30))
+            LucideIcon("film", size: 30)
                 .foregroundStyle(.brandAccent)
 
             VStack(alignment: .leading, spacing: 6) {
@@ -462,8 +460,7 @@ struct FpsConversionSheet: View {
             Button {
                 engine.cancelConversion()
             } label: {
-                Image(systemName: "xmark.circle.fill")
-                    .font(.title2)
+                LucideIcon("circle-x", size: 22)
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
@@ -500,7 +497,7 @@ struct EditableLabel: View {
 
     var body: some View {
         HStack(spacing: 8) {
-            Image(systemName: icon)
+            LucideIcon(icon, size: 13)
                 .foregroundStyle(.secondary)
 
             if isEditing {
@@ -528,7 +525,7 @@ struct EditableLabel: View {
                     editText = text
                     isEditing = true
                 } label: {
-                    Image(systemName: "pencil").font(.caption.weight(.bold))
+                    LucideIcon("pencil", size: 11)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
@@ -676,8 +673,7 @@ struct ResultView: View {
         VStack(spacing: 20) {
             Spacer()
 
-            Image(systemName: "checkmark.circle.fill")
-                .font(.system(size: 64))
+            LucideIcon("circle-check", size: 64)
                 .foregroundStyle(.green)
 
             Text("Fertig!")
@@ -737,8 +733,7 @@ struct ErrorView: View {
         VStack(spacing: 20) {
             Spacer()
 
-            Image(systemName: "exclamationmark.triangle.fill")
-                .font(.system(size: 64))
+            LucideIcon("triangle-alert", size: 64)
                 .foregroundStyle(.red)
 
             Text("Fehler")

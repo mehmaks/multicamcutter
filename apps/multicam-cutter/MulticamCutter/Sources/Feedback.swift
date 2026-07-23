@@ -90,8 +90,7 @@ struct FeedbackButton: View {
         Button {
             engine.presentFeedback(fromError: false)
         } label: {
-            Image(systemName: "exclamationmark.bubble")
-                .font(.system(size: 14, weight: .medium))
+            LucideIcon("message-square-warning", size: 14)
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
@@ -143,7 +142,7 @@ struct FeedbackView: View {
     private var form: some View {
         if fromError && !errorMessage.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                Label("Diese Fehlermeldung wird mitgesendet:", systemImage: "exclamationmark.triangle.fill")
+                LucideLabel("Diese Fehlermeldung wird mitgesendet:", icon: "triangle-alert", size: 11)
                     .font(.caption).foregroundStyle(.brandSecondary)
                 Text(errorMessage)
                     .font(.system(.caption, design: .monospaced))
@@ -213,8 +212,8 @@ struct FeedbackView: View {
     @ViewBuilder
     private func successPanel(url: String?, number: Int?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            Label(number.map { "Report #\($0) angelegt — danke!" } ?? "Report gesendet — danke!",
-                  systemImage: "checkmark.circle.fill")
+            LucideLabel(number.map { "Report #\($0) angelegt — danke!" } ?? "Report gesendet — danke!",
+                        icon: "circle-check", size: 15)
                 .foregroundStyle(.green)
                 .font(.headline)
             if let url, let u = URL(string: url) {
