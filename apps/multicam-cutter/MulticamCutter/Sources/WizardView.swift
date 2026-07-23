@@ -225,7 +225,18 @@ struct PersonsStep: View {
                             + "Namen, wie du sie im Schnitt wiedererkennst. Spuren, die kein Sprecher-"
                             + "Mikrofon sind (Raumklang, Musik), wirf einfach weg.")
 
-            VStack(spacing: 10) {
+            // Zweispaltig ab 2 Spuren (1080er-Standardbreite, User-Wunsch 24.07.):
+            // ~530 pt je Karte reichen der Waveform locker, und viele Spuren
+            // kosten nur die halbe Hoehe. Eine einzelne Spur bleibt volle Breite.
+            if engine.activeMics.count >= 2 {
+                LazyVGrid(columns: [GridItem(.flexible(), spacing: 12),
+                                    GridItem(.flexible(), spacing: 12)],
+                          alignment: .leading, spacing: 12) {
+                    ForEach(engine.activeMics) { mic in
+                        PersonRow(mic: mic)
+                    }
+                }
+            } else {
                 ForEach(engine.activeMics) { mic in
                     PersonRow(mic: mic)
                 }
