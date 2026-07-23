@@ -2,6 +2,7 @@ import SwiftUI
 import Foundation
 import AVFoundation
 import Accelerate
+import CryptoKit
 
 /// Meldet das Ende der Wiedergabe (ersetzt den frueheren asyncAfter-Timer, der
 /// nach dem Seeken in der Waveform falsch laege).
@@ -770,6 +771,15 @@ class EngineController: ObservableObject {
         if let url = sessionFileURL {
             try? FileManager.default.removeItem(at: url)
         }
+        // Auch der Waveform-Platten-Cache dieses Ordners gehoert zum sauberen
+        // Reset (User-Wunsch): die Peaks der aktuellen Spuren loeschen.
+        for mic in micInfos {
+            if let url = Self.waveformCacheURL(for: mic.path) {
+                try? FileManager.default.removeItem(at: url)
+            }
+        }
+        micWaveforms = [:]
+        waveformProgress = [:]
         sessionRestored = false
         guard let folder = folderURL else { return }
         Task { await runScan(folder: folder, decideWizardStep: true) }
@@ -1003,6 +1013,19 @@ class EngineController: ObservableObject {
         let path = mic.path
         let id = mic.id
         Task.detached(priority: .utility) {
+            // Erst der Platten-Cache (wie bei den Thumbnails): Schluessel ist
+            // Pfad + Groesse + Aenderungsdatum — aendert sich die Datei, greift
+            // automatisch ein neuer Schluessel. (Eine echte Checksumme muesste
+            // die kompletten ~750 MB lesen und kostete damit so viel wie die
+            // Berechnung selbst.)
+            let cacheURL = Self.waveformCacheURL(for: path)
+            if let cacheURL, let cached = Self.loadCachedPeaks(cacheURL) {
+                await MainActor.run { [weak self] in
+                    self?.waveformInFlight.remove(id)
+                    self?.micWaveforms[id] = cached
+                }
+                return
+            }
             var lastPct = -1
             let peaks = Self.computeWaveformPeaks(path: path, buckets: buckets) { frac in
                 let pct = Int(frac * 100)
@@ -1011,12 +1034,48 @@ class EngineController: ObservableObject {
                     Task { @MainActor [weak self] in self?.waveformProgress[id] = pct }
                 }
             }
+            if let peaks, let cacheURL { Self.saveCachedPeaks(peaks, to: cacheURL) }
             await MainActor.run { [weak self] in
                 self?.waveformInFlight.remove(id)
                 self?.waveformProgress[id] = nil
                 if let peaks { self?.micWaveforms[id] = peaks }
             }
         }
+    }
+
+    // MARK: Waveform-Platten-Cache
+
+    nonisolated private static var waveformCacheDir: URL {
+        let base = FileManager.default.urls(for: .cachesDirectory, in: .userDomainMask).first
+            ?? FileManager.default.temporaryDirectory
+        return base
+            .appendingPathComponent(Bundle.main.bundleIdentifier ?? "MulticamCutter")
+            .appendingPathComponent("waveforms")
+    }
+
+    /// Cache-Datei fuer eine Audiodatei — nil, wenn die Datei nicht lesbar ist.
+    /// "wf1"-Praefix versioniert das Format (rohe Float32-Peaks).
+    nonisolated static func waveformCacheURL(for path: String) -> URL? {
+        guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
+              let size = attrs[.size] as? Int64,
+              let mtime = (attrs[.modificationDate] as? Date)?.timeIntervalSince1970
+        else { return nil }
+        let key = "\(path)|\(size)|\(mtime)"
+        let digest = SHA256.hash(data: Data(key.utf8))
+            .map { String(format: "%02x", $0) }.joined()
+        let dir = waveformCacheDir
+        try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+        return dir.appendingPathComponent("wf1_\(digest).peaks")
+    }
+
+    nonisolated static func loadCachedPeaks(_ url: URL) -> [Float]? {
+        guard let data = try? Data(contentsOf: url),
+              !data.isEmpty, data.count % 4 == 0 else { return nil }
+        return data.withUnsafeBytes { Array($0.bindMemory(to: Float.self)) }
+    }
+
+    nonisolated static func saveCachedPeaks(_ peaks: [Float], to url: URL) {
+        peaks.withUnsafeBytes { try? Data($0).write(to: url, options: .atomic) }
     }
 
     /// Liest die Datei in Bloecken und nimmt je Bucket das Betragsmaximum
@@ -1622,6 +1681,11 @@ class EngineController: ObservableObject {
 
         cameraInfos = newCams
         micInfos = newMics
+        // In-Memory-Waveforms sind nach Mic-INDEX gekeyt — beim Ordnerwechsel
+        // wuerden sonst die Peaks des vorigen Ordners angezeigt. Leeren; der
+        // Platten-Cache macht das Neuladen bekannter Dateien billig.
+        micWaveforms = [:]
+        waveformProgress = [:]
 
         if cameraInfos.count < 2 {
             errorMessage = "Mindestens 2 Kamera-Clips erwartet, \(cameraInfos.count) gefunden."
