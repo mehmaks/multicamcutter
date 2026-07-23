@@ -1368,6 +1368,22 @@ def _run_n_path(args):
         args.change_delay, args.min_edit_duration, gates)
     print(f"  {len(base_events)} Events (Grundschnitt)")
 
+    # Degenerierte Diarisierung abfangen — wie im binaeren Pfad: ein einziges
+    # Event ueber eine lange Aufnahme heisst, die Personen-Mics unterscheiden
+    # sich nirgends klar. Klare Meldung statt sinnloser Ein-Event-EDL.
+    _dur_s = max(len(a) for a in person_audio.values()) / sr
+    if len(base_events) <= 1 and _dur_s > 300:
+        print("\n✗ Die Sprechererkennung findet keine klaren Unterschiede zwischen "
+              "den Personen-Mikrofonen.")
+        print(f"  In {_dur_s / 60:.1f} Minuten ergibt sich nur ein einziger "
+              "Sprecher-Abschnitt — so laesst sich nicht bestimmen, wer wann "
+              "spricht.")
+        print("  Haeufigste Ursachen: gleicher Mix auf allen Spuren (statt "
+              "Einzelspuren), Limiter/AGC am Recorder, extremes Uebersprechen.")
+        print("  Bitte die Spuren einzeln anhoeren (Play-Knopf im Schritt "
+              "Personen): Ist auf jeder Spur die EIGENE Person deutlich lauter?")
+        return 1
+
     cam_shift = max(0, -min(c['edl_frame'] for c in cameras))
 
     # Off-Sektionen je Kamera schreiben (nur Zuhoerer-Frames → Nicken-Analyse muss
@@ -1786,6 +1802,33 @@ def main():
     )
     print(f"  {len(segments)} Segmente erkannt")
 
+    # ── Degenerierte Diarisierung abfangen ────────────────────────────────────
+    # EIN Segment ueber eine lange Aufnahme heisst: die beiden Seiten
+    # unterscheiden sich praktisch nirgends um mehr als die Schwelle — wer wann
+    # spricht, ist nicht bestimmbar. Frueher lief das weiter, alles galt als
+    # Simultan-Sprechen, die EDL bestand nur aus der Totale und die Statistik
+    # starb an einer Division durch Null (Realfall 22.07.: 131 min, 0 von
+    # 156824 Fenstern ueber der Schwelle, Median beider Seiten ~-6 dB).
+    if len(segments) <= 1 and duration_s > 300:
+        _r1 = compute_rms_db(_analysis1, sr1, args.analysis_window)
+        _r2 = compute_rms_db(_analysis2, sr1, args.analysis_window)
+        _n = min(len(_r1), len(_r2))
+        _above = int(np.sum(np.abs(_r1[:_n] - _r2[:_n]) > args.threshold_db))
+        print("\n✗ Die Sprechererkennung findet keinen Unterschied zwischen den "
+              "beiden Ton-Seiten.")
+        print(f"  In {duration_s / 60:.1f} Minuten liegt der Pegelunterschied nur in "
+              f"{_above} von {_n} Fenstern ueber {args.threshold_db:.0f} dB — zu "
+              f"wenig, um zu bestimmen, wer wann spricht.")
+        print("  Haeufigste Ursachen:")
+        print("  - Die Spuren enthalten (fast) dasselbe Signal: z. B. wurde der MIX "
+              "des Recorders exportiert statt der Einzelspuren.")
+        print("  - Ein Limiter/AGC am Recorder hat die Pegelunterschiede eingeebnet.")
+        print("  - Extremes Uebersprechen (Mikrofone sehr nah beieinander).")
+        print("  Bitte die Spuren einzeln anhoeren (Play-Knopf im Schritt "
+              "Personen): Ist auf jeder Spur wirklich die EIGENE Person deutlich "
+              "lauter als alle anderen?")
+        return 1
+
     # ── 3. Audio-Segmente → EDL-Events ────────────────────────────────────────
     print("\n🔨 Baue EDL-Events...")
     events = []
@@ -1967,8 +2010,15 @@ def main():
 
     print(f"\n📈 Ergebnis:")
     print(f"  Events: {len(events)}")
-    print(f"  {args.cam1_clip}: {cam1_s/60:.1f} min ({cam1_s/total*100:.0f}%)")
-    print(f"  {args.cam2_clip}: {cam2_s/60:.1f} min ({cam2_s/total*100:.0f}%)")
+    # total kann 0 sein, wenn KEIN Event auf CAM1/CAM2 liegt (z. B. nur Totale
+    # nach degenerierter Diarisierung) — frueher Division durch Null genau hier
+    # (Realfall 22.07.: Spuren pegelidentisch, 1 Segment, alles Simultan).
+    if total > 0:
+        print(f"  {args.cam1_clip}: {cam1_s/60:.1f} min ({cam1_s/total*100:.0f}%)")
+        print(f"  {args.cam2_clip}: {cam2_s/60:.1f} min ({cam2_s/total*100:.0f}%)")
+    else:
+        print(f"  ⚠ Kein Event auf {args.cam1_clip}/{args.cam2_clip} — "
+              f"EDL besteht nur aus Totale/Bruecken.")
 
     # ── 6. Off-Sektionen schreiben (für Nodding-Analyse) ─────────────────────
     if args.cam1_off_sections_out or args.cam2_off_sections_out:
