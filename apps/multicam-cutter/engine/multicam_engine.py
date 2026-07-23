@@ -73,6 +73,34 @@ def scan_folder(folder):
 
 # ── CLIP Person-Check fuer Thumbnails ─────────────────────────────────────────
 
+def _preview_cache_dir() -> Path:
+    """Persistenter Cache fuer Thumbnails/Audio-Previews. Frueher /tmp: nach
+    jedem Neustart weg, und Index+Name als Dateischluessel + ffmpeg -y fuehrten
+    dazu, dass JEDER Scan alles neu erzeugte. Gleiche Philosophie wie der
+    Waveform-Cache der App: Schluessel = Datei-Identitaet."""
+    d = Path.home() / "Library" / "Caches" / "com.jenaunited.multicam-cutter" / "previews"
+    try:
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+    except Exception:
+        d = Path("/tmp/multicam-cutter-previews")
+        d.mkdir(parents=True, exist_ok=True)
+        return d
+
+
+def _file_cache_key(path) -> str:
+    """Identitaet aus Pfad + Groesse + mtime — aendert sich die Datei, greift
+    automatisch ein neuer Schluessel (echte Checksumme wuerde die ganze Datei
+    lesen und den Cache-Gewinn auffressen)."""
+    p = Path(path)
+    try:
+        st = p.stat()
+        raw = f"{p}|{st.st_size}|{st.st_mtime}"
+    except OSError:
+        raw = str(p)
+    return hashlib.sha256(raw.encode()).hexdigest()[:20]
+
+
 def _find_person_frame(video_path, preview_dir, cam_index, duration_s):
     """Sucht einen Frame in dem eine Person zu sehen ist.
 
@@ -270,8 +298,7 @@ def run_scan(folder, fps=25.0):
     if not cams:
         raise RuntimeError("Keine Kamera-Dateien gefunden")
 
-    preview_dir = Path("/tmp/multicam-cutter-previews")
-    preview_dir.mkdir(parents=True, exist_ok=True)
+    preview_dir = _preview_cache_dir()
 
     # Fortschritt: Schritte = Cams (Dauer + Thumbnail) + Audio-Analyse + Mic-Previews
     total_scan_steps = len(cams) + 1 + len(mics)
@@ -315,26 +342,28 @@ def run_scan(folder, fps=25.0):
         except Exception:
             pass
 
-        # Thumbnail: bei ~10s versuchen, Fallback auf Frame 0
-        thumb_path = preview_dir / f"cam{i}_{cam.stem}.jpg"
-        seek = min(10, duration_s * 0.5) if duration_s > 0 else 0
-        try:
-            subprocess.run(
-                ["ffmpeg", "-y", "-ss", str(seek), "-i", str(cam),
-                 "-frames:v", "1", "-q:v", "3", "-vf", "scale=320:-1",
-                 str(thumb_path)],
-                capture_output=True, timeout=15,
-            )
-            if not thumb_path.exists():
-                # Fallback: Frame 0
+        # Thumbnail: gecacht nach Datei-Identitaet — nur bei Miss erzeugen.
+        thumb_path = preview_dir / f"thumb_{_file_cache_key(cam)}.jpg"
+        if not thumb_path.exists():
+            # Bei ~10s versuchen, Fallback auf Frame 0
+            seek = min(10, duration_s * 0.5) if duration_s > 0 else 0
+            try:
                 subprocess.run(
-                    ["ffmpeg", "-y", "-i", str(cam),
+                    ["ffmpeg", "-y", "-ss", str(seek), "-i", str(cam),
                      "-frames:v", "1", "-q:v", "3", "-vf", "scale=320:-1",
                      str(thumb_path)],
                     capture_output=True, timeout=15,
                 )
-        except Exception:
-            thumb_path = None
+                if not thumb_path.exists():
+                    # Fallback: Frame 0
+                    subprocess.run(
+                        ["ffmpeg", "-y", "-i", str(cam),
+                         "-frames:v", "1", "-q:v", "3", "-vf", "scale=320:-1",
+                         str(thumb_path)],
+                        capture_output=True, timeout=15,
+                    )
+            except Exception:
+                thumb_path = None
         thumb_result = str(thumb_path) if thumb_path and thumb_path.exists() else None
 
         cam_infos.append({
@@ -348,24 +377,42 @@ def run_scan(folder, fps=25.0):
 
     # ── Intelligente Audio-Preview-Stellen finden ──────────────────────────
     scan_progress("Audio-Analyse: dominante Stellen suchen")
-    mic_preview_offsets = _find_dominant_mic_positions(mics)
+    # Dominanz = lauter als die ANDEREN — das Ergebnis haengt vom ganzen
+    # Mic-Set ab, daher ein kombinierter Cache-Schluessel ueber alle Mics.
+    _dom_key = hashlib.sha256(
+        "|".join(_file_cache_key(m) for m in mics).encode()).hexdigest()[:20]
+    _dom_cache = preview_dir / f"dom_{_dom_key}.json"
+    mic_preview_offsets = None
+    if _dom_cache.exists():
+        try:
+            mic_preview_offsets = {int(k): v for k, v in
+                                   json.loads(_dom_cache.read_text()).items()}
+        except Exception:
+            mic_preview_offsets = None
+    if mic_preview_offsets is None:
+        mic_preview_offsets = _find_dominant_mic_positions(mics)
+        try:
+            _dom_cache.write_text(json.dumps(mic_preview_offsets), encoding="utf-8")
+        except Exception:
+            pass
 
     mic_infos = []
     for i, mic in enumerate(mics):
         scan_progress(f"Audio-Preview: {mic.name}")
-        preview_path = preview_dir / f"mic{i}_{mic.stem}.wav"
         offset_s = mic_preview_offsets.get(i, 30)
-
-        # 5s Audio-Preview ab der dominanten Stelle extrahieren
-        try:
-            subprocess.run(
-                ["ffmpeg", "-y", "-ss", str(offset_s), "-i", str(mic),
-                 "-t", "5", "-ac", "1", "-ar", "22050",
-                 str(preview_path)],
-                capture_output=True, timeout=15,
-            )
-        except Exception:
-            preview_path = None
+        # Schnipsel haengt von Datei UND Offset ab → beides im Schluessel.
+        preview_path = preview_dir / f"prev_{_file_cache_key(mic)}_{int(offset_s)}.wav"
+        if not preview_path.exists():
+            # 5s Audio-Preview ab der dominanten Stelle extrahieren
+            try:
+                subprocess.run(
+                    ["ffmpeg", "-y", "-ss", str(offset_s), "-i", str(mic),
+                     "-t", "5", "-ac", "1", "-ar", "22050",
+                     str(preview_path)],
+                    capture_output=True, timeout=15,
+                )
+            except Exception:
+                preview_path = None
 
         # Dauer ermitteln
         duration_s = 0.0
