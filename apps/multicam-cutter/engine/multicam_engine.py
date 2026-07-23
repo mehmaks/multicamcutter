@@ -386,6 +386,10 @@ def run_scan(folder, fps=25.0):
             "filename": mic.name,
             "path": str(mic),
             "preview": str(preview_path) if preview_path and preview_path.exists() else None,
+            # Dominante Stelle auch als Offset mitgeben: die App spielt inzwischen
+            # die GANZE Spur (seekbar via Waveform) und nutzt das nur noch als
+            # Start-Default fuer den Play-Knopf.
+            "preview_offset_s": float(offset_s),
             "duration_s": round(duration_s, 1),
         })
 

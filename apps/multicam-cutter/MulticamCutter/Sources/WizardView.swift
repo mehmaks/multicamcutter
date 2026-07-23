@@ -233,6 +233,7 @@ struct PersonRow: View {
     private var liveName: String { engine.micInfos.first { $0.id == mic.id }?.displayName ?? mic.displayName }
 
     var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
         HStack(spacing: 14) {
             avatar(mic.id, liveName, size: 44, engine)
 
@@ -256,13 +257,20 @@ struct PersonRow: View {
                     .foregroundStyle(isPlaying ? Color.brandAccent : Color.secondary)
             }
             .buttonStyle(.plain)
-            .help("Ab erster lauter Stelle anhören")
+            .help("Ganze Spur anhören (startet an der lautesten Stelle) — "
+                  + "oder direkt in die Wellenform klicken")
 
             Button { engine.deletePerson(mic.id) } label: {
                 Image(systemName: "trash").font(.system(size: 15)).foregroundStyle(.wizMuted)
             }
             .buttonStyle(.plain)
             .help("Diese Spur ist kein Sprecher — entfernen")
+        }
+
+        // Wellenform der ganzen Spur — Klick springt an die Position
+        // (Fremd-Feedback 22.07.: der 5-s-Schnipsel war zu unverlaesslich,
+        // um unbekanntes Material schnell Personen zuzuordnen).
+        WaveformStrip(mic: mic)
         }
         .padding(12)
         .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 14))
@@ -276,6 +284,65 @@ struct PersonRow: View {
     private func commit() {
         let trimmed = draft.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty { draft = liveName } else if trimmed != liveName { engine.renameMic(mic.id, to: trimmed) }
+    }
+}
+
+/// Wellenform der ganzen Spur; Klick springt an die Position und spielt ab dort.
+/// Peaks kommen on-demand aus dem EngineController (einmal je Datei, gecacht);
+/// waehrend der Berechnung steht ein Platzhalter. Laeuft die Spur, zeichnet ein
+/// Playhead die aktuelle Position (TimelineView pausiert sonst).
+struct WaveformStrip: View {
+    let mic: MicInfo
+    @EnvironmentObject var engine: EngineController
+
+    var body: some View {
+        GeometryReader { geo in
+            Group {
+                if let peaks = engine.micWaveforms[mic.id] {
+                    TimelineView(.animation(minimumInterval: 0.05,
+                                            paused: engine.playingMicId != mic.id)) { _ in
+                        Canvas { ctx, size in
+                            let mid = size.height / 2
+                            let step = size.width / CGFloat(peaks.count)
+                            var bars = Path()
+                            for (i, p) in peaks.enumerated() {
+                                let x = CGFloat(i) * step + step / 2
+                                let amp = max(1, CGFloat(p) * (mid - 1))
+                                bars.move(to: CGPoint(x: x, y: mid - amp))
+                                bars.addLine(to: CGPoint(x: x, y: mid + amp))
+                            }
+                            ctx.stroke(bars, with: .color(Color.brandAccent.opacity(0.55)),
+                                       lineWidth: max(0.5, step * 0.7))
+                            if let t = engine.playbackTime(for: mic.id), mic.durationSeconds > 0 {
+                                let x = size.width * CGFloat(t / mic.durationSeconds)
+                                var head = Path()
+                                head.move(to: CGPoint(x: x, y: 0))
+                                head.addLine(to: CGPoint(x: x, y: size.height))
+                                ctx.stroke(head, with: .color(.white.opacity(0.85)), lineWidth: 1.5)
+                            }
+                        }
+                    }
+                } else {
+                    RoundedRectangle(cornerRadius: 4)
+                        .fill(Color.wizBorder.opacity(0.35))
+                        .overlay(
+                            HStack(spacing: 6) {
+                                ProgressView().controlSize(.mini)
+                                Text("Wellenform wird berechnet …")
+                                    .font(.caption2).foregroundStyle(.wizFaint)
+                            }
+                        )
+                }
+            }
+            .contentShape(Rectangle())
+            .gesture(SpatialTapGesture().onEnded { value in
+                guard mic.durationSeconds > 0, geo.size.width > 0 else { return }
+                let frac = min(max(0, value.location.x / geo.size.width), 1)
+                engine.playMic(mic, at: frac * mic.durationSeconds)
+            })
+        }
+        .frame(height: 36)
+        .onAppear { engine.requestWaveform(for: mic) }
     }
 }
 

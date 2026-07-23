@@ -1,6 +1,17 @@
 import SwiftUI
 import Foundation
 import AVFoundation
+import Accelerate
+
+/// Meldet das Ende der Wiedergabe (ersetzt den frueheren asyncAfter-Timer, der
+/// nach dem Seeken in der Waveform falsch laege).
+final class PlayerFinishDelegate: NSObject, AVAudioPlayerDelegate {
+    private let onFinish: () -> Void
+    init(onFinish: @escaping () -> Void) { self.onFinish = onFinish }
+    func audioPlayerDidFinishPlaying(_ player: AVAudioPlayer, successfully flag: Bool) {
+        onFinish()
+    }
+}
 
 // MARK: - App State
 
@@ -44,6 +55,8 @@ struct MicInfo: Identifiable, Hashable {
     let path: String
     var displayName: String
     var previewPath: String?
+    /// Dominante Stelle der Spur (Engine-Scan) — Start-Default fuer den Play-Knopf.
+    var previewOffsetS: Double = 0
     var durationSeconds: Double
     /// Siehe CameraInfo.included.
     var included: Bool = true
@@ -479,6 +492,7 @@ class EngineController: ObservableObject {
     // Audio Playback
     @Published var playingMicId: Int? = nil
     private var audioPlayer: AVAudioPlayer?
+    private var playerFinishDelegate: PlayerFinishDelegate?
 
     // Sidebar Selection
     @Published var selectedCamId: Int? = nil
@@ -927,45 +941,110 @@ class EngineController: ObservableObject {
         state = .ready
     }
 
-    // MARK: - Audio Preview
+    // MARK: - Audio Preview (ganze Spur, seekbar via Waveform)
+    //
+    // Frueher spielte der Play-Knopf einen 5-s-Schnipsel „ab der lautesten
+    // Stelle" — fuer Cutter mit unbekanntem Material zu unzuverlaessig
+    // (Fremd-Feedback 22.07.). Jetzt: die GANZE Originalspur, Klick in die
+    // Waveform springt an die Position, der Play-Knopf startet an der
+    // dominanten Stelle (previewOffsetS).
 
-    func toggleMicPreview(_ mic: MicInfo) {
-        // Gleicher Mic — Stop
-        if playingMicId == mic.id {
+    /// Spielt die ganze Spur ab `seconds` (nil = dominante Stelle des Scans).
+    func playMic(_ mic: MicInfo, at seconds: Double? = nil) {
+        // Anderer Mic oder noch kein Player — neu oeffnen.
+        if playingMicId != mic.id || audioPlayer == nil {
             audioPlayer?.stop()
             audioPlayer = nil
             playingMicId = nil
-            return
-        }
-        // Anderer Mic oder keiner — alten stoppen, neuen starten
-        audioPlayer?.stop()
-        audioPlayer = nil
-        playingMicId = nil
-
-        guard let path = mic.previewPath else { return }
-        let url = URL(fileURLWithPath: path)
-        do {
-            let player = try AVAudioPlayer(contentsOf: url)
-            player.play()
-            audioPlayer = player
-            playingMicId = mic.id
-            // Auto-Reset wenn fertig
-            let duration = player.duration
-            DispatchQueue.main.asyncAfter(deadline: .now() + duration + 0.1) { [weak self] in
-                if self?.playingMicId == mic.id {
-                    self?.playingMicId = nil
-                    self?.audioPlayer = nil
-                }
+            guard let player = try? AVAudioPlayer(
+                contentsOf: URL(fileURLWithPath: mic.path)) else { return }
+            let delegate = PlayerFinishDelegate { [weak self] in
+                Task { @MainActor in self?.stopAllPlayback() }
             }
-        } catch {
-            // Playback fehlgeschlagen — still ignorieren
+            player.delegate = delegate
+            playerFinishDelegate = delegate
+            audioPlayer = player
         }
+        audioPlayer?.currentTime = min(seconds ?? mic.previewOffsetS,
+                                       max(0, (audioPlayer?.duration ?? 0) - 0.5))
+        audioPlayer?.play()
+        playingMicId = mic.id
+    }
+
+    func toggleMicPreview(_ mic: MicInfo) {
+        if playingMicId == mic.id { stopAllPlayback() } else { playMic(mic) }
     }
 
     func stopAllPlayback() {
         audioPlayer?.stop()
         audioPlayer = nil
+        playerFinishDelegate = nil
         playingMicId = nil
+    }
+
+    /// Aktuelle Abspielposition der Spur — nil, wenn sie nicht laeuft.
+    func playbackTime(for micId: Int) -> Double? {
+        guard playingMicId == micId, let p = audioPlayer else { return nil }
+        return p.currentTime
+    }
+
+    // MARK: - Waveform-Peaks (on-demand, gecacht)
+
+    /// Peaks (0..1) je Mic fuer die Waveform-Anzeige. Einmal pro Datei
+    /// berechnet (AVAudioFile, chunked + vDSP) und fuer die Session gecacht.
+    @Published var micWaveforms: [Int: [Float]] = [:]
+    private var waveformInFlight: Set<Int> = []
+
+    func requestWaveform(for mic: MicInfo, buckets: Int = 640) {
+        guard micWaveforms[mic.id] == nil, !waveformInFlight.contains(mic.id) else { return }
+        waveformInFlight.insert(mic.id)
+        let path = mic.path
+        let id = mic.id
+        Task.detached(priority: .utility) {
+            let peaks = Self.computeWaveformPeaks(path: path, buckets: buckets)
+            await MainActor.run { [weak self] in
+                self?.waveformInFlight.remove(id)
+                if let peaks { self?.micWaveforms[id] = peaks }
+            }
+        }
+    }
+
+    /// Liest die Datei in Bloecken und nimmt je Bucket das Betragsmaximum
+    /// (vDSP). Normalisiert aufs Gesamtmaximum, damit auch leise Aufnahmen
+    /// sichtbar sind. AVAudioFile dekodiert jede Bit-Tiefe korrekt.
+    nonisolated static func computeWaveformPeaks(path: String, buckets: Int) -> [Float]? {
+        guard let file = try? AVAudioFile(forReading: URL(fileURLWithPath: path)),
+              file.length > 0, buckets > 0 else { return nil }
+        let totalFrames = Int(file.length)
+        let framesPerBucket = max(1, totalFrames / buckets)
+        let chunkFrames: AVAudioFrameCount = 1 << 20
+        guard let buf = AVAudioPCMBuffer(pcmFormat: file.processingFormat,
+                                         frameCapacity: chunkFrames) else { return nil }
+        var peaks = [Float](repeating: 0, count: buckets)
+        var frameIndex = 0
+        while frameIndex < totalFrames {
+            do { try file.read(into: buf, frameCount: chunkFrames) } catch { break }
+            let n = Int(buf.frameLength)
+            if n == 0 { break }
+            guard let ch = buf.floatChannelData?[0] else { break }
+            // Bucketweise Betragsmaxima innerhalb dieses Blocks (vDSP).
+            var local = 0
+            while local < n {
+                let bucket = min(buckets - 1, (frameIndex + local) / framesPerBucket)
+                let bucketEndFrame = (bucket + 1) * framesPerBucket
+                let len = min(n - local, max(1, bucketEndFrame - (frameIndex + local)))
+                var m: Float = 0
+                vDSP_maxmgv(ch + local, 1, &m, vDSP_Length(len))
+                if m > peaks[bucket] { peaks[bucket] = m }
+                local += len
+            }
+            frameIndex += n
+        }
+        let maxV = peaks.max() ?? 0
+        guard maxV > 0 else { return peaks }
+        var scale = 1.0 / maxV
+        vDSP_vsmul(peaks, 1, &scale, &peaks, 1, vDSP_Length(buckets))
+        return peaks
     }
 
     // MARK: - CLIP-Modell (optionaler Download)
@@ -1521,6 +1600,7 @@ class EngineController: ObservableObject {
                 path: mic["path"] as? String ?? "",
                 displayName: filename,
                 previewPath: mic["preview"] as? String,
+                previewOffsetS: (mic["preview_offset_s"] as? NSNumber)?.doubleValue ?? 0,
                 durationSeconds: mic["duration_s"] as? Double ?? 0
             ))
         }
