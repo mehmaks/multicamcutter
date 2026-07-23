@@ -238,12 +238,23 @@ struct PersonRow: View {
             avatar(mic.id, liveName, size: 44, engine)
 
             VStack(alignment: .leading, spacing: 1) {
-                TextField("Name", text: $draft)
-                    .textFieldStyle(.plain)
-                    .font(.system(size: 16, weight: .semibold))
-                    .focused($focused)
-                    .onSubmit { commit() }
-                    .onChange(of: focused) { _, f in if !f { commit() } }
+                // Stift direkt hinter dem Namen: signalisiert „hier kannst du
+                // tippen" — das plain-TextField allein sieht wie ein Label aus.
+                HStack(spacing: 5) {
+                    TextField("Name", text: $draft)
+                        .textFieldStyle(.plain)
+                        .font(.system(size: 16, weight: .semibold))
+                        .focused($focused)
+                        .onSubmit { commit() }
+                        .onChange(of: focused) { _, f in if !f { commit() } }
+                        .fixedSize()
+                    Image(systemName: "pencil")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.wizFaint)
+                        .onTapGesture { focused = true }
+                        .help("Namen bearbeiten")
+                    Spacer(minLength: 0)
+                }
                 Text(mic.filename)
                     .font(.system(.caption2, design: .monospaced))
                     .foregroundStyle(.wizFaint)
