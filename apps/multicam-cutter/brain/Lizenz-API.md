@@ -117,6 +117,14 @@ App-Seite ist fertig und zeigt die Zeile automatisch, sobald die Felder
 ankommen; fehlen sie (älteres Backend), ändert sich nichts. Beide Felder sind
 optional und unsigniert (nur Anzeige).
 
+**Backend: umgesetzt & deployed (24.07.).** activate + validate liefern die
+Seat-Felder im `subscription`-Block (Passthrough, auch auf den Reuse-Pfaden);
+der Block kommt jetzt auch, wenn nur die Seats verfügbar sind (Datums-Felder
+dann fehlend — App liest defensiv). `activation_limit`-Message mit Zahlen:
+„Alle 3 Plätze dieser Lizenz sind belegt." bzw. bei Limit 1 „Der einzige Platz
+dieser Lizenz ist bereits belegt." Bitte einmal mit eurem Test-Key gegenprüfen
+(Mehrplatz-E2E braucht einen Key mit Limit > 1 bzw. Testkauf mit Menge > 1).
+
 Negativ (kein `lease`):
 ```json
 { "status": "inactive" | "invalid" | "activation_limit" | "device_mismatch",
