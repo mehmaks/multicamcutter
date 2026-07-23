@@ -43,6 +43,13 @@ private func avatar(_ personId: Int, _ name: String, size: CGFloat, _ engine: En
 
 // MARK: - Container
 
+/// Standard-Inhaltsbreite aller Wizard-Seiten (User-Entscheid 24.07.: die
+/// Breite der Audio-Cards auf Screen 1 gilt durchgaengig; das Fenster ist
+/// darauf fixiert, s. ContentView.enforceWizardWindowChrome).
+enum WizardLayout {
+    static let contentWidth: CGFloat = 720
+}
+
 /// Natuerliche Hoehe des Wizard-Inhalts (fuer Fenster-Fitting, s. ContentView).
 struct WizardContentHeightKey: PreferenceKey {
     static let defaultValue: CGFloat = 0
@@ -248,7 +255,7 @@ struct PersonsStep: View {
                     .padding(.top, 6)
             }
         }
-        .frame(maxWidth: 720, alignment: .leading)
+        .frame(maxWidth: WizardLayout.contentWidth, alignment: .leading)
     }
 }
 
@@ -481,7 +488,7 @@ struct CamerasStep: View {
                                 restore: { engine.setCamIncluded($0, true) })
             }
         }
-        .frame(maxWidth: 1080, alignment: .leading)
+        .frame(maxWidth: WizardLayout.contentWidth, alignment: .leading)
     }
 
     private func railTitle(_ t: String) -> some View {
@@ -802,7 +809,9 @@ struct OverviewStep: View {
                         text: "Das hat die App aus deinen Zuordnungen abgeleitet — Bildgrößen inklusive. "
                             + "Stimmt etwas nicht, geh einen Schritt zurück und korrigier es. Sonst: Analyse starten.")
 
-            HStack(alignment: .top, spacing: 22) {
+            // Bei 720er-Standardbreite gestapelt statt zweispaltig (2x ~350
+            // waere fuer Leiter-Pills und Kamera-Zeilen zu eng).
+            VStack(alignment: .leading, spacing: 24) {
                 VStack(alignment: .leading, spacing: 12) {
                     sectionTitle("Bildgrößen je Person")
                     if engine.persons.isEmpty {
@@ -823,7 +832,7 @@ struct OverviewStep: View {
 
             WizardSettings()
         }
-        .frame(maxWidth: 1080, alignment: .leading)
+        .frame(maxWidth: WizardLayout.contentWidth, alignment: .leading)
     }
 
     private var derivedNote: some View {

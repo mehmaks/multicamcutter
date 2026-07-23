@@ -35,6 +35,8 @@ struct ContentView: View {
     private static let runWidth: CGFloat = 760
     /// Am laufenden Analysefenster ausgemessen (inkl. Titelleiste).
     private static let runHeight: CGFloat = 552
+    /// Standard-Fensterbreite: Wizard-Inhaltsbreite (720) + 2×28 Rand.
+    private static let wizardWindowWidth: CGFloat = WizardLayout.contentWidth + 56
 
     var body: some View {
         // Feedback-Button sitzt jetzt im Wizard-Footer neben „Zurück" (nicht mehr
@@ -110,6 +112,29 @@ struct ContentView: View {
         window.title = "MultiCamCutter"
         window.styleMask.remove(.fullSizeContentView)
         window.backgroundColor = NSColor(srgbRed: 14/255, green: 16/255, blue: 12/255, alpha: 1)
+        enforceWizardWindowChrome(window)
+    }
+
+    /// Fixe Standardbreite + Resize-Sperre (User-Entscheid 24.07.): mit der
+    /// automatischen Hoehenanpassung hat manuelles Resizing keinen Zweck mehr —
+    /// es erzeugte nur den Leerraum, den das Content-Fitting eliminiert.
+    /// Idempotent und WIEDERHOLT anzuwenden: SwiftUI stellt `.resizable` bei
+    /// Content-View-Wechseln wieder her (gleiche Lektion wie beim Analyse-Lock).
+    private func enforceWizardWindowChrome(_ window: NSWindow) {
+        guard frameBeforeRun == nil,               // Analyse-Modus verwaltet sich selbst
+              !window.styleMask.contains(.fullScreen) else { return }
+        if window.styleMask.contains(.resizable) {
+            window.styleMask.remove(.resizable)
+        }
+        if abs(window.frame.width - Self.wizardWindowWidth) > 1 {
+            var f = window.frame
+            let top = f.maxY
+            let midX = f.midX
+            f.size.width = Self.wizardWindowWidth
+            f.origin.x = midX - Self.wizardWindowWidth / 2
+            f.origin.y = top - f.size.height
+            window.setFrame(f, display: true, animate: true)
+        }
     }
 
     /// Fenster passt sich je Wizard-Seite dem INHALT an (User-Wunsch 24.07. —
@@ -121,6 +146,9 @@ struct ContentView: View {
     /// Bildschirmhoehe (abzgl. Rand) bzw. 1100 pt — darueber scrollt der
     /// Inhalt wie bisher. Oberkante bleibt fix (waechst/schrumpft nach unten).
     private func fitWindowToWizardContent() {
+        // Breite + Resize-Sperre bei jeder Gelegenheit nachziehen (SwiftUI
+        // stellt .resizable bei View-Wechseln wieder her).
+        if let w = mainWindow { enforceWizardWindowChrome(w) }
         guard let window = mainWindow,
               engine.state == .ready,             // nur im Wizard, nie im Lauf
               frameBeforeRun == nil,              // nicht waehrend Analyse-Restore
