@@ -1366,8 +1366,14 @@ class EngineController: ObservableObject {
     ///
     /// Warum das blockiert: Weicht die Source-FPS ab, rechnet die EDL/AAF-Pipeline
     /// mit falschen Source-Frames → Audio/Video-Drift + Standbild am Timeline-Ende.
+    /// Eine Regel, zwei Verbraucher: die Sammel-Liste UND das Warn-Badge auf der
+    /// Kamera-Karte (damit man nicht suchen muss, WELCHE Datei betroffen ist).
+    func isFpsMismatch(_ cam: CameraInfo) -> Bool {
+        cam.fps <= 0 || abs(cam.fps - fps) > 0.01
+    }
+
     var fpsMismatches: [CameraInfo] {
-        activeCams.filter { $0.fps <= 0 || abs($0.fps - fps) > 0.01 }
+        activeCams.filter { isFpsMismatch($0) }
     }
 
     /// Konvertiert die betroffenen Dateien auf die Timeline-FPS und scannt neu.

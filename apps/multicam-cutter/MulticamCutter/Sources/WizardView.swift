@@ -515,6 +515,22 @@ struct WizardCamCard: View {
                     .help("Diese Kamera gehört nicht zum Projekt — entfernen")
                 }
 
+                // FPS-Mismatch direkt AN der betroffenen Karte zeigen — sonst
+                // weiß man nur "irgendeine Kamera passt nicht" und muss suchen.
+                if engine.isFpsMismatch(cam) {
+                    HStack(spacing: 4) {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.system(size: 9))
+                        Text(cam.fps > 0
+                             ? "\(Self.fmtFps(cam.fps)) fps — Projekt: \(Self.fmtFps(engine.fps))"
+                             : "Bildrate nicht lesbar")
+                            .font(.caption2)
+                    }
+                    .foregroundStyle(.orange)
+                    .help("Diese Kamera passt nicht zur Projekt-Bildrate. Beim Start "
+                          + "der Analyse wird eine Konvertierung angeboten.")
+                }
+
                 if assigned.isEmpty {
                     Text("Person hierher ziehen").font(.caption).foregroundStyle(.wizFaint).padding(.vertical, 2)
                 } else {
@@ -547,6 +563,12 @@ struct WizardCamCard: View {
             }
             return true
         }
+    }
+
+    /// "25" statt "25.000", "23.976" bleibt "23.976".
+    private static func fmtFps(_ v: Double) -> String {
+        String(format: "%.3f", v)
+            .replacingOccurrences(of: #"\.?0+$"#, with: "", options: .regularExpression)
     }
 
     @ViewBuilder private var rolePill: some View {
