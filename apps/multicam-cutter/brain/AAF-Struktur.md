@@ -79,20 +79,25 @@ TapeMob. (Das ist zugleich, worüber Resolve linkt.)
 
 Kette je Quelle: `TapeMob (TC/Reel) → FileMob (Descriptor + NetworkLocator) → MasterMob (Bin-Clip) → CompositionMob`.
 
-- **Video** (`build_aaf.py` ~308): TapeMob (`create_tape_slots`, TC-Start = embedded TC)
-  → FileMob mit **`ImportDescriptor`** + NetworkLocator (jetzt korrekt via
-  `['Locator'].value`) → MasterMob (`name = stem`, in `cam_masters`).
-- **Audio** (~359): TapeMob → SourceMob mit **`PCMDescriptor`** (Length in
-  **Samples**, SampleRate = Audiorate) + NetworkLocator → MasterMob.
-- **Grund-Namen** (~440): `reason_masters` — pro (Kamera, Grund) ein ZUSÄTZLICHER
+- **Video** (`build_aaf.py`): TapeMob (`create_tape_slots`, TC-Start = embedded TC)
+  → FileMob mit **`CDCIDescriptor`** (StoredWidth/Height via `_probe_video_info`,
+  ImageAspectRatio, FrameLayout, HorizontalSubsampling=2, ComponentWidth=8,
+  VideoLineMap=[0,1], SampleRate=fps) + NetworkLocator → MasterMob (`name = stem`,
+  in `cam_masters`).
+- **Audio**: TapeMob → SourceMob mit **`PCMDescriptor`** (Length in **Samples**,
+  SampleRate = Audiorate) + NetworkLocator → MasterMob.
+- **Grund-Namen**: `reason_masters` — pro (Kamera, Grund) ein ZUSÄTZLICHER
   MasterMob (`_name_for`). Nur wenn `clip_name_pattern` gesetzt (Toggle an).
 
-**OFFEN (im Premiere-Trial zu testen):** Der Video-FileMob nutzt
-`ImportDescriptor`. Die getestet-funktionierende Referenz (unten) nutzt
-**`CDCIDescriptor`**. Ob Premiere mit `ImportDescriptor` + gültigem Locator
-linkt oder ob es `CDCIDescriptor` braucht, ist die offene Frage nach dem
-Locator-Fix. Erst den Locator-Fix in Premiere gegentesten; falls weiter offline
-→ auf CDCIDescriptor umbauen (Referenz-Struktur unten).
+**Warum CDCIDescriptor (nicht ImportDescriptor):** Mit `ImportDescriptor` blieb
+das Video in Premiere offline, OBWOHL der Locator korrekt gesetzt war — Premiere
+erkennt einen ImportDescriptor nicht als linkbare Datei (Video-Clips im „Medien
+verknüpfen"-Dialog hatten leeren Dateiname/-pfad, nur Bandname+TC). Das
+funktionierende Audio nutzt `PCMDescriptor` (echter File-Descriptor) → linkte
+sofort. Fix: Video auf `CDCIDescriptor` (echter File-Descriptor mit Maßen).
+Bestätigt: Audio online nach Locator-Fix (25.07.); Video-Fix danach. ⚠️ Nach
+diesem Umbau BEIDE gegentesten — Resolve (nutzt DaVinci-Style CDCIDescriptor
+selbst) UND Premiere.
 
 ---
 

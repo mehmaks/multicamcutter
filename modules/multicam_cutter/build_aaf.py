@@ -69,6 +69,27 @@ def _probe_audio_info(path: str):
     return channels, sample_rate, bit_depth
 
 
+def _probe_video_info(path: str):
+    """Gibt (width, height) der Videospur zurueck. Fuer den CDCIDescriptor —
+    Premiere linkt zwar ueber die URL, verlangt aber einen echten File-Descriptor
+    mit Maßen (ein ImportDescriptor ohne Maße wird nicht als linkbare Datei
+    erkannt → Offline, s. brain/AAF-Struktur.md). Fallback 1920x1080."""
+    out = _probe(path, '-select_streams', 'v:0',
+                 '-show_entries', 'stream=width,height',
+                 '-of', 'default=noprint_wrappers=1')
+    info = {}
+    for line in out.splitlines():
+        if '=' in line:
+            k, v = line.split('=', 1)
+            info[k] = v
+    try:
+        w = int(info.get('width') or 0) or 1920
+        h = int(info.get('height') or 0) or 1080
+    except ValueError:
+        w, h = 1920, 1080
+    return w, h
+
+
 def _probe_embedded_tc_frames(path: str, fps: float) -> int:
     """
     Liest embedded TC aus Video- oder Audiodateien:
@@ -291,6 +312,7 @@ def build_aaf(
     # N Kameras — offsets-Keys: CAM1, CAM2, CAM3, ...
     cam_tc   = [_probe_embedded_tc_frames(p, fps) for p in cam_paths]
     cam_durs = [_probe_duration_frames(p, fps)     for p in cam_paths]
+    cam_dims = [_probe_video_info(p)               for p in cam_paths]
     cam_offs = [offsets.get(f'CAM{i + 1}', 0)     for i in range(len(cam_paths))]
 
     # M Mikrofone — alle mic_paths
@@ -308,7 +330,8 @@ def build_aaf(
         # ── Video: TapeMob + FileMob + MasterMob (alle Kameras) ──────────────
         cam_masters = []
         cam_files   = []   # (file_mob, fm_slot) je Kamera — Basis fuer benannte Mobs
-        for idx, (cp, dur, tc) in enumerate(zip(cam_paths, cam_durs, cam_tc)):
+        for idx, (cp, dur, tc, (vid_w, vid_h)) in enumerate(
+                zip(cam_paths, cam_durs, cam_tc, cam_dims)):
             stem = Path(cp).stem
 
             # TapeMob — Reel-Name + embedded TC (damit Resolve die Datei zuordnen kann)
@@ -334,14 +357,26 @@ def build_aaf(
             sc_tape.length = dur
             fm_slot.segment = sc_tape
 
-            desc = f.create.ImportDescriptor()
+            # CDCIDescriptor (NICHT ImportDescriptor!): Premiere linkt Video nur
+            # ueber einen echten File-Descriptor mit Maßen. Mit ImportDescriptor
+            # blieb das Video offline (Audio/PCMDescriptor linkte schon) — bestaetigt
+            # 25.07. Siehe brain/AAF-Struktur.md.
+            from math import gcd as _gcd
+            _g = _gcd(vid_w, vid_h) or 1
+            desc = f.create.CDCIDescriptor()
+            desc['StoredWidth'].value  = vid_w
+            desc['StoredHeight'].value = vid_h
+            desc['ImageAspectRatio'].value = aaf2.rational.AAFRational(vid_w // _g, vid_h // _g)
+            desc['FrameLayout'].value = 'FullFrame'
+            desc['HorizontalSubsampling'].value = 2
+            desc['ComponentWidth'].value = 8
+            desc['VideoLineMap'].value = [0, 1]
+            desc['SampleRate'].value = aaf2.rational.AAFRational(fps_int, 1)
+            desc['Length'].value = dur
             loc  = f.create.NetworkLocator()
             loc['URLString'].value = Path(cp).resolve().as_uri()
             # NICHT desc.locator.append(loc): pyaaf2 gibt eine List-KOPIE zurueck,
-            # der Locator wird NICHT gespeichert → AAF ohne URL → Premiere findet
-            # die Medien nicht und erfindet _V01_-Namen (offline). Bestaetigt
-            # 25.07.; siehe Memory reference_aaf_premiere.md. Resolve linkt trotzdem
-            # (Reel-Name+TC der TapeMob), daher blieb es lange verborgen.
+            # der Locator wird NICHT gespeichert (Video + Audio, s. AAF-Struktur.md).
             desc['Locator'].value = [loc]
             file_mob.descriptor = desc
             f.content.mobs.append(file_mob)
