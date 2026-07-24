@@ -4,6 +4,42 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 0.6.7
+
+**Fixed: AAF export now imports flawlessly into Premiere Pro**
+
+Until now Premiere Pro showed the media of an imported AAF as offline and searched
+for wrongly named files — especially for video. The export is now structured so
+Premiere links every clip to the right footage automatically. Importing into
+DaVinci Resolve already worked before; both applications are now fully supported.
+
+**Improved: converting mismatched frame rates is much faster**
+
+When video files need converting to the timeline frame rate, the app now uses your
+Mac's hardware acceleration. Depending on the material that's roughly three to four
+times faster (half an hour becomes a few minutes), and the CPU stays free. The app
+automatically picks a matching format so the copy is a faithful, still-gradeable
+equivalent of the original. You can fine-tune the quality in the settings.
+
+**New: cuts in the AAF are named by their reason**
+
+Every cut in the exported AAF now carries a meaningful name — the speaking person
+for speaker cuts, otherwise the reason (e.g. "cutaway"). That way, while reviewing,
+you immediately see why a cut was made there. The naming pattern is fully
+customizable in the settings; if you'd rather have exactly one clip per camera, you
+can turn the feature off there.
+
+**Fixed: audio preview kept playing when switching pages**
+
+If you played an audio track on the first page and then switched pages, the sound
+kept playing invisibly. It now stops when you switch pages.
+
+**Further improvements**
+
+The image-recognition (CLIP) filter prompts now only appear in the settings when
+the model is installed. Short-lived info cards show a small depleting ring
+indicating when they close on their own.
+
 ## 0.6.6
 
 **Fixed: possible crash on the first launch after an update**

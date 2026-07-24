@@ -5,6 +5,44 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.7
+
+**Behoben: AAF-Export importiert jetzt fehlerfrei in Premiere Pro**
+
+Bisher zeigte Premiere Pro die Medien eines importierten AAF als offline an und
+suchte nach falsch benannten Dateien — vor allem beim Video. Der Export ist jetzt
+so aufgebaut, dass Premiere alle Clips automatisch mit dem richtigen Material
+verknüpft. In DaVinci Resolve klappte der Import schon vorher; beide Programme
+sind damit voll unterstützt.
+
+**Verbessert: Umwandlung abweichender Bildraten deutlich schneller**
+
+Müssen Videodateien auf die Timeline-Bildrate umgewandelt werden, nutzt die App
+jetzt die Hardware-Beschleunigung deines Macs. Das ist je nach Material rund drei-
+bis viermal schneller (aus einer halben Stunde werden wenige Minuten), und der
+Prozessor bleibt dabei frei. Die App wählt automatisch das passende Format, damit
+die Kopie qualitativ dem Original entspricht und weiter gradebar bleibt. Die
+Qualität lässt sich in den Einstellungen feinjustieren.
+
+**Neu: Schnitte im AAF nach ihrem Grund benannt**
+
+Jeder Schnitt im exportierten AAF trägt jetzt einen sprechenden Namen — bei
+Sprecherschnitten die Person, sonst den Grund (z. B. „Übergang"). So sieht man
+beim Sichten sofort, warum an einer Stelle geschnitten wurde. Das Namensmuster
+lässt sich in den Einstellungen frei anpassen; wer lieber genau einen Clip pro
+Kamera möchte, schaltet die Funktion dort ab.
+
+**Behoben: Tonvorschau lief beim Seitenwechsel weiter**
+
+Spielte man auf der ersten Seite eine Tonspur ab und wechselte die Seite, lief
+der Ton unsichtbar weiter. Er stoppt jetzt beim Seitenwechsel.
+
+**Weitere Verbesserungen**
+
+Die Filter-Prompts der Bilderkennung (CLIP) erscheinen in den Einstellungen nur
+noch, wenn das Modell installiert ist. Kurzlebige Hinweis-Karten zeigen mit einem
+kleinen ablaufenden Ring, wann sie sich von selbst schließen.
+
 ## 0.6.6
 
 **Behoben: möglicher Absturz beim ersten Start nach einem Update**
