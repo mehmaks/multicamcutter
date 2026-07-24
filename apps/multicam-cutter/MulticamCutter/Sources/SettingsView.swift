@@ -133,8 +133,13 @@ struct ClipSettingsTab: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 18) {
                 modelSection
-                Divider()
-                promptSection
+                // Prompts nur zeigen, wenn das Modell da ist — ohne CLIP haben sie
+                // keine Wirkung und verwirren nur (User 25.07.). Bei `nil` (Status
+                // wird noch geprueft) ebenfalls aus, bis er feststeht.
+                if modelInstalled == true {
+                    Divider()
+                    promptSection
+                }
             }
             .padding()
         }

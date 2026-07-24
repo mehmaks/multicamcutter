@@ -83,10 +83,16 @@ Das Hauptfenster ist **nicht vom Nutzer skalierbar** — Groesse folgt dem Inhal
 
 ### Fluechtige Informationen (UI-Regel, 24.07.)
 Info-Banner, die nur informieren und keine Entscheidung blockieren, blenden
-sich nach **~7,5 s automatisch aus** — via `.autoDismiss { … }`
-(`AutoDismiss.swift`). Verhalten: Hover pausiert das Ausblenden (wer liest,
-wird nicht ueberrascht), das X schliesst sofort, Ausblenden mit
-`.transition(.opacity)` + easeOut 0,4 s.
+sich nach **~7,5 s automatisch aus**. Verhalten: Hover pausiert das Ausblenden
+(wer liest, wird nicht ueberrascht), das X schliesst sofort, Ausblenden mit
+`.transition(.opacity)` + easeOut 0,4 s. Zwei Bausteine (`AutoDismiss.swift`):
+- **`CountdownDismissButton`** (bevorzugt, wenn das Banner ein X hat): X mit
+  ablaufendem Ring, der sichtbar macht, WANN sich das Banner schliesst
+  (User-Wunsch 25.07.). Uebernimmt selbst das Ausblenden — dann KEIN
+  zusaetzliches `.autoDismiss` (sonst zwei Timer). `paused`-Binding kommt vom
+  Banner (`.onHover`), damit Hover ueberall pausiert, nicht nur ueber dem X.
+- **`.autoDismiss { … }`** (Modifier): schlichtes Ausblenden ohne Ring, fuer
+  Banner ohne eigenen Schliess-Button.
 - **Anwenden auf:** reine Status-/Bestaetigungs-Infos (z. B. „Ordner bekannt —
   Zuordnungen geladen"; dass dabei der Reset-Link mit verschwindet, ist ok —
   User-Entscheid).

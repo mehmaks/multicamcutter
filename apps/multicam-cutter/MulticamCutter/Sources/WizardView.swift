@@ -811,6 +811,9 @@ struct UnsupportedCloseCamsBanner: View {
 
 struct OverviewStep: View {
     @EnvironmentObject var engine: EngineController
+    // Hover ueber dem „Ordner bekannt"-Banner pausiert dessen Selbst-Ausblenden
+    // (Ring im CountdownDismissButton), damit wer liest nicht ueberrascht wird.
+    @State private var bannerHovering = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 24) {
@@ -836,21 +839,22 @@ struct OverviewStep: View {
                             .help("Löscht die gespeicherten Zuordnungen (.multicam) und beginnt von vorn")
                     }
                     Spacer()
-                    Button { engine.sessionRestored = false } label: {
-                        LucideIcon("x", size: 11)
+                    // X mit ablaufendem Ring: zeigt, wann sich das Banner selbst
+                    // schliesst. Uebernimmt das Auto-Ausblenden (kein separater
+                    // .autoDismiss mehr — sonst zwei Timer). Hover pausiert.
+                    CountdownDismissButton(paused: $bannerHovering) {
+                        engine.sessionRestored = false
                     }
-                    .buttonStyle(.plain).foregroundStyle(.wizMuted)
-                    .help("Hinweis ausblenden")
+                    .foregroundStyle(.wizMuted)
                 }
                 .padding(12)
                 .frame(maxWidth: .infinity, alignment: .leading)
                 .background(Color.brandAccent.opacity(0.10), in: RoundedRectangle(cornerRadius: 10))
                 .overlay(RoundedRectangle(cornerRadius: 10).stroke(Color.brandAccent.opacity(0.35), lineWidth: 1))
                 .transition(.opacity)
-                // Fluechtige Info (Design-System): nach ~7,5 s selbst ausblenden.
-                // Der Reset-Link verschwindet damit bis zum naechsten Start — ok
-                // (User-Entscheid 24.07.); Hover pausiert, X schliesst sofort.
-                .autoDismiss { engine.sessionRestored = false }
+                // Fluechtige Info (Design-System): der Reset-Link verschwindet mit
+                // dem Ausblenden bis zum naechsten Start — ok (User-Entscheid 24.07.).
+                .onHover { bannerHovering = $0 }
             }
 
             WizardIntro(title: "Passt alles?",
