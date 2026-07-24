@@ -1811,12 +1811,13 @@ class EngineController: ObservableObject {
             extraArgs += ["--cam-person-names", pStr]
         }
 
-        // AAF-Clipname-Muster — NUR wenn „Schnittgruende in Clipnamen" aktiv ist
-        // (Default aus = Premiere-sicher: ohne Muster baut die Engine EINEN
-        // MasterMob pro Kamera; mehrere legt Premiere je als Offline-Medium an).
-        // Der An-Modus erzeugt grund-benannte MasterMobs — funktioniert nur in
-        // DaVinci Resolve.
-        if UserDefaults.standard.bool(forKey: "clipNameReasons") {
+        // AAF-Clipname-Muster — nur wenn „Schnittgruende in Clipnamen" aktiv ist
+        // (Default AN). object(forKey:) statt bool(forKey:), damit ein fehlender
+        // Schluessel den Default true nimmt (bool(forKey:) liefert sonst false).
+        // Aus → ein MasterMob pro Kamera (Dateiname); an → grund-benannte MasterMobs
+        // (Resolve am Clip, Premiere je Grund ein zusaetzlicher verknuepfter Clip).
+        let reasonsOn = (UserDefaults.standard.object(forKey: "clipNameReasons") as? Bool) ?? true
+        if reasonsOn {
             let pattern = (UserDefaults.standard.string(forKey: "clipNamePattern")
                            ?? "%L - %S").trimmingCharacters(in: .whitespaces)
             if !pattern.isEmpty {

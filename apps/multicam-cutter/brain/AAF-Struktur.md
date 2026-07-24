@@ -42,19 +42,21 @@ Count **0**; `['Locator'].value = [loc]` → Count **1** mit korrekter URL. Der
 `.append`-Weg produzierte AAFs komplett OHNE Datei-URL → Premiere offline. Das
 war die Wurzel des `_V01_`-Offline-Problems. Gilt für Video- UND Audio-Descriptor.
 
-### 2. EIN MasterMob pro Quelle (mehrere → Premiere Offline-Medien)
+### 2. Mehrere MasterMobs pro Quelle sind OK — solange der FileMob linkbar ist
 Premiere macht aus **jedem** MasterMob einen eigenen Master-Clip im Projekt.
-Mehrere MasterMobs pro Kamera (z. B. einer je Schnittgrund) → pro MasterMob ein
-(Offline-)Medium. **Resolve** kommt damit klar, **Premiere nicht**.
-- Per-Segment-Namen im AAF ERFORDERN per-Segment-MasterMobs → Grundsatzkonflikt
-  „Grund im Clipnamen ↔ Premiere-Auto-Linking". Beides zusammen geht mit dieser
-  Technik nicht.
-- **Lösung (0.6.7):** Settings-Toggle „Schnittgründe in Clipnamen"
-  (`clipNameReasons`, **Default AUS = Premiere-sicher**). Aus → EIN MasterMob pro
-  Kamera. An → grund-benannte MasterMobs (nur Resolve). Mechanik:
-  `build_aaf._master_for` liefert ohne `clip_name_pattern` immer den Basis-
-  `cam_masters[cam_idx]`; die App sendet `--clip-name-pattern` nur bei aktivem
-  Toggle. Details zum Clipnamen-Muster: `brain/Engine-Protokoll.md`.
+Mehrere MasterMobs pro Kamera (z. B. einer je Schnittgrund) → **mehrere Clips im
+Projekt, ALLE online** (sie zeigen auf denselben, korrekt linkbaren FileMob).
+Resolve zeigt die Namen am Timeline-Clip; Premiere legt die Extra-Clips im Bin an.
+- ⚠️ **Frueher falsch dokumentiert:** „mehrere MasterMobs → Premiere offline". Das
+  war in Wahrheit der Locator-/Descriptor-Bug (Invariante 1 + 3): der FileMob hatte
+  gar keine linkbare URL, deshalb ging ALLES offline — auch der einzelne Basis-Clip.
+  Nach dem CDCIDescriptor+Locator-Fix (25.07.) linken **beide** Modi in Premiere.
+- **Toggle (0.6.7):** Settings „Schnittgründe in Clipnamen" (`clipNameReasons`,
+  **Default AN**). An → grund-benannte MasterMobs (Muster `clip_name_pattern`).
+  Aus → EIN MasterMob pro Kamera (Puristen, die genau einen Clip pro Kamera wollen).
+  Mechanik: `build_aaf._master_for` liefert ohne `clip_name_pattern` immer den
+  Basis-`cam_masters[cam_idx]`; die App sendet `--clip-name-pattern` nur bei aktivem
+  Toggle. Muster-Details: `brain/Engine-Protokoll.md`.
 
 ### 3. URL: voller `/Volumes/`-Pfad, KEIN Stripping
 `Path(src).resolve().as_uri()` → `file:///Volumes/Jardani/…`.
@@ -154,7 +156,6 @@ Premiere testen.
 - **`MultipleDescriptor`** → Premiere-Namensgenerator `_V1A2_XXXX` → offline.
 - **`file:///Jardani/…` ohne `/Volumes/`** → linkt nur MobID-basiert (Premieres
   eigene Exporte), nicht URL-basiert.
-- **Mehrere MasterMobs pro Quelle** → in Premiere je ein Offline-Medium.
 - **TC als Offset im FileDescriptor** (statt in der TapeMob) → Frame-Out-of-Range.
 - **WAV-Extraktion für Audio** → funktioniert, aber unerwünschte Extra-Datei.
 

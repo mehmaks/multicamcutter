@@ -276,11 +276,12 @@ struct GeneralSettingsTab: View {
     // dieselben Keys per UserDefaults (EngineController.convertMismatchedFps).
     @AppStorage("convertHevcQuality") private var convertHevcQuality = 72
     @AppStorage("convertProResProfile") private var convertProResProfile = "hq"
-    // AAF-Clipnamen. Toggle AUS = Premiere-sicher (ein MasterMob pro Kamera).
-    // AN = grund-benannte MasterMobs (nur DaVinci Resolve) nach `clipNamePattern`.
+    // AAF-Clipnamen. Toggle AN (Default) = grund-benannte MasterMobs nach
+    // `clipNamePattern`; in Resolve am Timeline-Clip sichtbar, in Premiere je Grund
+    // ein zusaetzlicher (korrekt verknuepfter) Clip. AUS = ein Clip pro Kamera.
     // EngineController.startAnalysis reicht das Muster nur bei aktivem Toggle als
     // --clip-name-pattern durch.
-    @AppStorage("clipNameReasons") private var clipNameReasons = false
+    @AppStorage("clipNameReasons") private var clipNameReasons = true
     @AppStorage("clipNamePattern") private var clipNamePattern = "%L - %S"
 
     var body: some View {
@@ -314,10 +315,11 @@ struct GeneralSettingsTab: View {
     private var clipNameSection: some View {
         Section("AAF-Clipnamen") {
             Toggle("Schnittgründe in Clipnamen", isOn: $clipNameReasons)
-            Text("Benennt jeden Schnitt im AAF nach seinem Grund (Sprecher, Übergang …). "
-                 + "⚠️ Funktioniert nur in DaVinci Resolve — in Premiere Pro erscheint pro "
-                 + "Grund ein Offline-Medium. Standard: aus (Premiere-sicher, ein Clip pro "
-                 + "Kamera, benannt nach der Quelldatei).")
+            Text("Benennt jeden Schnitt im AAF nach seinem Grund (Sprecher, Übergang …) — "
+                 + "hilft beim Sichten, den Grund direkt am Clip zu sehen. DaVinci Resolve "
+                 + "zeigt das am Timeline-Clip; Premiere Pro legt dafür pro Grund einen "
+                 + "zusätzlichen (korrekt verknüpften) Clip im Projekt an. Wer lieber genau "
+                 + "einen Clip pro Kamera möchte, schaltet es ab.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 

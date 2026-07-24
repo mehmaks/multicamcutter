@@ -204,12 +204,14 @@ Python-Runtime dazubekommt.
   `--clip-name-pattern` durch. Leeres Muster/kein Flag = altes Verhalten (`%S - %L`)
   byte-genau. Hinweis: greift nur, wenn `<edl>.colors.json` passt (all-or-nothing);
   sonst Fallback-Rohname wie bisher.
-  **NACHTRAG 25.07. — Premiere-Konflikt + Toggle**: Grund-Benennung braucht MEHRERE
-  MasterMobs pro Kamera; Premiere legt daraus je ein Offline-Medium an (Resolve nicht).
-  Daher Settings-Toggle „Schnittgruende in Clipnamen" (`clipNameReasons`, **Default aus
-  = Premiere-sicher**): aus → ein MasterMob/Kamera (Muster wird nicht gesendet); an →
-  grund-benannte MasterMobs (nur Resolve). `_master_for` faellt ohne `clip_name_pattern`
-  auf den Basis-MasterMob zurueck. Siehe Memory `reference_aaf_premiere.md`.
+  **NACHTRAG 25.07. — Toggle + AAF-Interop-Fix**: Grund-Benennung braucht MEHRERE
+  MasterMobs pro Kamera. Das war anfangs faelschlich als „Premiere-Offline" gedeutet —
+  wahre Ursache war der Locator-/Descriptor-Bug (FileMob ohne linkbare URL). Nach dem
+  Fix (NetworkLocator via `['Locator'].value`, Video auf `CDCIDescriptor`) linken in
+  Premiere BEIDE Modi; im An-Modus legt Premiere je Grund einen zusaetzlichen
+  KORREKT verknuepften Clip an. Settings-Toggle „Schnittgruende in Clipnamen"
+  (`clipNameReasons`, **Default AN**): aus → ein Clip/Kamera (Puristen). Voll
+  dokumentiert in **`brain/AAF-Struktur.md`**.
 
 - [x] **Changelog: in der App sichtbar UND auf der Website.** UMGESETZT (22.07.):
   Nutzer sollen sehen, was ein Update bringt — heute steht im Update-Dialog nur
