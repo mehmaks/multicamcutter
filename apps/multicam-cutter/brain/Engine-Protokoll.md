@@ -61,7 +61,7 @@ expliziten Listen stimmen die Positionen **per Konstruktion**.
 | --display-names | JSON-Array | Display-Namen fuer Progress-Labels |
 | --speaking-mode | rms/peak | Ueberschreibt speaking_mode |
 | --lut | Pfad | LUT-Datei fuer MediaPipe (App hebt es nicht, s. UI-Komponenten.md) |
-| --clip-name-pattern | Muster | AAF-Clipnamen. Tokens `%S` Quelle · `%R` Grund · `%P` Person · `%L` smartes Label. Leer = altes `%S - %L`. App-Default `%L - %S`. Logik: `build_aaf._name_for` |
+| --clip-name-pattern | Muster | AAF-Clipnamen. Tokens `%S` Quelle · `%R` Grund · `%P` Person · `%L` smartes Label. Logik: `build_aaf._name_for`. **KEIN Flag = ein MasterMob pro Kamera (Premiere-sicher).** Mit Flag: grund-benannte MasterMobs (mehrere pro Kamera) → nur DaVinci Resolve, in Premiere Offline-Medien. App sendet es nur bei Toggle „Schnittgruende in Clipnamen" (Default aus, Key `clipNameReasons`) |
 
 ## CLIP-Modi (Bilderkennung)
 

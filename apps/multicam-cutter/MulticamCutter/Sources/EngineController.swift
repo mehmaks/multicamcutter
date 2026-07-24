@@ -1811,13 +1811,17 @@ class EngineController: ObservableObject {
             extraArgs += ["--cam-person-names", pStr]
         }
 
-        // AAF-Clipname-Muster (Settings, Default "%L - %S" → Grund/Person zuerst,
-        // damit der Grund Resolves Clipfeld-Abschneiden ueberlebt). Leer = altes
-        // Verhalten in der Engine.
-        let pattern = (UserDefaults.standard.string(forKey: "clipNamePattern")
-                       ?? "%L - %S").trimmingCharacters(in: .whitespaces)
-        if !pattern.isEmpty {
-            extraArgs += ["--clip-name-pattern", pattern]
+        // AAF-Clipname-Muster — NUR wenn „Schnittgruende in Clipnamen" aktiv ist
+        // (Default aus = Premiere-sicher: ohne Muster baut die Engine EINEN
+        // MasterMob pro Kamera; mehrere legt Premiere je als Offline-Medium an).
+        // Der An-Modus erzeugt grund-benannte MasterMobs — funktioniert nur in
+        // DaVinci Resolve.
+        if UserDefaults.standard.bool(forKey: "clipNameReasons") {
+            let pattern = (UserDefaults.standard.string(forKey: "clipNamePattern")
+                           ?? "%L - %S").trimmingCharacters(in: .whitespaces)
+            if !pattern.isEmpty {
+                extraArgs += ["--clip-name-pattern", pattern]
+            }
         }
 
         guard let (execPath, baseArgs) = engineCommand(extraArgs: extraArgs) else {

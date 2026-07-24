@@ -276,9 +276,11 @@ struct GeneralSettingsTab: View {
     // dieselben Keys per UserDefaults (EngineController.convertMismatchedFps).
     @AppStorage("convertHevcQuality") private var convertHevcQuality = 72
     @AppStorage("convertProResProfile") private var convertProResProfile = "hq"
-    // AAF-Clipname-Muster. Default "%L - %S" (Grund/Person zuerst → ueberlebt
-    // Resolves Clipfeld-Abschneiden). Engine liest denselben Key nicht direkt —
-    // EngineController.startAnalysis reicht ihn als --clip-name-pattern durch.
+    // AAF-Clipnamen. Toggle AUS = Premiere-sicher (ein MasterMob pro Kamera).
+    // AN = grund-benannte MasterMobs (nur DaVinci Resolve) nach `clipNamePattern`.
+    // EngineController.startAnalysis reicht das Muster nur bei aktivem Toggle als
+    // --clip-name-pattern durch.
+    @AppStorage("clipNameReasons") private var clipNameReasons = false
     @AppStorage("clipNamePattern") private var clipNamePattern = "%L - %S"
 
     var body: some View {
@@ -311,30 +313,39 @@ struct GeneralSettingsTab: View {
     // die NLE im Timeline-Segment anzeigt (MasterMob-Name im AAF).
     private var clipNameSection: some View {
         Section("AAF-Clipnamen") {
-            Text("Wie die Schnitte im AAF heißen — das, was du in Resolve/Premiere am "
-                 + "Timeline-Clip siehst. Platzhalter: %S Quelldatei · %R Schnittgrund · "
-                 + "%P Person · %L smartes Label (Person bei Sprecher, sonst Grund). "
-                 + "Leere Platzhalter werden samt Trenner sauber entfernt.")
+            Toggle("Schnittgründe in Clipnamen", isOn: $clipNameReasons)
+            Text("Benennt jeden Schnitt im AAF nach seinem Grund (Sprecher, Übergang …). "
+                 + "⚠️ Funktioniert nur in DaVinci Resolve — in Premiere Pro erscheint pro "
+                 + "Grund ein Offline-Medium. Standard: aus (Premiere-sicher, ein Clip pro "
+                 + "Kamera, benannt nach der Quelldatei).")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            HStack {
-                TextField("Muster", text: $clipNamePattern)
-                    .textFieldStyle(.roundedBorder)
-                    .font(.system(.body, design: .monospaced))
-                if clipNamePattern != "%L - %S" {
-                    Button("Standard") { clipNamePattern = "%L - %S" }
-                        .buttonStyle(.link).font(.caption)
-                }
-            }
+            if clipNameReasons {
+                Text("Muster für den Namen. Platzhalter: %S Quelldatei · %R Schnittgrund · "
+                     + "%P Person · %L smartes Label (Person bei Sprecher, sonst Grund). "
+                     + "Leere Platzhalter werden samt Trenner sauber entfernt.")
+                    .font(.caption).foregroundStyle(.secondary)
+                    .fixedSize(horizontal: false, vertical: true)
 
-            VStack(alignment: .leading, spacing: 3) {
-                clipNamePreviewRow("Sprecher-Clip", source: "C0352",
-                                   reason: "Sprecher", person: "Andreas", label: "Andreas")
-                clipNamePreviewRow("Cutaway (Totale)", source: "C0352",
-                                   reason: "Übergang", person: "", label: "Übergang")
+                HStack {
+                    TextField("Muster", text: $clipNamePattern)
+                        .textFieldStyle(.roundedBorder)
+                        .font(.system(.body, design: .monospaced))
+                    if clipNamePattern != "%L - %S" {
+                        Button("Standard") { clipNamePattern = "%L - %S" }
+                            .buttonStyle(.link).font(.caption)
+                    }
+                }
+
+                VStack(alignment: .leading, spacing: 3) {
+                    clipNamePreviewRow("Sprecher-Clip", source: "C0352",
+                                       reason: "Sprecher", person: "Andreas", label: "Andreas")
+                    clipNamePreviewRow("Cutaway (Totale)", source: "C0352",
+                                       reason: "Übergang", person: "", label: "Übergang")
+                }
+                .padding(.top, 2)
             }
-            .padding(.top, 2)
         }
     }
 

@@ -204,6 +204,12 @@ Python-Runtime dazubekommt.
   `--clip-name-pattern` durch. Leeres Muster/kein Flag = altes Verhalten (`%S - %L`)
   byte-genau. Hinweis: greift nur, wenn `<edl>.colors.json` passt (all-or-nothing);
   sonst Fallback-Rohname wie bisher.
+  **NACHTRAG 25.07. — Premiere-Konflikt + Toggle**: Grund-Benennung braucht MEHRERE
+  MasterMobs pro Kamera; Premiere legt daraus je ein Offline-Medium an (Resolve nicht).
+  Daher Settings-Toggle „Schnittgruende in Clipnamen" (`clipNameReasons`, **Default aus
+  = Premiere-sicher**): aus → ein MasterMob/Kamera (Muster wird nicht gesendet); an →
+  grund-benannte MasterMobs (nur Resolve). `_master_for` faellt ohne `clip_name_pattern`
+  auf den Basis-MasterMob zurueck. Siehe Memory `reference_aaf_premiere.md`.
 
 - [x] **Changelog: in der App sichtbar UND auf der Website.** UMGESETZT (22.07.):
   Nutzer sollen sehen, was ein Update bringt — heute steht im Update-Dialog nur

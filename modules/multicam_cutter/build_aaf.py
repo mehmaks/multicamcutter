@@ -513,8 +513,13 @@ def build_aaf(
 
         def _master_for(cam_idx: int, reason):
             """MasterMob fuer Kamera+Grund, bei Bedarf angelegt.
-            Ohne Grund die unveraenderte Kamera-Mob (Verhalten wie bisher)."""
-            if not reason:
+
+            OHNE `clip_name_pattern` (Toggle „Schnittgruende in Clipnamen" aus):
+            immer der EINE Basis-MasterMob je Kamera. Das ist die Premiere-sichere
+            Struktur — mehrere MasterMobs pro Kamera legt Premiere je als eigenes
+            (Offline-)Medium an (bestaetigt 25.07.). Nur mit Muster (Resolve-Modus)
+            entstehen die grund-benannten MasterMobs."""
+            if not reason or not clip_name_pattern:
                 return cam_masters[cam_idx]
             key = (cam_idx, reason)
             if key not in reason_masters:
