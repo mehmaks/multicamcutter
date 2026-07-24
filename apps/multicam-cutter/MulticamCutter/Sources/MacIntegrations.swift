@@ -18,12 +18,7 @@ private final class DockProgressView: NSView {
         // Balken sauber wegzuzeichnen, BEVOR die contentView abgehängt wird.
         guard fraction >= 0 else { return }
 
-        // Flacher Balken (frueher 0.12 hoch): bei niedrigen Prozenten fiel die
-        // Fuellung sonst zu einem KREIS zusammen — alles unter ~17 % sah gleich
-        // aus (Realfall 25.07.: 16 %-Konvertierung wirkte wie ein winziger Punkt,
-        // obwohl die Zahl stimmte). Flacher = die Fuellung ist frueh breiter als
-        // hoch und liest sich als Balken.
-        let h = bounds.height * 0.07
+        let h = bounds.height * 0.12
         let inset = bounds.width * 0.14
         let track = NSRect(x: inset, y: bounds.height * 0.10,
                            width: bounds.width - inset * 2, height: h)
@@ -34,10 +29,7 @@ private final class DockProgressView: NSView {
         NSColor.white.withAlphaComponent(0.28).setStroke(); bg.lineWidth = 1; bg.stroke()
 
         let f = CGFloat(min(max(fraction, 0), 1))
-        // Minimum = die Balkenhoehe (ein runder Stummel), damit auch ~0 % sichtbar
-        // bleibt; ab wenigen Prozent wird daraus ein echter, laengenproportionaler
-        // Balken.
-        let fillW = max(h, track.width * f)
+        let fillW = max(h, track.width * f)   // min. rund, damit auch bei 0 % sichtbar
         let fill = NSBezierPath(roundedRect: NSRect(x: track.minX, y: track.minY, width: fillW, height: h),
                                 xRadius: radius, yRadius: radius)
         NSColor(srgbRed: 198/255, green: 242/255, blue: 78/255, alpha: 1).setFill()  // brandAccent

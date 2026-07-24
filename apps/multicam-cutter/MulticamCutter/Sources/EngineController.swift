@@ -450,16 +450,17 @@ class EngineController: ObservableObject {
         return min(max(f, 0), 1)
     }
 
-    /// Fortschritt der FPS-Konvertierung fuer den Dock-Balken — spiegelt GENAU
-    /// die aktuell konvertierte Datei (`convertDone/convertTotal` in Sekunden),
-    /// deckungsgleich mit der Prozentzahl im Panel. BEWUSST nicht ueber alle
-    /// Zieldateien gerechnet: von den geladenen Dateien muss meist nur eine durch
-    /// die Konvertierung — der Dock darf die anderen nicht als Nenner mitzaehlen
-    /// (User 25.07.: „nur die Datei nutzen, die tatsaechlich konvertiert wird").
-    /// Bei mehreren Zieldateien zaehlt das Panel-Label „X/Y" die Anzahl.
+    /// Fortschritt der FPS-Konvertierung fuer den Dock-Balken. Datei
+    /// `convertFileIndex` von `convertFileCount`, innerhalb der Datei
+    /// `convertDone/convertTotal`. Ohne Sekunden-Total (ganz am Anfang einer
+    /// Datei) zaehlt nur der Dateifortschritt. (Bei genau einer Zieldatei — dem
+    /// Normalfall — ist das identisch zu `convertDone/convertTotal` und damit
+    /// deckungsgleich mit dem Panel.)
     var convertProgress: Double {
-        guard convertTotal > 0 else { return 0 }
-        return min(max(convertDone / convertTotal, 0), 1)
+        guard convertFileCount > 0 else { return 0 }
+        let fileFrac = convertTotal > 0 ? min(max(convertDone / convertTotal, 0), 1) : 0
+        let done = Double(max(convertFileIndex - 1, 0)) + fileFrac
+        return min(max(done / Double(convertFileCount), 0), 1)
     }
     @Published var logMessages: [String] = []
 
