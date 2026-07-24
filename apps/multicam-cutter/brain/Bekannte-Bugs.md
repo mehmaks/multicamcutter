@@ -2,7 +2,7 @@
 
 ## OFFEN
 
-### 0.6.5 stuerzt beim Start ab, wenn die Icons nicht gefunden werden — GEFIXT (25.07.), Ursache der Nicht-Auffindbarkeit noch offen
+### 0.6.5 stuerzt beim Start ab, wenn die Icons nicht gefunden werden — GEFIXT (25.07.), Ursache eingegrenzt (transienter Update-Moment)
 - **Symptom**: Nach dem Update 0.6.2 → 0.6.5 (per Sparkle, MacBook des Users)
   stuerzt die App SOFORT beim Start ab, noch vor dem ersten Fenster.
   `EXC_BREAKPOINT` in `LucideIcon.image(named:size:)` →
@@ -17,13 +17,20 @@
   `build_app.sh` die SVGs DIREKT nach `Contents/Resources/Icons` — unabhaengig
   vom SPM-Bundle — und **bricht ab**, wenn keine Icons da sind.
   Belegt: App mit entfernter Icon-Quelle gestartet → laeuft (vorher: Absturz).
-- **NOCH OFFEN — warum war das Bundle auf dem MacBook nicht auffindbar?**
-  Geprueft und AUSGESCHLOSSEN: (a) DMG/Release enthaelt das Bundle samt 38 Icons;
-  (b) identisches Binary (UUID) startet auf dem Zweit-Mac sauber; (c) der
-  Sparkle-**Delta-Patch** 202607221504 → 202607231746 wurde lokal angewendet und
-  liefert das Bundle vollstaendig, Signatur gueltig. Der Delta-Pfad ist also
-  NICHT die Ursache. Offen bleibt, ob das Bundle auf dem Geraet fehlte oder
-  `Bundle(url:)` es dort ablehnte. Diagnose beim naechsten Auftreten:
+- **Ursache eingegrenzt: transienter Zustand direkt nach dem Sparkle-Update.**
+  Auf dem betroffenen Geraet war das Bundle NACH dem Absturz **vorhanden**
+  (User geprueft, 25.07.). Der Absturz betraf also genau den einen Start
+  unmittelbar nach dem Update — Sparkle startet die App neu
+  (`applicationOpenUntitledFile` → `showInitialWindows`), waehrend die frisch
+  platzierten Ressourcen noch nicht sauber ladbar waren (Registrierung/
+  Quarantaene/Signaturpruefung im Moment des Erststarts). AUSGESCHLOSSEN:
+  (a) DMG/Release enthaelt das Bundle samt 38 Icons; (b) identisches Binary
+  (UUID) startet auf dem Zweit-Mac sauber; (c) der Delta-Patch 202607221504 →
+  202607231746 liefert lokal angewendet das Bundle vollstaendig, Signatur
+  gueltig — der Delta-Pfad ist NICHT die Ursache. Der defensive Fix
+  neutralisiert diese Fehlerklasse dauerhaft: selbst wenn die Ressourcen im
+  Erststart-Moment nicht ladbar sind, laeuft die App (Icons zeichnen dann
+  nicht, statt Absturz). Diagnose bei Wiederauftreten:
   `ls -la /Applications/MultiCamCutter.app/Contents/Resources/`
 - **Lehre**: Ressourcen-Zugriffe, die eine App zum Absturz bringen koennen,
   gehoeren nicht in den Startpfad. `Bundle.module` NIE benutzen.
