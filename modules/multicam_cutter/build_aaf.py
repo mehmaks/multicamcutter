@@ -337,7 +337,12 @@ def build_aaf(
             desc = f.create.ImportDescriptor()
             loc  = f.create.NetworkLocator()
             loc['URLString'].value = Path(cp).resolve().as_uri()
-            desc.locator.append(loc)
+            # NICHT desc.locator.append(loc): pyaaf2 gibt eine List-KOPIE zurueck,
+            # der Locator wird NICHT gespeichert → AAF ohne URL → Premiere findet
+            # die Medien nicht und erfindet _V01_-Namen (offline). Bestaetigt
+            # 25.07.; siehe Memory reference_aaf_premiere.md. Resolve linkt trotzdem
+            # (Reel-Name+TC der TapeMob), daher blieb es lange verborgen.
+            desc['Locator'].value = [loc]
             file_mob.descriptor = desc
             f.content.mobs.append(file_mob)
 
@@ -397,7 +402,7 @@ def build_aaf(
             desc['Length'].value            = dur_samples
             loc = f.create.NetworkLocator()
             loc['URLString'].value = Path(mp).resolve().as_uri()
-            desc.locator.append(loc)
+            desc['Locator'].value = [loc]   # NICHT .append (s. Video-Kommentar)
             src.descriptor = desc
             f.content.mobs.append(src)
 
