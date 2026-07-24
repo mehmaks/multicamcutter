@@ -132,9 +132,12 @@ Kein Experten-Toggle als globale Einstellung mehr. Innerhalb der Box tauscht ein
   `pause_trim_edl.py` / Schema-Transform) — **nicht** none/end.
 
   **Bewusst NICHT exponiert:**
-  - **LUT** — Thematik verworfen (25.07.): MediaPipe erkennt mit/ohne LUT gleich
-    gut (gemessen). Das `--lut`-Flag existiert noch in der Engine (ungenutzt), wird
-    aber nicht in die App gehoben.
+  - **LUT** — vorerst nicht in die App gehoben (25.07.). ⚠️ Der „bringt nichts"-
+    Befund ist NICHT allgemeingueltig: getestet nur an EINER Kamera mit EINEM
+    Log-Profil — ob MediaPipe bei ARRI Log-C, RED Log o. flacheren Kurven doch
+    profitiert, ist offen. Das `--lut`-Flag + `lut3d`-Zweig bleiben daher bewusst
+    in der Engine (ungenutzt, aber sofort reaktivierbar, falls ein Log-Problemfall
+    auftaucht). Nicht als „erledigt/verworfen" behandeln.
   - **Gate-Audio in Timeline** (`gateUseFiltered`) — reine Debug-Option: exportiert nur
     `*_gated.wav` und importiert sie **nur im Resolve/Bin-Workflow** in den Media Pool.
     Im Ordner/AAF-Workflow ohne Wirkung (die AAF referenziert Original-Audio). Param
