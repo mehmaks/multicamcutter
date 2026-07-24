@@ -757,6 +757,43 @@ noch Normalisierungs-Anker.
   sein") und niemals blockieren. Ggf. über mehrere Scrub-Positionen mitteln statt nur den
   einen Initial-Frame zu messen.
 
+### Metadaten-Ableitung (Recherche 25.07. — an echten Dateien geprueft)
+- [ ] **Mehrspurige WAVs erkennen & je Kanal als eigene Quelle behandeln.** Aufwand:
+  **mittel**. Manche Field-Recorder legen EINE WAV mit N Kanaelen an (je Kanal =
+  ein Mikro). Kanalzahl lesen ist trivial (`ffprobe stream=channels`), Split in
+  Mono geht per ffmpeg (`channelsplit`/`pan`) — beides verifiziert.
+  ⚠️ **Blocker im aktuellen Code**: `load_audio` macht `-ac 1` (Downmix) → eine
+  Mehrspur-WAV wuerde JETZT zu Mono-Matsch summiert. Noetig: >1 Kanal erkennen →
+  im Wizard als N Personen-Quellen anbieten (statt 1 Datei = 1 Mic) → je Kanal
+  einzeln ziehen. Kein konkreter Fall bisher → bauen, wenn echtes Material auftaucht.
+- [ ] **Spurbenennung aus Recorder-Metadaten (iXML/bext) vorschlagen.** Aufwand:
+  **mittel**. Field-Recorder schreiben Spurnamen in den **iXML**-Chunk
+  (`<TRACK_LIST>`) bzw. eine Beschreibung in **bext**. ⚠️ `ffprobe` parst iXML
+  NICHT, exiftool ist nicht gebuendelt. Leichtester Weg OHNE neue Dependency:
+  kleiner RIFF-Chunk-Parser in Python (WAV oeffnen, `iXML`-Chunk finden, XML lesen)
+  → Vorschlag fuer die Namen auf Seite 1 statt nur Dateiname. Haengt am Punkt darueber.
+- [ ] **Kamera-Familie aus Datei-Metadaten ableiten.** Aufwand: **leicht** (Lesen),
+  aber **unzuverlaessig**. Befund: DJI schreibt das Modell direkt in `format_tags:
+  encoder` (echt getestet: „DJI Mini4 Pro"); GoPro/Sony/Canon legen es teils in
+  eigene Atoms/Sidecar-XML (herstellerabhaengig). ⚠️ **Grosser Haken**: Dateien,
+  die durch einen NLE/Export liefen, haben die Kamera-Metadaten VERLOREN (die
+  FX3-Datei zeigt „DaVinci Resolve" statt Sony). Nur Kamera-**Originale** tragen es
+  zuverlaessig → „erkannt/nicht erkannt" muss ehrlich kommuniziert werden.
+- [ ] **~~Hersteller-LUTs mitliefern~~ — NICHT empfohlen.** (a) Offizielle Sony/Canon-
+  LUTs sind i.d.R. urheberrechtlich geschuetzt → nicht einfach redistribuierbar.
+  (b) Fuer die MediaPipe-DETEKTION ohnehin ohne Mehrwert — der User hat bereits
+  gemessen, dass MediaPipe mit/ohne LUT gleich gut erkennt (s. „LUT-Picker"-Punkt).
+  Statt fremde LUTs mitzuliefern → eingebettete LUTs extrahieren (naechster Punkt).
+- [ ] **Eingebettete Kamera-LUTs extrahieren & nutzen (Sony „Embed LUT File" etc.).**
+  Aufwand: **offen — braucht Testmaterial**. Sony-Cinekameras koennen die Monitor-
+  LUT in die Clips einbetten; das umgeht das Lizenzproblem komplett (es ist die vom
+  DP selbst gesetzte LUT). ⚠️ **Ungeklaert wo Sony sie ablegt** (XAVC-Atom? NRT-
+  Metadaten? Sidecar?) und exiftool ist nicht installiert. **Naechster Schritt**:
+  User fertigt FX3-Testmaterial mit eingebetteter LUT an → dann pruefen, ob/wie sie
+  per exiftool oder direktem Atom-Parse rauskommt. **Design-Frage wofuer**: fuer die
+  Detektion marginal (s. o.) — der eigentliche Wert waere, den DP-Look an den
+  Schnitt/AAF weiterzureichen (groesseres Feature, separat denken).
+
 ### Multilanguage (planen)
 - [ ] **Mehrsprachigkeit konzipieren (DE/EN)**. Die Website ist bereits zweisprachig
   (next-intl, `src/messages/{de,en}.json`) — die App ist es **gar nicht**: alle
