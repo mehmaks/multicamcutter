@@ -308,9 +308,14 @@ struct PersonRow: View {
                         .help("Namen bearbeiten")
                     Spacer(minLength: 0)
                 }
-                Text(mic.filename)
-                    .font(.system(.caption2, design: .monospaced))
-                    .foregroundStyle(.wizFaint)
+                HStack(spacing: 7) {
+                    Text(mic.filename)
+                        .font(.system(.caption2, design: .monospaced))
+                        .foregroundStyle(.wizFaint)
+                    if let sep = mic.separationDb {
+                        SeparationBadge(db: sep)
+                    }
+                }
             }
 
             Spacer()
@@ -347,6 +352,31 @@ struct PersonRow: View {
     private func commit() {
         let trimmed = draft.trimmingCharacters(in: .whitespaces)
         if trimmed.isEmpty { draft = liveName } else if trimmed != liveName { engine.renameMic(mic.id, to: trimmed) }
+    }
+}
+
+/// Trennung/Isolation einer Tonspur in dB (Median-Pegelabstand, wenn diese
+/// Person spricht). BEWUSST neutral gefaerbt und ohne Schwelle/Ampel — der Wert
+/// ist informativ, damit man ueber mehrere Folgen ein Gefuehl fuer „normal"
+/// bekommt; er taugt NICHT als Qualitaets-Gate (die Korrelation zur Fehlerrate
+/// ist zu wackelig, siehe brain/TODOs.md).
+struct SeparationBadge: View {
+    let db: Double
+
+    var body: some View {
+        HStack(spacing: 3) {
+            LucideIcon("audio-waveform", size: 10)
+            Text("\(fmtDb(db)) dB")
+                .font(.caption2.weight(.medium))
+        }
+        .foregroundStyle(.wizMuted)
+        .help("Trennung dieser Spur: um so viel ist sie lauter als die anderen, "
+              + "wenn diese Person spricht. Hoehere Werte bedeuten weniger "
+              + "Uebersprechen. Nur zur Info — beeinflusst den Schnitt nicht.")
+    }
+
+    private func fmtDb(_ v: Double) -> String {
+        String(format: "%.1f", v).replacingOccurrences(of: ".", with: ",")
     }
 }
 

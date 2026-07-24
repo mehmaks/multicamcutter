@@ -85,6 +85,15 @@ struct ContentView: View {
         }
         .onChange(of: engine.stepNum) { _, _ in updateDockProgress() }
         .onChange(of: engine.stepPercent) { _, _ in updateDockProgress() }
+        // FPS-Konvertierung laeuft ausserhalb von .running (Wizard-Schritt), zeigt
+        // aber einen eigenen Dock-Balken — sie dauert lang (~10 min/GB), genau dann
+        // legt man die App in den Hintergrund.
+        .onChange(of: engine.isConverting) { _, converting in
+            if converting { DockProgress.shared.show(0) }
+            else { DockProgress.shared.hide() }
+        }
+        .onChange(of: engine.convertDone) { _, _ in updateConvertDockProgress() }
+        .onChange(of: engine.convertFileIndex) { _, _ in updateConvertDockProgress() }
         .onPreferenceChange(WizardContentHeightKey.self) { h in
             wizardContentHeight = h
             fitWindowToWizardContent()
@@ -293,6 +302,13 @@ struct ContentView: View {
         DockProgress.shared.show(engine.overallProgress)
         // Heartbeat: holt die Sperre zurück, falls SwiftUI sie überschrieben hat.
         if let window = mainWindow { applyRunWindowLock(window) }
+    }
+
+    /// Dock-Balken während der FPS-Konvertierung (eigener Lebenszyklus, kein
+    /// Fenster-Lock — die Konvertierung laeuft im normalen Wizard-Fenster).
+    private func updateConvertDockProgress() {
+        guard engine.isConverting else { return }
+        DockProgress.shared.show(engine.convertProgress)
     }
 
     /// Dock-Balken + System-Notification an den Analyse-Lebenszyklus koppeln.

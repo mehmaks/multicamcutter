@@ -54,12 +54,18 @@ fruehestens in 0.5.3.
   Cutaways davor entstehen ohnehin nicht (`_to_reaction` verwirft negative Video-Frames).
   Konzeptionell sauber, praktisch marginal — und jede Frame-Arithmetik hängt daran, wo
   das WAV beginnt. Lohnt erst, wenn jemand mit stundenlangem Vorlauf auftaucht.
-- [ ] **Mic-Trennung anzeigen statt warnen.** Die Trennung je Richtung ist ohne Labels
-  messbar und korreliert mit der FP-Rate (r = −0,65, n=6). Eine Warnschwelle bei 12 dB
-  würde aber bei **2 von 3** Folgen feuern und damit weggeklickt. Besser: den Wert im
-  Ergebnis nennen („Cam A 10,8 dB, Cam B 25,2 dB"), damit über Folgen hinweg sichtbar
-  wird, was normal ist. ⚠️ Nicht als Gate missbrauchen: 10,5 dB → 28 % FP, 15,0 dB →
-  75 % FP. Zu wackelig, um Verhalten daran zu hängen.
+- [x] **Mic-Trennung anzeigen statt warnen.** — UMGESETZT (25.07., 0.6.6): Die
+  Trennung wird beim Scan aus der ohnehin berechneten RMS-Matrix mitgemessen
+  (`_find_dominant_mic_positions`): Median-Pegelabstand in dB ueber die Fenster,
+  in denen dieses Mic fuehrt (seine Person spricht). Emittiert als
+  `separation_db` je Mic (nil wenn <3 Sprech-Fenster). Anzeige: `SeparationBadge`
+  auf der Audiokarte (`PersonRow`), BEWUSST neutral gefaerbt, kein Ampel/Gate.
+  Cache-Format wechselte `dom_` → `dom2_` (jetzt {offset, separation_db}).
+  Live an Kollegen-Material: Mic1 18,6 dB, Mic2 6,6 dB, Mic3 nil (spricht im
+  Analysefenster zu wenig — ehrliches „nicht messbar").
+  Urspruenglicher Kontext: Trennung korreliert mit FP-Rate (r = −0,65, n=6),
+  taugt aber NICHT als Gate (10,5 dB → 28 % FP, 15,0 dB → 75 % FP — zu wackelig).
+  Darum nur informativ, damit ueber Folgen hinweg sichtbar wird, was normal ist.
 - [x] **Voice Leveler als Pre-Process — GEMESSEN, bringt nichts.** Idee: `voice_leveler.py`
   vor der Analyse laufen lassen, um Pegel anzugleichen. Test an ep04 (3 min, beide Mics,
   Gate −45 dB, Low-Level-Boost +8, Ziel −16 LUFS):
@@ -229,7 +235,11 @@ Python-Runtime dazubekommt.
   **abbrechen** — sonst geht stillschweigend ein Release ohne Notizen raus,
   und das faellt wieder erst beim Nutzer auf.
 
-- [ ] **Dock-Fortschritt auch bei der FPS-Konvertierung.** Aufwand: **leicht**.
+- [x] **Dock-Fortschritt auch bei der FPS-Konvertierung.** — UMGESETZT (25.07., 0.6.6):
+  `EngineController.convertProgress` (0…1 ueber alle Zieldateien), in `ContentView`
+  an `isConverting`/`convertDone`/`convertFileIndex` gekoppelt → `DockProgress`.
+  Eigener Lebenszyklus, KEIN Fenster-Lock (die Konvertierung laeuft im normalen
+  Wizard-Fenster, nicht im Analyse-Modus).
   🎨 Kosmetisch, blockt nichts — aber die Konvertierung dauert laenger als vieles
   andere (Faustregel im UI-Text: ~10 min pro GB; im Test 67 min Material →
   ~15 min geschaetzt). Genau dann legt man die App in den Hintergrund und will

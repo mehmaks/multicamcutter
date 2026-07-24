@@ -91,7 +91,7 @@ Defaults bei defekter Datei).
 |------|--------|------|
 | `session_start` | version, folder, fps, params, system, log_file | Einmalig am Start |
 | `scan_progress` | percent, step, total_steps, label | Waehrend --scan |
-| `scan_complete` | cameras[], mics[], default_mapping | Ende von --scan |
+| `scan_complete` | cameras[], mics[], default_mapping | Ende von --scan. Je Mic: index, filename, path, preview, `preview_offset_s`, `duration_s`, `separation_db` (Trennung in dB, Median-Pegelabstand wenn diese Person spricht; **null** wenn nicht messbar) |
 | `step_start` | step_num, total_steps, label | Neuer Pipeline-Schritt (von Engine) |
 | `step_start_sub` | label | Subprocess-Schritt (von JsonLineWriter erkannt) |
 | `step_detail` | label | Verfeinert den Text des LAUFENDEN Schritts (welcher Pass rechnet). Erhoeht `stepNum` **nicht** — anders als `step_start_sub` |

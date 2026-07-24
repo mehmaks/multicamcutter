@@ -203,21 +203,29 @@ def _find_person_frame(video_path, preview_dir, cam_index, duration_s):
 # ── Audio-Dominanz-Analyse fuer Preview-Stellen ──────────────────────────────
 
 def _find_dominant_mic_positions(mics, analysis_duration=120, window_s=1.0):
-    """Findet fuer jedes Mic eine Stelle wo es dominant lauter ist als die anderen.
+    """Findet fuer jedes Mic eine Stelle wo es dominant lauter ist als die anderen
+    UND misst nebenbei die Trennung (Isolation) je Mic.
 
     Analysiert die ersten `analysis_duration` Sekunden (ab Sekunde 20, um
     Aufnahme-Rauschen/Stille am Anfang zu vermeiden). Berechnet RMS pro
     Fenster fuer jedes Mic und sucht das Fenster wo die Differenz zum
     zweitlautesten Mic am groessten ist.
 
-    Returns: {mic_index: offset_seconds}
+    Trennung je Mic: ueber alle Fenster, in denen dieses Mic am lautesten und
+    ueber der Sprech-Schwelle ist (= seine Person spricht), der MEDIAN des
+    Pegelabstands in dB zum zweitlautesten Mic. Hoher Wert = sauber getrennt,
+    niedriger Wert = viel Uebersprechen. Rein informativ (kein Gate — die
+    Korrelation zur Fehlerrate ist zu wackelig, siehe brain/TODOs.md).
+
+    Returns: {mic_index: {"offset": seconds, "separation_db": float|None}}
     """
     import subprocess
     import struct
     import math
+    import statistics
 
     if len(mics) < 2:
-        return {0: 30}
+        return {0: {"offset": 30, "separation_db": None}}
 
     sr = 8000  # Niedrige Sample-Rate genuegt fuer RMS
     start_s = 20
@@ -240,14 +248,18 @@ def _find_dominant_mic_positions(mics, analysis_duration=120, window_s=1.0):
         except Exception:
             mic_data.append(())
 
+    def _fallback(reason=None):
+        return {i: {"offset": 30, "separation_db": None}
+                for i in range(len(mics))}
+
     if not all(mic_data):
-        return {i: 30 for i in range(len(mics))}
+        return _fallback()
 
     # Minimale Laenge
     min_len = min(len(d) for d in mic_data)
     n_windows = min_len // window_samples
     if n_windows < 5:
-        return {i: 30 for i in range(len(mics))}
+        return _fallback()
 
     # RMS pro Fenster pro Mic
     def rms(samples, start, length):
@@ -262,11 +274,13 @@ def _find_dominant_mic_positions(mics, analysis_duration=120, window_s=1.0):
         row = [rms(mic_data[m], offset, window_samples) for m in range(len(mics))]
         rms_matrix.append(row)
 
-    # Fuer jedes Mic: Fenster mit groesster Dominanz finden
+    # Fuer jedes Mic: Fenster mit groesster Dominanz finden (Preview-Offset) und
+    # ueber alle Sprech-Fenster den Median-Pegelabstand in dB (Trennung).
     result = {}
     for mic_idx in range(len(mics)):
         best_window = 0
         best_dominance = -1
+        sep_samples = []          # dB-Abstand in Fenstern, in denen dieses Mic fuehrt
         for w, row in enumerate(rms_matrix):
             my_rms = row[mic_idx]
             if my_rms < 100:  # zu leise, wahrscheinlich Stille
@@ -276,8 +290,17 @@ def _find_dominant_mic_positions(mics, analysis_duration=120, window_s=1.0):
             if dominance > best_dominance:
                 best_dominance = dominance
                 best_window = w
+            # Trennung nur messen, wo dieses Mic wirklich fuehrt (seine Person
+            # spricht) — sonst mischt sich Stille/Fremdsprache in den Median.
+            if my_rms > others_max and others_max > 0:
+                sep_samples.append(20 * math.log10(my_rms / others_max))
 
-        result[mic_idx] = start_s + best_window * window_s
+        separation_db = (round(statistics.median(sep_samples), 1)
+                         if len(sep_samples) >= 3 else None)
+        result[mic_idx] = {
+            "offset": start_s + best_window * window_s,
+            "separation_db": separation_db,
+        }
 
     return result
 
@@ -381,25 +404,29 @@ def run_scan(folder, fps=25.0):
     # Mic-Set ab, daher ein kombinierter Cache-Schluessel ueber alle Mics.
     _dom_key = hashlib.sha256(
         "|".join(_file_cache_key(m) for m in mics).encode()).hexdigest()[:20]
-    _dom_cache = preview_dir / f"dom_{_dom_key}.json"
-    mic_preview_offsets = None
+    # dom2_: neues Format {index: {offset, separation_db}}. Alte dom_-Caches
+    # bleiben liegen, werden aber nicht mehr gelesen (Fallback recomputet ohnehin).
+    _dom_cache = preview_dir / f"dom2_{_dom_key}.json"
+    mic_dominance = None
     if _dom_cache.exists():
         try:
-            mic_preview_offsets = {int(k): v for k, v in
-                                   json.loads(_dom_cache.read_text()).items()}
+            mic_dominance = {int(k): v for k, v in
+                             json.loads(_dom_cache.read_text()).items()}
         except Exception:
-            mic_preview_offsets = None
-    if mic_preview_offsets is None:
-        mic_preview_offsets = _find_dominant_mic_positions(mics)
+            mic_dominance = None
+    if mic_dominance is None:
+        mic_dominance = _find_dominant_mic_positions(mics)
         try:
-            _dom_cache.write_text(json.dumps(mic_preview_offsets), encoding="utf-8")
+            _dom_cache.write_text(json.dumps(mic_dominance), encoding="utf-8")
         except Exception:
             pass
 
     mic_infos = []
     for i, mic in enumerate(mics):
         scan_progress(f"Audio-Preview: {mic.name}")
-        offset_s = mic_preview_offsets.get(i, 30)
+        dom = mic_dominance.get(i) or {}
+        offset_s = dom.get("offset", 30)
+        separation_db = dom.get("separation_db")
         # Schnipsel haengt von Datei UND Offset ab → beides im Schluessel.
         preview_path = preview_dir / f"prev_{_file_cache_key(mic)}_{int(offset_s)}.wav"
         if not preview_path.exists():
@@ -438,6 +465,9 @@ def run_scan(folder, fps=25.0):
             # Start-Default fuer den Play-Knopf.
             "preview_offset_s": float(offset_s),
             "duration_s": round(duration_s, 1),
+            # Trennung/Isolation in dB (Median-Pegelabstand, wenn diese Person
+            # spricht). None wenn nicht messbar (1 Mic / zu wenig Sprache).
+            "separation_db": separation_db,
         })
 
     # Default-Zuordnung: MIC1->CAM2, MIC2->CAM1 (wie bisheriger Workflow)

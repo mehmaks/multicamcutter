@@ -58,6 +58,9 @@ struct MicInfo: Identifiable, Hashable {
     var previewPath: String?
     /// Dominante Stelle der Spur (Engine-Scan) — Start-Default fuer den Play-Knopf.
     var previewOffsetS: Double = 0
+    /// Trennung/Isolation in dB (Median-Pegelabstand, wenn diese Person spricht).
+    /// nil = nicht messbar. Rein informativ (kein Gate, siehe brain/TODOs.md).
+    var separationDb: Double? = nil
     var durationSeconds: Double
     /// Siehe CameraInfo.included.
     var included: Bool = true
@@ -445,6 +448,17 @@ class EngineController: ObservableObject {
         guard totalSteps > 0 else { return 0 }
         let f = (Double(stepNum - 1) + stepPercent / 100) / Double(totalSteps)
         return min(max(f, 0), 1)
+    }
+
+    /// Gesamtfortschritt der FPS-Konvertierung ueber ALLE Zieldateien (0…1),
+    /// fuer den Dock-Balken. Datei `convertFileIndex` von `convertFileCount`,
+    /// innerhalb der Datei `convertDone/convertTotal`. Ohne Sekunden-Total (ganz
+    /// am Anfang einer Datei) zaehlt nur der Dateifortschritt.
+    var convertProgress: Double {
+        guard convertFileCount > 0 else { return 0 }
+        let fileFrac = convertTotal > 0 ? min(max(convertDone / convertTotal, 0), 1) : 0
+        let done = Double(max(convertFileIndex - 1, 0)) + fileFrac
+        return min(max(done / Double(convertFileCount), 0), 1)
     }
     @Published var logMessages: [String] = []
 
@@ -1685,6 +1699,7 @@ class EngineController: ObservableObject {
                 displayName: filename,
                 previewPath: mic["preview"] as? String,
                 previewOffsetS: (mic["preview_offset_s"] as? NSNumber)?.doubleValue ?? 0,
+                separationDb: (mic["separation_db"] as? NSNumber)?.doubleValue,
                 durationSeconds: mic["duration_s"] as? Double ?? 0
             ))
         }
