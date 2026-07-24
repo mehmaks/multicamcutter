@@ -103,7 +103,7 @@ Defaults bei defekter Datei).
 | `result` | aaf, edl, events_total, events_by_type, elapsed_s | Erfolg |
 | `log` | message | Regulaere Print-Ausgabe (gewrappt) |
 | `convert_progress` | file_index, file_count, label, done, total | FPS-Konvertierung: `done`/`total` in **Sekunden** (aus ffmpeg `time=`), Fraktion = done/total. `total=0` = „wird vorbereitet". Abbruch: App schickt **SIGTERM** → Engine (`_on_term`) killt ffmpeg + loescht Teildatei + `os._exit(0)`. |
-| `convert_complete` | outputs[] | Ende von `--convert-fps` |
+| `convert_complete` | outputs[] | Ende von `--convert-fps`. Codec quellabhaengig (HEVC 10-bit fuer 4:2:0, ProRes fuer 4:2:2/4:4:4 — s. brain/Entscheidungen.md). Tuning per `--hevc-quality` (Default 72) + `--prores-profile` (standard\|hq, Default hq); die App reicht die Settings-Werte (`convertHevcQuality`/`convertProResProfile`) durch. |
 | `clip_progress` | done, total | CLIP-Download: Bytes |
 | `session_end` | success, elapsed_s | Ende der Session |
 

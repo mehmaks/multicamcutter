@@ -1413,7 +1413,17 @@ class EngineController: ObservableObject {
         convertTargetDurations = fpsMismatches.map { $0.durationSeconds }
 
         Task {
-            let args = ["--convert-fps", "--fps", String(fps), "--files"] + targets
+            // Codec-Feineinstellung aus den Settings (Defaults an echtem Material
+            // kalibriert — s. SettingsView „Konvertierung"). object(forKey:) statt
+            // integer(forKey:), damit ein fehlender Schluessel den Default 72 nimmt
+            // (integer(forKey:) liefert sonst 0).
+            let d = UserDefaults.standard
+            let hevcQ = (d.object(forKey: "convertHevcQuality") as? Int) ?? 72
+            let proresProfile = d.string(forKey: "convertProResProfile") ?? "hq"
+            let args = ["--convert-fps", "--fps", String(fps),
+                        "--hevc-quality", String(hevcQ),
+                        "--prores-profile", proresProfile,
+                        "--files"] + targets
             guard let (execPath, baseArgs) = engineCommand(extraArgs: args) else {
                 await MainActor.run {
                     convertError = "Engine nicht gefunden"

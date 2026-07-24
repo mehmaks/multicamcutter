@@ -112,3 +112,27 @@ Entscheidung: Abo-Modell (monatlich/jaehrlich), NICHT das Offline-Datei-Modell
 - Pauschal Sekunde 30 zeigte oft die falsche Person
 - RMS-Analyse (2 Min, 1s-Fenster) findet wo Mic dominant ist
 - Laeuft in <2s, deutlich bessere Trefferquote
+
+## FPS-Konvertierung: quellabhaengige Hardware-Encoder (VideoToolbox)
+- **Problem**: Die Umwandlung lief mit libx264 (Software, 4:2:2 10-bit, crf14) —
+  bei 4K/50p ~36 s fuer 27 s Material, CPU 100 %. Wunsch: schneller + gradebare,
+  quellgetreue Kopie.
+- **Entscheidung (25.07.)**: Encoder richtet sich nach dem QUELLFORMAT
+  (`_video_encode_args`), hardware-beschleunigt (Apple Silicon):
+  - **4:2:0** (Action-Cams/Drohnen/Exporte, der Normalfall) -> `hevc_videotoolbox`
+    10-bit, `-q:v 72`. Kein Chroma-Verlust (die Quelle IST 4:2:0; das alte libx264
+    rechnete unnoetig auf 4:2:2 hoch). q72 an echtem 4K-10bit kalibriert = exakt die
+    Bildtreue von libx264-crf14 (PSNR 48,8 / SSIM 0,995 in beiden).
+  - **4:2:2 / 4:4:4** (Profikameras) -> `prores_videotoolbox` (hq bzw. 4444).
+    Apples HW-HEVC kann KEIN 4:2:2 (rechnet still auf 4:2:0 runter, gemessen) —
+    ProRes erhaelt die Chroma. `.mov`-Container.
+- **Hardware-DECODE ist der eigentliche Hebel**: `-hwaccel videotoolbox` beim Input.
+  Ohne ihn bremst der Software-Decode von 4K/50p alles aus (30 s statt 9 s). Nur beim
+  HW-Versuch; der Software-Rueckfall (libx264, greift wenn HW scheitert) laeuft ohne.
+- **Messung (echtes 4K-10bit, 27 s, 50->25p)**: alt libx264 36 s / 433 MB · neu
+  HEVC q72 **10 s / 522 MB**. ~3,6x schneller, ~1,2x groesser (HW-Encoder sind
+  weniger effizient), gleiche Qualitaet, CPU frei.
+- **Exponiert** in den Settings ("Bildraten-Umwandlung"): HEVC-Qualitaet (Slider
+  50-95, Default 72) + ProRes-Profil (standard/hq). Engine-CLI: `--hevc-quality`,
+  `--prores-profile`. App reicht sie per UserDefaults durch.
+- **TC erhalten** in allen Zweigen verifiziert (tmcd-Datenspur wandert mit).

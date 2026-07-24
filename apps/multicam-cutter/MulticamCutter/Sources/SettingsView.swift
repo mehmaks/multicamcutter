@@ -266,6 +266,11 @@ struct GeneralSettingsTab: View {
     // „Experteneinstellungen" ein-/ausklappen (Variante C).
     // Denselben Key liest ScrubbableThumbnail — Umschalten wirkt live.
     @AppStorage("thumbnailAutoContrast") private var thumbnailAutoContrast = false
+    // Codec-Feineinstellung der Bildraten-Umwandlung. Defaults an echtem 4K-10bit
+    // kalibriert (q72 = Bildtreue des alten libx264-crf14). Die Engine liest
+    // dieselben Keys per UserDefaults (EngineController.convertMismatchedFps).
+    @AppStorage("convertHevcQuality") private var convertHevcQuality = 72
+    @AppStorage("convertProResProfile") private var convertProResProfile = "hq"
 
     var body: some View {
         Form {
@@ -285,9 +290,55 @@ struct GeneralSettingsTab: View {
             // 24.07., User): Der Hinweis erscheint automatisch wieder, sobald
             // sich sein INHALT aendert (contentRevision in FirstRunSheet) —
             // das reicht, ein manueller Reset verwirrt nur.
+
+            conversionSection
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    // Bildraten-Umwandlung: Codec richtet sich automatisch nach dem Quellformat
+    // (HEVC 10-bit fuer 4:2:0, ProRes fuer 4:2:2/4:4:4). Hier nur die Qualitaets-
+    // Feineinstellung fuer Cutter, die bewusst eingreifen wollen.
+    private var conversionSection: some View {
+        Section("Bildraten-Umwandlung") {
+            Text("Wird eine Videodatei auf die Timeline-Bildrate umgewandelt, wählt die App "
+                 + "den Codec passend zum Quellformat — HEVC 10-bit für 4:2:0 (Action-Cams, "
+                 + "Drohnen), ProRes für 4:2:2/4:4:4 (Profikameras). Die Voreinstellungen sind "
+                 + "auf eine quellgetreue, gradebare Kopie kalibriert. Nur ändern, wenn du "
+                 + "genau weißt, was du tust.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            VStack(alignment: .leading, spacing: 4) {
+                HStack {
+                    Text("HEVC-Qualität (4:2:0-Material)")
+                    Spacer()
+                    Text("\(convertHevcQuality)")
+                        .monospacedDigit().foregroundStyle(.secondary)
+                    if convertHevcQuality != 72 {
+                        Button("Standard") { convertHevcQuality = 72 }
+                            .buttonStyle(.link).font(.caption)
+                    }
+                }
+                Slider(value: Binding(get: { Double(convertHevcQuality) },
+                                      set: { convertHevcQuality = Int($0.rounded()) }),
+                       in: 50...95, step: 1)
+                Text("Höher = näher am Original, aber größere Dateien. 72 entspricht der "
+                     + "bisherigen Qualität (praktisch verlustfrei).")
+                    .font(.caption2).foregroundStyle(.tertiary)
+                    .fixedSize(horizontal: false, vertical: true)
+            }
+
+            Picker("ProRes-Profil (4:2:2-Material)", selection: $convertProResProfile) {
+                Text("Standard").tag("standard")
+                Text("HQ").tag("hq")
+            }
+            Text("Nur für echtes 4:2:2/4:4:4-Material. HQ ist praktisch verlustfrei, "
+                 + "Standard etwas kleiner. (4:4:4 nutzt immer ProRes 4444.)")
+                .font(.caption2).foregroundStyle(.tertiary)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 }
 

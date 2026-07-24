@@ -664,7 +664,54 @@ def _probe_timecode(path):
     return None
 
 
-def convert_fps_files(files, target_fps):
+def _probe_pix_fmt(path):
+    """Pixelformat der Videospur (z. B. yuv420p, yuv422p10le). '' bei Fehler."""
+    try:
+        import subprocess
+        r = subprocess.run(
+            ["ffprobe", "-v", "error", "-select_streams", "v:0",
+             "-show_entries", "stream=pix_fmt",
+             "-of", "default=noprint_wrappers=1:nokey=1", str(path)],
+            capture_output=True, text=True, timeout=10)
+        return r.stdout.strip()
+    except Exception:
+        return ""
+
+
+def _video_encode_args(pix_fmt, src_suffix, hevc_quality=72, prores_profile="hq"):
+    """Waehlt Video-Encoder + Ausgabe-Endung nach dem QUELLFORMAT — Ziel ist eine
+    quellgetreue, gradebare Kopie, hardware-beschleunigt (VideoToolbox auf Apple
+    Silicon, ~3x schneller als die alte libx264-Software-Kodierung, CPU frei).
+
+    - 4:4:4 / 4:2:2 (Profikameras): prores_videotoolbox. Apples HW-HEVC kann KEIN
+      4:2:2 (rechnet die Chroma still auf 4:2:0 runter, gemessen 25.07.) — ProRes
+      erhaelt die volle Farbaufloesung. .mov-Container. Grosse Dateien, aber der
+      seltene Fall und noetig, um die Quelle nicht zu verschlechtern.
+    - 4:2:0 (Action-Cams/Drohnen/Exporte — der Normalfall): hevc_videotoolbox in
+      10-bit. Fuer 4:2:0-Quellen OHNE Chroma-Verlust (das alte libx264 rechnete
+      auf 4:2:2 hoch, was keine Information zurueckholt). q:v 72 trifft die
+      Bildtreue des alten libx264-crf14 exakt (an echtem 4K-10bit gemessen:
+      PSNR 48,8 / SSIM 0,995 in beiden). Endung wie die Quelle.
+      Hinweis: Hardware-Encoder sind ~1,5x weniger effizient als libx264 — die
+      Datei ist bei gleicher Qualitaet groesser, dafuer ~3–4x schneller (mit
+      Hardware-Decode, s. convert_fps_files) und die CPU bleibt frei.
+
+    Rueckgabe: (video_args: list[str], out_suffix: str)
+    """
+    pf = (pix_fmt or "").lower()
+    if "444" in pf:
+        # 4:4:4 braucht immer das ProRes-4444-Profil (die 422-Profile koennten
+        # die vierte Ebene nicht halten) — der Nutzer-Profilwunsch gilt nur fuer 4:2:2.
+        return (["-c:v", "prores_videotoolbox", "-profile:v", "4444",
+                 "-pix_fmt", "yuv444p10le"], ".mov")
+    if "422" in pf:
+        return (["-c:v", "prores_videotoolbox", "-profile:v", str(prores_profile),
+                 "-pix_fmt", "yuv422p10le"], ".mov")
+    return (["-c:v", "hevc_videotoolbox", "-pix_fmt", "p010le",
+             "-q:v", str(int(hevc_quality)), "-tag:v", "hvc1"], src_suffix)
+
+
+def convert_fps_files(files, target_fps, hevc_quality=72, prores_profile="hq"):
     """Kodiert Videos auf target_fps um. Gibt die Liste der neuen Pfade zurueck.
 
     Rezept aus dem Web-Modul (ui/pages/multicam.py -> _run_ffmpeg_conversions):
@@ -705,9 +752,18 @@ def convert_fps_files(files, target_fps):
 
     signal.signal(signal.SIGTERM, _on_term)
 
+    # Universeller Software-Rueckfall (der alte Weg): libx264 4:2:2 10-bit,
+    # near-lossless. Greift, wenn der Hardware-Encoder scheitert (VideoToolbox
+    # nicht verfuegbar o. Format nicht unterstuetzt) — lieber langsam als gar nicht.
+    SOFTWARE_VIDEO = ["-c:v", "libx264", "-pix_fmt", "yuv422p10le",
+                      "-profile:v", "high422", "-crf", "14", "-preset", "medium"]
+
     for i, src in enumerate(files):
         src_p = Path(src)
-        out_p = src_p.with_name(f"{src_p.stem}_{int(round(target_fps))}fps{src_p.suffix}")
+        pix_fmt = _probe_pix_fmt(src_p)
+        video_args, out_suffix = _video_encode_args(
+            pix_fmt, src_p.suffix, hevc_quality, prores_profile)
+        out_p = src_p.with_name(f"{src_p.stem}_{int(round(target_fps))}fps{out_suffix}")
         emit("step_start", step_num=i + 1, total_steps=total,
              label=f"Konvertiere {src_p.name}")
 
@@ -716,45 +772,64 @@ def convert_fps_files(files, target_fps):
         # Balken sofort auf 0 setzen (Modal zeigt „wird vorbereitet", bis dur da ist).
         emit("convert_progress", file_index=i + 1, file_count=total,
              label=src_p.name, done=0.0, total=dur)
-        emit("log", message=f"Quelle: {src_p.name}  (Dauer {dur:.1f}s)")
+        emit("log", message=f"Quelle: {src_p.name}  ({pix_fmt or '?'}, Dauer {dur:.1f}s)")
         emit("log", message=f"Ziel:   {out_p.name}")
         emit("log", message=f"Embedded TC im Original: {src_tc or '(keiner)'}")
 
-        cmd = [
-            "ffmpeg", "-y", "-i", str(src_p),
-            "-vf", f"fps={target_fps}",
-            "-c:v", "libx264", "-pix_fmt", "yuv422p10le",
-            "-profile:v", "high422", "-crf", "14", "-preset", "medium",
-            "-c:a", "aac", "-b:a", "192k",
-        ]
-        if src_tc:
-            cmd += ["-metadata", f"timecode={src_tc}",
-                    "-metadata:s:v:0", f"timecode={src_tc}"]
-        cmd += ["-stats", "-loglevel", "info", str(out_p)]
+        def _run_encode(video_args, use_hwaccel):
+            """Eine ffmpeg-Konvertierung mit Fortschritts-Streaming; gibt den
+            Return-Code zurueck. Setzt active[...] fuer den SIGTERM-Handler.
 
-        # Ab jetzt ist out_p die aufraeumbare Teildatei (fuer den SIGTERM-Handler).
-        active["out"] = out_p
-        proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
-                                stderr=subprocess.STDOUT, text=True,
-                                encoding="utf-8", errors="replace", bufsize=1)
-        active["proc"] = proc
-        # ffmpeg schreibt Fortschritt als `... time=HH:MM:SS.ss ...` (via -stats).
-        # Daraus die Sekunden ziehen → echter Balken statt Roh-Log im Modal.
-        for line in proc.stdout:
-            line = line.rstrip()
-            if not line:
-                continue
-            emit("log", message=line)
-            m = time_re.search(line)
-            if m and dur > 0:
-                done = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
-                emit("convert_progress", file_index=i + 1, file_count=total,
-                     label=src_p.name, done=min(done, dur), total=dur)
-        proc.wait()
+            `use_hwaccel` = VideoToolbox-Hardware-DECODE. Das ist bei 4K/50p oft
+            der eigentliche Flaschenhals — ohne HW-Decode verpufft der Tempovorteil
+            des HW-Encoders (an echtem 4K gemessen: 30 s → 9 s). ffmpeg faellt bei
+            nicht unterstuetztem Quellcodec intern auf Software-Decode zurueck."""
+            cmd = ["ffmpeg", "-y"]
+            if use_hwaccel:
+                cmd += ["-hwaccel", "videotoolbox"]
+            cmd += ["-i", str(src_p), "-vf", f"fps={target_fps}"]
+            cmd += video_args
+            cmd += ["-c:a", "aac", "-b:a", "192k"]
+            if src_tc:
+                cmd += ["-metadata", f"timecode={src_tc}",
+                        "-metadata:s:v:0", f"timecode={src_tc}"]
+            cmd += ["-stats", "-loglevel", "info", str(out_p)]
+            # Ab jetzt ist out_p die aufraeumbare Teildatei (fuer SIGTERM).
+            active["out"] = out_p
+            proc = subprocess.Popen(cmd, stdout=subprocess.PIPE,
+                                    stderr=subprocess.STDOUT, text=True,
+                                    encoding="utf-8", errors="replace", bufsize=1)
+            active["proc"] = proc
+            # ffmpeg schreibt Fortschritt als `... time=HH:MM:SS.ss ...` (via -stats).
+            for line in proc.stdout:
+                line = line.rstrip()
+                if not line:
+                    continue
+                emit("log", message=line)
+                m = time_re.search(line)
+                if m and dur > 0:
+                    done = int(m.group(1)) * 3600 + int(m.group(2)) * 60 + float(m.group(3))
+                    emit("convert_progress", file_index=i + 1, file_count=total,
+                         label=src_p.name, done=min(done, dur), total=dur)
+            proc.wait()
+            return proc.returncode
 
-        if proc.returncode != 0 or not out_p.exists():
+        rc = _run_encode(video_args, use_hwaccel=True)
+        # Hardware-Encoder gescheitert → einmal auf reine Software zurueckfallen
+        # (ohne HW-Decode, maximal kompatibel).
+        if (rc != 0 or not out_p.exists()) and video_args is not SOFTWARE_VIDEO:
+            emit("warning", message=(f"Hardware-Encoder fuer {src_p.name} "
+                 f"fehlgeschlagen (exit {rc}) — weiche auf Software (libx264) aus."))
+            try:
+                if out_p.exists():
+                    out_p.unlink()   # angefangene Teildatei entfernen
+            except Exception:
+                pass
+            rc = _run_encode(SOFTWARE_VIDEO, use_hwaccel=False)
+
+        if rc != 0 or not out_p.exists():
             raise RuntimeError(f"Konvertierung von {src_p.name} fehlgeschlagen "
-                               f"(ffmpeg exit {proc.returncode}).")
+                               f"(ffmpeg exit {rc}).")
         # Fertig & verifiziert → nicht mehr als Teildatei behandeln (sonst wuerde
         # ein SIGTERM zwischen den Dateien die fertige Ausgabe loeschen).
         active["proc"] = None
@@ -1074,6 +1149,12 @@ def main():
                              "(behebt FPS-Mismatch, erhaelt den Embedded-TC)")
     parser.add_argument("--files", nargs="+", default=None,
                         help="Dateien fuer --convert-fps")
+    # Codec-Feineinstellung der Konvertierung (Defaults an echtem Material
+    # kalibriert, s. _video_encode_args). Ueber die Settings-Seite exponiert.
+    parser.add_argument("--hevc-quality", type=int, default=72,
+                        help="HEVC-Qualitaet (q:v, 4:2:0-Quellen), 1-100")
+    parser.add_argument("--prores-profile", type=str, default="hq",
+                        help="ProRes-Profil fuer 4:2:2-Quellen (standard|hq)")
     parser.add_argument("--cams", nargs="+", default=None,
                         help="Explizite Kamera-Pfade (nur aktivierte Quellen). "
                              "Ohne diese Angabe scannt die Engine den Ordner selbst.")
@@ -1267,7 +1348,9 @@ def main():
             emit("error", message="--files ist erforderlich für --convert-fps")
             return 1
         try:
-            outputs = convert_fps_files(args.files, args.fps)
+            outputs = convert_fps_files(args.files, args.fps,
+                                        hevc_quality=args.hevc_quality,
+                                        prores_profile=args.prores_profile)
             emit("convert_complete", outputs=outputs)
             return 0
         except Exception as e:

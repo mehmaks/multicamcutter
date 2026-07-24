@@ -104,6 +104,9 @@ struct WizardView: View {
         }
         .background(wizBackground)
         .foregroundStyle(Color.wizText)
+        // Beim Seitenwechsel laufende Audio-Vorschau stoppen — sonst spielt eine
+        // auf Seite 1 gestartete Spur auf Seite 2/3 unsichtbar weiter.
+        .onChange(of: engine.wizardStep) { _, _ in engine.stopAllPlayback() }
         .sheet(isPresented: $engine.isConverting) {
             FpsConversionSheet().environmentObject(engine)
         }
