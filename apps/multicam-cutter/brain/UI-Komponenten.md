@@ -132,7 +132,9 @@ Kein Experten-Toggle als globale Einstellung mehr. Innerhalb der Box tauscht ein
   `pause_trim_edl.py` / Schema-Transform) — **nicht** none/end.
 
   **Bewusst NICHT exponiert:**
-  - **LUT** — steht als „auf Halde" im TODO.
+  - **LUT** — Thematik verworfen (25.07.): MediaPipe erkennt mit/ohne LUT gleich
+    gut (gemessen). Das `--lut`-Flag existiert noch in der Engine (ungenutzt), wird
+    aber nicht in die App gehoben.
   - **Gate-Audio in Timeline** (`gateUseFiltered`) — reine Debug-Option: exportiert nur
     `*_gated.wav` und importiert sie **nur im Resolve/Bin-Workflow** in den Media Pool.
     Im Ordner/AAF-Workflow ohne Wirkung (die AAF referenziert Original-Audio). Param

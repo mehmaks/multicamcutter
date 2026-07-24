@@ -726,36 +726,6 @@ noch Normalisierungs-Anker.
 - [x] **Wizard-Experteneinstellungen 1:1 zur Web-UI/Schema** (Benennung + Reihenfolge):
   Generelle Schnittregeln · Sprecher-Erkennung · Pausen-Trimming (+ Schnittmodus-Picker)
   · Crossbleed-Filter · Cutaway Regeln · Totale-Cam Schnittlogik. Neuer `WizPicker`.
-  LUT bewusst weggelassen (auf Halde).
-
-### Analyse-Input: LUT / Kontrast (auf Halde, niedrige Prio)
-- [ ] **LUT-Picker für die MediaPipe-Analyse in der Mac-App exponieren.** Aufwand:
-  **leicht** (Backend fertig). Das `--lut`-Flag (.cube) ist bereits end-to-end
-  durchgereicht: `run_from_bin.py --lut` → `video_reaction_analyzer_v2.4.py`
-  (`lut3d` in der ffmpeg-`-vf`-Kette, wo die Analyseframes für MediaPipe entstehen).
-  Es fehlt nur ein Datei-Picker in den Settings + Durchreichen an die Engine.
-  Zweck: Log-Material vor MediaPipe nach Rec.709 wandeln. **War im Web-UI schon da.**
-  ⚠️ **Auf Halde**: User hat in eigenen Analysen **keinen qualitativen Unterschied**
-  bemerkt, ob MediaPipe mit oder ohne LUT lief → geringer Nutzen. Erst umsetzen, wenn
-  ein konkreter Log-Problemfall auftaucht (dann mit Vergleichs-Durchlauf: Nodding-
-  Events mit/ohne LUT).
-  Alternative ohne LUT: generischer Auto-Kontrast-Filter (`eq`/`normalize`/`curves`)
-  in dieselbe `-vf`-Kette, per Toggle — analog zum kosmetischen Thumbnail-Toggle, aber
-  Engine-seitig. Ebenfalls nur bei Bedarf. (Beides braucht PyInstaller-Rebuild fürs Release.)
-- [ ] **Log-Footage automatisch erkennen und LUT-Hinweis einblenden.** Aufwand: **leicht**.
-  ⚠️ **Hängt am LUT-Punkt darüber** — ergibt erst Sinn, sobald der LUT-Parameter wieder
-  exponiert ist. Vorher hätte der Hinweis keine Handlungsoption.
-  **Idee:** Das beim Scan ohnehin erzeugte Thumbnail je Videodatei aufs **Kontrastprofil**
-  messen. Ist der Kontrast auffällig gering (typisch für Log-Material), einen dezenten
-  Hinweis einblenden, dass ein LUT sinnvoll wäre.
-  **Technisch:** Das JPEG liegt bereits vor (`CameraInfo.thumbnailPath`), die Messung ist
-  billig — z. B. Histogramm-Spreizung über CoreImage (`CIAreaMinMax` / `CIAreaHistogram`)
-  oder schlicht Standardabweichung + Perzentil-Abstand (P5→P95) der Luma. Auswertung in
-  Swift beim Scan, kein Engine-Eingriff nötig.
-  ⚠️ **Falsch-Positive bedenken:** Auch eine dunkle, neblige oder flaue Szene ist
-  kontrastarm. Der Hinweis darf deshalb nur **weich** formuliert sein („könnte Log-Material
-  sein") und niemals blockieren. Ggf. über mehrere Scrub-Positionen mitteln statt nur den
-  einen Initial-Frame zu messen.
 
 ### Metadaten-Ableitung (Recherche 25.07. — an echten Dateien geprueft)
 - [ ] **Mehrspurige WAVs erkennen & je Kanal als eigene Quelle behandeln.** Aufwand:
@@ -779,20 +749,6 @@ noch Normalisierungs-Anker.
   die durch einen NLE/Export liefen, haben die Kamera-Metadaten VERLOREN (die
   FX3-Datei zeigt „DaVinci Resolve" statt Sony). Nur Kamera-**Originale** tragen es
   zuverlaessig → „erkannt/nicht erkannt" muss ehrlich kommuniziert werden.
-- [ ] **~~Hersteller-LUTs mitliefern~~ — NICHT empfohlen.** (a) Offizielle Sony/Canon-
-  LUTs sind i.d.R. urheberrechtlich geschuetzt → nicht einfach redistribuierbar.
-  (b) Fuer die MediaPipe-DETEKTION ohnehin ohne Mehrwert — der User hat bereits
-  gemessen, dass MediaPipe mit/ohne LUT gleich gut erkennt (s. „LUT-Picker"-Punkt).
-  Statt fremde LUTs mitzuliefern → eingebettete LUTs extrahieren (naechster Punkt).
-- [ ] **Eingebettete Kamera-LUTs extrahieren & nutzen (Sony „Embed LUT File" etc.).**
-  Aufwand: **offen — braucht Testmaterial**. Sony-Cinekameras koennen die Monitor-
-  LUT in die Clips einbetten; das umgeht das Lizenzproblem komplett (es ist die vom
-  DP selbst gesetzte LUT). ⚠️ **Ungeklaert wo Sony sie ablegt** (XAVC-Atom? NRT-
-  Metadaten? Sidecar?) und exiftool ist nicht installiert. **Naechster Schritt**:
-  User fertigt FX3-Testmaterial mit eingebetteter LUT an → dann pruefen, ob/wie sie
-  per exiftool oder direktem Atom-Parse rauskommt. **Design-Frage wofuer**: fuer die
-  Detektion marginal (s. o.) — der eigentliche Wert waere, den DP-Look an den
-  Schnitt/AAF weiterzureichen (groesseres Feature, separat denken).
 
 ### Multilanguage (planen)
 - [ ] **Mehrsprachigkeit konzipieren (DE/EN)**. Die Website ist bereits zweisprachig
