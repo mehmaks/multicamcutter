@@ -5,6 +5,29 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.6
+
+**Behoben: möglicher Absturz beim ersten Start nach einem Update**
+
+In seltenen Fällen konnte die App direkt nach einem Update beim Neustart
+abstürzen. Ursache war ein Icon, das im Moment des Erststarts noch nicht bereit
+war. Das kann jetzt nicht mehr passieren — fehlt eine Grafik kurz, bleibt sie
+einfach leer, statt die App zu beenden.
+
+**Neu: Trennung jeder Tonspur sichtbar**
+
+Auf jeder Audiokarte steht jetzt, wie gut die Spur getrennt ist — also um wie
+viel lauter sie ist als die anderen, wenn diese Person spricht (in dB). So
+erkennst du auf einen Blick, welche Spuren sauber sind und welche viel
+Übersprechen haben, und bekommst über mehrere Folgen ein Gefühl dafür, was
+normal ist. Der Wert ist rein informativ und beeinflusst den Schnitt nicht.
+
+**Verbessert: Fortschritt der Bildraten-Umwandlung am Dock-Symbol**
+
+Wandelt die App Videodateien auf die Timeline-Bildrate um, zeigt jetzt auch das
+Dock-Symbol den Fortschritt. Das dauert je nach Material einige Minuten — so
+siehst du auch mit der App im Hintergrund, wie weit sie ist.
+
 ## 0.6.5
 
 **Neu: Wellenform für jede Tonspur — mit Anhören per Klick**

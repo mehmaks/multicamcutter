@@ -4,6 +4,29 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 0.6.6
+
+**Fixed: possible crash on the first launch after an update**
+
+In rare cases the app could crash when relaunching right after an update. The
+cause was an icon that wasn't ready yet at that exact moment. This can no longer
+happen — if a graphic is briefly unavailable it simply stays blank instead of
+taking down the app.
+
+**New: isolation of each audio track is now visible**
+
+Every audio card now shows how well its track is isolated — that is, how much
+louder it is than the others when that person speaks (in dB). At a glance you
+can tell which tracks are clean and which have a lot of bleed, and over several
+episodes you get a feel for what's normal. The value is purely informational and
+does not affect the edit.
+
+**Improved: frame-rate conversion progress on the Dock icon**
+
+When the app converts video files to the timeline frame rate, the Dock icon now
+shows the progress too. Depending on the material this takes a few minutes — so
+you can see how far along it is even with the app in the background.
+
 ## 0.6.5
 
 **New: waveform for every audio track — click to listen**
