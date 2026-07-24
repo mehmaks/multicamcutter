@@ -1811,6 +1811,15 @@ class EngineController: ObservableObject {
             extraArgs += ["--cam-person-names", pStr]
         }
 
+        // AAF-Clipname-Muster (Settings, Default "%L - %S" → Grund/Person zuerst,
+        // damit der Grund Resolves Clipfeld-Abschneiden ueberlebt). Leer = altes
+        // Verhalten in der Engine.
+        let pattern = (UserDefaults.standard.string(forKey: "clipNamePattern")
+                       ?? "%L - %S").trimmingCharacters(in: .whitespaces)
+        if !pattern.isEmpty {
+            extraArgs += ["--clip-name-pattern", pattern]
+        }
+
         guard let (execPath, baseArgs) = engineCommand(extraArgs: extraArgs) else {
             errorMessage = "Engine oder Python nicht gefunden"
             state = .error

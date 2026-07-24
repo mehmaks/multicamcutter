@@ -261,6 +261,7 @@ def build_aaf(
     audio_keeps: list = None,
     trimmed_events: list = None,
     cam_person_names: list = None,
+    clip_name_pattern: str = None,
 ) -> Path:
     """
     Erzeugt eine AAF-Timeline aus final.edl + synchronisierten Medien.
@@ -471,6 +472,45 @@ def build_aaf(
                 return f"{_REASON_LABEL.get(base, base)} (mehrere)"
             return _REASON_LABEL.get(reason, reason)
 
+        # ── Clipname aus Wildcard-Muster (User-Feature 0.6.7) ──
+        # Tokens: %S Quellname · %R Grund-Wort · %P Person auf der Cam ·
+        # %L „smartes" Label (Person bei Sprecher, sonst Grund — wie bisher).
+        # Ist kein Muster gesetzt (CLI ohne Flag), bleibt das ALTE Verhalten
+        # („%S - %L") byte-genau erhalten — die App reicht ihren Default „%L - %S".
+        def _reason_word(reason: str) -> str:
+            """%R: reines Grund-Wort, OHNE Person-Ersetzung (anders als _label)."""
+            if reason and reason.endswith('_wide'):
+                base = reason[:-len('_wide')]
+                return f"{_REASON_LABEL.get(base, base)} (mehrere)"
+            return _REASON_LABEL.get(reason, reason or '')
+
+        def _person_of(cam_idx: int) -> str:
+            if cam_person_names and cam_idx < len(cam_person_names):
+                return (cam_person_names[cam_idx] or '').strip()
+            return ''
+
+        _SEP = r'[-–—·|/•:]'
+
+        def _tidy(s: str) -> str:
+            """Raeumt Artefakte leerer Tokens weg: baumelnde/doppelte Trenner,
+            Mehrfach-Leerzeichen. `%R - %P` mit leerer Person → `%R`."""
+            s = re.sub(r'\s+', ' ', s)
+            s = re.sub(rf'({_SEP})\s*(?:{_SEP}\s*)+', r'\1 ', s)  # doppelte Trenner
+            s = re.sub(rf'^\s*{_SEP}\s*', '', s)                  # Trenner vorn
+            s = re.sub(rf'\s*{_SEP}\s*$', '', s)                  # Trenner hinten
+            return s.strip()
+
+        _TOKEN_RE = re.compile(r'%([SRPL])')
+
+        def _name_for(cam_idx: int, reason) -> str:
+            src = Path(cam_paths[cam_idx]).stem
+            if not clip_name_pattern:
+                return f"{src} - {_label(cam_idx, reason)}"   # wie bisher
+            values = {'S': src, 'R': _reason_word(reason),
+                      'P': _person_of(cam_idx), 'L': _label(cam_idx, reason)}
+            name = _tidy(_TOKEN_RE.sub(lambda m: values[m.group(1)], clip_name_pattern))
+            return name or src                                # nie leer
+
         def _master_for(cam_idx: int, reason):
             """MasterMob fuer Kamera+Grund, bei Bedarf angelegt.
             Ohne Grund die unveraenderte Kamera-Mob (Verhalten wie bisher)."""
@@ -480,7 +520,7 @@ def build_aaf(
             if key not in reason_masters:
                 file_mob, fm_slot = cam_files[cam_idx]
                 m = f.create.MasterMob()
-                m.name = f"{Path(cam_paths[cam_idx]).stem} - {_label(cam_idx, reason)}"
+                m.name = _name_for(cam_idx, reason)
                 sl = m.create_picture_slot(edit_rate=fps_int)
                 sc_f = f.create.SourceClip(media_kind='picture')
                 sc_f.mob    = file_mob

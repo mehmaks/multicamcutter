@@ -193,19 +193,17 @@ Python-Runtime dazubekommt.
   Experteneinstellungen (Bildsprache-Gruppe), `run_from_bin` hat keine
   transition-setdefaults mehr.
 
-- [ ] **Clipnamen im AAF: Schnittgrund vor Quellname.** Aufwand: **leicht** (Stufe 1).
-  Heute `{stem} - {label}` (`build_aaf.py:483`), z.B.
-  `VID_20250710_101101_00_002_004_25… - Übergang`. Bei langen Quellnamen (GoPro/DJI,
-  Totale) wird der Name vom Resolve-Clipfeld abgeschnitten und der **Grund ist nicht
-  mehr sichtbar** — beobachtet am 21.07. Der Grund ist beim Sichten aber die
-  wichtigere Information.
-  - **Stufe 1:** Reihenfolge umdrehen → `Übergang - C0352` bzw. mit Person
-    `Übergang - Andreas`. Steht der Grund vorn, überlebt er das Abschneiden.
-  - **Stufe 2:** Als **Toggle** in den Einstellungen (Grund-zuerst / Quelle-zuerst),
-    Default noch zu entscheiden.
-  - **Stufe 3 (später, wenn sinnvoll):** freies Muster per Wildcards, z.B.
-    `{reason} · {person} ({source})`. Erst bauen, wenn ein konkreter Bedarf über
-    die zwei festen Varianten hinausgeht — sonst ist es Konfiguration ohne Nachfrage.
+- [x] **Clipnamen im AAF: frei konfigurierbares Muster.** — UMGESETZT (25.07., 0.6.7):
+  Statt der geplanten Stufen 1–3 (Reihenfolge-Toggle → Wildcards) direkt das volle
+  Wildcard-Modell gebaut, weil die Personendaten (`cam_person_names`) schon in
+  `build_aaf` lagen → kaum Mehraufwand. Tokens **%S** Quelle · **%R** Grund · **%P**
+  Person · **%L** smartes Label (Person bei Sprecher, sonst Grund). `_name_for` in
+  `build_aaf.py` (Token-Regex + `_tidy` raeumt leere-Token-Trenner). Default **`%L - %S`**
+  (Grund/Person zuerst → ueberlebt Resolves Clipfeld-Abschneiden, der urspruengliche
+  Anlass). Settings „AAF-Clipnamen" mit TextField + Live-Vorschau; App reicht per
+  `--clip-name-pattern` durch. Leeres Muster/kein Flag = altes Verhalten (`%S - %L`)
+  byte-genau. Hinweis: greift nur, wenn `<edl>.colors.json` passt (all-or-nothing);
+  sonst Fallback-Rohname wie bisher.
 
 - [x] **Changelog: in der App sichtbar UND auf der Website.** UMGESETZT (22.07.):
   Nutzer sollen sehen, was ein Update bringt — heute steht im Update-Dialog nur

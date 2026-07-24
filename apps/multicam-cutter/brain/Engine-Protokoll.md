@@ -60,7 +60,8 @@ expliziten Listen stimmen die Positionen **per Konstruktion**.
 | --skip-base-edl | flag | base.edl wiederverwenden |
 | --display-names | JSON-Array | Display-Namen fuer Progress-Labels |
 | --speaking-mode | rms/peak | Ueberschreibt speaking_mode |
-| --lut | Pfad | LUT-Datei fuer MediaPipe |
+| --lut | Pfad | LUT-Datei fuer MediaPipe (App hebt es nicht, s. UI-Komponenten.md) |
+| --clip-name-pattern | Muster | AAF-Clipnamen. Tokens `%S` Quelle · `%R` Grund · `%P` Person · `%L` smartes Label. Leer = altes `%S - %L`. App-Default `%L - %S`. Logik: `build_aaf._name_for` |
 
 ## CLIP-Modi (Bilderkennung)
 

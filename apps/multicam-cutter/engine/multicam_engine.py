@@ -918,7 +918,7 @@ def run_pipeline(folder, fps, params, output_path,
                  skip_analysis=False, skip_base_edl=False,
                  speaking_mode=None, lut=None,
                  cams_arg=None, mics_arg=None,
-                 cam_person_names=None):
+                 cam_person_names=None, clip_name_pattern=None):
     """Fuehrt die komplette Pipeline aus. Gibt (aaf_path, stats) zurueck.
 
     cams_arg/mics_arg: explizite Dateilisten (nur die in der App aktivierten
@@ -1082,6 +1082,7 @@ def run_pipeline(folder, fps, params, output_path,
         audio_keeps=audio_keeps,
         trimmed_events=trimmed_events,
         cam_person_names=cam_person_names,
+        clip_name_pattern=clip_name_pattern,
     )
 
     emit("step_progress", percent=100, eta="")
@@ -1169,6 +1170,9 @@ def main():
     parser.add_argument("--lut", default=None)
     parser.add_argument("--display-names", default=None,
                         help="JSON-Array mit Display-Namen fuer Kameras")
+    parser.add_argument("--clip-name-pattern", default=None,
+                        help="Muster fuer AAF-Clipnamen (%%S Quelle, %%R Grund, "
+                             "%%P Person, %%L smartes Label). Leer = altes Verhalten.")
     parser.add_argument("--cam-person-names", default=None,
                         help="JSON-Array: zugeordnete Person je Kamera, positions-"
                              "gleich zu --cams. Ersetzt in den AAF-Clipnamen das "
@@ -1469,6 +1473,7 @@ def main():
             speaking_mode=args.speaking_mode,
             lut=args.lut,
             cam_person_names=cam_person_names,
+            clip_name_pattern=args.clip_name_pattern,
         )
         elapsed = time.time() - t_start
         stats["elapsed_s"] = round(elapsed, 1)

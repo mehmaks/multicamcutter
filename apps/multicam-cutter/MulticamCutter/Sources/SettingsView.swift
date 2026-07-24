@@ -276,6 +276,10 @@ struct GeneralSettingsTab: View {
     // dieselben Keys per UserDefaults (EngineController.convertMismatchedFps).
     @AppStorage("convertHevcQuality") private var convertHevcQuality = 72
     @AppStorage("convertProResProfile") private var convertProResProfile = "hq"
+    // AAF-Clipname-Muster. Default "%L - %S" (Grund/Person zuerst → ueberlebt
+    // Resolves Clipfeld-Abschneiden). Engine liest denselben Key nicht direkt —
+    // EngineController.startAnalysis reicht ihn als --clip-name-pattern durch.
+    @AppStorage("clipNamePattern") private var clipNamePattern = "%L - %S"
 
     var body: some View {
         Form {
@@ -297,9 +301,72 @@ struct GeneralSettingsTab: View {
             // das reicht, ein manueller Reset verwirrt nur.
 
             conversionSection
+            clipNameSection
         }
         .formStyle(.grouped)
         .padding()
+    }
+
+    // AAF-Clipnamen: frei konfigurierbares Muster, Live-Vorschau. Bestimmt, was
+    // die NLE im Timeline-Segment anzeigt (MasterMob-Name im AAF).
+    private var clipNameSection: some View {
+        Section("AAF-Clipnamen") {
+            Text("Wie die Schnitte im AAF heißen — das, was du in Resolve/Premiere am "
+                 + "Timeline-Clip siehst. Platzhalter: %S Quelldatei · %R Schnittgrund · "
+                 + "%P Person · %L smartes Label (Person bei Sprecher, sonst Grund). "
+                 + "Leere Platzhalter werden samt Trenner sauber entfernt.")
+                .font(.caption).foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            HStack {
+                TextField("Muster", text: $clipNamePattern)
+                    .textFieldStyle(.roundedBorder)
+                    .font(.system(.body, design: .monospaced))
+                if clipNamePattern != "%L - %S" {
+                    Button("Standard") { clipNamePattern = "%L - %S" }
+                        .buttonStyle(.link).font(.caption)
+                }
+            }
+
+            VStack(alignment: .leading, spacing: 3) {
+                clipNamePreviewRow("Sprecher-Clip", source: "C0352",
+                                   reason: "Sprecher", person: "Andreas", label: "Andreas")
+                clipNamePreviewRow("Cutaway (Totale)", source: "C0352",
+                                   reason: "Übergang", person: "", label: "Übergang")
+            }
+            .padding(.top, 2)
+        }
+    }
+
+    private func clipNamePreviewRow(_ title: String, source: String,
+                                    reason: String, person: String, label: String) -> some View {
+        HStack(spacing: 8) {
+            Text(title).font(.caption2).foregroundStyle(.tertiary)
+                .frame(width: 110, alignment: .leading)
+            Text(clipNamePreview(source: source, reason: reason, person: person, label: label))
+                .font(.system(.caption, design: .monospaced))
+                .foregroundStyle(.secondary).lineLimit(1).truncationMode(.tail)
+        }
+    }
+
+    /// Swift-Spiegel der Engine-Namenslogik (build_aaf._name_for) — nur fuer die
+    /// Vorschau. Muss mit der Python-Seite konsistent bleiben (Tokens + Tidy).
+    private func clipNamePreview(source: String, reason: String,
+                                 person: String, label: String) -> String {
+        var s = clipNamePattern
+        for (tok, val) in [("%S", source), ("%R", reason), ("%P", person), ("%L", label)] {
+            s = s.replacingOccurrences(of: tok, with: val)
+        }
+        func rx(_ pat: String, _ rep: String) {
+            s = s.replacingOccurrences(of: pat, with: rep, options: .regularExpression)
+        }
+        let sep = "[-–—·|/•:]"
+        rx("\\s+", " ")
+        rx("(\(sep))\\s*(?:\(sep)\\s*)+", "$1 ")   // doppelte Trenner
+        rx("^\\s*\(sep)\\s*", "")                    // Trenner vorn
+        rx("\\s*\(sep)\\s*$", "")                    // Trenner hinten
+        s = s.trimmingCharacters(in: .whitespaces)
+        return s.isEmpty ? source : s
     }
 
     // Bildraten-Umwandlung: Codec richtet sich automatisch nach dem Quellformat
