@@ -8,6 +8,10 @@ struct ContentView: View {
     @State private var frameBeforeRun: NSRect?
     /// Fenster-Constraints vor dem Lauf — während der Analyse wird alles fixiert.
     @State private var windowStateBeforeRun: WindowConstraints?
+    /// Haelt die Fenster-Sperre waehrend der Analyse eng nach — der
+    /// stepPercent-Heartbeat feuert im Sync kaum, SwiftUI wuerde .resizable
+    /// zwischendurch wiederherstellen.
+    @State private var runLockTimer: Timer?
     /// Materialhinweis (siehe FirstRunSheet). Gespeichert wird der zuletzt
     /// bestaetigte INHALTS-Stand, damit geaenderte Voraussetzungen erneut erscheinen.
     @AppStorage("firstRunInfoSeenRevision") private var firstRunInfoSeenRevision = 0
@@ -246,10 +250,20 @@ struct ContentView: View {
             // dabei wieder her. Zusätzlich hält der Fortschritts-Heartbeat die
             // Sperre nach (updateDockProgress).
             DispatchQueue.main.async { applyRunWindowLock(window) }
+            // Timer statt nur Event-Heartbeat: waehrend des Syncs kommen kaum
+            // stepPercent-Updates, in denen SwiftUI die Sperre sonst wiederherstellt.
+            runLockTimer?.invalidate()
+            runLockTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak window] _ in
+                guard let window else { return }
+                applyRunWindowLock(window)
+            }
             return
         }
 
-        // Jeder Nicht-Running-Zustand stellt die gemerkte Geometrie wieder her.
+        // Jeder Nicht-Running-Zustand stellt die gemerkte Geometrie wieder her —
+        // und stoppt zuerst den Sperr-Timer.
+        runLockTimer?.invalidate()
+        runLockTimer = nil
         guard let restore = frameBeforeRun else { return }
         // ZUERST entsperren: solange min == max gilt, klemmt setFrame auf die
         // Analyse-Größe und die Wiederherstellung liefe ins Leere.
