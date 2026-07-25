@@ -174,18 +174,44 @@ def _pick_widest(cams: List[Dict]) -> Optional[Dict]:
     return max(cams, key=shot_level) if cams else None
 
 
+def _pick_totale(wide_cams: List[Dict], mode: str, state: Dict) -> Optional[Dict]:
+    """Waehlt EINE Totale aus wide_cams je nach `mode`. `state` ist ein
+    veraenderliches Dict (haelt Round-Robin-Zaehler bzw. RNG), damit die Wahl
+    ueber Cutaways UND Sections hinweg weiterrotiert.
+
+    Bei 0/1 Totale oder mode='first' immer wide_cams[0] → **byte-identisch** zum
+    alten Verhalten (nur Multi-Totale-Setups aendern sich). 'round_robin' (Default)
+    reihum, 'random' pseudo-zufaellig mit festem Seed (gleicher Lauf → gleiches Ergebnis)."""
+    if not wide_cams:
+        return None
+    if len(wide_cams) == 1 or mode == 'first':
+        return wide_cams[0]
+    if mode == 'random':
+        rng = state.get('rng')
+        if rng is None:
+            import random as _random
+            rng = _random.Random(0xC0FFEE)   # fester Seed → reproduzierbar
+            state['rng'] = rng
+        return wide_cams[rng.randrange(len(wide_cams))]
+    # round_robin (Default): reihum, Zaehler persistiert im state
+    i = state.get('rr', 0)
+    state['rr'] = i + 1
+    return wide_cams[i % len(wide_cams)]
+
+
 def _pick_multi_person_offcam(reacting_cams: List[Dict], cutaway_cams: List[Dict],
-                              wide_cams: List[Dict]) -> Optional[Dict]:
+                              wide_cams: List[Dict],
+                              pick_totale=None) -> Optional[Dict]:
     """Bei Multi-Person-Reaktion: kleinste Kamera, die ALLE reagierenden Personen
-    zeigt (Totale-Ersatz via smallest_containing). Fallback auf die feste Totale
-    (wide_cams[0]) — so bleibt der binaere Fall byte-identisch, auch wenn die
-    Totale keine Mics traegt. Gibt None, wenn keine gemeinsame Kamera existiert
-    (dann bleibt es beim Einzel-Cutaway auf die reagierende Kamera)."""
+    zeigt (Totale-Ersatz via smallest_containing). Fallback auf eine Totale — per
+    `pick_totale()` (Round-Robin/zufall bei mehreren Totalen) oder, ohne Callback,
+    die feste `wide_cams[0]` (byte-identisch). Gibt None, wenn keine gemeinsame
+    Kamera existiert (dann bleibt es beim Einzel-Cutaway auf die reagierende Kamera)."""
     from shot_sizes import smallest_containing
     persons = sorted({p for c in reacting_cams for p in (c.get('mics') or [])})
     common = smallest_containing(cutaway_cams, persons) if persons else None
     if common is None and wide_cams:
-        common = wide_cams[0]
+        common = pick_totale() if pick_totale else wide_cams[0]
     return common
 
 
@@ -221,6 +247,14 @@ def build_events_with_cutaways(
     # Close-up vs. Wide-Kameras trennen
     close_cams = [c for c in cutaway_cams if c.get('type', 'close') != 'wide']
     wide_cams  = [c for c in cutaway_cams if c.get('type', 'close') == 'wide']
+
+    # Totale-Auswahl (Punkt 4): bei MEHREREN Totalen reihum/zufaellig statt stur
+    # der ersten. Der State liegt im config-Dict (einmal gebaut, ueber alle Sections
+    # geteilt) → der Round-Robin zaehlt global weiter. Bei 0/1 Totale byte-identisch.
+    totale_mode = str(config.get('totale_mode', 'round_robin')).lower()
+    totale_state = config.setdefault('_totale_state', {})
+    def _next_totale():
+        return _pick_totale(wide_cams, totale_mode, totale_state)
 
     # Reaktionen nur von Close-Kameras sammeln (Wide wird durch Multi-Person-Logik entschieden)
     valid_reactions = []
@@ -306,7 +340,8 @@ def build_events_with_cutaways(
         # zugeordnet, faengt der wide_cams[0]-Fallback denselben Fall ab. Ohne
         # gemeinsame Kamera bleibt es bei reaction['cam'] — wie bisher.
         _common = (_pick_multi_person_offcam(_reacting_cams_near(cutaway_frame),
-                                             cutaway_cams, wide_cams)
+                                             cutaway_cams, wide_cams,
+                                             pick_totale=_next_totale)
                    if _is_multi_person(cutaway_frame) else None)
         if _common is not None:
             off_cam    = _common
@@ -375,10 +410,10 @@ def build_events_with_cutaways(
     # Rest der Section
     if current_pos < section_end:
         # Wide als bevorzugter Reset-Schnitt; ohne Totale die breiteste Kamera
-        # (meiste Personen) statt stur der ersten Close. Fuer den binaeren Fall
-        # mit Totale unveraendert (wide_cams[0]); ohne Totale bei gleichen Stufen
-        # ebenfalls die erste — also byte-identisch, nur fuer N besser.
-        reset_cam = wide_cams[0] if wide_cams else _pick_widest(close_cams)
+        # (meiste Personen) statt stur der ersten Close. Bei mehreren Totalen wird
+        # die konkrete Totale pro Cutaway unten via _next_totale() gewaehlt
+        # (Round-Robin/zufall); ohne Totale gilt reset_fallback (byte-identisch).
+        reset_fallback = None if wide_cams else _pick_widest(close_cams)
         if section_end - current_pos > max_shot_frames:
             while current_pos < section_end:
                 remaining = section_end - current_pos
@@ -417,6 +452,8 @@ def build_events_with_cutaways(
                     fps=fps, reason=base_reason,
                 ))
 
+                # Totale pro Cutaway waehlen (rotiert bei mehreren Totalen).
+                reset_cam = _next_totale() if wide_cams else reset_fallback
                 # Cutaway in der Mitte
                 if reset_cam:
                     off_vi = reset_cam['timeline_zero_video'] + cut_start
@@ -1392,6 +1429,7 @@ def main():
         'cluster_max_gap_frames': cluster_max_gap_frames,
         'pre_roll_frames':        pre_roll_frames,
         'cutaway_randomness':     cutaway_randomness,
+        'totale_mode':            str(params.get('totale_mode', 'round_robin')).lower(),
     }
 
     # Decision Log: nur im Dev-Modus aktiv
