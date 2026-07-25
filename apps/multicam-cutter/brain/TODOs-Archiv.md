@@ -946,3 +946,33 @@ Siehe brain/Entscheidungen.md → "Lizenzmodell: Abo via LemonSqueezy".
   ⚠️ **Noch zu tun:** an echtem, nicht-syncbarem Material testen (Dev-App). Danach kann
   Punkt 1 komplett ins Archiv.
 
+## Punkt 2 — FPS-Check zusammenführen (Roadmap, GESCHLOSSEN 25.07.)
+
+**Ergebnis:** Nicht „zusammengeführt", sondern nach Untersuchung geschlossen — die
+beiden Mechanismen liegen in GETRENNTEN Produkten. Die **native App ist bereits
+kohärent**: ein Swift-Check (`EngineController.fpsMismatches`, blockiert den Start) +
+ein gutes Rezept (`convert_fps_files`, HW-beschleunigt/quellabhängig/TC-Erhalt);
+`run_analysis()` (nativer Pfad) hat KEINEN FPS-Check → **Exit-Code 42 kommt nativ nie
+vor**. Die Doppelung (Exit-42 in `run_from_bin.py __main__` via Resolve-API, altes
+`libx264 -crf 18`-Rezept in `ui/pages/multicam.py._run_ffmpeg_conversions`) besteht nur
+zum **Resolve/Streamlit-Toolkit** — von der nativen App abgelöst (User 25.07.: Legacy,
+out of 1.0-Scope). Falls das Toolkit je reaktiviert wird: `convert_fps_files` nach
+`shared/` ziehen und beide Pfade daran hängen.
+
+Ursprünglicher offener Eintrag:
+
+- [ ] **FPS-Check zusammenführen (zwei parallele Mechanismen!)** — Aufwand: **leicht–mittel**.
+  Es gibt **zwei** unabhängige FPS-Mismatch-Checks, voneinander nichts wissend:
+  1. **Neu (App, heute gebaut)**: `EngineController.fpsMismatches` prüft vor dem Start,
+     zeigt Banner + blockiert + bietet `--convert-fps` an. Quelle: `fps` aus dem Scan.
+  2. **Alt (Engine)**: laut `modules/multicam_cutter/CLAUDE.md` prüft `run_from_bin.py`
+     **vor `sync_sources()`** und bricht mit **Exit-Code 42** ab; die (Streamlit-)UI fängt
+     das ab und bietet eine ffmpeg-Konvertierung an. Print-Hinweis: run_from_bin.py:906.
+  **Problem**: Doppelte Wahrheit → driftet auseinander, und der App-Pfad kennt Code 42
+  gar nicht (würde als generischer Fehler erscheinen). Auch die ffmpeg-Rezepte liegen
+  jetzt doppelt (`convert_fps_files` in multicam_engine.py vs. `_run_ffmpeg_conversions`
+  in ui/pages/multicam.py).
+  **Ziel**: Ein Check, eine Konvertierung, beide UIs nutzen sie. Mindestens: App-Seite
+  muss Exit-Code 42 kennen/abfangen. Beim Zusammenführen `modules/…/CLAUDE.md` (Gotchas)
+  mitziehen.
+

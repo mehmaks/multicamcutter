@@ -21,7 +21,7 @@ Post-1.0 (C), nicht in diese Liste.
 | # | Punkt | Bucket | Aufwand | Warum an dieser Stelle |
 |---|---|---|---|---|
 | ~~1~~ ✅ | ~~**Sync-Graceful**~~ — GELIEFERT (25.07.), Detail im Archiv (Vorbehalt: manueller-Offset-Re-Run an echtem Problemmaterial noch ungetestet) | 🎯 A | ✓ | erledigt — nächster offener Punkt: **2** |
-| 2 | **FPS-Check zusammenführen** (Exit-Code 42) | 🎯 A | leicht–mittel | Klein; liegt im selben Pre-Analyse-Gate wie Sync, entfernt Doppel-Wahrheit + kryptischen Fehler |
+| ~~2~~ ✅ | ~~**FPS-Check zusammenführen**~~ — GESCHLOSSEN (25.07.): native App schon kohärent (ein Check, ein Rezept, kein Exit-42); Doppelung nur zum abgelösten Resolve/Streamlit-Toolkit. Detail im Archiv | 🎯 A | ✓ | erledigt — nächster offener Punkt: **3** |
 | 3 | **Bundle-Größe im Frozen-Build verifizieren** | 🎯 A | leicht (Test) | Reiner Test (Excludes, CLIP an); billiger Distributions-De-Risk, evtl. DMG < 300 MB |
 | 4 | **Mehrere Totalen Stufe 1** (`totale_mode`) | ✨ B | mittel | Neuer Param — **vor** dem Settings-Durchgang, damit der die finale Param-Menge sieht |
 | 5 | **Dock-Balken gewichtet** (ehrlicher Fortschritt) | ✨ B | mittel | In sich abgeschlossene Politur; Protokoll (Arbeitsumfang je Schritt) + Swift |
@@ -97,21 +97,6 @@ zur Laufzeit nachgeladen (`ClipDownloadSheet`). Nur die Runtime liegt fest im
 Bundle. Eine Trennung („Basis-App" + optionales CLIP-Paket) würde das DMG etwa
 halbieren — braucht aber ein Konzept, wie eine gefrorene App nachträglich eine
 Python-Runtime dazubekommt.
-
-- [ ] **FPS-Check zusammenführen (zwei parallele Mechanismen!)** — Aufwand: **leicht–mittel**.
-  Es gibt **zwei** unabhängige FPS-Mismatch-Checks, voneinander nichts wissend:
-  1. **Neu (App, heute gebaut)**: `EngineController.fpsMismatches` prüft vor dem Start,
-     zeigt Banner + blockiert + bietet `--convert-fps` an. Quelle: `fps` aus dem Scan.
-  2. **Alt (Engine)**: laut `modules/multicam_cutter/CLAUDE.md` prüft `run_from_bin.py`
-     **vor `sync_sources()`** und bricht mit **Exit-Code 42** ab; die (Streamlit-)UI fängt
-     das ab und bietet eine ffmpeg-Konvertierung an. Print-Hinweis: run_from_bin.py:906.
-  **Problem**: Doppelte Wahrheit → driftet auseinander, und der App-Pfad kennt Code 42
-  gar nicht (würde als generischer Fehler erscheinen). Auch die ffmpeg-Rezepte liegen
-  jetzt doppelt (`convert_fps_files` in multicam_engine.py vs. `_run_ffmpeg_conversions`
-  in ui/pages/multicam.py).
-  **Ziel**: Ein Check, eine Konvertierung, beide UIs nutzen sie. Mindestens: App-Seite
-  muss Exit-Code 42 kennen/abfangen. Beim Zusammenführen `modules/…/CLAUDE.md` (Gotchas)
-  mitziehen.
 
 ### ✨ B — 1.0-Qualität
 
