@@ -126,28 +126,22 @@ a = Analysis(
         'jupyter',
         'tkinter',
 
-        # ── Verwaister Beifang (~270 MB) ──────────────────────────────────
-        # Keines dieser Pakete wird im Engine-Pfad importiert (per grep über
-        # engine/, modules/multicam_cutter/, shared/, licensing/ geprüft: 0
-        # Treffer). Sie stammen aus ANDEREN Toolkit-Modulen, die das Bundle
-        # nie anfasst — Whisper, DeepFilterNet, Audio-Separation, plotly —
-        # bzw. aus dem PyInstaller-Hook für transformers, der dessen gesamte
-        # optionale Abhängigkeitswelt einsammelt.
-        #   pyarrow 114 MB · llvmlite 110 MB · pandas 17 MB
-        #   sklearn 16 MB  · matplotlib 12 MB
-        # matplotlib taucht nur in silence_cutter.py und Sandbox-Skripten auf,
-        # die hier nicht erreichbar sind (ebenfalls 0 Treffer).
-        'pandas',
-        'pyarrow',
-        'sklearn',
-        'scikit-learn',
-        'llvmlite',
+        # ── Nur was WEDER direkt NOCH transitiv gebraucht wird ────────────
+        # ⚠️ LEHRE (25.07., Regressions-Bug): Ein grep nach DIREKTEN Imports
+        # reicht NICHT — Pakete kommen transitiv über mediapipe/transformers.
+        # Verifiziert per sys.modules-Trace (cv2 + mediapipe.tasks.vision +
+        # torch + transformers-CLIP + scipy + soundfile + aaf2): NUR die
+        # folgenden werden von NICHTS gezogen und sind sicher auszuschließen.
+        'llvmlite',   # 110 MB — numba-Backend, im Engine-Pfad ungenutzt
         'numba',
-        'matplotlib',
         'plotly',
+        # ⚠️ NICHT ausschließen (transitiv nötig, sonst ModuleNotFoundError im
+        # Frozen-Build): matplotlib ← mediapipe (Nodding ist DEFAULT AN!);
+        # pandas + pyarrow + sklearn ← transformers (CLIP-Filter). Das Entfernen
+        # war der Bug „No module named 'matplotlib'" beim Kollegen (0.6.5–0.6.7
+        # hatten im Release kaputtes Nodding). Siehe brain/Bekannte-Bugs.md.
         # ⚠️ onnxruntime (59 MB) BEWUSST NICHT ausschließen: mediapipe könnte
-        # es zur Laufzeit brauchen. Erst nach einem erfolgreichen Lauf mit
-        # diesen Ausschlüssen einzeln nachziehen und erneut testen.
+        # es zur Laufzeit brauchen.
     ],
     noarchive=False,
     optimize=0,

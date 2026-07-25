@@ -2,6 +2,24 @@
 
 ## OFFEN
 
+### PyInstaller-Excludes brachen Nodding (+ CLIP) im Frozen-Build — GEFIXT (25.07.), Rebuild+Patch nötig
+- **Symptom**: Auf dem **Release**-Build (Kollege) bricht die Analyse bei „Schritt 5/9:
+  Nodding-Analyse" ab: `ERROR: No module named 'matplotlib'`. Im **Dev** (`swift run`,
+  venv) tritt es NIE auf.
+- **Ursache**: `multicam_engine.spec` schloss `matplotlib`/`pandas`/`pyarrow`/`sklearn`
+  aus, begründet mit „per grep 0 direkte Imports im Engine-Pfad". Der grep sah aber nur
+  DIREKTE Imports — diese Pakete kommen **transitiv**: **mediapipe → matplotlib** (der
+  Nodding-Analyzer importiert `mediapipe.tasks`), **transformers → pandas/pyarrow/sklearn**
+  (CLIP-Filter). **Nodding ist per Default AN** → 0.6.5–0.6.7 hatten im Release **kaputtes
+  Nodding**; der Dev-Build kaschierte es (venv hat alles).
+- **Fix**: die vier aus den Excludes entfernt (`llvmlite` 110 MB, `numba`, `plotly`
+  bleiben — per `sys.modules`-Trace als ungenutzt bestätigt). Engine wächst ~159 MB.
+  Braucht **Frozen-Rebuild + Patch-Release**.
+- **Lehre**: Bundle-Excludes NIE per direktem grep verifizieren — immer per
+  `sys.modules`-Trace über die echte Import-Oberfläche (cv2 + mediapipe + torch +
+  transformers + scipy + soundfile + aaf2). Und Frozen-Only-Features (Nodding/CLIP)
+  IM Frozen-Build testen, nicht im Dev.
+
 ### Bekannter Ordner + neue Datei → Kamera↔Mic-Zuordnung verknüpft falsch — GEFIXT (25.07.)
 - **Symptom**: Ordner mit gespeicherter `.multicam` erneut geöffnet, nachdem eine
   NEUE WAV hineinkopiert wurde. Die App stellt die alte Zuordnung wieder her, aber

@@ -22,7 +22,7 @@ Post-1.0 (C), nicht in diese Liste.
 |---|---|---|---|---|
 | ~~1~~ ✅ | ~~**Sync-Graceful**~~ — GELIEFERT (25.07.), Detail im Archiv (Vorbehalt: manueller-Offset-Re-Run an echtem Problemmaterial noch ungetestet) | 🎯 A | ✓ | erledigt — nächster offener Punkt: **2** |
 | ~~2~~ ✅ | ~~**FPS-Check zusammenführen**~~ — GESCHLOSSEN (25.07.): native App schon kohärent (ein Check, ein Rezept, kein Exit-42); Doppelung nur zum abgelösten Resolve/Streamlit-Toolkit. Detail im Archiv | 🎯 A | ✓ | erledigt — nächster offener Punkt: **3** |
-| ~~3~~ ✅ | ~~**Bundle-Größe verifizieren**~~ — Excludes greifen (alle 7 Pakete fehlen im Frozen-Build, ~270 MB gespart, 0.6.5–0.6.7 liefen). Rest: definitiver CLIP-Lauf (Risiko niedrig). DMG bleibt ~800 MB → R2 via S3-API | 🎯 A | ✓ | erledigt — nächster offener Punkt: **4** |
+| 3 | **Bundle-Größe** — ⚠️ WIEDER OFFEN (25.07.): „verifiziert" war FALSCH. Excludes brachen im Release Nodding (mediapipe→matplotlib) + CLIP (transformers→pandas/pyarrow/sklearn). Spec gefixt; braucht **Frozen-Rebuild + Patch-Release + Nodding-Lauf am Release**. Sichere Excludes: nur llvmlite/numba/plotly | 🎯 A | leicht | Lehre: sys.modules-Trace statt grep |
 | ~~4~~ ✅ | ~~**Mehrere Totalen Stufe 1**~~ — GELIEFERT (25.07.): `totale_mode` (round_robin/random/first), Reset + Multi-Person-Fallback rotieren, Experten-Picker + Schema. Rest-Sliver: Base-EDL-Totale (Binär-Simultan) noch first-only | ✨ B | ✓ | erledigt — nächster offener Punkt: **5** |
 | ~~5~~ ✅ | ~~**Dock-Balken gewichtet**~~ — GELIEFERT (25.07.): Engine schickt `step_weights` (Nodding/CLIP dominieren, adaptiv zu Kamerazahl+CLIP), Swift normiert `overallProgress`, Fallback bei Mismatch | ✨ B | ✓ | erledigt — nächster offener Punkt: **6** |
 | 6 | **Telemetrie** (Opt-in) — 🔨 App-Seite + Contract geliefert (25.07.); OFFEN: Backend (Web-Session) + Erst-Start-Consent-Prompt | 🌍 | mittel | App-seitig fertig (Toggle Default AUS, fire-and-forget); Rest blockiert extern |
@@ -71,16 +71,15 @@ Bundle löst das Problem an der Wurzel statt am Transportweg.
 | **sklearn** | **16 MB** | **nein** |
 | **matplotlib** | **12 MB** | nur `silence_cutter.py` + Sandbox, **nicht** im Multicam-Pfad |
 
-**Schritt 1 — ✅ VERIFIZIERT (25.07., Punkt 3 der Roadmap).** `pandas`, `pyarrow`,
-`sklearn`, `llvmlite`, `numba`, `matplotlib`, `plotly` stehen in
-`multicam_engine.spec` unter `excludes` (~270 MB). **Prüfung:** im gefrorenen
-`dist/multicam-engine/_internal` (Build 24.07., NACH den Excludes) fehlen alle sieben
-Pakete tatsächlich; Engine **828 MB** (vorher ~1,1 GB); `torch`/`transformers` (CLIP) noch
-da; Releases 0.6.5–0.6.7 sind mit genau diesen Excludes ausgeliefert worden und laufen.
-⚠️ **Rest-Sliver:** ein *definitiver* CLIP-Filter-Lauf auf dem Frozen-Build steht noch aus
-(Risiko niedrig — die CLIP-Inferenz braucht keins der ausgeschlossenen Pakete).
-`onnxruntime` (59 MB) bewusst NICHT ausgeschlossen — mediapipe könnte es zur Laufzeit
-brauchen; Kandidat zum Nachziehen.
+**Schritt 1 — ⚠️ KORRIGIERT (25.07.): frühere „verifiziert"-Behauptung war FALSCH.**
+Die Excludes brachen im Frozen-Build **Nodding** (mediapipe → matplotlib, Default AN!)
+und **CLIP** (transformers → pandas/pyarrow/sklearn) — transitive Deps, die der grep-nach-
+direkten-Imports nicht sah. Mein „alle Pakete fehlen, Releases liefen" war kein Beweis:
+im Dev (venv) lief alles, 0.6.5–0.6.7 hatten im RELEASE **kaputtes Nodding**.
+**Fix (Spec):** `matplotlib`, `pandas`, `pyarrow`, `sklearn` wieder drin; nur `llvmlite`
+(110 MB), `numba`, `plotly` bleiben ausgeschlossen (per `sys.modules`-Trace als ungenutzt
+bestätigt). Engine +~159 MB. Braucht **Frozen-Rebuild + Patch-Release + Nodding-Lauf am
+echten Release**. Details: `brain/Bekannte-Bugs.md`. `onnxruntime` (59 MB) weiter drin.
 
 ⚠️ **So wird getestet — die Reihenfolge ist wichtig:**
 1. `bash scripts/release.sh <version>` (oder nur den PyInstaller-Build) — die
