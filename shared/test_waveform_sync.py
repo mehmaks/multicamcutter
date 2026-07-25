@@ -21,7 +21,9 @@ import sys
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 import shared.waveform_sync as ws  # noqa: E402
-from shared.waveform_sync import sync_sources, SyncError, SyncResult  # noqa: E402
+from shared.waveform_sync import (  # noqa: E402
+    sync_sources, SyncError, SyncResult, UnsyncableSource,
+)
 
 
 # Vier Quellen, feste Labels: CAM1=c1, CAM2=c2, MIC1=m1, MIC2=m2.
@@ -110,11 +112,74 @@ def test_genuinely_unsyncable_still_raises():
         raise AssertionError("Erwartet: SyncError fuer nicht rettbare Quelle")
 
 
+# ── Baustein 2: collect_unsyncable — melden statt abbrechen ─────────────────────
+
+def test_collect_mode_reports_instead_of_raising():
+    """Dieselbe nicht rettbare Quelle wie oben, aber mit collect_unsyncable=True:
+    kein SyncError — die guten Quellen werden platziert, MIC2 kommt als
+    UnsyncableSource mit Best-Effort-Offset zurueck."""
+    pairs = {
+        ("MIC1", "CAM1"): (-100, 80.0),
+        ("MIC1", "CAM2"): (50, 70.0),
+        ("MIC1", "MIC2"): (999, 12.0),
+        ("CAM1", "MIC2"): (0, 20.0),
+        ("CAM2", "MIC2"): (0, 15.0),
+        ("CAM1", "CAM2"): (150, 95.0),
+    }
+    with patched(pairs):
+        offsets, unsyncable = sync_sources(CAMS, MICS, fps=25.0,
+                                           collect_unsyncable=True)
+    # Gute Quellen normal platziert (Best-Effort auch fuer MIC2 vorhanden):
+    assert offsets == {"MIC1": 100, "CAM1": 0, "CAM2": 150, "MIC2": 1099}, offsets
+    assert [type(u) for u in unsyncable] == [UnsyncableSource]
+    u = unsyncable[0]
+    assert u.label == "MIC2" and u.filename == "m2", (u.label, u.filename)
+    assert u.best_confidence == 12.0
+    # Kandidat = ref-basierter Best-Effort (auf CAM1 normiert) = offsets["MIC2"]
+    assert u.candidate_offset_frames == offsets["MIC2"], u.candidate_offset_frames
+
+
+def test_collect_mode_happy_path_empty_list():
+    """Sind alle Quellen sauber, gibt der collect-Modus (offsets, []) zurueck —
+    identische Offsets wie ohne Flag."""
+    pairs = {
+        ("MIC1", "CAM1"): (-100, 80.0),
+        ("MIC1", "CAM2"): (50, 70.0),
+        ("MIC1", "MIC2"): (30, 75.0),
+        ("CAM1", "CAM2"): (150, 95.0),
+    }
+    with patched(pairs):
+        offsets, unsyncable = sync_sources(CAMS, MICS, fps=25.0,
+                                           collect_unsyncable=True)
+    assert unsyncable == [], unsyncable
+    assert offsets == {"MIC1": 100, "CAM1": 0, "CAM2": 150, "MIC2": 130}, offsets
+
+
+def test_collect_mode_crosscheck_failure_flags_cam2():
+    """Scheitert die CAM1↔CAM2-Kreuzprobe (Direktmessung widerspricht der
+    Referenz-Kette), wird im collect-Modus CAM2 gemeldet — mit der direkten
+    Messung als Kandidat — statt abzubrechen."""
+    pairs = {
+        ("MIC1", "CAM1"): (-100, 80.0),
+        ("MIC1", "CAM2"): (50, 70.0),    # → offsets[CAM2] = 150 (ref-Kette)
+        ("MIC1", "MIC2"): (30, 75.0),
+        ("CAM1", "CAM2"): (999, 95.0),   # direkte Messung widerspricht → drift 849
+    }
+    with patched(pairs):
+        offsets, unsyncable = sync_sources(CAMS, MICS, fps=25.0,
+                                           collect_unsyncable=True)
+    assert {u.label for u in unsyncable} == {"CAM2"}, unsyncable
+    assert unsyncable[0].candidate_offset_frames == 999, unsyncable[0]
+
+
 if __name__ == "__main__":
     tests = [
         test_rescue_weak_source_via_camera,
         test_happy_path_unchanged_and_no_rescue_calls,
         test_genuinely_unsyncable_still_raises,
+        test_collect_mode_reports_instead_of_raising,
+        test_collect_mode_happy_path_empty_list,
+        test_collect_mode_crosscheck_failure_flags_cam2,
     ]
     for t in tests:
         t()

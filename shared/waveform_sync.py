@@ -95,6 +95,19 @@ class SyncResult:
     analyzed_seconds: float  # how much audio was used
 
 
+@dataclass
+class UnsyncableSource:
+    """Eine Quelle, die sich nicht verlaesslich automatisch einordnen liess.
+    Nur relevant im collect_unsyncable-Modus (Baustein 2): dann sammelt
+    sync_sources diese statt abzubrechen, damit die App pro Quelle manuell
+    setzen / ausschliessen / abbrechen anbieten kann."""
+    label: str                    # internes Label, z.B. "MIC3"
+    filename: str                 # Datei, wie der Nutzer sie kennt
+    reason: str                   # menschenlesbar: warum unsicher
+    best_confidence: float        # wie schwach die beste Messung war
+    candidate_offset_frames: int  # bester Schaetzwert (auf CAM1=0 normiert), fuers manuelle Vorbelegen
+
+
 class SyncError(Exception):
     pass
 
@@ -265,7 +278,8 @@ def sync_sources(
     fps: float = 25.0,
     reference: str = None,
     mics_same_recorder: bool = False,
-) -> dict[str, int]:
+    collect_unsyncable: bool = False,
+) -> "dict[str, int] | tuple[dict[str, int], list[UnsyncableSource]]":
     """
     Ermittelt Sync-Offsets fuer BELIEBIG VIELE Kameras und Mikrofone.
 
@@ -289,6 +303,17 @@ def sync_sources(
     Traeger schweigt im Analysefenster) korreliert dann nicht — statt daran den
     ganzen Lauf abzubrechen, erbt sie den Offset der Referenz. Gut korrelierte
     Mikrofone behalten ihre Messung; weicht eine deutlich ab, kommt eine Warnung.
+
+    collect_unsyncable (Baustein 2): Statt bei nicht verlaesslich einordenbaren
+    Quellen den ganzen Lauf mit SyncError abzubrechen, werden diese gesammelt und
+    die Funktion gibt (offsets, [UnsyncableSource, ...]) zurueck. offsets enthaelt
+    fuer JEDE Quelle einen Best-Effort-Wert, die Liste nennt die unsicheren — die
+    App laesst den Nutzer dann pro Problemquelle manuell setzen / ausschliessen /
+    abbrechen. Graceful werden die beiden KREUZVALIDIERUNGS-Abbrueche
+    (CAM1<->CAM2-Kreuzprobe und die Zwei-Wege-Gegenpruefung). Reine Eingabefehler
+    (Datei zu kurz, gar keine Korrelation < MIN_CONFIDENCE) bleiben auch hier
+    HARTE Fehler mit klarer, dateibenennender Meldung. Ohne das Flag ist alles
+    unveraendert (raise + Rueckgabe dict).
     """
     sources: dict[str, str] = {}
     for i, path in enumerate(cam_paths, start=1):
@@ -366,6 +391,7 @@ def sync_sources(
     rel: dict[str, int] = {ref_label: 0}
     confidences: dict[str, float] = {}
     sibling_assigned: set[str] = set()
+    unsyncable: dict[str, UnsyncableSource] = {}   # collect_unsyncable-Modus, per Label dedupliziert
     ref_cache: dict = {}
     for label, path in sources.items():
         if label == ref_label:
@@ -473,17 +499,32 @@ def sync_sources(
                           f"Frames bei {retry.confidence:.1f}x")
 
         if drift > CROSSCHECK_TOLERANCE_FRAMES:
-            raise SyncError(
-                f"Kreuzprobe fehlgeschlagen: ueber {ref_label} ({_name(ref_label)}) "
-                f"ergibt CAM2 ({_name('CAM2')}) {offsets['CAM2']:+d} Frames, direkt "
-                f"gemessen {direct.offset_frames:+d} Frames "
-                f"(Abweichung {drift} Frames, erlaubt {CROSSCHECK_TOLERANCE_FRAMES}).\n"
-                f"Mindestens eine Korrelation hat ein falsches Maximum getroffen; "
-                f"Nachmessen mit mehr Material hat es nicht aufgeloest.\n"
-                f"Haeufigste Ursache: eine Quelle hat einen langen Vorlauf, sodass "
-                f"die Analysefenster kaum gemeinsames Material enthalten."
-            )
-        print(f"  Kreuzprobe CAM1 ↔ CAM2: ✓ (Abweichung {drift} Frames)")
+            if collect_unsyncable:
+                # CAM2s Platzierung widerspricht der direkten Messung. CAM1 ist der
+                # Null-Anker, darum wird CAM2 als unsicher gemeldet; als Best-Effort
+                # dient die DIREKTE (unabhaengige) Messung CAM1<->CAM2.
+                unsyncable["CAM2"] = UnsyncableSource(
+                    label="CAM2", filename=_name("CAM2"),
+                    reason=(f"Kreuzprobe CAM1↔CAM2 uneinig: ueber {ref_label} "
+                            f"{offsets['CAM2']:+d} Frames, direkt gemessen "
+                            f"{direct.offset_frames:+d} Frames (Abweichung {drift}). "
+                            f"Meist ein langer Vorlauf ohne gemeinsames Material."),
+                    best_confidence=confidences.get("CAM2", 0.0),
+                    candidate_offset_frames=direct.offset_frames,
+                )
+            else:
+                raise SyncError(
+                    f"Kreuzprobe fehlgeschlagen: ueber {ref_label} ({_name(ref_label)}) "
+                    f"ergibt CAM2 ({_name('CAM2')}) {offsets['CAM2']:+d} Frames, direkt "
+                    f"gemessen {direct.offset_frames:+d} Frames "
+                    f"(Abweichung {drift} Frames, erlaubt {CROSSCHECK_TOLERANCE_FRAMES}).\n"
+                    f"Mindestens eine Korrelation hat ein falsches Maximum getroffen; "
+                    f"Nachmessen mit mehr Material hat es nicht aufgeloest.\n"
+                    f"Haeufigste Ursache: eine Quelle hat einen langen Vorlauf, sodass "
+                    f"die Analysefenster kaum gemeinsames Material enthalten."
+                )
+        else:
+            print(f"  Kreuzprobe CAM1 ↔ CAM2: ✓ (Abweichung {drift} Frames)")
 
     # ── Schwache Messungen ueber einen zweiten Weg gegenpruefen ──
     # Die Kreuzprobe oben deckt nur CAM2 ab. Jede andere Quelle koennte mit
@@ -512,28 +553,41 @@ def sync_sources(
                   f"(Abweichung {spread} Frames)")
 
     if unreliable:
-        lines = "\n".join(
-            f"    {l} ({_name(l)}): ueber {ref_label} {a:+d} Frames, "
-            f"ueber {v} {b:+d} Frames (Abweichung {sp}, Confidence nur {c:.1f}x)"
-            for l, c, a, b, v, sp in unreliable
-        )
-        # Die betroffenen DATEIEN klar benennen: der Nutzer kennt nur seine
-        # Dateinamen, nicht die internen Labels (MIC3). Ohne das weiss er nicht,
-        # welches seiner Files gemeint ist.
-        files = ", ".join(f'„{_name(l)}"' for l, *_ in unreliable)
-        raise SyncError(
-            f"Diese Quelle(n) lassen sich nicht verlaesslich einordnen:\n{lines}\n"
-            f"Zwei unabhaengige Wege kommen zu verschiedenen Ergebnissen, und die "
-            f"Confidence liegt unter {TRUST_CONFIDENCE:.0f}x — die Korrelation findet "
-            f"keinen echten Gipfel, sondern Rauschen.\n"
-            f"Wenn die Confidence bei WACHSENDEM Referenzfenster flach bleibt, lag der "
-            f"wahre Versatz bisher ausserhalb des durchsuchten Bereichs — das faengt die "
-            f"Fenster-Erweiterung inzwischen ab. Bleibt es auch danach uneinig, stammt "
-            f"der Ton der Quelle vermutlich aus einer ganz anderen Position (weit "
-            f"entfernte Totale, Wind).\n"
-            f"Betroffene Datei(en): {files}. Diese Datei manuell synchronisieren "
-            f"oder im Schritt Personen/Kameras abwaehlen."
-        )
+        if collect_unsyncable:
+            for l, c, a, b, v, sp in unreliable:
+                if l in unsyncable:
+                    continue  # bereits durch die Kreuzprobe erfasst
+                unsyncable[l] = UnsyncableSource(
+                    label=l, filename=_name(l),
+                    reason=(f"Zwei Wege uneinig: ueber {ref_label} {a:+d} Frames, "
+                            f"ueber {v} {b:+d} Frames (Abweichung {sp}). Confidence "
+                            f"nur {c:.1f}x — kein echter Korrelationsgipfel."),
+                    best_confidence=c,
+                    candidate_offset_frames=a,   # ref-basierter Best-Effort (auf CAM1 normiert)
+                )
+        else:
+            lines = "\n".join(
+                f"    {l} ({_name(l)}): ueber {ref_label} {a:+d} Frames, "
+                f"ueber {v} {b:+d} Frames (Abweichung {sp}, Confidence nur {c:.1f}x)"
+                for l, c, a, b, v, sp in unreliable
+            )
+            # Die betroffenen DATEIEN klar benennen: der Nutzer kennt nur seine
+            # Dateinamen, nicht die internen Labels (MIC3). Ohne das weiss er nicht,
+            # welches seiner Files gemeint ist.
+            files = ", ".join(f'„{_name(l)}"' for l, *_ in unreliable)
+            raise SyncError(
+                f"Diese Quelle(n) lassen sich nicht verlaesslich einordnen:\n{lines}\n"
+                f"Zwei unabhaengige Wege kommen zu verschiedenen Ergebnissen, und die "
+                f"Confidence liegt unter {TRUST_CONFIDENCE:.0f}x — die Korrelation findet "
+                f"keinen echten Gipfel, sondern Rauschen.\n"
+                f"Wenn die Confidence bei WACHSENDEM Referenzfenster flach bleibt, lag der "
+                f"wahre Versatz bisher ausserhalb des durchsuchten Bereichs — das faengt die "
+                f"Fenster-Erweiterung inzwischen ab. Bleibt es auch danach uneinig, stammt "
+                f"der Ton der Quelle vermutlich aus einer ganz anderen Position (weit "
+                f"entfernte Totale, Wind).\n"
+                f"Betroffene Datei(en): {files}. Diese Datei manuell synchronisieren "
+                f"oder im Schritt Personen/Kameras abwaehlen."
+            )
 
     print()
     print("Sync abgeschlossen:")
@@ -548,6 +602,13 @@ def sync_sources(
             conf_txt = "  [Referenz]"
         print(f"  {label} ({_name(label)}): {offset:+d} frames ({seconds:+.3f}s){conf_txt}")
 
+    if collect_unsyncable:
+        if unsyncable:
+            print()
+            print("Nicht verlaesslich einordbar (Best-Effort-Offset oben — bitte pruefen):")
+            for u in unsyncable.values():
+                print(f"  {u.label} ({u.filename}): {u.reason}")
+        return offsets, list(unsyncable.values())
     return offsets
 
 

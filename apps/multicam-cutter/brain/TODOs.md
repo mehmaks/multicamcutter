@@ -101,11 +101,30 @@ Detail-Beschreibungen der Punkte unten (nach Bucket gruppiert).
   `shared/test_waveform_sync.py` (Rescue via Kamera · Happy-Path + Call-Log ·
   unsyncbar bricht weiterhin ab). Engine nutzt genau diese Datei (`ROOT`-Import).
 
-  **NOCH OFFEN — Baustein 2+3, für ECHT getrennte Quellen** (separater Recorder mit
-  Clock-Drift, Funk-Lav ohne Raumklang): „nicht syncbar"-Liste zurückgeben statt
-  `SyncError` (Baustein 2, berührt Engine-Protokoll + Rückgabetyp) + manueller
-  Offset/Ausschluss pro Quelle in der App (Baustein 3, Swift-UI). Das macht Punkt 1
-  erst end-to-end „graceful"; Baustein 1 reduziert bereits die Fehlabbrüche.
+  **✅ Baustein 2 — geteilte Fähigkeit GELIEFERT (25.07.):** `sync_sources(...,
+  collect_unsyncable=True)` gibt `(offsets, [UnsyncableSource, …])` zurück, statt
+  bei den beiden Kreuzvalidierungs-Abbrüchen (CAM1↔CAM2-Kreuzprobe · Zwei-Wege-
+  Gegenprüfung) `SyncError` zu werfen. `offsets` enthält für JEDE Quelle einen
+  Best-Effort-Wert (fürs manuelle Vorbelegen), die Liste nennt die unsicheren
+  (label · filename · reason · best_confidence · candidate_offset_frames, per Label
+  dedupliziert). Reine Eingabefehler (Datei zu kurz, Korrelation < MIN_CONFIDENCE)
+  bleiben bewusst HARTE Fehler. **Ohne das Flag Bit-für-Bit unverändert** (raise +
+  dict) → Web-Modul/CLI-Aufrufer nicht berührt. Tests: `shared/test_waveform_sync.py`
+  (collect meldet statt raise · Happy-Path `[]` · Kreuzprobe flaggt CAM2). Neuer
+  Datentyp `UnsyncableSource`.
+
+  **NOCH OFFEN — Baustein 2b (Verdrahtung) + Baustein 3 (manueller Offset):**
+  - **2b Engine:** `multicam_engine.py` ruft `collect_unsyncable=True`; bei nicht-
+    leerer Liste einen neuen Message-Type `sync_unresolved` (mit der Liste) senden
+    und die Pipeline sauber stoppen (statt teurer Analyse mit unsicherem Sync).
+    ⚠️ ATOMAR mit der App liefern — sonst hängt die aktuelle App an einer Message,
+    die sie nicht kennt. Dann `brain/Engine-Protokoll.md` ergänzen.
+  - **2b App (Swift):** `sync_unresolved` in `EngineController` behandeln → Sheet
+    pro Problemquelle: **(b) Ausschließen** (vorhandene Aktiv-Listen `--cams/--mics`
+    + `included=false`, Re-Run) · **(c) Abbrechen**. **(a) manueller Offset** ist
+    Baustein 3 (neuer Engine-Arg `--manual-offset LABEL=frames`, den `sync_sources`
+    für diese Quelle statt Korrelation übernimmt + Feld im Sheet, Kandidat aus
+    `candidate_offset_frames` vorbelegt).
 
 ### 🔴 Bundle-Größe: 1,2 GB App → 500 MB DMG — blockiert den Upload
 Aufwand: **mittel**, Nutzen hoch (Upload, Nutzer-Download, Update-Dauer).
