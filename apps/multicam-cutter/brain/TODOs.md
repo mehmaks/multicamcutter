@@ -89,11 +89,23 @@ Detail-Beschreibungen der Punkte unten (nach Bucket gruppiert).
   Der schnelle Normalfall (Auftakt lockt) bleibt unverändert. Deckt spät redende
   Träger ab. Getestet: später Sprechbeginn → +30s exakt bei 751×.
 
-  **NOCH OFFEN — für ECHT getrennte Quellen** (separater Recorder mit Clock-Drift,
-  Funk-Lav ohne Raumklang): „nicht syncbar"-Liste zurückgeben statt abbrechen +
-  manueller Offset/Ausschluss pro Quelle in der App (Baustein 2+3). Baustein 1
-  (gegen ALLE Partner inkl. Cams gegenprüfen) — siehe unten, wird als Nächstes
-  gebaut.
+  **✅ Baustein 1 GELIEFERT (25.07.):** Rescue-Pass in `shared/waveform_sync.py`
+  (direkt vor der CAM1-Normalisierung). Korreliert eine Quelle schwach gegen die
+  Referenz (< `TRUST_CONFIDENCE` = 50×), wird sie gegen jede bereits sichere Quelle
+  (≥ TRUST, **Kameras eingeschlossen**) gemessen, sicherste zuerst; ein echter Gipfel
+  (≥ TRUST) ersetzt den Offset (`rel[partner] + Messung`, in die Referenz umgerechnet).
+  Läuft NUR bei schwachen Quellen → Happy-Path (alle ≥ TRUST) Bit-für-Bit unverändert;
+  nur ein Gipfel rettet, sonst bleibt die Quelle unangetastet und fällt in die
+  Gegenprüfung (die HEUTE noch abbricht — das ist Baustein 2). Signatur/Rückgabe
+  unverändert → keine Engine-/Swift-Änderung. Deterministische Tests:
+  `shared/test_waveform_sync.py` (Rescue via Kamera · Happy-Path + Call-Log ·
+  unsyncbar bricht weiterhin ab). Engine nutzt genau diese Datei (`ROOT`-Import).
+
+  **NOCH OFFEN — Baustein 2+3, für ECHT getrennte Quellen** (separater Recorder mit
+  Clock-Drift, Funk-Lav ohne Raumklang): „nicht syncbar"-Liste zurückgeben statt
+  `SyncError` (Baustein 2, berührt Engine-Protokoll + Rückgabetyp) + manueller
+  Offset/Ausschluss pro Quelle in der App (Baustein 3, Swift-UI). Das macht Punkt 1
+  erst end-to-end „graceful"; Baustein 1 reduziert bereits die Fehlabbrüche.
 
 ### 🔴 Bundle-Größe: 1,2 GB App → 500 MB DMG — blockiert den Upload
 Aufwand: **mittel**, Nutzen hoch (Upload, Nutzer-Download, Update-Dauer).

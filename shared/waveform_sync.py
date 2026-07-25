@@ -401,6 +401,41 @@ def sync_sources(
                     print(f"  {label} ({_name(label)}) = Recorder-Geschwister → Offset der "
                           f"Referenz {ref_label} uebernommen (nicht einzeln korreliert)")
 
+    # ── Baustein 1: schwache Quellen gegen ALLE sicheren Partner retten ──
+    # Bisher wurde jede Quelle nur gegen die eine Referenz gemessen. Eine
+    # Close-Mic teilt mit einem fernen Referenz-Mikro aber oft wenig gemeinsamen
+    # Klang — dafuer viel mit der KAMERA ihrer Person. Korreliert eine Quelle
+    # schwach gegen die Referenz (< TRUST), wird sie darum gegen jede bereits
+    # sichere Quelle (Confidence >= TRUST, Kameras eingeschlossen) gemessen.
+    # Findet eine davon einen echten Gipfel (>= TRUST), wird deren Offset — in
+    # die Referenz umgerechnet (rel[partner] + Messung) — uebernommen; die
+    # sicherste Bezugsquelle zuerst.
+    #
+    # Laeuft NUR fuer schwache Quellen: sind alle >= TRUST (Normalfall), ist
+    # dieser Block ein No-op und der Sync bleibt Bit fuer Bit unveraendert.
+    # Nur ein echter Gipfel rettet — bleibt jede Gegenmessung unter TRUST, wird
+    # die Quelle NICHT angefasst und faellt in die Gegenpruefung unten (die den
+    # Lauf heute noch abbricht; Baustein 2 macht daraus eine „nicht syncbar"-Liste).
+    weak_labels = [l for l, c in confidences.items()
+                   if c < TRUST_CONFIDENCE and l not in sibling_assigned]
+    for label in weak_labels:
+        orig_conf = confidences[label]
+        partners = sorted(
+            (l for l, c in confidences.items()
+             if c >= TRUST_CONFIDENCE and l != label),
+            key=lambda l: confidences[l], reverse=True,
+        )
+        for partner in partners:
+            probe = _sync_pair(sources[partner], sources[label], partner, label, fps)
+            if probe.confidence >= TRUST_CONFIDENCE:
+                rel[label] = rel[partner] + probe.offset_frames
+                confidences[label] = probe.confidence
+                print(f"  {label} ({_name(label)}) korreliert mit Referenz "
+                      f"{ref_label} nur {orig_conf:.1f}x → ueber {partner} "
+                      f"({_name(partner)}) gerettet: {probe.confidence:.1f}x, "
+                      f"Offset {rel[label]:+d} Frames (gegen {ref_label})")
+                break
+
     # ── Auf CAM1 = 0 normalisieren ──
     cam1_rel = rel["CAM1"]
     offsets = {label: value - cam1_rel for label, value in rel.items()}
