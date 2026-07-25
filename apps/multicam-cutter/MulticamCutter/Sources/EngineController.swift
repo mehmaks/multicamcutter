@@ -127,6 +127,9 @@ struct PipelineParams: Equatable {
 
     // Expert: Totale
     var totaleSimulDur: Double = 3.0
+    /// Bei MEHREREN als Totale markierten Kameras: round_robin (reihum) | random
+    /// (zufaellig, reproduzierbar) | first (nur die erste, altes Verhalten).
+    var totaleMode: String = "round_robin"
 
     // Expert: Bildsprache (Übergänge über größere Einstellungen). Greift nur mit
     // einer Totale/Medium — siehe brain/Bildsprache.md. Ship-Default: nur
@@ -191,6 +194,7 @@ struct PipelineParams: Equatable {
             "gate_use_filtered": gateUseFiltered,
             "threshold_db": thresholdDb,
             "totale_simul_dur": totaleSimulDur,
+            "totale_mode": totaleMode,
             "nodding_patterns": noddingPatterns,
             "transition_speaker_change": transitionSpeakerChange,
             "transition_return_factor": transitionReturnFactor,
@@ -223,6 +227,7 @@ struct PipelineParams: Equatable {
             "gate_release": gateRelease, "gate_both_threshold": gateBothThreshold,
             "gate_use_filtered": gateUseFiltered,
             "threshold_db": thresholdDb, "totale_simul_dur": totaleSimulDur,
+            "totale_mode": totaleMode,
             "nodding_patterns": noddingPatterns,
             "transition_speaker_change": transitionSpeakerChange,
             "transition_return_factor": transitionReturnFactor,
@@ -264,6 +269,7 @@ struct PipelineParams: Equatable {
         if let v = dict["gate_use_filtered"] as? Bool { gateUseFiltered = v }
         if let v = dict["threshold_db"] as? Double { thresholdDb = v }
         if let v = dict["totale_simul_dur"] as? Double { totaleSimulDur = v }
+        if let v = dict["totale_mode"] as? String { totaleMode = v }
         // Aus JSON kommen Bools als NSNumber(CFBoolean) → `as? Bool` bridged sie.
         if let raw = dict["nodding_patterns"] as? [String: Any] {
             noddingPatterns = raw.compactMapValues { $0 as? Bool }

@@ -382,6 +382,26 @@
             "column": 1,
             "text": "Greift nur wenn ein Clip als **Totale** markiert ist. Erkennt Phasen wo beide Mics gleichzeitig aktiv sind (kein klarer Dominanzunterschied) und schneidet auf die Totale."
           }
+        },
+        {
+          "columns": 2,
+          "params": [
+            {
+              "name": "totale_mode",
+              "widget": "selectbox",
+              "default": "Reihum",
+              "label": "Mehrere Totalen",
+              "help": "Bei mehreren als Totale markierten Kameras: welche wird geschnitten? Reihum wechselt der Reihe nach durch, Zufällig mischt sie (bei jedem Lauf gleich), Nur die erste nimmt immer dieselbe. Bei nur einer Totale ohne Wirkung.",
+              "expert": true,
+              "config": { "options": ["Reihum", "Zufällig", "Nur die erste"] },
+              "transform": {
+                "type": "map",
+                "to_internal": { "Reihum": "round_robin", "Zufällig": "random", "Nur die erste": "first" },
+                "to_display": { "round_robin": "Reihum", "random": "Zufällig", "first": "Nur die erste" }
+              },
+              "column": 0
+            }
+          ]
         }
       ]
     }

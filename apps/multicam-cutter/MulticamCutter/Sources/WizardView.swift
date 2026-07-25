@@ -1172,6 +1172,10 @@ struct WizardSettings: View {
                                   help: ParamHelp.preRoll)
                     WizSlider("Zufallsfaktor", $engine.params.randomness, 0...0.5, format: "%.2f", help: ParamHelp.randomness)
                     WizToggle("Ungünstige Cutaways verschieben", $engine.params.clipFilterEnabled, help: ParamHelp.clipFilterEnabled)
+                    WizSegmented("Mehrere Totalen", $engine.params.totaleMode,
+                                 options: [("round_robin", "Reihum"), ("random", "Zufällig"),
+                                           ("first", "Nur die erste")],
+                                 help: ParamHelp.totaleMode)
                 }
                 // Je Cutaway-Typ eine eigene Rubrik: Master-Toggle + NUR die Parameter,
                 // die wirklich dazugehören.

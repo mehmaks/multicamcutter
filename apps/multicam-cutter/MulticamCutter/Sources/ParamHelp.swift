@@ -37,6 +37,7 @@ enum ParamHelp {
     static let pauseTrimEnabled = "Überlange Sprechpausen an Sprecherwechseln automatisch kürzen."
     static let maxPause = "Maximale Pausenlänge die bestehen bleibt. Längere Pausen werden auf diesen Wert gekürzt."
     static let pauseCutMode = "Wo der Videocut in der Pause liegt. Middle: symmetrisch. L-Cut: Video schneidet am Pausenanfang. J-Cut: Video schneidet am Pausenende. Zufall: Wählt bei jedem Schnitt zufällig. Audio ist immer Middle-Cut."
+    static let totaleMode = "Bei mehreren als Totale markierten Kameras: welche wird geschnitten? Reihum wechselt der Reihe nach durch, Zufällig mischt sie (bei jedem Lauf gleich), Nur die erste nimmt immer dieselbe. Bei nur einer Totale ohne Wirkung."
     static let pauseSilenceDb = "dB-Schwelle unter der beide Mikrofone als still gelten. Standard: -40 dB."
 
     // Crossbleed-Filter
