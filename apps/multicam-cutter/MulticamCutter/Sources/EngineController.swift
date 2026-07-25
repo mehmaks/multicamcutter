@@ -858,19 +858,39 @@ class EngineController: ObservableObject {
             fps = savedFps
         }
 
-        // Cam labels + zuordnungen wiederherstellen (nur wenn Dateien noch passen)
+        // Gespeicherter Mic-Index -> Dateiname (Stand des Speicherns). assigned_mics
+        // sind INDIZES; kommt eine Datei dazu oder faellt weg, verrutschen die Indizes
+        // und die Zuordnung zeigte sonst auf die falsche Datei (bekannter Bug: neue
+        // WAV in bekanntem Ordner -> Kamera an das falsche Mic). Ueber den Dateinamen
+        // (im Ordner eindeutig) rechnen wir die gespeicherten Indizes auf die AKTUELLEN um.
+        var savedMicFilename: [Int: String] = [:]
+        if let savedMics = session["mics"] as? [[String: Any]] {
+            for m in savedMics {
+                if let mid = m["id"] as? Int, let mfile = m["filename"] as? String {
+                    savedMicFilename[mid] = mfile
+                }
+            }
+        }
+        func currentMicIndex(forSavedIndex savedIdx: Int) -> Int? {
+            guard let fname = savedMicFilename[savedIdx] else { return nil }
+            return micInfos.first(where: { $0.filename == fname })?.id
+        }
+
+        // Cam labels + zuordnungen wiederherstellen. Match ueber den DATEINAMEN
+        // (stabil, eindeutig) — NICHT ueber den gespeicherten Index.
         if let savedCams = session["cameras"] as? [[String: Any]] {
             for saved in savedCams {
-                guard let id = saved["id"] as? Int,
-                      let filename = saved["filename"] as? String,
-                      let idx = cameraInfos.firstIndex(where: { $0.id == id && $0.filename == filename }) else { continue }
+                guard let filename = saved["filename"] as? String,
+                      let idx = cameraInfos.firstIndex(where: { $0.filename == filename }) else { continue }
                 if let displayName = saved["display_name"] as? String {
                     cameraInfos[idx].displayName = displayName
                 }
                 if let mics = saved["assigned_mics"] as? [Int] {
-                    cameraInfos[idx].assignedMics = mics
+                    // Gespeicherte Mic-INDIZES ueber ihren Dateinamen auf die aktuellen
+                    // Indizes umrechnen; inzwischen entfernte Mics fallen weg.
+                    cameraInfos[idx].assignedMics = mics.compactMap { currentMicIndex(forSavedIndex: $0) }
                 }
-                // Aeltere Sessions kennen "included"/"tag" nicht → Defaults beibehalten.
+                // Aeltere Sessions kennen "included" nicht → Default beibehalten.
                 if let included = saved["included"] as? Bool {
                     cameraInfos[idx].included = included
                 }
@@ -880,9 +900,9 @@ class EngineController: ObservableObject {
         // Mic labels wiederherstellen
         if let savedMics = session["mics"] as? [[String: Any]] {
             for saved in savedMics {
-                guard let id = saved["id"] as? Int,
-                      let filename = saved["filename"] as? String,
-                      let idx = micInfos.firstIndex(where: { $0.id == id && $0.filename == filename }) else { continue }
+                // Auch hier ueber den Dateinamen matchen, nicht ueber den Index.
+                guard let filename = saved["filename"] as? String,
+                      let idx = micInfos.firstIndex(where: { $0.filename == filename }) else { continue }
                 if let displayName = saved["display_name"] as? String {
                     micInfos[idx].displayName = displayName
                 }

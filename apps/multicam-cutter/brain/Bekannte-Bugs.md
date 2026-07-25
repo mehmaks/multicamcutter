@@ -2,6 +2,25 @@
 
 ## OFFEN
 
+### Bekannter Ordner + neue Datei → Kamera↔Mic-Zuordnung verknüpft falsch — GEFIXT (25.07.)
+- **Symptom**: Ordner mit gespeicherter `.multicam` erneut geöffnet, nachdem eine
+  NEUE WAV hineinkopiert wurde. Die App stellt die alte Zuordnung wieder her, aber
+  eine Kamera hängt am FALSCHEN Mic (neue „MIC2.WAV" statt „markt11.WAV"), und die
+  eigentlich zugeordnete Datei steht auf „keine Kamera".
+- **Ursache**: `loadSession()` restaurierte die Kamera↔Mic-Zuordnung als Mic-**Index**
+  (`assigned_mics: [Int]`). Eine neue Datei verschiebt die Scan-Reihenfolge → derselbe
+  Index zeigt danach auf eine andere Datei. Zusätzlich matchte der Restore per
+  `id == id && filename ==` — der Index-Teil scheitert bei jeder Dateiänderung (die
+  Zuordnung ging dann still verloren).
+- **Fix** (`EngineController.loadSession`): Kameras UND Mics werden nur noch über den
+  **Dateinamen** (im Ordner eindeutig, stabil) gematcht. Die gespeicherten
+  `assigned_mics`-Indizes werden über die im `.multicam` mitgespeicherte Mic-Liste
+  (Index→Dateiname zum Speicherzeitpunkt) auf die AKTUELLEN Indizes umgerechnet
+  (`currentMicIndex`). Repariert auch BESTEHENDE Sessions, weil die nötige Information
+  schon im `.multicam` steht. Inzwischen entfernte Mics fallen per `compactMap` weg.
+- **Lehre**: Persistente Zuordnungen NIE an Scan-Indizes hängen — der Dateiname ist der
+  stabile Schlüssel.
+
 ### 0.6.5 stuerzt beim Start ab, wenn die Icons nicht gefunden werden — GEFIXT (25.07.), Ursache eingegrenzt (transienter Update-Moment)
 - **Symptom**: Nach dem Update 0.6.2 → 0.6.5 (per Sparkle, MacBook des Users)
   stuerzt die App SOFORT beim Start ab, noch vor dem ersten Fenster.
