@@ -41,10 +41,13 @@ def patched(pairs, durations=DURATIONS, call_log=None):
     ws._probe_duration = lambda path: durations[path]
 
     def _fake_pair(ref_path, target_path, ref_label, target_label, fps,
-                   cache=None, start_duration=None):
+                   cache=None, start_duration=None, raise_on_fail=True):
         if call_log is not None:
             call_log.append((ref_label, target_label))
         off, conf = pairs[(ref_label, target_label)]
+        # Reales _sync_pair wirft bei < MIN_CONFIDENCE nur, wenn raise_on_fail True ist.
+        if conf < ws.MIN_CONFIDENCE and raise_on_fail:
+            raise SyncError(f"stub: {ref_label}<->{target_label} conf {conf} < MIN")
         return SyncResult(ref_label, target_label, off, off / fps, conf, 180.0)
 
     ws._sync_pair = _fake_pair
@@ -196,6 +199,41 @@ def test_manual_offset_bypasses_correlation():
     assert all(target != "MIC2" for (_ref, target) in calls), calls
 
 
+def test_collect_mode_reports_below_min_confidence_source():
+    """Fremdes Material bleibt selbst gegen die beste Quelle unter MIN_CONFIDENCE.
+    Im collect-Modus bricht das NICHT hart ab (kein SyncError aus _sync_pair),
+    sondern landet im Sheet — der klarste Fall fuer Ausschliessen/manuell."""
+    pairs = {
+        ("MIC1", "CAM1"): (-100, 80.0),
+        ("MIC1", "CAM2"): (50, 70.0),
+        ("MIC1", "MIC2"): (12345, 3.0),   # unter MIN (5.0) — voellig fremd
+        ("CAM1", "MIC2"): (777, 2.5),     # auch gegen die Kameras: Rauschen
+        ("CAM2", "MIC2"): (888, 2.8),
+        ("CAM1", "CAM2"): (150, 95.0),
+    }
+    with patched(pairs):
+        offsets, unsyncable = sync_sources(CAMS, MICS, fps=25.0,
+                                           collect_unsyncable=True)
+    assert {u.label for u in unsyncable} == {"MIC2"}, unsyncable
+
+
+def test_default_mode_below_min_still_raises():
+    """Ohne collect-Modus bleibt eine Quelle unter MIN_CONFIDENCE ein HARTER
+    Fehler (raise_on_fail=True) — das Verhalten aendert sich nur im collect-Modus."""
+    pairs = {
+        ("MIC1", "CAM1"): (-100, 80.0),
+        ("MIC1", "CAM2"): (50, 70.0),
+        ("MIC1", "MIC2"): (12345, 3.0),   # < MIN → _sync_pair wirft
+        ("CAM1", "CAM2"): (150, 95.0),
+    }
+    with patched(pairs):
+        try:
+            sync_sources(CAMS, MICS, fps=25.0)
+        except SyncError:
+            return
+        raise AssertionError("Erwartet: SyncError bei < MIN_CONFIDENCE (Default-Modus)")
+
+
 if __name__ == "__main__":
     tests = [
         test_rescue_weak_source_via_camera,
@@ -205,6 +243,8 @@ if __name__ == "__main__":
         test_collect_mode_happy_path_empty_list,
         test_collect_mode_crosscheck_failure_flags_cam2,
         test_manual_offset_bypasses_correlation,
+        test_collect_mode_reports_below_min_confidence_source,
+        test_default_mode_below_min_still_raises,
     ]
     for t in tests:
         t()

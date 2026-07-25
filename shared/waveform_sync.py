@@ -120,6 +120,7 @@ def _sync_pair(
     fps: float,
     cache: dict = None,
     start_duration: float = None,
+    raise_on_fail: bool = True,
 ) -> SyncResult:
     """
     Synchronisiert eine Quelle gegen eine Referenz.
@@ -204,12 +205,15 @@ def _sync_pair(
                 if alt.confidence > result.confidence:
                     result, trusted = alt, alt_trusted
 
-    if result.confidence < MIN_CONFIDENCE:
+    if result.confidence < MIN_CONFIDENCE and raise_on_fail:
         raise SyncError(
             f"Kein verlaesslicher Sync fuer {ref_label} ↔ {target_label} "
             f"(beste Confidence {result.confidence:.1f}x bei {max_ref:.0f}s "
             f"Referenzmaterial). Bitte manuell synchronisieren."
         )
+    # raise_on_fail=False (collect_unsyncable): das schwache Ergebnis wird
+    # zurueckgegeben und in sync_sources als „nicht syncbar" gesammelt, statt
+    # den ganzen Lauf abzubrechen.
     if not trusted:
         print(f"  {ref_label} ↔ {target_label}: bestes Ergebnis "
               f"{result.offset_frames:+d} frames ({result.confidence:.1f}x) — wird gegengeprueft")
@@ -337,6 +341,9 @@ def sync_sources(
     manual = manual_offsets or {}
     manual_by_label = {label: int(manual[path])
                        for label, path in sources.items() if path in manual}
+    # Im collect-Modus wirft _sync_pair NICHT hart bei < MIN_CONFIDENCE; die Quelle
+    # wird stattdessen gesammelt (fremdes Material -> Sheet statt Abbruch).
+    _rof = not collect_unsyncable
 
     # ── Quellen auf plausible Laenge pruefen ──
     # Die Korrelation braucht ein Fenster von CHUNK_SECONDS. Ist eine Quelle
@@ -414,7 +421,8 @@ def sync_sources(
             continue
         if label in manual_by_label:
             continue   # manuell gesetzt — nicht korrelieren
-        result = _sync_pair(ref_path, path, ref_label, label, fps, cache=ref_cache)
+        result = _sync_pair(ref_path, path, ref_label, label, fps,
+                            cache=ref_cache, raise_on_fail=_rof)
         rel[label] = result.offset_frames
         confidences[label] = result.confidence
 
@@ -471,7 +479,8 @@ def sync_sources(
             key=lambda l: confidences[l], reverse=True,
         )
         for partner in partners:
-            probe = _sync_pair(sources[partner], sources[label], partner, label, fps)
+            probe = _sync_pair(sources[partner], sources[label], partner, label, fps,
+                               raise_on_fail=_rof)
             if probe.confidence >= TRUST_CONFIDENCE:
                 rel[label] = rel[partner] + probe.offset_frames
                 confidences[label] = probe.confidence
@@ -492,7 +501,8 @@ def sync_sources(
     # im schon geschnittenen Material auf.
     if ("CAM2" in sources and ref_label not in ("CAM1", "CAM2")
             and "CAM2" not in manual_by_label):
-        direct = _sync_pair(sources["CAM1"], sources["CAM2"], "CAM1", "CAM2", fps)
+        direct = _sync_pair(sources["CAM1"], sources["CAM2"], "CAM1", "CAM2", fps,
+                            raise_on_fail=_rof)
         ref_cache.clear()   # ab hier nicht mehr gebraucht
         drift = abs(direct.offset_frames - offsets["CAM2"])
 
@@ -506,7 +516,7 @@ def sync_sources(
             print(f"    Schwaechste Messung: {ref_label} ↔ {suspect} "
                   f"({confidences[suspect]:.1f}x) — messe mit mehr Material nach...")
             retry = _sync_pair(ref_path, sources[suspect], ref_label, suspect, fps,
-                               cache=ref_cache,
+                               cache=ref_cache, raise_on_fail=_rof,
                                start_duration=CHUNK_SECONDS * RETRY_WINDOW_FACTOR)
             if retry.confidence > confidences[suspect]:
                 rel[suspect] = retry.offset_frames
@@ -562,7 +572,8 @@ def sync_sources(
         if not others:
             continue
         verifier = max(others, key=lambda l: confidences[l])
-        check = _sync_pair(sources[verifier], sources[label], verifier, label, fps)
+        check = _sync_pair(sources[verifier], sources[label], verifier, label, fps,
+                           raise_on_fail=_rof)
         via_verifier = rel[verifier] + check.offset_frames
         spread = abs(via_verifier - rel[label])
         if spread > CROSSCHECK_TOLERANCE_FRAMES:
