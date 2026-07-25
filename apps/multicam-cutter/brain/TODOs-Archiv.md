@@ -849,3 +849,100 @@ Siehe brain/Entscheidungen.md → "Lizenzmodell: Abo via LemonSqueezy".
 - [x] Projekt-Menue (Neu, Ordner oeffnen)
 - [x] Sidebar Drag auf CameraCards
 - [x] Camera-Cards als adaptives Grid (LazyVGrid)
+
+## Punkt 1 — Sync-Graceful (Roadmap, erledigt 25.07.)
+
+### 🔴 Sync-Abbruch bei EINER Problemquelle blockiert alles (Fremd-Feedback, 22.07.)
+- [ ] **Nicht hart abbrechen, wenn eine Quelle nicht syncbar ist.** Realfall vom
+  Kollegen: 6 Quellen (3 Cams, 3 Mics), fünf perfekt synchron (MIC1↔MIC2 230×,
+  Cams 100–400×), nur **MIC3** korreliert mit nichts (über MIC1 +62383 Frames,
+  über MIC2 +19181 — 28 min auseinander, Confidence flach ~15× über die volle
+  Datei). Die Kreuzprobe verweigert **korrekt** (kein echter Gipfel), aber der
+  `SyncError` bricht den GESAMTEN Lauf ab. Der Cutter kommt gar nicht weiter.
+  **Zu bauen — mehrstufig:**
+  1. **Gegen ALLE Partner versuchen, nicht nur die Referenz.** Heute wird jede
+     Quelle nur gegen das längste Mic korreliert (`sync_sources`). Eine
+     Close-Mic teilt oft wenig Raumklang mit einem fernen Mic, aber viel mit der
+     Kamera IHRER Person. Also: scheitert Quelle gegen die Referenz, gegen die
+     anderen bereits sicheren Quellen (Kameras!) probieren, bestes Ergebnis über
+     `TRUST_CONFIDENCE` nehmen. (Deckt sich mit „Sync-Referenz überdenken".)
+  2. **Bleibt sie unsyncbar: nicht abbrechen, sondern melden.** `sync_sources`
+     gibt die ermittelten Offsets zurück PLUS eine Liste „nicht syncbar". Die App
+     bietet dann pro Problemquelle: **(a) manuellen Offset eingeben** (Feld in
+     Frames/Sekunden), **(b) Quelle ausschließen**, **(c) abbrechen**. Die
+     anderen fünf Quellen sind ja fertig.
+  3. **Manueller Offset** ist damit endlich fällig (früher vertagt) — für Quellen,
+     deren Ton aus ganz anderer Position kommt (Funk-Lav ohne Raumklang, separater
+     Recorder mit Clock-Drift).
+  **Sofort-Workaround (heute):** Die Problem-Mic im Personen/Mic-Schritt
+  **abwählen** (`included=false`) — dann ist sie nicht im Sync und der Lauf
+  läuft. Nachteil: die Person auf dieser Spur wird nicht diarisiert.
+
+  **Diagnose GEKLÄRT (23.07.):** MIC3 ist **Track 3 desselben Mehrspur-Recorders**
+  wie MIC1/MIC2 (Beweis: `MIC1↔MIC2 = +0 Frames @ 230×` = gemeinsame Clock; Namen
+  `Track1/2/3`). Es ist **keine** Positions-/Drift-Sache — Person 3 spricht nur in
+  den ersten 180 s kaum, und der Sync nimmt das Ziel-Chunk **immer ab Sekunde 0**
+  (`_sync_pair`: `-t` ohne `-ss`, nur die REFERENZ wächst). Leeres Ziel-Chunk →
+  flache ~15× über alle Fenster. Zusätzlich wird eine schwache Quelle nur gegen
+  **die eine** beste Quelle gegengeprüft (hier MIC2, auch ein Lav) — **nie gegen
+  eine Cam** (Baustein 1 unten bestätigt sinnvoll).
+
+  **✅ TEIL-FIX geliefert (23.07., v-tbd): Recorder-Geschwister.** Wizard-Checkbox
+  „Alle Tonspuren stammen aus einem Mehrspur-Recorder" (Screen 1, ab 2 Mics) →
+  `sync_sources(..., mics_same_recorder=True)`: still aufgenommene Mic-Spuren erben
+  den Referenz-Offset (0), statt den Lauf abzubrechen; gut korrelierte Mics behalten
+  ihre Messung, weicht eine ab → Warnung. Deckt den Kollegen-Realfall komplett ab.
+  Verkabelt: `waveform_sync.py`, `multicam_engine.py:~826`, `EngineController.swift`
+  (PipelineParams `micsSameRecorder`), `WizardView.swift` (PersonsStep), `ParamHelp`.
+
+  **✅ Fenster-Fix geliefert (23.07.):** `_sync_pair` nimmt das Ziel-Chunk jetzt
+  bei schwachem Auftakt aus der ENERGIEREICHSTEN Region (`_loudest_window_start`)
+  statt stur ab Sekunde 0, und rechnet die Verschiebung aus dem Versatz heraus.
+  Der schnelle Normalfall (Auftakt lockt) bleibt unverändert. Deckt spät redende
+  Träger ab. Getestet: später Sprechbeginn → +30s exakt bei 751×.
+
+  **✅ Baustein 1 GELIEFERT (25.07.):** Rescue-Pass in `shared/waveform_sync.py`
+  (direkt vor der CAM1-Normalisierung). Korreliert eine Quelle schwach gegen die
+  Referenz (< `TRUST_CONFIDENCE` = 50×), wird sie gegen jede bereits sichere Quelle
+  (≥ TRUST, **Kameras eingeschlossen**) gemessen, sicherste zuerst; ein echter Gipfel
+  (≥ TRUST) ersetzt den Offset (`rel[partner] + Messung`, in die Referenz umgerechnet).
+  Läuft NUR bei schwachen Quellen → Happy-Path (alle ≥ TRUST) Bit-für-Bit unverändert;
+  nur ein Gipfel rettet, sonst bleibt die Quelle unangetastet und fällt in die
+  Gegenprüfung (die HEUTE noch abbricht — das ist Baustein 2). Signatur/Rückgabe
+  unverändert → keine Engine-/Swift-Änderung. Deterministische Tests:
+  `shared/test_waveform_sync.py` (Rescue via Kamera · Happy-Path + Call-Log ·
+  unsyncbar bricht weiterhin ab). Engine nutzt genau diese Datei (`ROOT`-Import).
+
+  **✅ Baustein 2 — geteilte Fähigkeit GELIEFERT (25.07.):** `sync_sources(...,
+  collect_unsyncable=True)` gibt `(offsets, [UnsyncableSource, …])` zurück, statt
+  bei den beiden Kreuzvalidierungs-Abbrüchen (CAM1↔CAM2-Kreuzprobe · Zwei-Wege-
+  Gegenprüfung) `SyncError` zu werfen. `offsets` enthält für JEDE Quelle einen
+  Best-Effort-Wert (fürs manuelle Vorbelegen), die Liste nennt die unsicheren
+  (label · filename · reason · best_confidence · candidate_offset_frames, per Label
+  dedupliziert). Reine Eingabefehler (Datei zu kurz, Korrelation < MIN_CONFIDENCE)
+  bleiben bewusst HARTE Fehler. **Ohne das Flag Bit-für-Bit unverändert** (raise +
+  dict) → Web-Modul/CLI-Aufrufer nicht berührt. Tests: `shared/test_waveform_sync.py`
+  (collect meldet statt raise · Happy-Path `[]` · Kreuzprobe flaggt CAM2). Neuer
+  Datentyp `UnsyncableSource`.
+
+  **✅ Baustein 2b + 3 GELIEFERT (25.07.) — Punkt 1 damit komplett (Test an echtem
+  Material steht aus):**
+  - **Engine:** `multicam_engine.py` ruft `sync_sources(collect_unsyncable=True,
+    manual_offsets=…)`. Nicht-leere Liste → Message `sync_unresolved` (label · path ·
+    filename · reason · best_confidence · candidate_offset_frames) + `SyncUnresolved`
+    stoppt die Pipeline sauber (KEIN `error`, oben vor `except Exception` abgefangen).
+    Neuer Arg `--manual-offset PFAD=FRAMES` (mehrfach) → `sync_sources`. `path` kommt
+    mit, weil er über Re-Runs stabil ist.
+  - **`sync_sources` (Baustein 3):** `manual_offsets={pfad: frames}` — diese Quellen
+    werden nicht korreliert, aus Referenzwahl/Kreuzprobe/Gegenprüfung herausgehalten,
+    Offset (rel. CAM1) direkt gesetzt. Test `test_manual_offset_bypasses_correlation`.
+  - **App (Swift):** `EngineController` parst `sync_unresolved` → `state=.ready` +
+    `showSyncResolution` (so zählt das folgende `session_end(success=false)` NICHT als
+    Fehler). `SyncResolutionSheet.swift`: pro Quelle **manueller Offset** (Feld, mit
+    `candidate_offset_frames` vorbelegt) ODER **Ausschließen**; „Erneut synchronisieren"
+    → `resolveSyncAndRetry` (setzt `included=false` bzw. `manualSyncOffsets`, Re-Run)
+    · „Abbrechen" → zurück zur Einrichtung. `--manual-offset` in `runEngine` angehängt.
+    Swift-Build grün. Protokoll: `brain/Engine-Protokoll.md`.
+  ⚠️ **Noch zu tun:** an echtem, nicht-syncbarem Material testen (Dev-App). Danach kann
+  Punkt 1 komplett ins Archiv.
+
