@@ -391,6 +391,12 @@ final class PresetManager: Sendable {
         return params
     }
 
+    /// Name des Built-in-Presets, dessen Parameter EXAKT den uebergebenen entsprechen
+    /// — sonst nil. Fuer Telemetrie: nur Built-in-Namen senden, eigene/getweakte → "custom".
+    func matchingBuiltIn(_ params: PipelineParams) -> String? {
+        builtInPresets.first(where: { $0.2 == params })?.1
+    }
+
     func savePreset(name: String, params: PipelineParams) -> Preset {
         let id = name.lowercased()
             .replacingOccurrences(of: " ", with: "_")
@@ -1009,6 +1015,32 @@ class EngineController: ObservableObject {
     func cancelSyncResolution() {
         syncUnresolvedSources = []
         showSyncResolution = false
+    }
+
+    /// Sendet nach erfolgreichem Lauf anonyme Telemetrie — NUR wenn zugestimmt.
+    /// Ausschliesslich Zahlen/Enums (keine Namen/Pfade). Contract: brain/Telemetrie-API.md.
+    func sendTelemetryIfEnabled(elapsedS: Double) {
+        guard Telemetry.enabled else { return }
+        let durs = (activeCams.map { $0.durationSeconds } + activeMics.map { $0.durationSeconds })
+            .filter { $0 > 0 }.sorted()
+        let total = durs.reduce(0, +)
+        let median = durs.isEmpty ? 0 : durs[durs.count / 2]
+        let payload: [String: Any] = [
+            "sources": [
+                "n_cams": activeCams.count,
+                "n_mics": activeMics.count,
+                "n_speakers": persons.count,
+                "total_source_s": Int(total),
+                "duration_min_s": Int(durs.first ?? 0),
+                "duration_median_s": Int(median),
+                "duration_max_s": Int(durs.last ?? 0),
+            ],
+            "runtime": ["elapsed_s": Int(elapsedS)],
+            "preset": PresetManager.shared.matchingBuiltIn(params) ?? "custom",
+            "settings": params.toDict(),
+            "device": TelemetryDevice.payload,
+        ]
+        Telemetry.sendAnalysisCompleted(payload)
     }
 
     // MARK: - Reset
@@ -2073,6 +2105,7 @@ class EngineController: ObservableObject {
             }
             resultStats = stats
             state = .done
+            sendTelemetryIfEnabled(elapsedS: (json["elapsed_s"] as? Double) ?? 0)
 
         case "log":
             if let message = json["message"] as? String {

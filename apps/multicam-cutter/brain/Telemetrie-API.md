@@ -42,6 +42,7 @@ Wie lange dauert ein Durchlauf bei X Quellen à Y Länge — auf welcher Hardwar
   "sources": {
     "n_cams": 3,
     "n_mics": 3,
+    "n_speakers": 3,                     // Personen (diarisiert) = zugeordnete Mics
     "total_source_s": 5280,              // Summe aller Quell-Dauern (Sekunden)
     "duration_min_s": 1600,              // kürzeste / mittlere / längste Quelle
     "duration_median_s": 1760,
@@ -55,12 +56,14 @@ Wie lange dauert ein Durchlauf bei X Quellen à Y Länge — auf welcher Hardwar
     }
   },
 
-  "features": {                          // was den Lauf verlangsamt/verändert
-    "nodding_enabled": true,
-    "speaking_enabled": true,
-    "clip_filter_enabled": false,
-    "crossbleed_gate_enabled": false,
+  "preset": "Talk (entspannt)",          // NUR Built-in-Name; eigene Presets → "custom"
+  "settings": {                          // KOMPLETTES Settings-Abbild = PipelineParams
+    "min_shot": 2.3, "reaction_dur": 1.7, "max_shot": 14.0, "threshold_db": 6.0,
+    "nodding_enabled": true, "speaking_enabled": true,
+    "clip_filter_enabled": false, "crossbleed_gate_enabled": false,
     "totale_mode": "round_robin"
+    // … die VOLLSTÄNDIGE PipelineParams-Menge (alles Zahlen/Enums). KEIN Freitext:
+    //     Episodenname, Clipnamen-Muster und Pfade sind NICHT Teil davon.
   },
 
   "device": {
@@ -74,8 +77,9 @@ Wie lange dauert ein Durchlauf bei X Quellen à Y Länge — auf welcher Hardwar
 ```
 
 ⚠️ **Kontext ist Pflicht, sonst ist der Benchmark wertlos:** ohne `device` +
-`features` sind die `runtime`-Zahlen Rauschen (20 min auf M1 Air ≠ auf M3 Max; CLIP/
-Nodding ändern die Laufzeit massiv). Darum sind beide immer dabei.
+`settings` sind die `runtime`-Zahlen Rauschen (20 min auf M1 Air ≠ auf M3 Max; CLIP/
+Nodding ändern die Laufzeit massiv). `preset` nur bei Built-ins (eigene → `"custom"`),
+damit kein selbstvergebener Preset-Name (potenziell PII) durchrutscht.
 
 ## Response
 

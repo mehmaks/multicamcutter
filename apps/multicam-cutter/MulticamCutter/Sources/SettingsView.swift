@@ -283,6 +283,8 @@ struct GeneralSettingsTab: View {
     // --clip-name-pattern durch.
     @AppStorage("clipNameReasons") private var clipNameReasons = true
     @AppStorage("clipNamePattern") private var clipNamePattern = "%L - %S"
+    /// Telemetrie-Zustimmung: 0 = ungefragt, 1 = an, 2 = aus (geteilt mit Telemetry.swift).
+    @AppStorage("analyticsConsent") private var analyticsConsent = 0
 
     var body: some View {
         Form {
@@ -294,6 +296,17 @@ struct GeneralSettingsTab: View {
                 Toggle("Kontrast der Vorschaubilder anheben", isOn: $thumbnailAutoContrast)
                 Text("Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim "
                      + "Scrubbing). Rein kosmetisch — Analyse und Export bleiben unberührt.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+
+            Section("Datenschutz") {
+                Toggle("Anonyme Nutzungsdaten senden", isOn: Binding(
+                    get: { analyticsConsent == 1 },
+                    set: { analyticsConsent = $0 ? 1 : 2 }))
+                Text("Hilft, die App zu verbessern: nur anonyme Zahlen (Anzahl Kameras, "
+                     + "Mikrofone, Sprecher, Dauer, Laufzeit, Gerät, Einstellungen) — "
+                     + "niemals Namen, Dateien oder Pfade. Jederzeit hier abschaltbar.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
