@@ -234,6 +234,31 @@ def test_default_mode_below_min_still_raises():
         raise AssertionError("Erwartet: SyncError bei < MIN_CONFIDENCE (Default-Modus)")
 
 
+def test_reanchor_when_reference_is_outlier():
+    """Ist die (laengste Mic-)Referenz selbst eine fremde Spur, die mit NICHTS
+    korreliert, darf nicht alles als unsyncbar gelten. Die Engine ankert auf die
+    laengste Kamera um und meldet dann nur den echten Ausreisser (MIC1)."""
+    pairs = {
+        # Runde 1: gegen die fremde Referenz MIC1 korreliert nichts (alle < TRUST).
+        ("MIC1", "CAM1"): (500, 12.0),
+        ("MIC1", "CAM2"): (600, 14.0),
+        ("MIC1", "MIC2"): (700, 13.0),
+        # Runde 2: Re-Anchor auf CAM1 (laengste Kamera) — die guten Quellen syncen.
+        ("CAM1", "CAM2"): (150, 90.0),
+        ("CAM1", "MIC2"): (200, 85.0),
+        ("CAM1", "MIC1"): (999, 10.0),   # die fremde Spur bleibt schwach
+        # Rescue/Gegenpruefung von MIC1 gegen die sicheren Partner:
+        ("CAM2", "MIC1"): (888, 8.0),
+        ("MIC2", "MIC1"): (777, 9.0),
+    }
+    with patched(pairs):
+        offsets, unsyncable = sync_sources(CAMS, MICS, fps=25.0,
+                                           collect_unsyncable=True)
+    # Nur die fremde Spur MIC1 faellt durch — Kameras + gutes Mic sind synchron.
+    assert {u.label for u in unsyncable} == {"MIC1"}, unsyncable
+    assert offsets["CAM1"] == 0 and "CAM2" in offsets and "MIC2" in offsets, offsets
+
+
 if __name__ == "__main__":
     tests = [
         test_rescue_weak_source_via_camera,
@@ -245,6 +270,7 @@ if __name__ == "__main__":
         test_manual_offset_bypasses_correlation,
         test_collect_mode_reports_below_min_confidence_source,
         test_default_mode_below_min_still_raises,
+        test_reanchor_when_reference_is_outlier,
     ]
     for t in tests:
         t()

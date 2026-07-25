@@ -411,20 +411,46 @@ def sync_sources(
     print()
 
     # ── Jede Quelle einzeln gegen die Referenz ──
-    rel: dict[str, int] = {ref_label: 0}
-    confidences: dict[str, float] = {}
     sibling_assigned: set[str] = set()
     unsyncable: dict[str, UnsyncableSource] = {}   # collect_unsyncable-Modus, per Label dedupliziert
-    ref_cache: dict = {}
-    for label, path in sources.items():
-        if label == ref_label:
-            continue
-        if label in manual_by_label:
-            continue   # manuell gesetzt — nicht korrelieren
-        result = _sync_pair(ref_path, path, ref_label, label, fps,
-                            cache=ref_cache, raise_on_fail=_rof)
-        rel[label] = result.offset_frames
-        confidences[label] = result.confidence
+
+    def _measure_against(anchor_label):
+        """Misst alle (nicht-manuellen) Quellen gegen anchor_label.
+        Rueckgabe (rel, confidences, cache); rel[anchor] = 0."""
+        anchor_path = sources[anchor_label]
+        rel_ = {anchor_label: 0}
+        conf_ = {}
+        cache_ = {}
+        for label, path in sources.items():
+            if label == anchor_label or label in manual_by_label:
+                continue
+            res = _sync_pair(anchor_path, path, anchor_label, label, fps,
+                             cache=cache_, raise_on_fail=_rof)
+            rel_[label] = res.offset_frames
+            conf_[label] = res.confidence
+        return rel_, conf_, cache_
+
+    rel, confidences, ref_cache = _measure_against(ref_label)
+
+    # ── Referenz-Validierung: ist die Referenz selbst der Ausreisser? ──
+    # Eine fremde/kaputte Spur (z.B. Ton aus einer anderen Episode) korreliert mit
+    # NICHTS. Wird ausgerechnet sie zur Referenz (laengstes Mic!), landen faelschlich
+    # ALLE anderen als „nicht syncbar", obwohl sie untereinander sauber synchron sind.
+    # Erkennung: kaum eine Messung erreicht TRUST. Dann auf die laengste KAMERA
+    # umankern (Kameras teilen den Szenen-Ton, robuster Backbone) und neu messen —
+    # danach faellt nur der echte Ausreisser durch. Nur wenn keine Referenz vorgegeben.
+    _cam_anchors = [l for l in sources if l.startswith("CAM")
+                    and l != ref_label and l not in manual_by_label]
+    _trusted = [l for l, c in confidences.items() if c >= TRUST_CONFIDENCE]
+    if reference is None and _cam_anchors and len(_trusted) * 2 < len(confidences):
+        new_ref = max(_cam_anchors, key=lambda l: _probe_duration(sources[l]))
+        print(f"  ⚠ Referenz {ref_label} ({_name(ref_label)}) korreliert mit fast "
+              f"nichts ({len(_trusted)}/{len(confidences)} ueber {TRUST_CONFIDENCE:.0f}x) "
+              f"— vermutlich selbst der Ausreisser. Neuer Anker: {new_ref} "
+              f"({_name(new_ref)}, Kamera), messe neu ...")
+        ref_label = new_ref
+        ref_path = sources[ref_label]
+        rel, confidences, ref_cache = _measure_against(ref_label)
 
     # ── Mehrspur-Geschwister: gemeinsamer Offset statt Einzelkorrelation ──
     # Bei bestaetigtem Ein-Recorder-Setup teilen sich alle Mikrofone eine Clock.
