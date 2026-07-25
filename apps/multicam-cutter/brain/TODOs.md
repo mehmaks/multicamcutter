@@ -22,7 +22,7 @@ Post-1.0 (C), nicht in diese Liste.
 |---|---|---|---|---|
 | ~~1~~ ✅ | ~~**Sync-Graceful**~~ — GELIEFERT (25.07.), Detail im Archiv (Vorbehalt: manueller-Offset-Re-Run an echtem Problemmaterial noch ungetestet) | 🎯 A | ✓ | erledigt — nächster offener Punkt: **2** |
 | ~~2~~ ✅ | ~~**FPS-Check zusammenführen**~~ — GESCHLOSSEN (25.07.): native App schon kohärent (ein Check, ein Rezept, kein Exit-42); Doppelung nur zum abgelösten Resolve/Streamlit-Toolkit. Detail im Archiv | 🎯 A | ✓ | erledigt — nächster offener Punkt: **3** |
-| 3 | **Bundle-Größe im Frozen-Build verifizieren** | 🎯 A | leicht (Test) | Reiner Test (Excludes, CLIP an); billiger Distributions-De-Risk, evtl. DMG < 300 MB |
+| ~~3~~ ✅ | ~~**Bundle-Größe verifizieren**~~ — Excludes greifen (alle 7 Pakete fehlen im Frozen-Build, ~270 MB gespart, 0.6.5–0.6.7 liefen). Rest: definitiver CLIP-Lauf (Risiko niedrig). DMG bleibt ~800 MB → R2 via S3-API | 🎯 A | ✓ | erledigt — nächster offener Punkt: **4** |
 | 4 | **Mehrere Totalen Stufe 1** (`totale_mode`) | ✨ B | mittel | Neuer Param — **vor** dem Settings-Durchgang, damit der die finale Param-Menge sieht |
 | 5 | **Dock-Balken gewichtet** (ehrlicher Fortschritt) | ✨ B | mittel | In sich abgeschlossene Politur; Protokoll (Arbeitsumfang je Schritt) + Swift |
 | 6 | **Telemetrie** (Opt-in, Daten ab Tag 1) | 🌍 | mittel | Letzter neuer Datenfluss + Consent-Toggle — **vor** dem Settings-Durchgang |
@@ -71,11 +71,16 @@ Bundle löst das Problem an der Wurzel statt am Transportweg.
 | **sklearn** | **16 MB** | **nein** |
 | **matplotlib** | **12 MB** | nur `silence_cutter.py` + Sandbox, **nicht** im Multicam-Pfad |
 
-**Schritt 1 — ✅ eingetragen (21.07.), Test steht aus.** `pandas`, `pyarrow`,
+**Schritt 1 — ✅ VERIFIZIERT (25.07., Punkt 3 der Roadmap).** `pandas`, `pyarrow`,
 `sklearn`, `llvmlite`, `numba`, `matplotlib`, `plotly` stehen in
-`multicam_engine.spec` unter `excludes` (~270 MB). `onnxruntime` bewusst NICHT —
-mediapipe könnte es zur Laufzeit brauchen; erst nach erfolgreichem Test einzeln
-nachziehen.
+`multicam_engine.spec` unter `excludes` (~270 MB). **Prüfung:** im gefrorenen
+`dist/multicam-engine/_internal` (Build 24.07., NACH den Excludes) fehlen alle sieben
+Pakete tatsächlich; Engine **828 MB** (vorher ~1,1 GB); `torch`/`transformers` (CLIP) noch
+da; Releases 0.6.5–0.6.7 sind mit genau diesen Excludes ausgeliefert worden und laufen.
+⚠️ **Rest-Sliver:** ein *definitiver* CLIP-Filter-Lauf auf dem Frozen-Build steht noch aus
+(Risiko niedrig — die CLIP-Inferenz braucht keins der ausgeschlossenen Pakete).
+`onnxruntime` (59 MB) bewusst NICHT ausgeschlossen — mediapipe könnte es zur Laufzeit
+brauchen; Kandidat zum Nachziehen.
 
 ⚠️ **So wird getestet — die Reihenfolge ist wichtig:**
 1. `bash scripts/release.sh <version>` (oder nur den PyInstaller-Build) — die
