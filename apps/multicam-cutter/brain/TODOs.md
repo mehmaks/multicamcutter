@@ -23,7 +23,7 @@ Post-1.0 (C), nicht in diese Liste.
 | ~~1~~ ✅ | ~~**Sync-Graceful**~~ — GELIEFERT (25.07.), Detail im Archiv (Vorbehalt: manueller-Offset-Re-Run an echtem Problemmaterial noch ungetestet) | 🎯 A | ✓ | erledigt — nächster offener Punkt: **2** |
 | ~~2~~ ✅ | ~~**FPS-Check zusammenführen**~~ — GESCHLOSSEN (25.07.): native App schon kohärent (ein Check, ein Rezept, kein Exit-42); Doppelung nur zum abgelösten Resolve/Streamlit-Toolkit. Detail im Archiv | 🎯 A | ✓ | erledigt — nächster offener Punkt: **3** |
 | ~~3~~ ✅ | ~~**Bundle-Größe verifizieren**~~ — Excludes greifen (alle 7 Pakete fehlen im Frozen-Build, ~270 MB gespart, 0.6.5–0.6.7 liefen). Rest: definitiver CLIP-Lauf (Risiko niedrig). DMG bleibt ~800 MB → R2 via S3-API | 🎯 A | ✓ | erledigt — nächster offener Punkt: **4** |
-| 4 | **Mehrere Totalen Stufe 1** (`totale_mode`) | ✨ B | mittel | Neuer Param — **vor** dem Settings-Durchgang, damit der die finale Param-Menge sieht |
+| ~~4~~ ✅ | ~~**Mehrere Totalen Stufe 1**~~ — GELIEFERT (25.07.): `totale_mode` (round_robin/random/first), Reset + Multi-Person-Fallback rotieren, Experten-Picker + Schema. Rest-Sliver: Base-EDL-Totale (Binär-Simultan) noch first-only | ✨ B | ✓ | erledigt — nächster offener Punkt: **5** |
 | 5 | **Dock-Balken gewichtet** (ehrlicher Fortschritt) | ✨ B | mittel | In sich abgeschlossene Politur; Protokoll (Arbeitsumfang je Schritt) + Swift |
 | 6 | **Telemetrie** (Opt-in, Daten ab Tag 1) | 🌍 | mittel | Letzter neuer Datenfluss + Consent-Toggle — **vor** dem Settings-Durchgang |
 | 7 | **Settings-Durchgang** (Benennung/Gruppierung) | ✨ B | mittel | **String-Freeze**: alle Labels final (inkl. Totalen-Param + Telemetrie-Toggle). Ab hier ändert sich kein deutscher UI-Text mehr |
@@ -105,7 +105,7 @@ Python-Runtime dazubekommt.
 
 ### ✨ B — 1.0-Qualität
 
-- [ ] **Mehrere Totalen sinnvoll nutzen** — Aufwand: **mittel**.
+- [x] **Mehrere Totalen — Stufe 1 GELIEFERT (25.07.)** (Stufe 2 = Personen-Zuordnung bleibt Edge-Case, s.u.). Aufwand war: **mittel**.
   **Ist-Zustand (Falle!)**: Taggt man 2+ Cams als Totale, sind alle ausser der ersten
   **totes Gewicht** — es wird nie auf sie geschnitten, ohne dass irgendwas es sagt:
   - `add_reactions_to_edl.py:266` → `off_cam = wide_cams[0]` (Multi-Person-Cutaway)
@@ -114,11 +114,16 @@ Python-Runtime dazubekommt.
     wird `--totale-video` fuer die Base-EDL
   (Nur `build_aaf.py:394` kennt ALLE wide-Cams — fuer den Zoom, der jetzt aus ist.)
 
-  **Stufe 1 (jetzt geplant)**: Parameter `totale_mode` — **zufällig** oder
-  **abwechselnd** (Round-Robin: T1, T2, T3, T1, …). Greift an den drei Stellen oben;
-  die Auswahl muss pro Cutaway erfolgen, nicht global. Expertenmodus-Parameter +
-  (?)-Tooltip (Muster: `ParamHelp.swift`). Base-EDL-Pfad (`--totale-video`, singular)
-  mitdenken — evtl. muss der mehrere annehmen.
+  **✅ Stufe 1 GELIEFERT (25.07., Punkt 4):** Parameter `totale_mode` (round_robin
+  [Default] / random [fester Seed, reproduzierbar] / first [altes Verhalten]). Auswahl
+  **pro Cutaway** via `_pick_totale` (State im settings-Dict, rotiert global über
+  Sections). Angewandt am **Max-Shot-Reset** und am **Multi-Person-Totale-Fallback**;
+  bei 0/1 Totale byte-identisch. Experten-Picker „Mehrere Totalen" (Cutaway-Regeln) +
+  Schema + `ParamHelp.totaleMode`. Tests: `test_totale_mode.py`, Diarisierungs-Suite grün.
+  ⚠️ **Rest-Sliver (offen):** die Base-EDL-Totale (`--totale-video`, binärer
+  Simultan-Sprech-Pfad, `run_from_bin.py`) rotiert noch NICHT — nutzt weiter die erste.
+  Im N-Pfad irrelevant (Simultan → kleinste gemeinsame Kamera). Kleiner Nachzug.
+  ⚠️ **Changelog fürs nächste Release:** Multi-Totale-Setups schneiden ab jetzt anders (rotieren).
 
   **Stufe 2 (später, Edge-Case)**: Totalen **Personen zuordnen**. Beispiel: 4 Personen
   mit je einer Close-Cam, dazu eine Totale P1+P2, eine P3+P4 und eine mit allen. Dann
