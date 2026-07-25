@@ -113,18 +113,26 @@ Detail-Beschreibungen der Punkte unten (nach Bucket gruppiert).
   (collect meldet statt raise · Happy-Path `[]` · Kreuzprobe flaggt CAM2). Neuer
   Datentyp `UnsyncableSource`.
 
-  **NOCH OFFEN — Baustein 2b (Verdrahtung) + Baustein 3 (manueller Offset):**
-  - **2b Engine:** `multicam_engine.py` ruft `collect_unsyncable=True`; bei nicht-
-    leerer Liste einen neuen Message-Type `sync_unresolved` (mit der Liste) senden
-    und die Pipeline sauber stoppen (statt teurer Analyse mit unsicherem Sync).
-    ⚠️ ATOMAR mit der App liefern — sonst hängt die aktuelle App an einer Message,
-    die sie nicht kennt. Dann `brain/Engine-Protokoll.md` ergänzen.
-  - **2b App (Swift):** `sync_unresolved` in `EngineController` behandeln → Sheet
-    pro Problemquelle: **(b) Ausschließen** (vorhandene Aktiv-Listen `--cams/--mics`
-    + `included=false`, Re-Run) · **(c) Abbrechen**. **(a) manueller Offset** ist
-    Baustein 3 (neuer Engine-Arg `--manual-offset LABEL=frames`, den `sync_sources`
-    für diese Quelle statt Korrelation übernimmt + Feld im Sheet, Kandidat aus
-    `candidate_offset_frames` vorbelegt).
+  **✅ Baustein 2b + 3 GELIEFERT (25.07.) — Punkt 1 damit komplett (Test an echtem
+  Material steht aus):**
+  - **Engine:** `multicam_engine.py` ruft `sync_sources(collect_unsyncable=True,
+    manual_offsets=…)`. Nicht-leere Liste → Message `sync_unresolved` (label · path ·
+    filename · reason · best_confidence · candidate_offset_frames) + `SyncUnresolved`
+    stoppt die Pipeline sauber (KEIN `error`, oben vor `except Exception` abgefangen).
+    Neuer Arg `--manual-offset PFAD=FRAMES` (mehrfach) → `sync_sources`. `path` kommt
+    mit, weil er über Re-Runs stabil ist.
+  - **`sync_sources` (Baustein 3):** `manual_offsets={pfad: frames}` — diese Quellen
+    werden nicht korreliert, aus Referenzwahl/Kreuzprobe/Gegenprüfung herausgehalten,
+    Offset (rel. CAM1) direkt gesetzt. Test `test_manual_offset_bypasses_correlation`.
+  - **App (Swift):** `EngineController` parst `sync_unresolved` → `state=.ready` +
+    `showSyncResolution` (so zählt das folgende `session_end(success=false)` NICHT als
+    Fehler). `SyncResolutionSheet.swift`: pro Quelle **manueller Offset** (Feld, mit
+    `candidate_offset_frames` vorbelegt) ODER **Ausschließen**; „Erneut synchronisieren"
+    → `resolveSyncAndRetry` (setzt `included=false` bzw. `manualSyncOffsets`, Re-Run)
+    · „Abbrechen" → zurück zur Einrichtung. `--manual-offset` in `runEngine` angehängt.
+    Swift-Build grün. Protokoll: `brain/Engine-Protokoll.md`.
+  ⚠️ **Noch zu tun:** an echtem, nicht-syncbarem Material testen (Dev-App). Danach kann
+  Punkt 1 komplett ins Archiv.
 
 ### 🔴 Bundle-Größe: 1,2 GB App → 500 MB DMG — blockiert den Upload
 Aufwand: **mittel**, Nutzen hoch (Upload, Nutzer-Download, Update-Dauer).

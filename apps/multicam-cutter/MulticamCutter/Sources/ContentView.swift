@@ -70,6 +70,9 @@ struct ContentView: View {
         .sheet(isPresented: $engine.isDownloadingClip) {
             ClipDownloadSheet().environmentObject(engine)
         }
+        .sheet(isPresented: $engine.showSyncResolution) {
+            SyncResolutionSheet(engine: engine)
+        }
         .alert("Download fehlgeschlagen",
                isPresented: Binding(get: { engine.clipError != nil },
                                     set: { if !$0 { engine.clipError = nil } })) {

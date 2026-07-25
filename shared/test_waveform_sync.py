@@ -172,6 +172,30 @@ def test_collect_mode_crosscheck_failure_flags_cam2():
     assert unsyncable[0].candidate_offset_frames == 999, unsyncable[0]
 
 
+# ── Baustein 3: manueller Offset (pfadbasiert, keine Korrelation) ───────────────
+
+def test_manual_offset_bypasses_correlation():
+    """Eine pfadbasiert manuell gesetzte Quelle (m2 → 250) wird nicht korreliert,
+    ihr Offset direkt uebernommen, und sie loest keine Gegenpruefung aus — obwohl
+    sie ohne das manuelle Setzen unsyncbar waere."""
+    pairs = {
+        ("MIC1", "CAM1"): (-100, 80.0),
+        ("MIC1", "CAM2"): (50, 70.0),
+        ("CAM1", "CAM2"): (150, 95.0),
+        # (MIC1,MIC2) fehlt bewusst — MIC2 darf gar nicht korreliert werden.
+    }
+    calls = []
+    with patched(pairs, call_log=calls):
+        offsets, unsyncable = sync_sources(
+            CAMS, MICS, fps=25.0, collect_unsyncable=True,
+            manual_offsets={"m2": 250},
+        )
+    assert unsyncable == [], unsyncable
+    assert offsets == {"MIC1": 100, "CAM1": 0, "CAM2": 150, "MIC2": 250}, offsets
+    # MIC2 (=m2) wurde nirgends als Ziel korreliert:
+    assert all(target != "MIC2" for (_ref, target) in calls), calls
+
+
 if __name__ == "__main__":
     tests = [
         test_rescue_weak_source_via_camera,
@@ -180,6 +204,7 @@ if __name__ == "__main__":
         test_collect_mode_reports_instead_of_raising,
         test_collect_mode_happy_path_empty_list,
         test_collect_mode_crosscheck_failure_flags_cam2,
+        test_manual_offset_bypasses_correlation,
     ]
     for t in tests:
         t()

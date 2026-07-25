@@ -62,6 +62,7 @@ expliziten Listen stimmen die Positionen **per Konstruktion**.
 | --speaking-mode | rms/peak | Ueberschreibt speaking_mode |
 | --lut | Pfad | LUT-Datei fuer MediaPipe (App hebt es nicht, s. UI-Komponenten.md) |
 | --clip-name-pattern | Muster | AAF-Clipnamen. Tokens `%S` Quelle · `%R` Grund · `%P` Person · `%L` smartes Label. Logik: `build_aaf._name_for`. **KEIN Flag = ein MasterMob pro Kamera** (Name = Dateiname). Mit Flag: grund-benannte MasterMobs (mehrere pro Kamera) — Resolve zeigt sie am Timeline-Clip, Premiere legt je Grund einen zusaetzlichen KORREKT verknuepften Clip an (beide online, s. brain/AAF-Struktur.md). App sendet es bei Toggle „Schnittgruende in Clipnamen" (Default **AN**, Key `clipNameReasons`) |
+| --manual-offset | PFAD=FRAMES | Manueller Sync-Offset je Quelle (mehrfach). Quelle wird NICHT korreliert, Wert (Frames rel. CAM1) direkt uebernommen. **Pfad-basiert** (interne Labels verrutschen bei Ausschluss). App sendet es beim „Erneut synchronisieren" aus dem `SyncResolutionSheet` (Baustein 3). Anwendung: `waveform_sync.sync_sources(manual_offsets={pfad: frames})` |
 
 ## CLIP-Modi (Bilderkennung)
 
@@ -98,7 +99,8 @@ Defaults bei defekter Datei).
 | `step_detail` | label | Verfeinert den Text des LAUFENDEN Schritts (welcher Pass rechnet). Erhoeht `stepNum` **nicht** — anders als `step_start_sub` |
 | `step_progress` | percent, eta, counter? | Fortschritt innerhalb eines Schritts. `eta` = Restzeit `M:SS`, `counter` = `done/total` (optional) |
 | `scan_result` | cameras[], mics[] | Nach Ordner-Scan im Pipeline-Modus |
-| `sync_result` | offsets{} | Nach Waveform-Sync |
+| `sync_result` | offsets{} | Nach Waveform-Sync (alle Quellen einordbar) |
+| `sync_unresolved` | sources[] | Sync fand nicht automatisch einordbare Quellen (Baustein 2). Je Quelle: `label`, `path`, `filename`, `reason`, `best_confidence`, `candidate_offset_frames`. Danach stoppt die Pipeline **sauber** (`SyncUnresolved`, KEIN `error`); die App zeigt `SyncResolutionSheet` (ausschliessen / manueller Offset / abbrechen) und startet neu. Nur bei `sync_sources(collect_unsyncable=True)` — harte Eingabefehler (Datei zu kurz, Korrelation < MIN) bleiben `error`. |
 | `warning` | message | Nicht-fatale Warnung |
 | `error` | message | Fataler Fehler |
 | `result` | aaf, edl, events_total, events_by_type, elapsed_s | Erfolg |

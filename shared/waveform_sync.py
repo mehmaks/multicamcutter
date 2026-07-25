@@ -279,6 +279,7 @@ def sync_sources(
     reference: str = None,
     mics_same_recorder: bool = False,
     collect_unsyncable: bool = False,
+    manual_offsets: dict = None,
 ) -> "dict[str, int] | tuple[dict[str, int], list[UnsyncableSource]]":
     """
     Ermittelt Sync-Offsets fuer BELIEBIG VIELE Kameras und Mikrofone.
@@ -314,6 +315,12 @@ def sync_sources(
     (Datei zu kurz, gar keine Korrelation < MIN_CONFIDENCE) bleiben auch hier
     HARTE Fehler mit klarer, dateibenennender Meldung. Ohne das Flag ist alles
     unveraendert (raise + Rueckgabe dict).
+
+    manual_offsets (Baustein 3): {Pfad: Frames}. Diese Quellen werden NICHT
+    korreliert — der Wert (Frames relativ zu CAM1) wird direkt uebernommen und die
+    Quelle aus Referenzwahl, Kreuzprobe und Gegenpruefung herausgehalten. Pfad-
+    basiert, weil interne Labels (CAM2/MIC3) bei Re-Runs mit Ausschluessen
+    verrutschen.
     """
     sources: dict[str, str] = {}
     for i, path in enumerate(cam_paths, start=1):
@@ -323,6 +330,13 @@ def sync_sources(
 
     if "CAM1" not in sources:
         raise SyncError("Mindestens eine Kamera wird benoetigt (CAM1 fehlt).")
+
+    # Manuell gesetzte Offsets (Baustein 3), pfadbasiert -> Label. Diese Quellen
+    # werden weder gemessen noch gegengeprueft; ihr Offset wird am Ende direkt
+    # eingesetzt (CAM1 = Null-Anker bleibt ausgenommen).
+    manual = manual_offsets or {}
+    manual_by_label = {label: int(manual[path])
+                       for label, path in sources.items() if path in manual}
 
     # ── Quellen auf plausible Laenge pruefen ──
     # Die Korrelation braucht ein Fenster von CHUNK_SECONDS. Ist eine Quelle
@@ -340,7 +354,8 @@ def sync_sources(
     # Hart abbrechen nur, wenn eine Korrelation sinnlos waere. Alles darueber
     # kann die Korrelation seit dem Wegfall der min_len-Kuerzung selbst
     # bewaeltigen — und eine Kamera, die nur zeitweise lief, ist legitim.
-    unusable = {l: d for l, d in durations.items() if 0 < d < MIN_SOURCE_SECONDS}
+    unusable = {l: d for l, d in durations.items()
+                if 0 < d < MIN_SOURCE_SECONDS and l not in manual_by_label}
     if unusable:
         lines = "\n".join(
             f"    {l}: {d:.1f} s  ({Path(sources[l]).name})"
@@ -366,7 +381,8 @@ def sync_sources(
                             f"{', '.join(sources)}")
         ref_label = reference
     else:
-        mic_labels = [l for l in sources if l.startswith("MIC")]
+        mic_labels = [l for l in sources if l.startswith("MIC")
+                      and l not in manual_by_label]
         if mic_labels:
             ref_label = max(mic_labels, key=lambda l: _probe_duration(sources[l]))
         else:
@@ -396,6 +412,8 @@ def sync_sources(
     for label, path in sources.items():
         if label == ref_label:
             continue
+        if label in manual_by_label:
+            continue   # manuell gesetzt — nicht korrelieren
         result = _sync_pair(ref_path, path, ref_label, label, fps, cache=ref_cache)
         rel[label] = result.offset_frames
         confidences[label] = result.confidence
@@ -409,7 +427,8 @@ def sync_sources(
     # vermutlich falsch → Warnung, aber Messung wird respektiert. Kameras bleiben
     # unberuehrt (eigene Geraete, echte Korrelation).
     if mics_same_recorder and ref_label.startswith("MIC"):
-        mic_labels = [l for l in sources if l.startswith("MIC")]
+        mic_labels = [l for l in sources if l.startswith("MIC")
+                      and l not in manual_by_label]
         if len(mic_labels) >= 2:
             for label in mic_labels:
                 if label == ref_label:
@@ -471,7 +490,8 @@ def sync_sources(
     # einer DIREKTEN Messung passen. Weicht sie ab, hat mindestens eine der
     # Korrelationen auf ein falsches Maximum gezeigt — das faellt sonst erst
     # im schon geschnittenen Material auf.
-    if "CAM2" in sources and ref_label not in ("CAM1", "CAM2"):
+    if ("CAM2" in sources and ref_label not in ("CAM1", "CAM2")
+            and "CAM2" not in manual_by_label):
         direct = _sync_pair(sources["CAM1"], sources["CAM2"], "CAM1", "CAM2", fps)
         ref_cache.clear()   # ab hier nicht mehr gebraucht
         drift = abs(direct.offset_frames - offsets["CAM2"])
@@ -589,6 +609,13 @@ def sync_sources(
                 f"oder im Schritt Personen/Kameras abwaehlen."
             )
 
+    # Manuell gesetzte Offsets einsetzen (auf CAM1=0 gemeint). NACH allen
+    # (Re-)Normalisierungen, damit die Kreuzproben-Neurechnung sie nicht ueberschreibt.
+    for label, off in manual_by_label.items():
+        if label == "CAM1":
+            continue   # CAM1 ist der Null-Anker
+        offsets[label] = off
+
     print()
     print("Sync abgeschlossen:")
     for label, offset in offsets.items():
@@ -596,6 +623,8 @@ def sync_sources(
         conf = confidences.get(label)
         if label in sibling_assigned:
             conf_txt = "  [Recorder-Geschwister → Referenz-Offset]"
+        elif label in manual_by_label:
+            conf_txt = "  [manuell gesetzt]"
         elif conf is not None:
             conf_txt = f"  [Confidence {conf:.1f}x]"
         else:

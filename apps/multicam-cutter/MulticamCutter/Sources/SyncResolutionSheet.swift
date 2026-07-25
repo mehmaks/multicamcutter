@@ -1,0 +1,124 @@
+import SwiftUI
+
+/// Loest Quellen auf, die der Sync nicht automatisch einordnen konnte
+/// (Engine-Message `sync_unresolved`, Punkt 1 / Baustein 2+3). Pro Quelle:
+/// einen manuellen Offset in Frames setzen ODER die Quelle ausschliessen.
+/// Danach startet die Analyse erneut. Die uebrigen Quellen sind bereits synchron.
+struct SyncResolutionSheet: View {
+    @ObservedObject var engine: EngineController
+
+    enum Choice: Hashable { case manual, exclude }
+    @State private var choice: [String: Choice] = [:]
+    @State private var offsetText: [String: String] = [:]
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            HStack(spacing: 10) {
+                Image(systemName: "exclamationmark.triangle.fill")
+                    .foregroundStyle(.orange)
+                Text("Einige Quellen ließen sich nicht automatisch synchronisieren")
+                    .font(.headline)
+            }
+            Text("Für jede betroffene Quelle: einen Offset in Frames (relativ zur "
+                 + "ersten Kamera) eingeben oder die Quelle vom Schnitt ausschließen. "
+                 + "Die übrigen Quellen sind bereits synchron.")
+                .font(.callout)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            ScrollView {
+                VStack(spacing: 12) {
+                    ForEach(engine.syncUnresolvedSources) { src in
+                        sourceCard(src)
+                    }
+                }
+                .padding(.vertical, 2)
+            }
+            .frame(maxHeight: 340)
+
+            HStack {
+                Button("Abbrechen") { engine.cancelSyncResolution() }
+                    .keyboardShortcut(.cancelAction)
+                Spacer()
+                Button("Erneut synchronisieren") { apply() }
+                    .keyboardShortcut(.defaultAction)
+                    .buttonStyle(.borderedProminent)
+                    .tint(.brandAccent)
+            }
+        }
+        .padding(24)
+        .frame(width: 580)
+        .onAppear(perform: seedDefaults)
+    }
+
+    @ViewBuilder
+    private func sourceCard(_ src: UnsyncableSource) -> some View {
+        let current = choice[src.id] ?? .manual
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text(src.filename).fontWeight(.semibold)
+                Spacer()
+                Text("\(src.bestConfidence, specifier: "%.0f")×")
+                    .font(.caption.monospacedDigit())
+                    .foregroundStyle(.secondary)
+            }
+            Text(src.reason)
+                .font(.caption)
+                .foregroundStyle(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Picker("", selection: Binding(
+                get: { choice[src.id] ?? .manual },
+                set: { choice[src.id] = $0 }
+            )) {
+                Text("Manueller Offset").tag(Choice.manual)
+                Text("Ausschließen").tag(Choice.exclude)
+            }
+            .pickerStyle(.segmented)
+            .labelsHidden()
+
+            if current == .manual {
+                HStack(spacing: 8) {
+                    TextField("Frames", text: Binding(
+                        get: { offsetText[src.id] ?? "\(src.candidateOffsetFrames)" },
+                        set: { offsetText[src.id] = $0 }
+                    ))
+                    .frame(width: 90)
+                    .textFieldStyle(.roundedBorder)
+                    Text("Frames (relativ zur 1. Kamera) · Vorschlag: \(src.candidateOffsetFrames)")
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                }
+            } else {
+                Text("Wird vom Schnitt ausgeschlossen — die Person auf dieser Spur "
+                     + "wird dann nicht erkannt.")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+            }
+        }
+        .padding(12)
+        .background(RoundedRectangle(cornerRadius: 10).fill(Color.gray.opacity(0.10)))
+    }
+
+    private func seedDefaults() {
+        for src in engine.syncUnresolvedSources {
+            if choice[src.id] == nil { choice[src.id] = .manual }
+            if offsetText[src.id] == nil { offsetText[src.id] = "\(src.candidateOffsetFrames)" }
+        }
+    }
+
+    private func apply() {
+        var exclude = Set<String>()
+        var manual: [String: Int] = [:]
+        for src in engine.syncUnresolvedSources {
+            switch choice[src.id] ?? .manual {
+            case .exclude:
+                exclude.insert(src.path)
+            case .manual:
+                let txt = (offsetText[src.id] ?? "").trimmingCharacters(in: .whitespaces)
+                manual[src.path] = Int(txt) ?? src.candidateOffsetFrames
+            }
+        }
+        engine.resolveSyncAndRetry(excludePaths: exclude, manualOffsets: manual)
+    }
+}

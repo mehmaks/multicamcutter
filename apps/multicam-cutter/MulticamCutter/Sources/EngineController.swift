@@ -69,6 +69,20 @@ struct MicInfo: Identifiable, Hashable {
     static func == (lhs: MicInfo, rhs: MicInfo) -> Bool { lhs.id == rhs.id }
 }
 
+/// Eine Quelle, die der Sync nicht automatisch einordnen konnte (Engine-Message
+/// `sync_unresolved`). Der Nutzer loest sie im SyncResolutionSheet auf:
+/// manuellen Offset setzen oder Quelle ausschliessen. `path` ist stabil ueber
+/// Re-Runs — interne Labels (MIC3) verrutschen bei Ausschluessen.
+struct UnsyncableSource: Identifiable, Hashable {
+    let label: String
+    let path: String
+    let filename: String
+    let reason: String
+    let bestConfidence: Double
+    let candidateOffsetFrames: Int
+    var id: String { path }
+}
+
 // MARK: - Parameters
 
 struct PipelineParams: Equatable {
@@ -479,6 +493,14 @@ class EngineController: ObservableObject {
     @Published var resultAAF: String?
     @Published var resultStats: [String: String]?
     @Published var errorMessage: String = ""
+
+    /// Vom Sync als nicht automatisch einordbar gemeldete Quellen (Baustein 2/3).
+    @Published var syncUnresolvedSources: [UnsyncableSource] = []
+    @Published var showSyncResolution = false
+    /// Manuell gesetzte Sync-Offsets (Pfad -> Frames rel. CAM1) fuer den Re-Run.
+    /// Pfad-basiert, damit sie Ausschluss-bedingte Label-Verschiebungen ueberleben;
+    /// stale Pfade (anderer Ordner) ignoriert die Engine automatisch.
+    @Published var manualSyncOffsets: [String: Int] = [:]
 
     // Feedback / Bug-Report (Formular in Feedback.swift, Contract in brain/Feedback-API.md)
     @Published var showingFeedback = false
@@ -918,6 +940,30 @@ class EngineController: ObservableObject {
         Task {
             await runEngine(folder: folder)
         }
+    }
+
+    /// Wendet die Aufloesung aus dem SyncResolutionSheet an und startet neu:
+    /// ausgeschlossene Quellen werden deaktiviert, manuelle Offsets gesetzt.
+    func resolveSyncAndRetry(excludePaths: Set<String>, manualOffsets: [String: Int]) {
+        for path in excludePaths {
+            if let i = cameraInfos.firstIndex(where: { $0.path == path }) {
+                cameraInfos[i].included = false
+            } else if let i = micInfos.firstIndex(where: { $0.path == path }) {
+                micInfos[i].included = false
+            }
+        }
+        for (path, frames) in manualOffsets where !excludePaths.contains(path) {
+            manualSyncOffsets[path] = frames
+        }
+        syncUnresolvedSources = []
+        showSyncResolution = false
+        startAnalysis()
+    }
+
+    /// Bricht die Aufloesung ab — zurueck zur Einrichtung (Zuordnung/Parameter).
+    func cancelSyncResolution() {
+        syncUnresolvedSources = []
+        showSyncResolution = false
     }
 
     // MARK: - Reset
@@ -1825,6 +1871,14 @@ class EngineController: ObservableObject {
             }
         }
 
+        // Manuell gesetzte Sync-Offsets (Baustein 3): diese Quelle wird nicht
+        // korreliert, der Wert direkt uebernommen. Nur Pfade der aktivierten
+        // Quellen wirken — stale Eintraege ignoriert die Engine.
+        let activePaths = Set(orderedAnalysisCams.map { $0.path } + activeMics.map { $0.path })
+        for (path, frames) in manualSyncOffsets where activePaths.contains(path) {
+            extraArgs += ["--manual-offset", "\(path)=\(frames)"]
+        }
+
         guard let (execPath, baseArgs) = engineCommand(extraArgs: extraArgs) else {
             errorMessage = "Engine oder Python nicht gefunden"
             state = .error
@@ -1978,6 +2032,26 @@ class EngineController: ObservableObject {
 
         case "session_start":
             logMessages.append("Session gestartet")
+
+        case "sync_unresolved":
+            if let sources = json["sources"] as? [[String: Any]] {
+                syncUnresolvedSources = sources.compactMap { s in
+                    guard let path = s["path"] as? String, !path.isEmpty,
+                          let label = s["label"] as? String else { return nil }
+                    return UnsyncableSource(
+                        label: label,
+                        path: path,
+                        filename: s["filename"] as? String ?? path,
+                        reason: s["reason"] as? String ?? "",
+                        bestConfidence: (s["best_confidence"] as? NSNumber)?.doubleValue ?? 0,
+                        candidateOffsetFrames: (s["candidate_offset_frames"] as? NSNumber)?.intValue ?? 0
+                    )
+                }
+                // Zurueck in die Einrichtung, Sheet legt sich darueber. state != .running,
+                // damit das folgende session_end(success=false) NICHT als Fehler zaehlt.
+                state = .ready
+                showSyncResolution = true
+            }
 
         case "session_end":
             if json["success"] as? Bool == false && state == .running {

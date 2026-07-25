@@ -913,12 +913,20 @@ def _enforce_free_tier(cam_paths, mic_paths):
         )
 
 
+class SyncUnresolved(Exception):
+    """Sync fand nicht automatisch einordbare Quellen. `sync_unresolved` wurde
+    bereits emittiert; die Pipeline stoppt sauber und die App loest auf
+    (ausschliessen / manueller Offset / abbrechen). KEIN error-Zustand."""
+    pass
+
+
 def run_pipeline(folder, fps, params, output_path,
                  cam_mics=None, cam_types_arg=None, cam_nodding_arg=None,
                  skip_analysis=False, skip_base_edl=False,
                  speaking_mode=None, lut=None,
                  cams_arg=None, mics_arg=None,
-                 cam_person_names=None, clip_name_pattern=None):
+                 cam_person_names=None, clip_name_pattern=None,
+                 manual_offsets=None):
     """Fuehrt die komplette Pipeline aus. Gibt (aaf_path, stats) zurueck.
 
     cams_arg/mics_arg: explizite Dateilisten (nur die in der App aktivierten
@@ -983,10 +991,31 @@ def run_pipeline(folder, fps, params, output_path,
     # den Referenz-Offset statt den Lauf abzubrechen (siehe waveform_sync.py).
     mics_same_recorder = bool(params.get("mics_same_recorder", False))
     try:
-        offsets = sync_sources(cam_paths, mic_paths, fps=fps,
-                               mics_same_recorder=mics_same_recorder)
+        offsets, unsyncable = sync_sources(
+            cam_paths, mic_paths, fps=fps,
+            mics_same_recorder=mics_same_recorder,
+            collect_unsyncable=True,
+            manual_offsets=manual_offsets or {},
+        )
     except SyncError as e:
+        # Harte Eingabefehler (Datei zu kurz, gar keine Korrelation) bleiben Fehler.
         raise RuntimeError(f"Waveform-Sync fehlgeschlagen: {e}")
+
+    if unsyncable:
+        # Nicht weiterrechnen: die App loest jede Problemquelle auf (ausschliessen /
+        # manueller Offset / abbrechen) und startet dann neu. `path` kommt mit, weil
+        # er ueber Re-Runs stabil ist — interne Labels (MIC3) verrutschen bei Ausschluessen.
+        label_path = {f"CAM{i}": p for i, p in enumerate(cam_paths, 1)}
+        label_path.update({f"MIC{i}": p for i, p in enumerate(mic_paths, 1)})
+        emit("sync_unresolved", sources=[{
+            "label": u.label,
+            "path": label_path.get(u.label, ""),
+            "filename": u.filename,
+            "reason": u.reason,
+            "best_confidence": round(u.best_confidence, 1),
+            "candidate_offset_frames": u.candidate_offset_frames,
+        } for u in unsyncable])
+        raise SyncUnresolved()
 
     emit("sync_result", offsets={k: v for k, v in offsets.items()})
 
@@ -1177,6 +1206,12 @@ def main():
                         help="JSON-Array: zugeordnete Person je Kamera, positions-"
                              "gleich zu --cams. Ersetzt in den AAF-Clipnamen das "
                              "generische 'Sprecher'.")
+    parser.add_argument("--manual-offset", action="append", default=None,
+                        metavar="PFAD=FRAMES",
+                        help="Manueller Sync-Offset fuer eine Quelle (mehrfach "
+                             "moeglich). Diese Quelle wird nicht korreliert, der Wert "
+                             "(Frames relativ zu CAM1) direkt uebernommen. Fuer nicht "
+                             "automatisch syncbare Quellen (Baustein 3).")
     args = parser.parse_args()
 
     # ── Lizenz-Operationen ──────────────────────────────────────────────────
@@ -1455,6 +1490,18 @@ def main():
          },
          log_file=str(log_path))
 
+    # ── Manuelle Sync-Offsets (Baustein 3): PFAD=FRAMES je Eintrag ────────────
+    manual_offsets = {}
+    for item in (args.manual_offset or []):
+        path, sep, frames = item.rpartition("=")
+        if not sep:
+            emit("warning", message=f"--manual-offset ignoriert (kein '=': {item})")
+            continue
+        try:
+            manual_offsets[path] = int(frames)
+        except ValueError:
+            emit("warning", message=f"--manual-offset ignoriert (keine Zahl: {item})")
+
     # ── Pipeline ausfuehren ──────────────────────────────────────────────────
     t_start = time.time()
     try:
@@ -1474,12 +1521,21 @@ def main():
             lut=args.lut,
             cam_person_names=cam_person_names,
             clip_name_pattern=args.clip_name_pattern,
+            manual_offsets=manual_offsets,
         )
         elapsed = time.time() - t_start
         stats["elapsed_s"] = round(elapsed, 1)
         stats["log_file"] = str(log_path)
         progress("done", 100, "Fertig")
         result(**stats)
+
+    except SyncUnresolved:
+        # `sync_unresolved` wurde bereits emittiert — kein Fehler, die App loest auf.
+        emit("session_end", success=False, elapsed_s=round(time.time() - t_start, 1))
+        sys.stdout = sys.__stdout__
+        sys.stderr = sys.__stderr__
+        log_file.close()
+        return 0
 
     except Exception as e:
         elapsed = time.time() - t_start
