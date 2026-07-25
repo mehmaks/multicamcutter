@@ -497,6 +497,9 @@ class EngineController: ObservableObject {
     /// Vom Sync als nicht automatisch einordbar gemeldete Quellen (Baustein 2/3).
     @Published var syncUnresolvedSources: [UnsyncableSource] = []
     @Published var showSyncResolution = false
+    /// Dateiname der Referenzkamera (Offsets sind darauf normiert) — fuers Sheet,
+    /// damit „relativ zur ersten Kamera" nicht geraten werden muss.
+    @Published var syncReferenceFilename: String = ""
     /// Manuell gesetzte Sync-Offsets (Pfad -> Frames rel. CAM1) fuer den Re-Run.
     /// Pfad-basiert, damit sie Ausschluss-bedingte Label-Verschiebungen ueberleben;
     /// stale Pfade (anderer Ordner) ignoriert die Engine automatisch.
@@ -2054,6 +2057,7 @@ class EngineController: ObservableObject {
             logMessages.append("Session gestartet")
 
         case "sync_unresolved":
+            syncReferenceFilename = json["reference"] as? String ?? ""
             if let sources = json["sources"] as? [[String: Any]] {
                 syncUnresolvedSources = sources.compactMap { s in
                     guard let path = s["path"] as? String, !path.isEmpty,

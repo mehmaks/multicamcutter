@@ -11,6 +11,11 @@ struct SyncResolutionSheet: View {
     @State private var choice: [String: Choice] = [:]
     @State private var offsetText: [String: String] = [:]
 
+    /// Referenzkamera, auf die die Offsets normiert sind (Dateiname statt „1. Kamera").
+    private var refName: String {
+        engine.syncReferenceFilename.isEmpty ? "der ersten Kamera" : engine.syncReferenceFilename
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 16) {
             HStack(spacing: 10) {
@@ -19,8 +24,8 @@ struct SyncResolutionSheet: View {
                 Text("Einige Quellen ließen sich nicht automatisch synchronisieren")
                     .font(.headline)
             }
-            Text("Für jede betroffene Quelle: einen Offset in Frames (relativ zur "
-                 + "ersten Kamera) eingeben oder die Quelle vom Schnitt ausschließen. "
+            Text("Für jede betroffene Quelle: einen Offset in Frames (relativ zu "
+                 + "\(refName)) eingeben oder die Quelle vom Schnitt ausschließen. "
                  + "Die übrigen Quellen sind bereits synchron.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
@@ -91,7 +96,7 @@ struct SyncResolutionSheet: View {
                     // Rot umrandet: hier ist eine Eingabe/Bestaetigung noetig.
                     .overlay(RoundedRectangle(cornerRadius: 5)
                         .stroke(Color.red.opacity(0.85), lineWidth: 1.5))
-                    Text("Frames (relativ zur 1. Kamera) · Vorschlag: \(src.candidateOffsetFrames)")
+                    Text("Frames (relativ zu \(refName)) · Vorschlag: \(src.candidateOffsetFrames)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }

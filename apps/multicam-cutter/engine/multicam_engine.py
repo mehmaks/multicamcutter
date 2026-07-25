@@ -1007,7 +1007,9 @@ def run_pipeline(folder, fps, params, output_path,
         # er ueber Re-Runs stabil ist — interne Labels (MIC3) verrutschen bei Ausschluessen.
         label_path = {f"CAM{i}": p for i, p in enumerate(cam_paths, 1)}
         label_path.update({f"MIC{i}": p for i, p in enumerate(mic_paths, 1)})
-        emit("sync_unresolved", sources=[{
+        emit("sync_unresolved",
+             reference=Path(cam_paths[0]).name,   # Offsets sind auf CAM1 = cam_paths[0] normiert
+             sources=[{
             "label": u.label,
             "path": label_path.get(u.label, ""),
             "filename": u.filename,
