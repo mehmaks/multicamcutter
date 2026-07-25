@@ -976,3 +976,47 @@ Ursprünglicher offener Eintrag:
   muss Exit-Code 42 kennen/abfangen. Beim Zusammenführen `modules/…/CLAUDE.md` (Gotchas)
   mitziehen.
 
+## Punkt 5 — Dock-Balken gewichtet (Roadmap, erledigt 25.07.)
+
+**Ergebnis:** Engine emittiert nach dem Scan `step_weights` (relatives Gewicht je
+Schritt, adaptiv zu Kamerazahl + CLIP-Status — nicht statisch). Swift normiert
+`overallProgress` darueber, Fallback auf Gleichgewichtung bei Laengen-Mismatch.
+Der Dock-Balken steht damit nicht mehr ~30 min knapp unter „fertig", waehrend
+Nodding laeuft. Nur der Dock-Balken betroffen (Fenster zeigt weiter den aktuellen
+Schritt). Commit `36994a7`, Protokoll in `brain/Engine-Protokoll.md`.
+
+Urspruenglicher offener Eintrag:
+
+- [ ] **Dock-Balken: pro Schritt zählen statt Gesamtfortschritt.** Aufwand: **mittel**.
+  **Problem:** Der Balken hängt an `overallProgress`
+  (`EngineController.swift:376`) = `(stepNum-1 + stepPercent/100) / totalSteps` —
+  **alle Schritte gleich gewichtet**. Die Nodding-Analyse ist Schritt 6 von 8, dauert
+  aber den Löwenanteil der Laufzeit. Der Balken steht also ~30 Minuten knapp unter
+  „fertig", obwohl der Großteil der Arbeit noch kommt.
+  **Gewünscht:** Der Dock-Balken zeigt den **aktuellen Schritt** 0–100 %, wie das
+  Fenster (`ContentView.swift:446`). Nodding zählt dabei als **ein** Schritt über
+  **alle** Kameras:
+  ```
+  fraktion = (cam_index + cam_percent/100) / cam_total
+  # 2 Cams, erste Cam bei 50 %  ->  (0 + 0.5) / 2 = 25 %
+  ```
+  **Fehlendes Datum:** Heute wird je Kamera ein eigener `step_start_sub` gesendet
+  (`engine/protocol.py:87-96`), der `stepNum` hochzählt und `stepPercent` auf 0
+  zurücksetzt; der Cam-Index steckt nur im Label und wird per Regex geraten. Sauber
+  wäre, `cam_index` und `cam_total` explizit mitzusenden, statt in Swift das Label
+  erneut zu parsen.
+  ✅ **Entschieden (User, 20.07.): gewichtete Dauer**, kein reiner Schritt-Balken —
+  so bleibt der Balken ein Gesamtfortschritt, nur ein ehrlicher. Nodding bekäme
+  den Löwenanteil statt 1/8.
+  ⚠️ **Die Gewichte dürfen nicht statisch sein.** Welche Schritte überhaupt laufen und
+  wie lange, hängt vom Lauf ab:
+  - **CLIP-Filter ist optional** (PASS 5) und skaliert mit der Episodenlänge — kann
+    also je nach Material ähnlich dominant werden wie Nodding oder ganz wegfallen.
+  - Die Zahl der Kameras variiert (Nodding läuft je Kamera).
+  - Kurze vs. lange Episode verschiebt das Verhältnis der langen zu den kurzen Schritten.
+  Eine feste Tabelle (`nodding: 0.7, …`) wäre also schon beim nächsten Preset falsch.
+  Besserer Ansatz: jeder lange Schritt meldet beim Start seinen **Arbeitsumfang**
+  (z. B. zu analysierende Frames bzw. Segmente), der Balken normiert über die Summe
+  der tatsächlich anstehenden Schritte. Dann stimmt es auch, wenn CLIP aus ist.
+  🎨 **Kosmetisch, blockt nichts** — bewusst zurückgestellt.
+

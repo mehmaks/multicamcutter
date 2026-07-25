@@ -24,7 +24,7 @@ Post-1.0 (C), nicht in diese Liste.
 | ~~2~~ ✅ | ~~**FPS-Check zusammenführen**~~ — GESCHLOSSEN (25.07.): native App schon kohärent (ein Check, ein Rezept, kein Exit-42); Doppelung nur zum abgelösten Resolve/Streamlit-Toolkit. Detail im Archiv | 🎯 A | ✓ | erledigt — nächster offener Punkt: **3** |
 | ~~3~~ ✅ | ~~**Bundle-Größe verifizieren**~~ — Excludes greifen (alle 7 Pakete fehlen im Frozen-Build, ~270 MB gespart, 0.6.5–0.6.7 liefen). Rest: definitiver CLIP-Lauf (Risiko niedrig). DMG bleibt ~800 MB → R2 via S3-API | 🎯 A | ✓ | erledigt — nächster offener Punkt: **4** |
 | ~~4~~ ✅ | ~~**Mehrere Totalen Stufe 1**~~ — GELIEFERT (25.07.): `totale_mode` (round_robin/random/first), Reset + Multi-Person-Fallback rotieren, Experten-Picker + Schema. Rest-Sliver: Base-EDL-Totale (Binär-Simultan) noch first-only | ✨ B | ✓ | erledigt — nächster offener Punkt: **5** |
-| 5 | **Dock-Balken gewichtet** (ehrlicher Fortschritt) | ✨ B | mittel | In sich abgeschlossene Politur; Protokoll (Arbeitsumfang je Schritt) + Swift |
+| ~~5~~ ✅ | ~~**Dock-Balken gewichtet**~~ — GELIEFERT (25.07.): Engine schickt `step_weights` (Nodding/CLIP dominieren, adaptiv zu Kamerazahl+CLIP), Swift normiert `overallProgress`, Fallback bei Mismatch | ✨ B | ✓ | erledigt — nächster offener Punkt: **6** |
 | 6 | **Telemetrie** (Opt-in, Daten ab Tag 1) | 🌍 | mittel | Letzter neuer Datenfluss + Consent-Toggle — **vor** dem Settings-Durchgang |
 | 7 | **Settings-Durchgang** (Benennung/Gruppierung) | ✨ B | mittel | **String-Freeze**: alle Labels final (inkl. Totalen-Param + Telemetrie-Toggle). Ab hier ändert sich kein deutscher UI-Text mehr |
 | 8 | **Mehrsprachigkeit DE/EN** | 🌍 | mittel–schwer | **Capstone**: Freeze-then-Translate — Engine→Keys, Swift lokalisiert, ParamHelp ×30, Web-Schema-Sync über die eingefrorene Menge → **1.0** |
@@ -138,39 +138,6 @@ Python-Runtime dazubekommt.
 - [ ] **Settings-Durchgang mit User**: alle Parameter durchgehen, Sortierung +
   Benennung in der UI überarbeiten (Labels, Gruppierung, Reihenfolge, welche
   Basis vs. Experte). Referenz für Namen/Reihenfolge: `config/schemas/multicam_params.json`.
-
-- [ ] **Dock-Balken: pro Schritt zählen statt Gesamtfortschritt.** Aufwand: **mittel**.
-  **Problem:** Der Balken hängt an `overallProgress`
-  (`EngineController.swift:376`) = `(stepNum-1 + stepPercent/100) / totalSteps` —
-  **alle Schritte gleich gewichtet**. Die Nodding-Analyse ist Schritt 6 von 8, dauert
-  aber den Löwenanteil der Laufzeit. Der Balken steht also ~30 Minuten knapp unter
-  „fertig", obwohl der Großteil der Arbeit noch kommt.
-  **Gewünscht:** Der Dock-Balken zeigt den **aktuellen Schritt** 0–100 %, wie das
-  Fenster (`ContentView.swift:446`). Nodding zählt dabei als **ein** Schritt über
-  **alle** Kameras:
-  ```
-  fraktion = (cam_index + cam_percent/100) / cam_total
-  # 2 Cams, erste Cam bei 50 %  ->  (0 + 0.5) / 2 = 25 %
-  ```
-  **Fehlendes Datum:** Heute wird je Kamera ein eigener `step_start_sub` gesendet
-  (`engine/protocol.py:87-96`), der `stepNum` hochzählt und `stepPercent` auf 0
-  zurücksetzt; der Cam-Index steckt nur im Label und wird per Regex geraten. Sauber
-  wäre, `cam_index` und `cam_total` explizit mitzusenden, statt in Swift das Label
-  erneut zu parsen.
-  ✅ **Entschieden (User, 20.07.): gewichtete Dauer**, kein reiner Schritt-Balken —
-  so bleibt der Balken ein Gesamtfortschritt, nur ein ehrlicher. Nodding bekäme
-  den Löwenanteil statt 1/8.
-  ⚠️ **Die Gewichte dürfen nicht statisch sein.** Welche Schritte überhaupt laufen und
-  wie lange, hängt vom Lauf ab:
-  - **CLIP-Filter ist optional** (PASS 5) und skaliert mit der Episodenlänge — kann
-    also je nach Material ähnlich dominant werden wie Nodding oder ganz wegfallen.
-  - Die Zahl der Kameras variiert (Nodding läuft je Kamera).
-  - Kurze vs. lange Episode verschiebt das Verhältnis der langen zu den kurzen Schritten.
-  Eine feste Tabelle (`nodding: 0.7, …`) wäre also schon beim nächsten Preset falsch.
-  Besserer Ansatz: jeder lange Schritt meldet beim Start seinen **Arbeitsumfang**
-  (z. B. zu analysierende Frames bzw. Segmente), der Balken normiert über die Summe
-  der tatsächlich anstehenden Schritte. Dann stimmt es auch, wenn CLIP aus ist.
-  🎨 **Kosmetisch, blockt nichts** — bewusst zurückgestellt.
 
 ### 🌍 1.0 — vorgezogen aus Backlog (User, 25.07.)
 
