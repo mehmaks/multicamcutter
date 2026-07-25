@@ -25,7 +25,7 @@ Post-1.0 (C), nicht in diese Liste.
 | ~~3~~ ✅ | ~~**Bundle-Größe verifizieren**~~ — Excludes greifen (alle 7 Pakete fehlen im Frozen-Build, ~270 MB gespart, 0.6.5–0.6.7 liefen). Rest: definitiver CLIP-Lauf (Risiko niedrig). DMG bleibt ~800 MB → R2 via S3-API | 🎯 A | ✓ | erledigt — nächster offener Punkt: **4** |
 | ~~4~~ ✅ | ~~**Mehrere Totalen Stufe 1**~~ — GELIEFERT (25.07.): `totale_mode` (round_robin/random/first), Reset + Multi-Person-Fallback rotieren, Experten-Picker + Schema. Rest-Sliver: Base-EDL-Totale (Binär-Simultan) noch first-only | ✨ B | ✓ | erledigt — nächster offener Punkt: **5** |
 | ~~5~~ ✅ | ~~**Dock-Balken gewichtet**~~ — GELIEFERT (25.07.): Engine schickt `step_weights` (Nodding/CLIP dominieren, adaptiv zu Kamerazahl+CLIP), Swift normiert `overallProgress`, Fallback bei Mismatch | ✨ B | ✓ | erledigt — nächster offener Punkt: **6** |
-| 6 | **Telemetrie** (Opt-in, Daten ab Tag 1) | 🌍 | mittel | Letzter neuer Datenfluss + Consent-Toggle — **vor** dem Settings-Durchgang |
+| 6 | **Telemetrie** (Opt-in) — 🔨 App-Seite + Contract geliefert (25.07.); OFFEN: Backend (Web-Session) + Erst-Start-Consent-Prompt | 🌍 | mittel | App-seitig fertig (Toggle Default AUS, fire-and-forget); Rest blockiert extern |
 | 7 | **Settings-Durchgang** (Benennung/Gruppierung) | ✨ B | mittel | **String-Freeze**: alle Labels final (inkl. Totalen-Param + Telemetrie-Toggle). Ab hier ändert sich kein deutscher UI-Text mehr |
 | 8 | **Mehrsprachigkeit DE/EN** | 🌍 | mittel–schwer | **Capstone**: Freeze-then-Translate — Engine→Keys, Swift lokalisiert, ParamHelp ×30, Web-Schema-Sync über die eingefrorene Menge → **1.0** |
 
@@ -142,6 +142,24 @@ Python-Runtime dazubekommt.
 ### 🌍 1.0 — vorgezogen aus Backlog (User, 25.07.)
 
 ### Telemetrie (anonyme Nutzungsdaten) — Aufwand: **mittel**
+
+**✅ Contract + App-Seite geliefert (25.07.):** `brain/Telemetrie-API.md` (Payload nur
+Zahlen/Enums; die 3 DSGVO-Regeln). `Telemetry.swift` (anonyme `analytics_id`, fire-and-
+forget POST an `/api/telemetry`, nur bei Zustimmung). `EngineController.sendTelemetryIfEnabled`
+baut den Payload (n_cams/n_mics/n_speakers, Dauern, elapsed_s, komplettes Settings-Abbild
+via `params.toDict()`, Built-in-Preset via `PresetManager.matchingBuiltIn` sonst „custom",
+Gerät) und feuert im `result`-Dispatch. Settings → Datenschutz: Opt-in-Toggle (**Default AUS**,
+Key `analyticsConsent`: 0 ungefragt/1 an/2 aus). Alles **inert**, bis Backend steht.
+
+**⚠️ NOCH OFFEN:**
+- **Backend (Web-Session):** `POST /api/telemetry` + Storage. Empfehlung: eigenes Endpoint
+  + Gratis-DB (Supabase/Vercel Postgres) — konsistent zu `/api/license`+`/api/feedback`;
+  Alternative PostHog-Free-Tier. Plausible ungeeignet (Abo, Pageview-orientiert).
+- **Erst-Start-Consent-Prompt:** bewusst NICHT gebaut, solange der Endpoint tot ist
+  (sonst fragt die App Zustimmung für nichts). Wird mit dem Backend nachgezogen; bis
+  dahin ist der Settings-Toggle der Opt-in-Weg.
+- **E2E-Test** (sobald Backend live).
+
 - [ ] **Opt-in-Prompt beim ersten Start** + anonyme Nutzungsdaten senden.
   **Ziel (User)**: Wie umfangreich sind die Projekte da draußen? Eher 2-Cam-Setups
   oder komplexe Podcasts mit mehreren Cams/Gästen? Und als Benchmark: **wie lange
