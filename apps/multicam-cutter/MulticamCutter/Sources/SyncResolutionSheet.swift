@@ -28,7 +28,10 @@ struct SyncResolutionSheet: View {
 
             ScrollView {
                 VStack(spacing: 12) {
-                    ForEach(engine.syncUnresolvedSources) { src in
+                    // Schwaechste Quelle (niedrigste Confidence) zuerst — das ist die,
+                    // die am ehesten Aufmerksamkeit braucht.
+                    ForEach(engine.syncUnresolvedSources
+                        .sorted { $0.bestConfidence < $1.bestConfidence }) { src in
                         sourceCard(src)
                     }
                 }
@@ -85,6 +88,9 @@ struct SyncResolutionSheet: View {
                     ))
                     .frame(width: 90)
                     .textFieldStyle(.roundedBorder)
+                    // Rot umrandet: hier ist eine Eingabe/Bestaetigung noetig.
+                    .overlay(RoundedRectangle(cornerRadius: 5)
+                        .stroke(Color.red.opacity(0.85), lineWidth: 1.5))
                     Text("Frames (relativ zur 1. Kamera) · Vorschlag: \(src.candidateOffsetFrames)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
