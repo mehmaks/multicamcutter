@@ -5,6 +5,41 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.8
+
+**Behoben: Kopfnicken-Erkennung ließ die Analyse abbrechen**
+
+In den letzten Versionen brach die Analyse ab, sobald die Kopfnicken-Erkennung an der
+Reihe war — eine interne Komponente fehlte im ausgelieferten Programm. Reaktions-Schnitte
+auf Kopfnicken funktionierten dadurch nicht. Das ist behoben; die Erkennung läuft wieder
+vollständig durch.
+
+**Neu: Quellen, die sich nicht automatisch synchronisieren lassen, stoppen nicht mehr den ganzen Lauf**
+
+Ließ sich eine Ton- oder Videospur nicht automatisch mit den anderen synchronisieren,
+brach bisher der komplette Durchlauf ab. Jetzt zeigt die App die betroffene Quelle, und du
+entscheidest pro Quelle: einen Zeitversatz von Hand eingeben (mit Vorschlag) oder die
+Quelle vom Schnitt ausschließen. Die übrigen Quellen laufen normal weiter.
+
+**Behoben: falsche Zuordnung nach einer neuen Datei im bekannten Ordner**
+
+Hattest du einen Ordner schon einmal geöffnet und danach eine neue Tonspur
+hineinkopiert, konnte die App eine Kamera der falschen Person zuordnen. Die Zuordnung
+wird jetzt anhand der Dateinamen wiederhergestellt und bleibt korrekt.
+
+**Verbessert: mehrere Totalen werden jetzt genutzt**
+
+Markierst du mehr als eine Kamera als Totale, wechselt der Schnitt jetzt zwischen ihnen —
+der Reihe nach oder zufällig, einstellbar in den Experteneinstellungen — statt immer nur
+die erste zu verwenden.
+
+**Weitere Verbesserungen**
+
+Der Fortschrittsbalken im Dock zeigt den Fortschritt ehrlicher: die lange
+Kopfnicken-Analyse dominiert ihn jetzt, statt dass er kurz vor „fertig" lange hängt. Und
+das Fenster bleibt während der Analyse fest — es lässt sich in dieser Zeit nicht mehr
+versehentlich verziehen.
+
 ## 0.6.7
 
 **Behoben: AAF-Export importiert jetzt fehlerfrei in Premiere Pro**

@@ -4,6 +4,40 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 0.6.8
+
+**Fixed: head-nod detection aborted the analysis**
+
+In recent versions the analysis stopped as soon as head-nod detection began — an internal
+component was missing from the shipped app. As a result, reaction cuts on head nods didn't
+work. This is fixed; detection runs through completely again.
+
+**New: sources that can't be synced automatically no longer stop the whole run**
+
+If an audio or video track couldn't be synchronized with the others automatically, the
+entire run used to abort. Now the app shows the affected source and you decide per source:
+enter a time offset by hand (with a suggestion) or exclude the source from the edit. The
+remaining sources continue normally.
+
+**Fixed: wrong assignment after adding a new file to a known folder**
+
+If you had opened a folder before and then copied a new audio track into it, the app could
+assign a camera to the wrong person. The assignment is now restored via the file names and
+stays correct.
+
+**Improved: multiple wide shots are now used**
+
+If you mark more than one camera as a wide shot, the edit now alternates between them — in
+turn or at random, configurable in the expert settings — instead of always using only the
+first.
+
+**Further improvements**
+
+The Dock progress bar reflects real progress more honestly: the long head-nod analysis now
+dominates it, instead of the bar sitting just short of "done" for a long time. And the
+window stays fixed during the analysis — it can no longer be resized by accident while a
+run is in progress.
+
 ## 0.6.7
 
 **Fixed: AAF export now imports flawlessly into Premiere Pro**
