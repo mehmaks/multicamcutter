@@ -974,6 +974,18 @@ def run_pipeline(folder, fps, params, output_path,
     # Korrektur total_steps falls Cam-Anzahl anders als erwartet
     total_steps = 4 + len(cams) + 2
 
+    # Gewichte je Schritt fuer einen EHRLICHEN Dock-Balken (Punkt 5): Nodding
+    # (je Kamera) und der optionale CLIP-Cutaway-Pass dominieren die Laufzeit —
+    # gleich gewichtet stuende der Balken ~30 min knapp unter „fertig". Reihenfolge
+    # wie total_steps: Scan, Sync, Base-EDL, Nodding×N, Cutaways, Pause-Trim, AAF.
+    # Relativ (nicht statisch-falsch): passt sich an Kamerazahl UND CLIP-Status an.
+    _clip_on = bool(params.get('clip_filter_enabled', False))
+    _step_weights = ([1.0, 1.5, 1.0]                 # Scan, Sync, Base-EDL
+                     + [10.0] * len(cams)            # Nodding je Kamera (dominant)
+                     + [8.0 if _clip_on else 1.0]    # Cutaways (CLIP-Pass wenn an)
+                     + [1.0, 1.0])                   # Pause-Trim, AAF
+    emit("step_weights", weights=_step_weights)
+
     cam_paths = [str(c) for c in cams]
     mic_paths = [str(m) for m in mics]
 

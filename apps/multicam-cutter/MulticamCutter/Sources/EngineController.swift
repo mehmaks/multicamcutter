@@ -462,10 +462,25 @@ class EngineController: ObservableObject {
     @Published var stepETA: String = ""
     /// Zaehler des laufenden Schritts, z.B. "341 von 384". Ergaenzt stepETA.
     @Published var stepCounter: String = ""
+    /// Relatives Gewicht je Schritt (Engine `step_weights`) fuer einen ehrlichen
+    /// Dock-Balken. Leer bzw. Laenge != totalSteps → Gleichgewichtung (alt).
+    @Published var stepWeights: [Double] = []
 
     /// Gesamtfortschritt 0…1 über alle Schritte (für den Dock-Balken). stepNum ist 1-basiert.
     var overallProgress: Double {
         guard totalSteps > 0 else { return 0 }
+        // Gewichtet, wenn die Engine passende Gewichte geliefert hat (Nodding/CLIP
+        // dominieren) — sonst gleichgewichtet wie bisher.
+        if stepWeights.count == totalSteps {
+            let total = stepWeights.reduce(0, +)
+            if total > 0 {
+                let doneSteps = max(min(stepNum - 1, stepWeights.count), 0)
+                let done = stepWeights.prefix(doneSteps).reduce(0, +)
+                let cur = (stepNum >= 1 && stepNum <= stepWeights.count)
+                          ? stepWeights[stepNum - 1] * stepPercent / 100 : 0
+                return min(max((done + cur) / total, 0), 1)
+            }
+        }
         let f = (Double(stepNum - 1) + stepPercent / 100) / Double(totalSteps)
         return min(max(f, 0), 1)
     }
@@ -962,6 +977,7 @@ class EngineController: ObservableObject {
         stepPercent = 0
         stepETA = ""
         stepCounter = ""
+        stepWeights = []
         logMessages = []
         resultAAF = nil
         resultStats = nil
@@ -2021,6 +2037,10 @@ class EngineController: ObservableObject {
             if let counter = json["counter"] as? String, !counter.isEmpty {
                 stepCounter = counter.replacingOccurrences(of: "/", with: " von ")
             }
+
+        case "step_weights":
+            stepWeights = (json["weights"] as? [Any])?
+                .compactMap { ($0 as? NSNumber)?.doubleValue } ?? []
 
         case "warning":
             if let message = json["message"] as? String {

@@ -99,6 +99,7 @@ Defaults bei defekter Datei).
 | `step_detail` | label | Verfeinert den Text des LAUFENDEN Schritts (welcher Pass rechnet). Erhoeht `stepNum` **nicht** — anders als `step_start_sub` |
 | `step_progress` | percent, eta, counter? | Fortschritt innerhalb eines Schritts. `eta` = Restzeit `M:SS`, `counter` = `done/total` (optional) |
 | `scan_result` | cameras[], mics[] | Nach Ordner-Scan im Pipeline-Modus |
+| `step_weights` | weights[] | Einmal nach dem Scan: relatives Gewicht je Schritt (Reihenfolge wie `total_steps`: Scan, Sync, Base-EDL, Nodding×N, Cutaways, Pause-Trim, AAF) fuer den **gewichteten Dock-Balken** (Punkt 5). Nodding (je Kamera) + CLIP-Cutaway-Pass dominieren. Swift nutzt es in `overallProgress`; Laenge != `total_steps` → Fallback Gleichgewichtung. |
 | `sync_result` | offsets{} | Nach Waveform-Sync (alle Quellen einordbar) |
 | `sync_unresolved` | sources[] | Sync fand nicht automatisch einordbare Quellen (Baustein 2). Je Quelle: `label`, `path`, `filename`, `reason`, `best_confidence`, `candidate_offset_frames`. Danach stoppt die Pipeline **sauber** (`SyncUnresolved`, KEIN `error`); die App zeigt `SyncResolutionSheet` (ausschliessen / manueller Offset / abbrechen) und startet neu. Nur bei `sync_sources(collect_unsyncable=True)` — harte Eingabefehler (Datei zu kurz, Korrelation < MIN) bleiben `error`. |
 | `warning` | message | Nicht-fatale Warnung |
