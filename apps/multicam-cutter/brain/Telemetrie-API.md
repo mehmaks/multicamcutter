@@ -68,7 +68,7 @@ Wie lange dauert ein Durchlauf bei X Quellen à Y Länge — auf welcher Hardwar
 
   "device": {
     "model": "Mac14,14",                 // ProcessInfo / sysctl hw.model
-    "chip": "arm64",
+    "chip": "Apple M2 Ultra",            // voller Chip-Name (mit Leerzeichen) — wortgetreu gespeichert
     "cores": 24,
     "ram_gb": 64,
     "os": "macOS 15.1"
@@ -80,6 +80,33 @@ Wie lange dauert ein Durchlauf bei X Quellen à Y Länge — auf welcher Hardwar
 `settings` sind die `runtime`-Zahlen Rauschen (20 min auf M1 Air ≠ auf M3 Max; CLIP/
 Nodding ändern die Laufzeit massiv). `preset` nur bei Built-ins (eigene → `"custom"`),
 damit kein selbstvergebener Preset-Name (potenziell PII) durchrutscht.
+
+## Feld-Regeln (Backend-Validierung — beantwortet App-Fragen, 26.07., E2E verifiziert)
+
+Der PII-Backstop behandelt **`device.*`** und **`settings.*`** unterschiedlich:
+
+- **`device.*` (chip, os, model): WORTGETREU gespeichert, Leerzeichen erlaubt.** `chip` =
+  voller Name „Apple M2 Ultra", `os` = „macOS 15.1" bleiben unverändert (getestet). Der
+  Token-/Whitespace-Filter gilt **NICHT** für `device.*` — nur Pfad-/Steuerzeichen (`/`,
+  `\`, Zeilenumbrüche) und Überlänge werden abgewiesen. Caps: chip/os ≤ 48, model ≤ 64
+  Zeichen (klar über realen Werten); `cores` 0–1024, `ram_gb` 0–4096. → **Benchmark ist
+  sicher.**
+- **`settings.*`-String-WERTE: Einzel-Token (KEIN Whitespace, ≤ 32 Zeichen, kein `/`/`\`).**
+  Enums wie `round_robin` oder `16:9` bleiben; ein mehrwortiger Freitext (z. B. ein
+  Episodenname „49 – Dr. …") wird als PII **verworfen**. Zahlen/Bools bleiben (Zahlen nur
+  Range-gecappt). Falls ein legitimer Settings-Enum je ein Leerzeichen enthielte, würde er
+  gedroppt — bei euren snake_case-Enums kein Problem.
+- **`settings` darf verschachtelt sein:** Arrays (≤ 64 Elemente) und Objekte (Slug-Keys,
+  ≤ 200 Keys) bis **Tiefe 2** werden übernommen; Elemente/Werte nach denselben Regeln
+  bereinigt. `nodding_patterns` und `transition_cutaway_back` (auch als Array von Objekten)
+  sind ok — **E2E getestet, kein Abflachen nötig.** Nur einzelne unpassende Werte (zu tief
+  verschachtelt / Whitespace-String) fallen still weg, nie das ganze Objekt.
+- **`preset`:** wie ein Label (Leerzeichen erlaubt, ≤ 64, kein Pfad). `analytics_id` muss
+  UUID sein, sonst `null`. `app_version` = `[0-9A-Za-z.+-]`, ≤ 32.
+
+**Datenschutz-URL (Consent-Prompt):** next-intl läuft mit **Always-Prefix** → die deutsche
+Seite ist `https://multicamcutter.pantake.com/de/privacy` (EN: `/en/privacy`). `/privacy`
+ohne Locale leitet per 307 auf den Default (EN) um. Der App-Link `…/de/privacy` ist **korrekt**.
 
 ## Response
 
@@ -105,7 +132,35 @@ ist fire-and-forget und darf den Lauf NIE blockieren oder scheitern lassen.
 
 ## Backend-Status (Website-Seite)
 
-**OFFEN.** Zu bauen: `POST /api/telemetry` + Storage/Auswertung. Empfehlung: hinter dem
-Endpoint einen fertigen Dienst (PostHog/Plausible/eigene DB) — Entscheidung liegt bei
-der Web-Session; der App-Contract oben bleibt davon unberührt. Datenschutz-Hinweis auf
-der Website ergänzen (Regel 3).
+**GEBAUT (26.07., Web-Session) — lokal E2E verifiziert, Deploy steht noch aus.**
+
+- **Storage:** eigene **Neon-Postgres** (Vercel-Marketplace-Integration `neon`,
+  Ressource `neon-celeste-compass`), Region **eu-central-1 / Frankfurt** (Data
+  Residency für ein DE/EU-Produkt — bewusst KEIN us-east-1, kein Dritt-Tracker wie
+  PostHog). `DATABASE_URL` von der Integration ins Vercel-Projekt injiziert. Tabelle
+  `telemetry_events` (Schema: `scripts/telemetry-schema.sql` im Web-Repo). **KEINE
+  IP** gespeichert (Regel 1+2).
+- **Endpoint:** `POST /api/telemetry` (`src/app/api/telemetry/route.ts`) → antwortet
+  wie vereinbart **204**, fire-and-forget, wirft nie zum Caller. Schutz (offener
+  Endpoint): In-Memory-Rate-Limit pro IP (30/10 min), harte Body-Größen-Grenze (64 KB),
+  strikte Validierung.
+- **PII-Backstop (Regel 2), serverseitig, unabhängig von der App:** nur
+  Zahlen/Bools/kurze Enums werden gespeichert. `settings`-String-Werte müssen
+  Einzel-Token sein (KEIN Whitespace, ≤32 Zeichen) → ein Episodenname („49 – Dr. …")
+  wird verworfen; alles mit `/` oder `\` (Pfade) fliegt raus; `preset` mit Pfad → null.
+  Zahlen außerhalb sinnvoller Ranges → null. Verifiziert: ein Testpayload mit
+  Episodenname + Pfaden landete bereinigt in der DB.
+- **Optionaler Client-Token:** env `TELEMETRY_CLIENT_TOKEN` (standardmäßig AUS → bleibt
+  anonym/ohne Auth, wie im Contract). Falls später aktiviert, muss die App den Header
+  **`x-telemetry-token: <token>`** mitsenden — bis dahin keine App-Änderung nötig.
+- **Auswertung:** fertige SQL-Queries (Projekt-Komplexität + Runtime-Benchmark pro
+  Hardware) in `scripts/telemetry-queries.sql` (Web-Repo), für die Neon-SQL-Konsole.
+- **Datenschutz-Hinweis (Regel 3):** neue Seite `/{locale}/privacy` (DE/EN) auf der
+  Website beschreibt Telemetrie (freiwillig, abschaltbar, anonym, EU-Storage, kein
+  Dritt-Tracker) + lokale Verarbeitung, Lizenz/LemonSqueezy, Feedback/GitHub. Footer-
+  Link „Datenschutz/Privacy" verdrahtet. Kontakt-Mail auf der Seite ist noch ein
+  Platzhalter (`datenschutz@pantake.com`); Impressum (DE-Pflicht) + anwaltliche Prüfung
+  stehen noch aus.
+
+**Offen:** commit + deploy; ggf. eine kleine token-geschützte Stats-Seite statt SQL-
+Konsole.

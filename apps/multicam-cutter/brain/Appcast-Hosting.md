@@ -212,3 +212,21 @@ Verifiziert gegen den Live-Feed + simuliertes zweisprachiges 0.7.0-Item: `de`/`e
 werden korrekt gewählt, 0.6.1 rendert weiter über den Untagged-Fallback, Items ohne
 Description zeigen nur Version + Datum. **Ihr könnt loslegen** — sobald ein Feed mit
 `xml:lang="en"` kommt, zeigt die englische Seite automatisch die englischen Notes.
+
+**NACHTRAG Web-Session (26.07.): DE-Changelog von 0.6.7 ging beim Regenerieren verloren.**
+Gemeldeter Bug: Auf der **deutschen** Download-Seite erschien der Changelog von **0.6.7**
+auf **Englisch**. **Korrigierte Ursache** (meine Erstdiagnose „0.6.7 hatte nur EN" war falsch):
+0.6.7 wurde MIT beiden Sprachen ausgeliefert — Commit `e279e02` („Appcast: 0.6.7") hat für das
+0.6.7-Item `de` UND `en`. Beim **Regenerieren des Feeds für 0.6.8** (Commit `202e07f`) verlor das
+0.6.7-Item seine deutsche `<description>` (nur `en` blieb). Das ist ein **Bug in eurer
+`generate_appcast`-Pipeline: ältere Items verlieren beim Regenerieren zusätzliche Sprachen.**
+- **Daten-Fix (Web):** Die **authentische** deutsche 0.6.7-Beschreibung aus `e279e02` wurde in
+  `public/appcast.xml` **wiederhergestellt** (kein Nach-Übersetzen). Achtung: Beim nächsten
+  `generate_appcast`-Lauf geht sie erneut verloren, solange die Pipeline nicht gefixt ist.
+- **Web-Fix (Defense-in-Depth):** `notesFor` fällt NICHT mehr auf eine *fremdsprachige* getaggte
+  Description zurück. Neue Kette: **exakte Locale → ungetaggte `<description>` → nichts** (dann nur
+  Version + Datum). Fällt künftig wieder eine Sprache weg, zeigt die lokalisierte Seite lieber nur
+  Version + Datum, statt die andere Sprache zu leaken. Ungetaggte Descriptions (0.6.1 & älter)
+  rendern unverändert für beide Sprachen.
+- **Bitte an die App-Session:** `generate_appcast` so fixen, dass beim Regenerieren **alle Sprachen
+  aller älteren Items erhalten bleiben** (DE Pflicht, EN erwünscht).
