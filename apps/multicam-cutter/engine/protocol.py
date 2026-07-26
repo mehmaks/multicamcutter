@@ -115,7 +115,7 @@ class JsonLineWriter:
                     if fname in resolved_label:
                         resolved_label = resolved_label.replace(fname, dname)
                 if "Base-EDL" in step_label:
-                    self._emit({"type": "step_start_sub", "label": "Diarization + Base-EDL"})
+                    self._emit({"type": "step_start_sub", "label": "Diarization + Base-EDL", "key": "base_edl"})
                 elif "Nodding-Analyse" in step_label:
                     # Cam-Index aus "Nodding-Analyse CAM{N}" extrahieren
                     import re
@@ -124,10 +124,11 @@ class JsonLineWriter:
                     self._emit({
                         "type": "step_start_sub",
                         "label": resolved_label,
+                        "key": "nodding",
                         "preview_path": f"/tmp/multicam_preview_cam{cam_num}.jpg",
                     })
                 elif "Cutaways" in step_label:
-                    self._emit({"type": "step_start_sub", "label": "Cutaways einfügen"})
+                    self._emit({"type": "step_start_sub", "label": "Cutaways einfügen", "key": "cutaways"})
                 self._emit({"type": "log", "message": line})
                 continue
             # Normaler Text -> log-Nachricht

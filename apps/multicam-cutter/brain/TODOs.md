@@ -176,7 +176,14 @@ Damit ist die App-Seite von Punkt 6 komplett.
   (Token-Filter nur auf `settings.*`); Privacy-Link `/de/privacy` korrekt (next-intl
   Always-Prefix); verschachtelte `settings` ok; alle `settings`-Enums sind Whitespace-freie
   Tokens < 32 Z. → nichts wird gedroppt. Feld-Regeln jetzt im Contract (`Telemetrie-API.md`).
-- **E2E-Test** (sobald Backend live): Zustimmung → echter Lauf → Event bereinigt in der DB.
+- **✅ `runtime.per_step_s` implementiert (26.07.):** Engine (`multicam_engine.py`/`protocol.py`)
+  sendet je Schritt einen stabilen, PII-freien Key (`scan`/`sync`/`base_edl`/`nodding`/`cutaways`/
+  `pause_trim`/`aaf`) statt der deutschen Labels (mit Kameranamen). App misst die Wall-Clock-Dauer
+  je Key (Nodding×N summiert automatisch), sendet unter `runtime.per_step_s`. ⚠️ **Engine geändert
+  → für 0.6.9 Frozen-Rebuild nötig** (Dev greift sofort).
+- **E2E-Test** (Backend ist live, 405-Probe): Zustimmung → echter Lauf → Event bereinigt in der DB.
+  Erster Prod-Run belegt (26.07.): device/settings wortgetreu, PII-frei; `app_version`-null war
+  Stale-Build (gefixt), `per_step_s` fehlte (jetzt gebaut) — Re-Test bestätigt beides.
 - **Reihenfolge:** ausliefern erst mit einem Release NACH dem Deploy (sonst fragt die App
   Zustimmung für einen noch toten Endpoint). Trifft sich mit 0.6.9 (Freeze ist eh unpubliziert).
 

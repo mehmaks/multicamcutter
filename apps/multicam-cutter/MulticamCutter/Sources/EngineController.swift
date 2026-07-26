@@ -472,6 +472,14 @@ class EngineController: ObservableObject {
     /// Dock-Balken. Leer bzw. Laenge != totalSteps → Gleichgewichtung (alt).
     @Published var stepWeights: [Double] = []
 
+    /// Wall-Clock-Dauer je Pipeline-Phase (Key → Sekunden) für die Telemetrie
+    /// (runtime.per_step_s). Gefüllt aus dem `key`-Feld der step_start(_sub)-
+    /// Nachrichten; rollt nur bei Key-WECHSEL um, sodass Nodding×N (gleicher Key)
+    /// automatisch summiert. Kein @Published — reine Messung, keine UI.
+    private var perStepSeconds: [String: Double] = [:]
+    private var stepTimingKey: String? = nil
+    private var stepTimingStart: Date? = nil
+
     /// Gesamtfortschritt 0…1 über alle Schritte (für den Dock-Balken). stepNum ist 1-basiert.
     var overallProgress: Double {
         guard totalSteps > 0 else { return 0 }
@@ -984,6 +992,9 @@ class EngineController: ObservableObject {
         stepETA = ""
         stepCounter = ""
         stepWeights = []
+        perStepSeconds = [:]
+        stepTimingKey = nil
+        stepTimingStart = nil
         logMessages = []
         resultAAF = nil
         resultStats = nil
@@ -1017,6 +1028,27 @@ class EngineController: ObservableObject {
         showSyncResolution = false
     }
 
+    /// Misst die Wall-Clock-Dauer der Pipeline-Phasen für runtime.per_step_s.
+    /// Aufgerufen bei jedem step_start(_sub) mit `key`; rollt nur bei Key-Wechsel
+    /// um, sodass Nodding CAM1..N in denselben Eimer summiert.
+    private func recordStepTiming(_ key: String) {
+        guard key != stepTimingKey else { return }
+        if let prev = stepTimingKey, let start = stepTimingStart {
+            perStepSeconds[prev, default: 0] += Date().timeIntervalSince(start)
+        }
+        stepTimingKey = key
+        stepTimingStart = Date()
+    }
+
+    /// Schließt die laufende Phase ab (bei result/session_end).
+    private func closeStepTiming() {
+        if let prev = stepTimingKey, let start = stepTimingStart {
+            perStepSeconds[prev, default: 0] += Date().timeIntervalSince(start)
+        }
+        stepTimingKey = nil
+        stepTimingStart = nil
+    }
+
     /// Sendet nach erfolgreichem Lauf anonyme Telemetrie — NUR wenn zugestimmt.
     /// Ausschliesslich Zahlen/Enums (keine Namen/Pfade). Contract: brain/Telemetrie-API.md.
     func sendTelemetryIfEnabled(elapsedS: Double) {
@@ -1025,6 +1057,11 @@ class EngineController: ObservableObject {
             .filter { $0 > 0 }.sorted()
         let total = durs.reduce(0, +)
         let median = durs.isEmpty ? 0 : durs[durs.count / 2]
+        var runtime: [String: Any] = ["elapsed_s": Int(elapsedS)]
+        // Pro-Schritt-Aufschlüsselung (nur nennenswerte Phasen ≥ 1 s, ganze
+        // Sekunden) — zeigt, wo die Zeit hingeht (i.d.R. dominiert Nodding).
+        let steps = perStepSeconds.filter { $0.value >= 1.0 }.mapValues { Int($0.rounded()) }
+        if !steps.isEmpty { runtime["per_step_s"] = steps }
         let payload: [String: Any] = [
             "sources": [
                 "n_cams": activeCams.count,
@@ -1035,7 +1072,7 @@ class EngineController: ObservableObject {
                 "duration_median_s": Int(median),
                 "duration_max_s": Int(durs.last ?? 0),
             ],
-            "runtime": ["elapsed_s": Int(elapsedS)],
+            "runtime": runtime,
             "preset": PresetManager.shared.matchingBuiltIn(params) ?? "custom",
             "settings": params.toDict(),
             "device": TelemetryDevice.payload,
@@ -2017,6 +2054,7 @@ class EngineController: ObservableObject {
 
         switch type {
         case "step_start":
+            if let key = json["key"] as? String { recordStepTiming(key) }
             if let label = json["label"] as? String {
                 stepLabel = label
                 stepPercent = 0
@@ -2029,6 +2067,7 @@ class EngineController: ObservableObject {
             logMessages.append("Schritt \(stepNum)/\(totalSteps): \(stepLabel)")
 
         case "step_start_sub":
+            if let key = json["key"] as? String { recordStepTiming(key) }
             // Subprocess-Step innerhalb von run_analysis
             if let label = json["label"] as? String {
                 stepLabel = label
@@ -2105,6 +2144,7 @@ class EngineController: ObservableObject {
             }
             resultStats = stats
             state = .done
+            closeStepTiming()
             sendTelemetryIfEnabled(elapsedS: (json["elapsed_s"] as? Double) ?? 0)
 
         case "log":

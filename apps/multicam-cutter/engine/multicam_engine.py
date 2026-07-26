@@ -765,7 +765,7 @@ def convert_fps_files(files, target_fps, hevc_quality=72, prores_profile="hq"):
             pix_fmt, src_p.suffix, hevc_quality, prores_profile)
         out_p = src_p.with_name(f"{src_p.stem}_{int(round(target_fps))}fps{out_suffix}")
         emit("step_start", step_num=i + 1, total_steps=total,
-             label=f"Konvertiere {src_p.name}")
+             label=f"Konvertiere {src_p.name}", key="fps_convert")
 
         src_tc = _probe_timecode(src_p)
         dur = _probe_duration(src_p)
@@ -948,13 +948,17 @@ def run_pipeline(folder, fps, params, output_path,
     total_steps = 4 + n_cams_expected + 2  # scan, sync, base_edl, N×nodding, cutaways, pause_trim, aaf
     step_num = 0
 
-    def next_step(label):
+    def next_step(label, key=None):
         nonlocal step_num
         step_num += 1
-        emit("step_start", step_num=step_num, total_steps=total_steps, label=label)
+        # `key` = stabiler, PII-freier Schritt-Bezeichner fuer die Telemetrie
+        # (runtime.per_step_s). Das `label` ist deutsch + enthaelt Dateinamen und
+        # taugt daher NICHT als Auswertungs-Schluessel.
+        emit("step_start", step_num=step_num, total_steps=total_steps,
+             label=label, key=key)
 
     # ── 1. Scan ──────────────────────────────────────────────────────────────
-    next_step("Ordner scannen")
+    next_step("Ordner scannen", "scan")
     if cams_arg or mics_arg:
         # Die App hat die aktivierten Quellen explizit uebergeben — NICHT scannen,
         # sonst waeren deaktivierte Dateien wieder dabei und die positionsbasierten
@@ -997,7 +1001,7 @@ def run_pipeline(folder, fps, params, output_path,
          mics=[m.name for m in mics])
 
     # ── 2. Waveform-Sync ─────────────────────────────────────────────────────
-    next_step("Waveform-Sync")
+    next_step("Waveform-Sync", "sync")
     # Bestaetigt der Nutzer, dass alle Mikrofone aus einem Mehrspur-Recorder
     # stammen, teilen sie sich eine Clock: still aufgenommene Spuren erben dann
     # den Referenz-Offset statt den Lauf abzubrechen (siehe waveform_sync.py).
@@ -1047,7 +1051,7 @@ def run_pipeline(folder, fps, params, output_path,
     # Die Step-Beschreibungen (z.B. "Base-EDL aus Audio...") werden vom
     # JsonLineWriter als log-Zeilen emittiert. Wir emittieren hier die
     # step_start-Nachrichten VOR dem Aufruf fuer die bekannten Schritte.
-    next_step("Diarization + Base-EDL")
+    next_step("Diarization + Base-EDL", "base_edl")
     try:
         final_edl = run_analysis(
             cam_paths, mic_paths, offsets,
@@ -1065,7 +1069,7 @@ def run_pipeline(folder, fps, params, output_path,
         raise RuntimeError(f"Analyse-Pipeline: {e}")
 
     # ── 4. Pause-Trimming ────────────────────────────────────────────────────
-    next_step("Pause-Trimming")
+    next_step("Pause-Trimming", "pause_trim")
     audio_trims_path = work_dir / "audio_trims.json"
     audio_keeps = None
     trimmed_events = None
@@ -1107,7 +1111,7 @@ def run_pipeline(folder, fps, params, output_path,
             audio_keeps = None
 
     # ── 5. AAF-Export ────────────────────────────────────────────────────────
-    next_step("AAF-Export")
+    next_step("AAF-Export", "aaf")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     # Default 1.0 = kein Zoom. Frueher 1.5: jede Totale wurde still auf 150%
     # skaliert. Die Cams sind ordentlich eingerichtet — der Zoom war unnoetig.
