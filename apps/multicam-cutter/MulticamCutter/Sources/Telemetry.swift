@@ -34,7 +34,10 @@ enum Telemetry {
         guard enabled, let url = endpoint else { return }
         var full = payload
         full["analytics_id"] = analyticsId
-        full["app_version"] = AppVersion.display
+        // Contract: app_version = reine Marketing-Version ("0.6.8"), NICHT der lange
+        // Anzeige-String (AppVersion.display = "Version 0.6.8 (build) · sha") — der
+        // hat Leerzeichen und würde die Auswertung „pro Version" zerstückeln.
+        full["app_version"] = AppVersion.short
         full["event"] = "analysis_completed"
         guard JSONSerialization.isValidJSONObject(full),
               let body = try? JSONSerialization.data(withJSONObject: full) else { return }

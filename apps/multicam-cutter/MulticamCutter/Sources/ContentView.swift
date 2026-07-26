@@ -16,6 +16,10 @@ struct ContentView: View {
     /// bestaetigte INHALTS-Stand, damit geaenderte Voraussetzungen erneut erscheinen.
     @AppStorage("firstRunInfoSeenRevision") private var firstRunInfoSeenRevision = 0
     @State private var showFirstRunInfo = false
+    /// Telemetrie-Zustimmung (0 = ungefragt) — steuert den einmaligen Consent-Sheet.
+    /// Geteilt mit SettingsView + Telemetry.swift über denselben @AppStorage-Key.
+    @AppStorage("analyticsConsent") private var analyticsConsent = 0
+    @State private var showTelemetryConsent = false
     /// Gemessene Wizard-Hoehen fuers Content-Fitting (s. fitWindowToWizardContent).
     @State private var wizardContentHeight: CGFloat = 0
     @State private var wizardViewportHeight: CGFloat = 0
@@ -43,6 +47,16 @@ struct ContentView: View {
     /// + 2×28 Rand. Wert siehe Design-System.md → Fenster-Verhalten.
     private static let wizardWindowWidth: CGFloat = WizardLayout.contentWidth + 56
 
+    /// Fragt die anonyme Telemetrie-Zustimmung EINMAL ab — nur wenn noch nie
+    /// gefragt (analyticsConsent == 0). Aufgerufen beim Start (ohne Material-Hinweis)
+    /// bzw. aus dessen onDismiss, damit die Sheets nacheinander erscheinen.
+    private func maybeAskTelemetryConsent() {
+        guard analyticsConsent == 0 else { return }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.35) {
+            showTelemetryConsent = true
+        }
+    }
+
     var body: some View {
         // Feedback-Button sitzt jetzt im Wizard-Footer neben „Zurück" (nicht mehr
         // global oben rechts). ErrorView + Menü haben weiterhin eigene Einstiege.
@@ -53,16 +67,26 @@ struct ContentView: View {
             mainWindow = window
             configureWindowChrome(window)
         })
-        .sheet(isPresented: $showFirstRunInfo) {
+        .sheet(isPresented: $showFirstRunInfo, onDismiss: {
+            // Nach dem Material-Hinweis ggf. die Telemetrie-Zustimmung erfragen —
+            // nacheinander, damit nie zwei Sheets übereinander liegen.
+            maybeAskTelemetryConsent()
+        }) {
             FirstRunSheet()
+        }
+        .sheet(isPresented: $showTelemetryConsent) {
+            TelemetryConsentSheet()
         }
         .onAppear {
             // Erst nach dem Fensteraufbau: ein Sheet, das im selben Zyklus wie
             // das Fenster erscheint, sitzt sonst gelegentlich ohne Elternfenster
             // in der Bildschirmmitte.
-            guard firstRunInfoSeenRevision < FirstRunSheet.contentRevision else { return }
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.4) {
-                showFirstRunInfo = true
+                if firstRunInfoSeenRevision < FirstRunSheet.contentRevision {
+                    showFirstRunInfo = true   // Consent folgt in dessen onDismiss.
+                } else {
+                    maybeAskTelemetryConsent()
+                }
             }
         }
         .sheet(isPresented: $engine.showingFeedback) {

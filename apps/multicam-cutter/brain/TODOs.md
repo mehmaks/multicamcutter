@@ -25,7 +25,7 @@ Post-1.0 (C), nicht in diese Liste.
 | 3 | **Bundle-Größe** — ⚠️ WIEDER OFFEN (25.07.): „verifiziert" war FALSCH. Excludes brachen im Release Nodding (mediapipe→matplotlib) + CLIP (transformers→pandas/pyarrow/sklearn). Spec gefixt; braucht **Frozen-Rebuild + Patch-Release + Nodding-Lauf am Release**. Sichere Excludes: nur llvmlite/numba/plotly | 🎯 A | leicht | Lehre: sys.modules-Trace statt grep |
 | ~~4~~ ✅ | ~~**Mehrere Totalen Stufe 1**~~ — GELIEFERT (25.07.): `totale_mode` (round_robin/random/first), Reset + Multi-Person-Fallback rotieren, Experten-Picker + Schema. Rest-Sliver: Base-EDL-Totale (Binär-Simultan) noch first-only | ✨ B | ✓ | erledigt — nächster offener Punkt: **5** |
 | ~~5~~ ✅ | ~~**Dock-Balken gewichtet**~~ — GELIEFERT (25.07.): Engine schickt `step_weights` (Nodding/CLIP dominieren, adaptiv zu Kamerazahl+CLIP), Swift normiert `overallProgress`, Fallback bei Mismatch | ✨ B | ✓ | erledigt — nächster offener Punkt: **6** |
-| 6 | **Telemetrie** (Opt-in) — 🔨 App-Seite + Contract geliefert (25.07.); OFFEN: Backend (Web-Session) + Erst-Start-Consent-Prompt | 🌍 | mittel | App-seitig fertig (Toggle Default AUS, fire-and-forget); Rest blockiert extern |
+| 6 | **Telemetrie** (Opt-in) — ✅ App-Seite KOMPLETT (26.07.: Consent-Prompt gebaut); Backend gebaut (Web-Session, lokal verifiziert); OFFEN: **Deploy** (Web-Repo) + E2E | 🌍 | mittel | App fertig (Toggle Default AUS + Erst-Start-Zustimmung, fire-and-forget); Rest extern |
 | ~~7~~ ✅ | ~~**Settings-Durchgang**~~ — GELIEFERT (26.07.): User-Änderungsliste (CSV) eingepflegt — ParamHelp ×20 Hilfetexte + 3 Experten-Labels an Basis angeglichen (Min./Max. Schnittlänge, Pausen kürzen) + Web-Schema `help` synchron. **String-Freeze steht**, Build grün | ✨ B | ✓ | erledigt — nächster offener Punkt: **8** |
 | 8 | **Mehrsprachigkeit DE/EN** | 🌍 | mittel–schwer | **Capstone**: Freeze-then-Translate — Engine→Keys, Swift lokalisiert, ParamHelp ×30, Web-Schema-Sync über die eingefrorene Menge → **1.0** |
 
@@ -159,14 +159,26 @@ via `params.toDict()`, Built-in-Preset via `PresetManager.matchingBuiltIn` sonst
 Gerät) und feuert im `result`-Dispatch. Settings → Datenschutz: Opt-in-Toggle (**Default AUS**,
 Key `analyticsConsent`: 0 ungefragt/1 an/2 aus). Alles **inert**, bis Backend steht.
 
-**⚠️ NOCH OFFEN:**
-- **Backend (Web-Session):** `POST /api/telemetry` + Storage. Empfehlung: eigenes Endpoint
-  + Gratis-DB (Supabase/Vercel Postgres) — konsistent zu `/api/license`+`/api/feedback`;
-  Alternative PostHog-Free-Tier. Plausible ungeeignet (Abo, Pageview-orientiert).
-- **Erst-Start-Consent-Prompt:** bewusst NICHT gebaut, solange der Endpoint tot ist
-  (sonst fragt die App Zustimmung für nichts). Wird mit dem Backend nachgezogen; bis
-  dahin ist der Settings-Toggle der Opt-in-Weg.
-- **E2E-Test** (sobald Backend live).
+**✅ Erst-Start-Consent-Prompt GEBAUT (26.07.):** `TelemetryConsentSheet.swift` — einmalige
+Opt-in-Frage, DSGVO-konform (freiwillig, transparent, Datenschutz-Link `/de/privacy`,
+Escape/„Nein danke" = datensparsame Wahl, Enter löst KEINE Zustimmung aus). In
+`ContentView` **nach** dem Material-Hinweis sequenziert (`onDismiss` → nie gestapelt),
+erscheint nur bei `analyticsConsent == 0`. Setzt 1/2 im geteilten @AppStorage-Key.
+Damit ist die App-Seite von Punkt 6 komplett.
+
+**⚠️ NOCH OFFEN (extern / abhängig):**
+- **Deploy (Web-Session):** Backend ist gebaut (Neon-Postgres Frankfurt, `POST /api/telemetry`,
+  204, PII-Backstop serverseitig, Rate-Limit, Privacy-Seite DE/EN — lokal E2E verifiziert),
+  aber **noch nicht deployed**. Details/Stand: `brain/Telemetrie-API.md`. Erst nach Deploy
+  landet echte Telemetrie in der DB.
+- **✅ Contract-Abgleich erledigt (26.07., Web-Session bestätigt):** Payload Feld-für-Feld
+  geprüft. `app_version`→kurz gefixt; `device.chip`/`os` werden wortgetreu gespeichert
+  (Token-Filter nur auf `settings.*`); Privacy-Link `/de/privacy` korrekt (next-intl
+  Always-Prefix); verschachtelte `settings` ok; alle `settings`-Enums sind Whitespace-freie
+  Tokens < 32 Z. → nichts wird gedroppt. Feld-Regeln jetzt im Contract (`Telemetrie-API.md`).
+- **E2E-Test** (sobald Backend live): Zustimmung → echter Lauf → Event bereinigt in der DB.
+- **Reihenfolge:** ausliefern erst mit einem Release NACH dem Deploy (sonst fragt die App
+  Zustimmung für einen noch toten Endpoint). Trifft sich mit 0.6.9 (Freeze ist eh unpubliziert).
 
 - [ ] **Opt-in-Prompt beim ersten Start** + anonyme Nutzungsdaten senden.
   **Ziel (User)**: Wie umfangreich sind die Projekte da draußen? Eher 2-Cam-Setups
