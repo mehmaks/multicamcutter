@@ -26,7 +26,7 @@ Post-1.0 (C), nicht in diese Liste.
 | ~~4~~ ✅ | ~~**Mehrere Totalen Stufe 1**~~ — GELIEFERT (25.07.): `totale_mode` (round_robin/random/first), Reset + Multi-Person-Fallback rotieren, Experten-Picker + Schema. Rest-Sliver: Base-EDL-Totale (Binär-Simultan) noch first-only | ✨ B | ✓ | erledigt — nächster offener Punkt: **5** |
 | ~~5~~ ✅ | ~~**Dock-Balken gewichtet**~~ — GELIEFERT (25.07.): Engine schickt `step_weights` (Nodding/CLIP dominieren, adaptiv zu Kamerazahl+CLIP), Swift normiert `overallProgress`, Fallback bei Mismatch | ✨ B | ✓ | erledigt — nächster offener Punkt: **6** |
 | 6 | **Telemetrie** (Opt-in) — 🔨 App-Seite + Contract geliefert (25.07.); OFFEN: Backend (Web-Session) + Erst-Start-Consent-Prompt | 🌍 | mittel | App-seitig fertig (Toggle Default AUS, fire-and-forget); Rest blockiert extern |
-| 7 | **Settings-Durchgang** (Benennung/Gruppierung) | ✨ B | mittel | **String-Freeze**: alle Labels final (inkl. Totalen-Param + Telemetrie-Toggle). Ab hier ändert sich kein deutscher UI-Text mehr |
+| ~~7~~ ✅ | ~~**Settings-Durchgang**~~ — GELIEFERT (26.07.): User-Änderungsliste (CSV) eingepflegt — ParamHelp ×20 Hilfetexte + 3 Experten-Labels an Basis angeglichen (Min./Max. Schnittlänge, Pausen kürzen) + Web-Schema `help` synchron. **String-Freeze steht**, Build grün | ✨ B | ✓ | erledigt — nächster offener Punkt: **8** |
 | 8 | **Mehrsprachigkeit DE/EN** | 🌍 | mittel–schwer | **Capstone**: Freeze-then-Translate — Engine→Keys, Swift lokalisiert, ParamHelp ×30, Web-Schema-Sync über die eingefrorene Menge → **1.0** |
 
 **Rückgrat der Ordnung (nicht willkürlich):** 6 → 7 → 8. Telemetrie bringt den letzten
@@ -134,9 +134,18 @@ Python-Runtime dazubekommt.
   laesst Totalen ohne Mic weiterhin zu, das passt also zusammen. UI muesste den
   Bedeutungswechsel nur klar machen (Drop-Ziel-Text auf einer Totale anders benennen).
 
-- [ ] **Settings-Durchgang mit User**: alle Parameter durchgehen, Sortierung +
-  Benennung in der UI überarbeiten (Labels, Gruppierung, Reihenfolge, welche
-  Basis vs. Experte). Referenz für Namen/Reihenfolge: `config/schemas/multicam_params.json`.
+- [x] **Settings-Durchgang mit User — ERLEDIGT (26.07.).** User ist alle Settings selbst
+  durchgegangen und hat eine Änderungsliste (CSV) übergeben. Eingepflegt: **20 Hilfetexte**
+  in `ParamHelp.swift` (Kürzungen + Präzisierungen, z.B. „einer nicht aktiv sprechenden
+  Person", Crossbleed/Gate-Texte, Bildsprache-Cooldowns mit Querverweis), **3 Experten-Labels**
+  an die Basis-Liste angeglichen (`Min./Max. Shotlänge`→`Schnittlänge`, `Pausen trimmen`→
+  `Pausen kürzen`), und dieselben `help`-Felder im **Web-Schema** (`multicam_params.json`)
+  synchronisiert (Labels dort bewusst NICHT angefasst — anderes Namensschema mit „(s)"-Suffix).
+  Build grün, JSON valide. **Damit ist der deutsche String-Freeze erreicht** → Basis für Punkt 8.
+  - [ ] ⚠️ **2 vereinheitlichte Divergenzen** (User gab für dieselbe Konstante in Basis vs.
+    Experte unterschiedlichen Text — es gibt aber nur EINE Konstante pro Key): `noddingEnabled`
+    → „einer zuhörenden Person" (statt Experten-Variante „der zuhörenden Personen"),
+    `pauseCutawayEnabled` → knappe Basis-Formulierung. Kann der User bei Bedarf einzeilig ändern.
 
 ### 🌍 1.0 — vorgezogen aus Backlog (User, 25.07.)
 
@@ -205,6 +214,11 @@ Key `analyticsConsent`: 0 ungefragt/1 an/2 aus). Alles **inert**, bis Backend st
   1. **Swift-Strings**: String Catalog (`.xcstrings`) braucht Xcode-Tooling — wir
      bauen aber per SPM/`build_app.sh`. Alternative: `Localizable.strings` + `.lproj`
      in `Contents/Resources` von build_app.sh mitkopieren.
+     **✅ Vorarbeit (26.07.):** `build_app.sh` deklariert die App jetzt als deutsch
+     (`CFBundleDevelopmentRegion=de` + `CFBundleLocalizations` + physische
+     `Contents/Resources/de.lproj/InfoPlist.strings`). Der `.lproj`-Weg ist damit schon
+     angelegt — für EN nur `en` in `CFBundleLocalizations` ergänzen + `en.lproj` befüllen.
+     Nebeneffekt: Sparkles Update-UI ist dadurch jetzt deutsch (`brain/Bekannte-Bugs.md`).
   2. **Engine-Ausgaben**: die Engine sendet deutsche Step-Labels/Fehlertexte über
      JSON-Lines. Sauber wäre: Engine sendet **Keys** (+ Parameter), Swift lokalisiert.
      → Protokoll-Änderung, siehe `brain/Engine-Protokoll.md`.

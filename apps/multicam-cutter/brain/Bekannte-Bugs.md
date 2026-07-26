@@ -20,6 +20,30 @@
   transformers + scipy + soundfile + aaf2). Und Frozen-Only-Features (Nodding/CLIP)
   IM Frozen-Build testen, nicht im Dev.
 
+### Sparkle-Update-Ablauf komplett Englisch — GEFIXT im Build-Script (26.07.), Verifikation braucht Release-Build
+- **Symptom** (User, 26.07.): Der gesamte Update-Ablauf (Sparkles „Update verfügbar"-
+  Dialog, Release-Notes-Rahmen, Download-Fortschritt, „Installieren & Neustarten") wird
+  **englisch** angezeigt — obwohl die App sonst durchgehend deutsch ist. Unsere EIGENEN
+  Update-Strings (About-Dialog, Einstellungen→Updates in `Updater.swift`) sind deutsch;
+  nur Sparkles mitgelieferte Dialoge waren englisch.
+- **Ursache**: Die App-`Info.plist` (aus `build_app.sh`) hatte **weder
+  `CFBundleDevelopmentRegion` noch `CFBundleLocalizations`** und **keine app-eigene
+  `.lproj`**. Damit gilt die App für macOS als „Englisch-only". macOS beschränkt die
+  Sprache **geladener Frameworks auf die von der App unterstützten Sprachen** → Sparkle
+  wird auf Englisch gezwungen, OBWOHL `Sparkle.framework` eine fertige `de.lproj`
+  mitbringt. Es fehlten also keine Übersetzungen — die App hat Deutsch nie deklariert.
+- **Fix** (`build_app.sh`): `CFBundleDevelopmentRegion=de` + `CFBundleLocalizations=[de]`
+  in die Info.plist, plus eine physische `Contents/Resources/de.lproj/InfoPlist.strings`
+  (zuverlässigstes Signal für `NSBundle.localizations`). Damit meldet die App Deutsch als
+  verfügbare Sprache → Sparkle zieht automatisch seine de.lproj.
+- **⚠️ Verifikation steht aus**: greift **nur im gebündelten `.app`** (Dev via `swift run`
+  hat keine Info.plist/kein Sparkle-Feed). Prüfen im nächsten Release: Update-Dialog auf
+  Deutsch? `plutil -p .../Contents/Info.plist | grep -i region` zeigt `de`, und
+  `Contents/Resources/de.lproj/` existiert im signierten Bundle.
+- **Lehre**: „Framework zeigt Englisch trotz vorhandener Lokalisierung" ist fast nie ein
+  Übersetzungs-, sondern ein **Deklarations**problem der Host-App (Development Region /
+  Localizations). Beim EN-Ausbau (Punkt 8) hier `en` ergänzen.
+
 ### Bekannter Ordner + neue Datei → Kamera↔Mic-Zuordnung verknüpft falsch — GEFIXT (25.07.)
 - **Symptom**: Ordner mit gespeicherter `.multicam` erneut geöffnet, nachdem eine
   NEUE WAV hineinkopiert wurde. Die App stellt die alte Zuordnung wieder her, aber

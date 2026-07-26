@@ -664,7 +664,7 @@ struct ProgressView_: View {
                     }
 
                     if !engine.stepETA.isEmpty && engine.stepETA != "--:--" {
-                        Text("ETA: \(engine.stepETA)")
+                        Text("Restzeit: \(engine.stepETA)")
                             .font(.system(.body, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }

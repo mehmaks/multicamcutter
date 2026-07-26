@@ -212,7 +212,7 @@ struct FeedbackView: View {
     @ViewBuilder
     private func successPanel(url: String?, number: Int?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            LucideLabel(number.map { "Report #\($0) angelegt — danke!" } ?? "Report gesendet — danke!",
+            LucideLabel(number.map { "Meldung #\($0) angelegt — danke!" } ?? "Meldung gesendet — danke!",
                         icon: "circle-check", size: 15)
                 .foregroundStyle(.green)
                 .font(.headline)

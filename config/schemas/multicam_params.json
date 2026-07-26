@@ -35,7 +35,7 @@
               "widget": "number_input",
               "default": 1.8,
               "label": "Cleanup-Mindestlänge (s)",
-              "help": "Schnitte kürzer als dieser Wert werden am Ende automatisch entfernt.",
+              "help": "Schnitte kürzer als dieser Wert werden automatisch entfernt.",
               "expert": true,
               "config": { "min_value": 0.1, "step": 0.1, "format": "%.1f" },
               "column": 1
@@ -57,7 +57,7 @@
               "widget": "number_input",
               "default": 6.0,
               "label": "Schwelle (dB)",
-              "help": "Wie deutlich lauter jemand sein muss als der andere, damit ein Sprecherwechsel erkannt wird. Höhere Werte schneiden nur bei klarer Dominanz.",
+              "help": "Wie deutlich lauter jemand sein muss als die aktiv sprechende Person, damit ein Sprecherwechsel erkannt wird.",
               "expert": false,
               "config": { "min_value": 0.5, "step": 0.5, "format": "%.1f" },
               "column": 0
@@ -77,7 +77,7 @@
               "widget": "number_input",
               "default": 0.3,
               "label": "Wechsel-Verzögerung (s)",
-              "help": "Wie lange jemand durchgehend lauter sein muss, bevor auf ihn geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.",
+              "help": "Wie lange eine Person durchgehend lauter sein muss, bevor auf diese geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.",
               "expert": true,
               "config": { "min_value": 0.0, "step": 0.05, "format": "%.2f" },
               "column": 2
@@ -96,7 +96,7 @@
               "widget": "toggle",
               "default": false,
               "label": "Pausen trimmen",
-              "help": "Überlange Sprechpausen an Sprecherwechseln automatisch kürzen.",
+              "help": "Überlange Sprechpausen bei Sprecherwechseln automatisch kürzen.",
               "expert": false,
               "column": 0
             },
@@ -105,7 +105,7 @@
               "widget": "selectbox",
               "default": "middle",
               "label": "Schnittmodus",
-              "help": "Wo der Videocut in der Pause liegt. Middle: symmetrisch. L-Cut: Video schneidet am Pausenanfang. J-Cut: Video schneidet am Pausenende. Zufall: Wählt bei jedem Schnitt zufällig. Audio ist immer Middle-Cut.",
+              "help": "Legt fest, wo der Videocut in einer Pause liegt.",
               "expert": true,
               "config": {
                 "options": ["Middle", "L-Cut", "J-Cut", "Zufall"]
@@ -151,7 +151,7 @@
               "widget": "toggle",
               "default": false,
               "label": "Crossbleed-Gate",
-              "help": "Unterdrückt Übersprechen zwischen Mikrofonen vor der Sprechererkennung. Nützlich wenn beide Mics im selben Raum stehen und Crossbleed die Diarization verfälscht.",
+              "help": "Unterdrückt Übersprechen zwischen Mikrofonen vor der Sprechererkennung. Nützlich wenn beide Mics im selben Raum stehen.",
               "expert": true,
               "column": 0
             },
@@ -170,7 +170,7 @@
               "widget": "number_input",
               "default": 2.0,
               "label": "Hysterese (dB)",
-              "help": "Vermeidet Flattern an Grenzen. Ein Wechsel findet erst statt, wenn das andere Mic um diesen Betrag lauter wird.",
+              "help": "Vermeidet „Flattern“ an Grenzen. Ein Wechsel findet erst statt, wenn das andere Mikrofon um diesen Betrag lauter wird.",
               "expert": true,
               "config": { "min_value": 0.5, "max_value": 10.0, "step": 0.5, "format": "%.1f" },
               "column": 2
@@ -185,7 +185,7 @@
               "widget": "number_input",
               "default": 80.0,
               "label": "Fenster (ms)",
-              "help": "Analyse-Fenster für die Pegelvergleich. Groß genug für Raumhall, klein genug für schnelle Wechsel.",
+              "help": "Analyse-Fenster für den Pegelvergleich. Größer für Raumhall, kleiner für schnelle Wechsel.",
               "expert": true,
               "config": { "min_value": 20.0, "max_value": 500.0, "step": 10.0, "format": "%.0f" },
               "column": 0
@@ -195,7 +195,7 @@
               "widget": "number_input",
               "default": 15.0,
               "label": "Attack (ms)",
-              "help": "Wie schnell das Gate öffnet. Kurz genug, damit Silbenanfänge nicht verloren gehen.",
+              "help": "Wie schnell das Gate öffnet. Kürzer, damit Silbenanfänge nicht verloren gehen.",
               "expert": true,
               "config": { "min_value": 1.0, "max_value": 200.0, "step": 5.0, "format": "%.0f" },
               "column": 1
@@ -220,7 +220,7 @@
               "widget": "number_input",
               "default": 3.0,
               "label": "Gleichzeitig-Schwelle (dB)",
-              "help": "Wenn der Pegelunterschied kleiner als dieser Wert ist, werden beide Mics durchgelassen (gleichzeitiges Sprechen).",
+              "help": "Wenn der Pegelunterschied kleiner als dieser Wert ist, werden alle Mikrofone durchgelassen (gleichzeitiges Sprechen).",
               "expert": true,
               "config": { "min_value": 0.5, "max_value": 10.0, "step": 0.5, "format": "%.1f" },
               "column": 0
@@ -251,7 +251,7 @@
               "widget": "number_input",
               "default": 1.8,
               "label": "Cutaway-Länge (s)",
-              "help": "Wie lange eine Reaktionsaufnahme mindestens gezeigt wird. Gilt für Kopfnicken und Max-Shotlänge-Cutaways.",
+              "help": "Wie lange eine Reaktion mindestens gezeigt wird.",
               "expert": false,
               "section_label": "Generell",
               "config": { "min_value": 0.5, "step": 0.1, "format": "%.1f" },
@@ -262,7 +262,7 @@
               "widget": "number_input",
               "default": 15,
               "label": "Pre-Roll (Frames)",
-              "help": "Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt. Gilt für alle Cutaway-Typen.",
+              "help": "Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt.",
               "expert": true,
               "config": { "min_value": 0, "step": 1 },
               "column": 0
@@ -282,7 +282,7 @@
               "widget": "toggle",
               "default": true,
               "label": "Kopfnicken",
-              "help": "Erkennt Kopfnicken der zuhörenden Person und schneidet in diesem Moment auf sie.",
+              "help": "Erkennt Kopfnicken einer zuhörenden Person und schneidet in diesem Moment auf sie.",
               "expert": false,
               "column": 1
             },
@@ -302,7 +302,7 @@
               "widget": "toggle",
               "default": true,
               "label": "Sprachreaktionen",
-              "help": "Erkennt kurze Einwürfe oder Laute der nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie.",
+              "help": "Erkennt kurze Einwürfe oder Laute einer nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie.",
               "expert": false,
               "column": 2
             },
@@ -331,7 +331,7 @@
               "widget": "toggle",
               "default": false,
               "label": "Stille",
-              "help": "Erkennt Sprechpausen auf der On-Kamera und schneidet während der Stille auf die andere Kamera.",
+              "help": "Schneidet während einer Sprechpause der aktiv sprechenden Person auf eine andere Kamera.",
               "expert": false,
               "column": 3
             },
@@ -350,7 +350,7 @@
               "widget": "toggle",
               "default": false,
               "label": "Ungünstige Cutaways verschieben",
-              "help": "Prüft per Bilderkennung (CLIP), ob ein Cutaway eine unerwünschte Szene zeigt (z.B. Person trinkt) und verschiebt ihn automatisch.",
+              "help": "Prüft per Bilderkennung, ob ein Cutaway eine unerwünschte Szene zeigt (z.B. „Person trinkt“) und verschiebt ihn automatisch. Prompts können in den App-Einstellungen festgelegt werden.",
               "expert": true,
               "column": 3
             }

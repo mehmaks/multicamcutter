@@ -702,7 +702,7 @@ struct FpsMismatchBanner: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 LucideIcon("triangle-alert", size: 14)
-                Text("FPS-Mismatch").fontWeight(.semibold)
+                Text("Falsche Bildrate").fontWeight(.semibold)
             }
             .foregroundStyle(.brandSecondary)
 
@@ -1014,7 +1014,7 @@ struct WizardFooter: View {
         if engine.activeCams.count < 2 { return "Mindestens 2 Kameras nötig" }
         if engine.persons.isEmpty { return "Mindestens eine Person nötig" }
         if engine.analysisCams.count < 2 { return "Mindestens 2 Kameras brauchen eine Person" }
-        if !engine.fpsMismatches.isEmpty { return "FPS-Mismatch — bitte oben beheben" }
+        if !engine.fpsMismatches.isEmpty { return "Bildrate weicht ab — bitte oben beheben" }
         // Die Diarisierung vergleicht genau zwei NAH-Kameras; eine dritte bliebe
         // stumm. Totalen sind erlaubt (siehe UnsupportedCloseCamsBanner).
         if !engine.unsupportedCloseCams.isEmpty { return "Mehr als 2 Nah-Kameras — noch nicht unterstützt" }
@@ -1134,9 +1134,9 @@ struct WizardSettings: View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
                 group("Generelle Schnittregeln", first: true) {
-                    WizSlider("Min. Shotlänge", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
+                    WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
                     WizSlider("Cleanup-Mindestlänge", $engine.params.cleanupDur, 0.1...5, suffix: " s", help: ParamHelp.cleanupDur)
-                    WizSlider("Max. Shotlänge", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
+                    WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
                 }
                 group("Sprecher-Erkennung") {
                     WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
@@ -1144,7 +1144,7 @@ struct WizardSettings: View {
                     WizSlider("Wechsel-Verzögerung", $engine.params.changeDelay, 0...2, suffix: " s", help: ParamHelp.changeDelay)
                 }
                 group("Pausen-Trimming") {
-                    WizToggle("Pausen trimmen", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
+                    WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
                     WizSlider("Max. Pause", $engine.params.maxPause, 0.1...3, suffix: " s", help: ParamHelp.maxPause)
                     WizSlider("Stille-Schwelle", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f", help: ParamHelp.pauseSilenceDb)
                     // Werte 1:1 aus dem Schema/der Pipeline (pause_trim_edl.py):

@@ -171,6 +171,20 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>MultiCamCutter</string>
     <key>CFBundleDisplayName</key>
     <string>MultiCamCutter</string>
+    <!-- Sprache der App = Deutsch. OHNE das laeuft die App als "Englisch-only",
+         und macOS zwingt JEDES geladene Framework in dessen englische Strings —
+         darum war der komplette Sparkle-Update-Ablauf (Verfuegbar-Dialog,
+         Download, Neustart) englisch, obwohl Sparkle.framework eine de.lproj
+         mitbringt. CFBundleDevelopmentRegion + CFBundleLocalizations + eine echte
+         de.lproj (siehe unten) melden NSBundle Deutsch als verfuegbare Sprache,
+         dann zeigt Sparkle automatisch Deutsch. Bei EN-Ausbau (Punkt 8) hier
+         "en" ergaenzen. -->
+    <key>CFBundleDevelopmentRegion</key>
+    <string>de</string>
+    <key>CFBundleLocalizations</key>
+    <array>
+        <string>de</string>
+    </array>
     <key>CFBundleIdentifier</key>
     <string>com.jenaunited.multicam-cutter</string>
     <key>CFBundleVersion</key>
@@ -227,6 +241,19 @@ plutil -replace GitCommit                  -string "$GIT_COMMIT"        "$PLIST"
 
 # PkgInfo
 echo -n "APPL????" > "$APP_BUNDLE/Contents/PkgInfo"
+
+# Deutsch-Lokalisierung physisch verankern. Eine echte de.lproj ist das
+# zuverlaessigste Signal fuer NSBundle.localizations (manche Aufloesungspfade
+# schauen nur nach .lproj-Ordnern, nicht nur nach CFBundleLocalizations). Der
+# Inhalt lokalisiert nur den sichtbaren App-Namen (unveraendert) — Zweck ist,
+# dass der Ordner existiert und Deutsch damit als App-Sprache gilt. Erst DAMIT
+# zeigt der Sparkle-Update-Ablauf Deutsch. Signierung laeuft inside-out und
+# fasst die Datei mit.
+mkdir -p "$APP_BUNDLE/Contents/Resources/de.lproj"
+cat > "$APP_BUNDLE/Contents/Resources/de.lproj/InfoPlist.strings" << 'STRINGS'
+"CFBundleName" = "MultiCamCutter";
+"CFBundleDisplayName" = "MultiCamCutter";
+STRINGS
 
 # 3b. Signierung. install_name_tool hat die Linker-ad-hoc-Sig des Binaries
 # invalidiert — ohne Neu-Signierung startet die App auf arm64 nicht.
