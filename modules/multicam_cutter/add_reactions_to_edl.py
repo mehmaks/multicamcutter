@@ -667,8 +667,9 @@ def insert_cutaway_return_transitions(
 
 
 def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float,
-                         decision_log: Optional[List] = None) -> List[EDLEvent]:
-    print(f"\n🧹 PASS 3: Cleanup kurzer Events")
+                         decision_log: Optional[List] = None,
+                         pass_label: str = "PASS 3", pass_id: str = "3") -> List[EDLEvent]:
+    print(f"\n🧹 {pass_label}: Cleanup kurzer Events")
     print(f"  Min Duration: {min_duration}s ({int(min_duration * fps)} Frames)")
     min_frames = int(min_duration * fps)
     cleaned = []
@@ -703,7 +704,7 @@ def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float
             print(f"  ✗ Entfernt: Event @ {event.record_in} ({event.duration_frames()} Frames)")
             if decision_log is not None:
                 decision_log.append({
-                    "pass": "3", "action": "remove", "reason": "too_short",
+                    "pass": pass_id, "action": "remove", "reason": "too_short",
                     "timecode": event.record_in,
                     "event_clip": event.clip_name,
                     "event_reason": getattr(event, 'reason', ''),
@@ -1141,7 +1142,7 @@ def clip_filter_cutaways(
     import tempfile
 
     prompts_path = clip_config.get('prompts_path', '')
-    threshold = clip_config.get('ignore_threshold', 0.5)
+    threshold = clip_config.get('ignore_threshold', 0.65)
     shift_step_s = clip_config.get('shift_step_s', 2.0)
     max_attempts = clip_config.get('max_attempts', 5)
 
@@ -1202,7 +1203,9 @@ def clip_filter_cutaways(
     unresolved = 0
 
     result = list(events)
-    total_cutaways = sum(1 for e in result if e.reason != "speaker")
+    # Reaktions-Cutaways zaehlen NICHT mit — sie werden unten uebersprungen (A).
+    total_cutaways = sum(1 for e in result
+                         if e.reason != "speaker" and not e.reason.startswith("reaction_"))
     # Startzeit fuer die ETA. Dieser Pass ist der mit Abstand teuerste (ein
     # CLIP-Durchlauf je Cutaway), deshalb rechnet er seine Restzeit selbst --
     # genauso wie die Nodding-Analyse (video_reaction_analyzer_v2.4.py:903).
@@ -1211,6 +1214,17 @@ def clip_filter_cutaways(
     with tempfile.TemporaryDirectory() as tmpdir:
         for i, event in enumerate(result):
             if event.reason == "speaker":
+                continue
+
+            # A (26.07.): Reaktions-Cutaways (Nicken/Sprachreaktion) NIE zeit-
+            # verschieben — ihr ganzer Sinn ist, GENAU auf der Reaktion zu sitzen.
+            # Der CLIP-Zeit-Shift (Default 2 s, +zuerst) schob sie vom Nicken weg,
+            # sodass der Cut auf regungslosem Zuhören landete — und zwar wegen eines
+            # False-Positive „a person drinking" auf reinen Nick-/Zuhoer-Frames
+            # (50–67 % bei 50 % Schwelle). CLIP-Filter bleibt fuer max_time/Pausen-
+            # Cutaways (dort ist das Timing flexibel). Kamera-Tausch (Backlog) waere
+            # die Alternative, greift aber im 2-Kamera-Setup nicht.
+            if event.reason.startswith("reaction_"):
                 continue
 
             checked += 1
@@ -1413,7 +1427,11 @@ def main():
     # CLIP-Filter Config
     clip_filter_enabled = bool(params.get('clip_filter_enabled', False))
     clip_config = {
-        'ignore_threshold': float(params.get('clip_ignore_threshold', 0.5)),
+        # Default 0.5→0.65 (26.07.): 0.5 flaggte reine Nick-/Zuhoer-Frames faelschlich
+        # als "a person drinking" (gemessen 50–67 %). 0.65 filtert das Gros dieser
+        # False-Positives, laesst klares Trinken (hoehere Scores) aber durch.
+        # Ueber params['clip_ignore_threshold'] weiterhin ueberschreibbar.
+        'ignore_threshold': float(params.get('clip_ignore_threshold', 0.65)),
         'shift_step_s':     float(params.get('clip_shift_step_s', 2.0)),
         'max_attempts':     int(params.get('clip_max_attempts', 5)),
         'prompts_path':     args.clip_filter_config or '',
@@ -1608,6 +1626,16 @@ def main():
             reference_frames, timeline_zero_video_frames,
             clip_config, args.fps,
         )
+
+    # Pass 6 (D, 26.07.): Finaler Cleanup. PASS 3 lief VOR dem max_time-Split
+    # (PASS 4) und vor CLIP (PASS 5). Winzige Basis-Kamera-Splitter zwischen zwei
+    # benachbarten Cutaways (Realfall: 4-Frame-„Robin" zwischen zwei Max-Zeit-
+    # Clips), die diese Paesse erzeugen bzw. eine CLIP-Verschiebung hinterlaesst,
+    # blieben sonst stehen. Ein zweiter Cleanup raeumt sie weg; Uebergaenge und
+    # echte Sprecherwechsel bleiben geschuetzt (dieselbe Logik wie PASS 3).
+    final_events = cleanup_short_events(
+        final_events, cleanup_min_duration, args.fps,
+        decision_log=decision_log, pass_label="PASS 6", pass_id="6")
 
     write_edl(final_events, args.output)
 
