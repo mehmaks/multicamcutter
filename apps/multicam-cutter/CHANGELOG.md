@@ -5,6 +5,30 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.9
+
+**Neu: anonyme Nutzungsstatistik — freiwillig**
+
+Beim ersten Start nach diesem Update fragt die App einmal, ob sie anonyme
+Nutzungszahlen senden darf: wie viele Kameras, Mikrofone und Personen ein Projekt hat,
+wie lange die Aufnahmen und ein Durchlauf dauern und auf welchem Mac. Das hilft, die App
+gezielt zu verbessern — etwa zu erkennen, welche Schritte am meisten Zeit kosten.
+Übertragen werden ausschließlich Zahlen, niemals Namen, Dateien oder Pfade, und alles
+bleibt anonym. Die Abfrage ist freiwillig und lässt sich jederzeit in den Einstellungen
+unter „Datenschutz" wieder abschalten.
+
+**Behoben: der Update-Ablauf erscheint jetzt auf Deutsch**
+
+Die Dialoge beim Suchen und Installieren von Updates wurden bisher auf Englisch
+angezeigt, obwohl die App sonst durchgehend deutsch ist. Sie erscheinen jetzt ebenfalls
+auf Deutsch.
+
+**Verbessert: klarere Beschriftungen und Hilfetexte**
+
+Zahlreiche Bezeichnungen und Erklärungen in den Einstellungen wurden überarbeitet und
+vereinheitlicht — einige Regler heißen jetzt eindeutiger (etwa „Min./Max. Schnittlänge"
+und „Pausen kürzen"). An der Funktion ändert sich nichts.
+
 ## 0.6.8
 
 **Behoben: Kopfnicken-Erkennung ließ die Analyse abbrechen**

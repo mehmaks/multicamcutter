@@ -4,6 +4,27 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 0.6.9
+
+**New: anonymous usage statistics — optional**
+
+On first launch after this update, the app asks once whether it may send anonymous
+usage numbers: how many cameras, microphones and people a project has, how long the
+recordings and a run take, and which Mac. This helps improve the app in a targeted way —
+for example, seeing which steps take the most time. Only numbers are sent, never names,
+files or paths, and everything stays anonymous. The prompt is optional and can be turned
+off any time in Settings under "Privacy".
+
+**Fixed: the update dialogs now appear in the app's language**
+
+The dialogs for finding and installing updates used to appear in English even though the
+rest of the app is in German. They now match the app's language.
+
+**Improved: clearer labels and help texts**
+
+Many names and explanations in the settings were revised and unified — a few sliders now
+have clearer names. Nothing about the behavior changes.
+
 ## 0.6.8
 
 **Fixed: head-nod detection aborted the analysis**
