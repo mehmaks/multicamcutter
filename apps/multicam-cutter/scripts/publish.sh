@@ -58,6 +58,22 @@ R2_BUCKET="${R2_BUCKET:-multicamcutter-downloads}"
 [ -f "$APPCAST" ] || { echo "✗ appcast.xml fehlt: $APPCAST"; exit 1; }
 [ -d "$WEB_REPO/.git" ] || { echo "✗ Website-Repo nicht gefunden: $WEB_REPO"; echo "  Mit WEB_REPO=… überschreiben."; exit 1; }
 
+# ── Guard: Website-Repo MUSS auf dem Produktions-Branch stehen ──────────────
+# publish committet den Appcast auf den GERADE ausgecheckten Branch. Stand das
+# Web-Repo z.B. auf einem Redesign-WIP-Branch, landete der Appcast-Commit dort
+# und der Push scheiterte an fehlendem Upstream — der Appcast ging NICHT live
+# (real passiert 27.07.). PROD_BRANCH per Env ueberschreibbar; ALLOW_ANY_BRANCH=1
+# umgeht den Guard bewusst.
+PROD_BRANCH="${PROD_BRANCH:-main}"
+WEB_BRANCH="$(git -C "$WEB_REPO" rev-parse --abbrev-ref HEAD 2>/dev/null || echo '?')"
+if [ "${ALLOW_ANY_BRANCH:-0}" != "1" ] && [ "$WEB_BRANCH" != "$PROD_BRANCH" ]; then
+    echo "✗ Website-Repo steht auf Branch '$WEB_BRANCH', nicht auf '$PROD_BRANCH'."
+    echo "  Der Appcast wuerde auf den falschen Branch committet und ginge nicht live."
+    echo "  → git -C \"$WEB_REPO\" checkout $PROD_BRANCH   (oder PROD_BRANCH=… setzen)"
+    echo "  Bewusst trotzdem publishen: ALLOW_ANY_BRANCH=1 bash scripts/publish.sh $VERSION"
+    exit 1
+fi
+
 # ── Uploader wählen ────────────────────────────────────────────────────────
 # wrangler kann nur bis 300 MiB (harte Grenze, kein Multipart) — unsere DMGs
 # liegen bei ~500 MiB. Deshalb wird rclone bevorzugt: spricht R2 über die
