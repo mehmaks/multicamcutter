@@ -44,6 +44,24 @@
   Übersetzungs-, sondern ein **Deklarations**problem der Host-App (Development Region /
   Localizations). Beim EN-Ausbau (Punkt 8) hier `en` ergänzen.
 
+### Appcast: ältere Changelog-Einträge verloren ihr Deutsch — GEFIXT (26.07.), greift ab 0.6.9
+- **Symptom** (User, 26.07.): Auf der Website steht nur der NEUESTE Changelog auf Deutsch;
+  alle älteren Einträge erscheinen nur noch auf Englisch.
+- **Ursache**: `release.sh` ruft `generate_appcast` (regeneriert den Appcast bei jedem
+  Release) und danach `embed_release_notes.py <version>` — Letzteres bettete
+  `<description xml:lang="de/en">` aber NUR ins Item der AKTUELLEN Version. Sparkle kennt
+  kein `xml:lang` und behält beim Regenerieren höchstens EINE `<description>` je älterem
+  Item → die zweisprachigen Beschreibungen der Vorgänger wurden bei jedem Release
+  verstümmelt (DE fiel raus, EN blieb). Belegt am lokalen Appcast: 0.6.9 de+en, 0.6.8 nur
+  en, 0.6.7/6.6/6.5 ganz leer.
+- **Fix** (`embed_release_notes.py`): bettet jetzt ALLE Items ein (Version je Item aus der
+  DMG-URL im Enclosure), nicht nur die aktuelle. Pro Item: bestehende (verstümmelte)
+  `<description>` entfernen, DE(+EN) aus dem Changelog neu setzen. Der Release-Guard bleibt:
+  die aktuelle Version braucht einen DE-Abschnitt, sonst Exit 2 → `release.sh` bricht ab.
+  Verifiziert gegen eine Appcast-Kopie: alle 5 Items → de+en.
+- **Greift ab dem nächsten Release** (0.6.9): der dann regenerierte Feed ist vollständig
+  zweisprachig. Ältere Versionen ohne Changelog-Abschnitt würden übersprungen (hier n/a).
+
 ### Bekannter Ordner + neue Datei → Kamera↔Mic-Zuordnung verknüpft falsch — GEFIXT (25.07.)
 - **Symptom**: Ordner mit gespeicherter `.multicam` erneut geöffnet, nachdem eine
   NEUE WAV hineinkopiert wurde. Die App stellt die alte Zuordnung wieder her, aber
