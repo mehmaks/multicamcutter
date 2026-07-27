@@ -5,6 +5,22 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 0.6.10
+
+**Behoben: Reaktions-Schnitte (Kopfnicken, Einwürfe) sitzen wieder genau auf der Reaktion**
+
+In manchen Aufnahmen wurde ein Teil der Reaktions-Schnitte — besonders auf Kopfnicken — erst
+gesetzt, als die Reaktion schon vorbei war, sodass der Schnitt auf eine regungslose Person fiel.
+Ursache war der Bilderkennungs-Filter („Ungünstige Cutaways verschieben"), der solche Momente in
+seltenen Fällen fälschlich verschob. Reaktions-Schnitte werden davon jetzt nicht mehr verschoben —
+sie bleiben exakt am erkannten Moment. Für Kamera-Umschnitte in langen Passagen bleibt der Filter
+aktiv und greift insgesamt etwas zurückhaltender.
+
+**Behoben: vereinzelte Ein-Bild-Fragmente in der Timeline**
+
+An wenigen Stellen konnten winzige Bruchstücke zwischen zwei Umschnitten stehen bleiben — ein
+kurzes Aufblitzen der Basiskamera. Diese werden jetzt zuverlässig entfernt.
+
 ## 0.6.9
 
 **Neu: anonyme Nutzungsstatistik — freiwillig**

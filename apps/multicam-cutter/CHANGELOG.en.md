@@ -4,6 +4,22 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 0.6.10
+
+**Fixed: reaction cuts (head nods, interjections) sit exactly on the reaction again**
+
+In some recordings, part of the reaction cuts — head nods especially — were placed only after the
+reaction was already over, so the cut landed on a motionless person. The cause was the
+image-recognition filter ("move unsuitable cutaways"), which in rare cases wrongly shifted those
+moments.
+Reaction cuts are no longer shifted by it — they stay exactly on the detected moment. The filter
+stays active for camera switches during long passages, and is a little more conservative overall.
+
+**Fixed: occasional single-frame fragments in the timeline**
+
+In a few spots, tiny fragments could remain between two cuts — a brief flash of the base camera.
+These are now removed reliably.
+
 ## 0.6.9
 
 **New: anonymous usage statistics — optional**
