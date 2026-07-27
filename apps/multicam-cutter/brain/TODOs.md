@@ -249,6 +249,35 @@ Damit ist die App-Seite von Punkt 6 komplett.
 
 ### 📦 Post-1.0 (geparkt)
 
+- [ ] **Multitrack-AAF: eine Videospur je Kamera, Umschnitte per Clip-Aktivierung.**
+  (Externes Feedback, 26.07. — im Workflow des Users nie relevant, für andere Cutter
+  aber wichtig; stand bisher NICHT im TODO.) Statt alle Umschnitte auf EINE Videospur zu
+  schneiden, bekommt jede Kameraquelle eine eigene Spur; der Umschnitt entsteht durch
+  AKTIVIEREN/DEAKTIVIEREN von Clips: zu jedem Zeitpunkt ist genau eine Kamera aktiv, an
+  jedem Schnittpunkt bekommen ALLE Spuren einen Cut (C1→C3→C1: auf der C1-Spur der mittlere
+  Clip deaktiviert, auf C3 nur der mittlere aktiv). Nutzen: der Cutter kann einzelne
+  Umschnitte im NLE durch Re-Aktivieren einer anderen Spur bequem ändern.
+  ⚠️ **Recherche-Ergebnis (26.07.): so wörtlich NICHT sauber machbar.** AAF hat KEIN
+  „disabled/muted"-Clip-Flag (pyaaf2-Metadict vollständig geprüft; nur Avid-Extension
+  `Parameter.IsEnabled` für Effekt-Parameter, nicht für Clips). Einziger spec-nativer
+  Verwandter: der **`Selector`** (`Selected` + `Alternates`; pyaaf2 kann ihn schreiben,
+  Write/Readback getestet) — aber das ist „EINE Spur, ein aktiver Clip + Alternativen".
+  Premiere UND Resolve **verwerfen die Alternates beim Import** (Premiere lässt deaktivierte
+  Clips beim AAF-Export sogar ganz weg; Multicam überlebt den AAF-Austausch generell nicht).
+  Ein „vorhanden-aber-deaktiviert, per Klick reaktivierbar"-Clip ist reines NLE-UI, kein
+  transportierbares AAF-Konzept.
+  ✅ **Interoperable Alternative (empfohlen): eine Spur pro Kamera, aktiv = SourceClip,
+  inaktiv = Lücke (Filler).** An jedem Schnitt bekommt jede Spur einen Cut; die aktive
+  Kamera trägt den Clip, die anderen eine Lücke. Im Repo bereits bewiesen
+  (`modules/take_selector.py:95-124` best_set + Filler in `build_aaf.py:621,644`); die
+  Interop-Invarianten (Locator/CDCIDescriptor/TapeMob-TC aus `AAF-Struktur.md`) bleiben 1:1,
+  nur das Layout wird „N parallele Slots V1…Vn mit Clip/Lücke" statt „1 Sequence auf V1".
+  ⚠️ Preis: „inaktiv" ist eine echte Lücke, KEIN Toggle — der Cutter sieht nur, *wann* eine
+  Kamera live ist, kann aber nicht per Häkchen umschalten. Echtes Angle-Switching gibt nur
+  die native NLE-Multicam her → nicht aus AAF, sondern über die in `AAF-Struktur.md`
+  skizzierte direkte NLE-Anbindung. **Vor Bau: 3-Cam-Test-AAF (Spur-pro-Kamera + Lücken) in
+  Resolve UND Premiere gegenprüfen — framegenaue Cuts, Lücken korrekt, Medien online.**
+
 - [ ] **Karenzzeit am Timeline-Anfang.** Beobachtung (ep04): Bei Timeline 7,6 s wird
   auf die andere Cam geschnitten, bevor der Zuschauer überhaupt jemanden gesehen hat.
   Die Erkennung war dabei **korrekt** — der Burst lag 8 s nach dem Timeline-Nullpunkt,
