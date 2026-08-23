@@ -34,6 +34,95 @@ _SCALEY_AUID   = AUID("8d56812a-847e-11d5-935a-50f857c10000")
 _SCALE_DENOM   = 100_000_000   # Premiere speichert Skalierung ×10^8
 
 
+# ── Framerate → AAF-Edit-Rate ─────────────────────────────────────────────────
+# Krumme NTSC-Raten (29,97 …) MÜSSEN als exakter Bruch in Edit-Rate/SampleRate.
+# Sonst stempelt das AAF eine ganzzahlige Timeline (30 statt 29,97) → die NLE
+# macht Speed-Adaption → A/V-Drift + Standbild am Ende (am Realmaterial bestätigt,
+# 15.08.). Ganzzahlige fps bleiben ein plain int → der getestete 25er/30er-Pfad
+# ist byte-identisch. Timecode bleibt Non-Drop (nominale Ganzzahl-Rate), passend
+# zur Non-Drop-Zählung in shared/frame_utils.
+_NTSC_RATIONALS = {
+    23.976: (24000, 1001),
+    29.97:  (30000, 1001),
+    59.94:  (60000, 1001),
+}
+
+
+def _edit_rate(fps: float):
+    """Edit-Rate für AAF-Slots: int bei ganzzahliger fps (byte-identisch zum
+    bisherigen fps_int), exakter AAFRational bei krummer NTSC-Rate. Unbekannte
+    krumme Raten → 1/1000-Näherung."""
+    for nominal, (num, den) in _NTSC_RATIONALS.items():
+        if abs(fps - nominal) < 0.01:
+            return aaf2.rational.AAFRational(num, den)
+    rounded = int(round(fps))
+    if abs(fps - rounded) < 0.001:
+        return rounded
+    return aaf2.rational.AAFRational(int(round(fps * 1000)), 1000)
+
+
+def _is_dropframe(fps: float) -> bool:
+    """29,97/59,94 sind per NTSC-Konvention **Drop-Frame** — der Standardfall für
+    Kameramaterial dieser Raten (Broadcast-Erbe). 23,976 und Ganzzahl-Raten sind
+    Non-Drop. Nur **Fallback**, wenn `_detect_dropframe` das Flag nicht auslesen kann.
+    Ohne Drop-Frame-Reel-TC linkt Resolve DF-Medien um den akkumulierten Drop-Frame-
+    Versatz falsch (pro Kamera unterschiedlich → Kameras desynchron)."""
+    return any(abs(fps - r) < 0.01 for r in (29.97, 59.94))
+
+
+def _detect_dropframe(video_path: str):
+    """Liest das Drop-Frame-Flag AUS DER DATEI (nicht geraten) — dieselbe Quelle,
+    die auch DaVinci Resolve anzeigt.
+
+    Sony XDCAM/XAVC legt in der Top-Level-`meta`-Box eine `NonRealTimeMeta`-XML ab
+    mit `<LtcChange frameCount="0" value="HHHHHHHH">`. `value` ist der SMPTE-12M-
+    gepackte Start-TC als Hex; im **Frames-Byte** (höchstes Byte) ist **Bit 6 (0x40)
+    das Drop-Frame-Flag** (Bit 7 = Color-Frame). Beispiel `0x60375823` → 23:58:37:20,
+    DF=1.
+
+    Rückgabe: True/False bei sicherem Fund, sonst **None** (Aufrufer nimmt dann die
+    NTSC-Annahme `_is_dropframe`). Nur Metadaten gelesen — kein Decode, schnell auch
+    bei 100-GB-Dateien. tmcd-Track-Kameras (kein Sony-Meta) → None → Fallback.
+    """
+    try:
+        import struct
+        with open(video_path, 'rb') as f:
+            f.seek(0, 2); fs = f.tell(); f.seek(0)
+            data = b''
+            while f.tell() < fs:
+                pos = f.tell()
+                b = f.read(8)
+                if len(b) < 8:
+                    break
+                size, typ = struct.unpack('>I4s', b)
+                if size == 1:
+                    size = struct.unpack('>Q', f.read(8))[0]
+                if typ == b'meta':
+                    f.seek(pos); data = f.read(min(size, 20000)); break
+                if size < 8:
+                    break
+                f.seek(pos + size)
+        m = re.search(rb'<LtcChange frameCount="0" value="([0-9A-Fa-f]+)"', data)
+        if m:
+            frames_byte = (int(m.group(1), 16) >> 24) & 0xFF
+            return bool(frames_byte & 0x40)     # Bit 6 = Drop-Frame
+    except Exception:
+        pass
+    return None
+
+
+def _dropframe_count(tc: str, fps: float) -> int:
+    """TC-String → Frame-Index in **Drop-Frame**-Zählung (für den Reel-TC bei
+    DF-Material). Drop-Frame lässt pro Minute Frame-Nummern aus (2 bei 29,97,
+    4 bei 59,94), außer in jeder 10. Minute — so bleibt der TC ~ Echtzeit."""
+    parts = tc.replace(';', ':').split(':')
+    h, m, s, f = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
+    nominal = int(round(fps))                       # 30 bzw. 60
+    drop = 4 if nominal >= 59 else 2                # Frames/Minute
+    total_min = 60 * h + m
+    return (h * 3600 + m * 60 + s) * nominal + f - drop * (total_min - total_min // 10)
+
+
 # ── ffprobe helpers ───────────────────────────────────────────────────────────
 
 def _probe(path: str, *args) -> str:
@@ -90,11 +179,15 @@ def _probe_video_info(path: str):
     return w, h
 
 
-def _probe_embedded_tc_frames(path: str, fps: float) -> int:
+def _probe_embedded_tc_frames(path: str, fps: float, dropframe: bool = False) -> int:
     """
     Liest embedded TC aus Video- oder Audiodateien:
     - Video: timecode-Tag in format- oder stream-Tags
     - Audio: timecode-Tag (falls vorhanden) oder BWF BEXT time_reference (Samples ab Mitternacht)
+
+    dropframe=True: TC-String → Frame-Index in Drop-Frame-Zählung (für den
+    Reel-TC bei DF-Material). Der BWF-BEXT-Zweig ist schon Echtzeit-basiert
+    (Samples ab Mitternacht) und damit ~Drop-Frame-äquivalent — unverändert.
     """
     r = subprocess.run(
         ['ffprobe', '-v', 'quiet', '-print_format', 'json',
@@ -123,8 +216,13 @@ def _probe_embedded_tc_frames(path: str, fps: float) -> int:
     tc = fmt_tags.get('timecode') or stream_tags.get('timecode')
     if tc:
         try:
-            h, m, s, f = (int(x) for x in tc.split(':'))
-            return int((h * 3600 + m * 60 + s) * fps + f)
+            # DF-Material: Reel-TC in Drop-Frame-Zählung, sonst nominal/Non-Drop.
+            # Nominal passt exakt zur EDL-Rechnung (get_reference_frame); für
+            # Drop-Frame-Medien MUSS der Reel-TC aber DF sein, sonst linkt Resolve
+            # um den akkumulierten DF-Versatz falsch (pro Kamera unterschiedlich →
+            # Kameras desynchron). _tc_to_frames/_dropframe_count verkraften ':'
+            # UND ';'-Notation.
+            return _dropframe_count(tc, fps) if dropframe else _tc_to_frames(tc, fps)
         except Exception:
             pass
 
@@ -170,13 +268,18 @@ def _wrap_scale(f, clip, length: int, zoom: float):
     return op_group
 
 
-def _make_timecode_slot(f, mob, edit_rate: int, fps: int, start: int, length: int):
-    """Fügt einen Timecode-Slot zu einem Mob hinzu (für korrekte FPS-Erkennung in Resolve)."""
+def _make_timecode_slot(f, mob, edit_rate, fps: int, start: int, length: int,
+                        drop: bool = False):
+    """Fügt einen Timecode-Slot zu einem Mob hinzu (für korrekte FPS-Erkennung in Resolve).
+
+    edit_rate: int (Ganzzahl-fps) oder AAFRational (krumme NTSC-Rate). `fps` ist die
+    nominale Ganzzahl-Rate (round(fps)); `drop` = Drop-Frame-Flag (True bei 29,97/59,94-
+    DF-Material). `start` muss zum Drop-Modus passen (Drop-Frame-Zählung, wenn drop=True)."""
     slot = mob.create_timeline_slot(edit_rate=edit_rate)
     tc   = f.create.from_name('Timecode')
     tc['Start'].value  = start
     tc['FPS'].value    = fps
-    tc['Drop'].value   = False
+    tc['Drop'].value   = drop
     tc['Length'].value = length
     slot.segment = tc
     return slot
@@ -307,10 +410,26 @@ def build_aaf(
     if trimmed_events is None:
         print(f"  {len(events)} Cut-Events")
 
-    fps_int  = int(round(fps))
+    fps_int  = int(round(fps))               # nominale Ganzzahl-Rate (Non-Drop-TC)
+    edit_rate = _edit_rate(fps)              # int (Ganzzahl) oder AAFRational (29,97 → 30000/1001)
+    sample_rate_rat = (edit_rate if isinstance(edit_rate, aaf2.rational.AAFRational)
+                       else aaf2.rational.AAFRational(fps_int, 1))
+    # Drop-Frame AUS DER DATEI lesen (wie Resolve), nicht raten. Erste Kamera mit
+    # sicherem Fund gewinnt; ohne Fund (kein Sony-Meta) → NTSC-Annahme als Fallback.
+    dropframe = None
+    for _cp in cam_paths:
+        _det = _detect_dropframe(_cp)
+        if _det is not None:
+            dropframe = _det
+            break
+    if dropframe is None:
+        dropframe = _is_dropframe(fps)
+        print(f"  TC-Modus: {'Drop-Frame' if dropframe else 'Non-Drop'} (angenommen aus fps={fps})")
+    else:
+        print(f"  TC-Modus: {'Drop-Frame' if dropframe else 'Non-Drop'} (aus Datei-Metadaten gelesen)")
 
     # N Kameras — offsets-Keys: CAM1, CAM2, CAM3, ...
-    cam_tc   = [_probe_embedded_tc_frames(p, fps) for p in cam_paths]
+    cam_tc   = [_probe_embedded_tc_frames(p, fps, dropframe=dropframe) for p in cam_paths]
     cam_durs = [_probe_duration_frames(p, fps)     for p in cam_paths]
     cam_dims = [_probe_video_info(p)               for p in cam_paths]
     cam_offs = [offsets.get(f'CAM{i + 1}', 0)     for i in range(len(cam_paths))]
@@ -339,7 +458,7 @@ def build_aaf(
             tape.name = stem
             tape.descriptor = f.create.TapeDescriptor()
             tape_media_slot, tape_tc_slot = tape.create_tape_slots(
-                stem, edit_rate=fps_int, timecode_fps=fps_int,
+                stem, edit_rate=edit_rate, timecode_fps=fps_int, drop_frame=dropframe,
                 media_kind='picture', length=dur,
             )
             tape_tc_slot.segment['Start'].value = tc   # embedded TC als TC-Start
@@ -349,7 +468,7 @@ def build_aaf(
             file_mob = f.create.SourceMob()
             file_mob.name = Path(cp).name
             _, fm_slot = file_mob.create_essence(
-                edit_rate=fps_int, media_kind='picture', offline=True)
+                edit_rate=edit_rate, media_kind='picture', offline=True)
             sc_tape = f.create.SourceClip(media_kind='picture')
             sc_tape.mob   = tape
             sc_tape.slot  = tape_media_slot
@@ -371,7 +490,7 @@ def build_aaf(
             desc['HorizontalSubsampling'].value = 2
             desc['ComponentWidth'].value = 8
             desc['VideoLineMap'].value = [0, 1]
-            desc['SampleRate'].value = aaf2.rational.AAFRational(fps_int, 1)
+            desc['SampleRate'].value = sample_rate_rat
             desc['Length'].value = dur
             loc  = f.create.NetworkLocator()
             loc['URLString'].value = Path(cp).resolve().as_uri()
@@ -384,7 +503,7 @@ def build_aaf(
             # MasterMob — Bin-Clip
             master = f.create.MasterMob()
             master.name = stem
-            m_slot = master.create_picture_slot(edit_rate=fps_int)
+            m_slot = master.create_picture_slot(edit_rate=edit_rate)
             sc_file = f.create.SourceClip(media_kind='picture')
             sc_file.mob    = file_mob
             sc_file.slot   = fm_slot
@@ -397,7 +516,7 @@ def build_aaf(
             cam_files.append((file_mob, fm_slot))
 
         # ── Audio: TapeMob + SourceMob + MasterMob ───────────────────────────
-        mic_tc      = [_probe_embedded_tc_frames(str(p), fps) for p in mics]
+        mic_tc      = [_probe_embedded_tc_frames(str(p), fps, dropframe=dropframe) for p in mics]
         mic_masters = []
         for idx, (mp, dur, tc, (channels, sr, bits)) in enumerate(
                 zip(mics, mic_durs, mic_tc, mic_infos)):
@@ -410,7 +529,7 @@ def build_aaf(
             tape_a.name = stem
             tape_a.descriptor = f.create.TapeDescriptor()
             tape_media_slot_a, tape_tc_slot_a = tape_a.create_tape_slots(
-                stem, edit_rate=fps_int, timecode_fps=fps_int,
+                stem, edit_rate=edit_rate, timecode_fps=fps_int, drop_frame=dropframe,
                 media_kind='sound', length=dur,
             )
             tape_tc_slot_a.segment['Start'].value = tc   # embedded TC (z.B. 14:14:59:00)
@@ -419,7 +538,7 @@ def build_aaf(
             # SourceMob — offline, verweist auf TapeMob für TC-Kontext
             src = f.create.SourceMob()
             src.name = stem
-            _, slot = src.create_essence(edit_rate=fps_int, media_kind='sound', offline=True)
+            _, slot = src.create_essence(edit_rate=edit_rate, media_kind='sound', offline=True)
             sc_tape_a = f.create.SourceClip(media_kind='sound')
             sc_tape_a.mob   = tape_a
             sc_tape_a.slot  = tape_media_slot_a
@@ -444,7 +563,7 @@ def build_aaf(
             # MasterMob
             master = f.create.MasterMob()
             master.name = stem
-            m_slot = master.create_sound_slot(edit_rate=fps_int)
+            m_slot = master.create_sound_slot(edit_rate=edit_rate)
             sc = f.create.SourceClip(media_kind='sound')
             sc.mob = src; sc.slot = slot; sc.start = 0; sc.length = dur
             m_slot.segment.components.append(sc)
@@ -465,8 +584,8 @@ def build_aaf(
         comp.comments["_APP_VERSION"] = "0.1.0"
 
         # TC-Slot — gibt Resolve die korrekte FPS der Timeline
-        _make_timecode_slot(f, comp, edit_rate=fps_int, fps=fps_int,
-                            start=0, length=total_frames)
+        _make_timecode_slot(f, comp, edit_rate=edit_rate, fps=fps_int,
+                            start=0, length=total_frames, drop=dropframe)
 
         # V1 — Videoschnitte (ggf. Wide-Cam-Cutaways mit Zoom)
         # Zoom nur, wenn explizit ein Faktor != 1.0 gewuenscht ist. Default ist 1.0
@@ -566,7 +685,7 @@ def build_aaf(
                 file_mob, fm_slot = cam_files[cam_idx]
                 m = f.create.MasterMob()
                 m.name = _name_for(cam_idx, reason)
-                sl = m.create_picture_slot(edit_rate=fps_int)
+                sl = m.create_picture_slot(edit_rate=edit_rate)
                 sc_f = f.create.SourceClip(media_kind='picture')
                 sc_f.mob    = file_mob
                 sc_f.slot   = fm_slot
@@ -589,7 +708,7 @@ def build_aaf(
                 sc = _wrap_scale(f, sc, dur, wide_zoom)
             v_seq.components.append(sc)
 
-        v_slot = comp.create_timeline_slot(edit_rate=fps_int)
+        v_slot = comp.create_timeline_slot(edit_rate=edit_rate)
         v_slot['PhysicalTrackNumber'].value = 1
         v_slot.name = 'V1'
         if has_zoom:
@@ -606,7 +725,7 @@ def build_aaf(
             master, m_slot = mic_data
             mic_start  = max(0, abs_start0 - mic_off)
 
-            a_slot = comp.create_sound_slot(edit_rate=fps_int)
+            a_slot = comp.create_sound_slot(edit_rate=edit_rate)
             a_slot['PhysicalTrackNumber'].value = i + 1
             a_slot.name = f'A{i + 1}'
 

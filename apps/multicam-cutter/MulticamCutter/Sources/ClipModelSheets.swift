@@ -16,37 +16,37 @@ struct ClipDownloadPrompt: View {
                 LucideIcon("sparkles", size: 26)
                     .foregroundStyle(.brandAccent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Bilderkennung nachladen?")
+                    Text("Download image recognition?")
                         .font(.title3.bold())
-                    Text("Einmalig \(sizeText)")
+                    Text("One-time \(sizeText)")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
             }
 
-            Text("„Ungünstige Cutaways verschieben\" prüft per Bilderkennung (CLIP), ob ein "
-                 + "Cutaway z. B. jemanden beim Trinken zeigt, und verschiebt ihn. Dafür wird "
-                 + "einmalig ein Modell geladen.")
+            Text("\"Move unsuitable cutaways\" uses image recognition (CLIP) to check whether a "
+                 + "cutaway shows someone drinking, for example, and moves it. This downloads a "
+                 + "model once.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            LucideLabel("Danach läuft alles offline — das Modell bleibt gespeichert, auch nach "
-                        + "App-Updates.", icon: "shield-check", size: 11)
+            LucideLabel("After that, everything runs offline — the model stays stored, even after "
+                        + "app updates.", icon: "shield-check", size: 11)
                 .font(.caption)
                 .foregroundStyle(.secondary)
 
             Divider()
 
             HStack {
-                Button("Ohne Bilderkennung fortfahren") {
+                Button("Continue without image recognition") {
                     engine.declineClipAndStart()
                 }
-                .help("Schaltet den Parameter aus. Alles andere funktioniert normal.")
+                .help("Turns the setting off. Everything else works normally.")
 
                 Spacer()
 
-                Button("Laden (\(sizeText))") {
+                Button("Download (\(sizeText))") {
                     engine.downloadClipModelAndStart()
                 }
                 .buttonStyle(.borderedProminent)
@@ -74,7 +74,7 @@ struct ClipDownloadSheet: View {
         f.allowsNonnumericFormatting = false
         let done = f.string(fromByteCount: engine.clipDone)
         let total = f.string(fromByteCount: engine.clipTotal)
-        return "\(done) von \(total) (\(Int(fraction * 100)) %)"
+        return "\(done) of \(total) (\(Int(fraction * 100)) %)"
     }
 
     var body: some View {
@@ -83,7 +83,7 @@ struct ClipDownloadSheet: View {
                 .foregroundStyle(.brandAccent)
 
             VStack(alignment: .leading, spacing: 6) {
-                Text("Bilderkennung (CLIP)")
+                Text("Image recognition (CLIP)")
                     .font(.headline)
                 SwiftUI.ProgressView(value: fraction)
                     .progressViewStyle(.linear)
@@ -100,7 +100,7 @@ struct ClipDownloadSheet: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Download abbrechen")
+            .help("Cancel download")
         }
         .padding(20)
         .frame(width: 460)

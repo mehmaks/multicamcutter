@@ -35,7 +35,10 @@ Pause-Trim und AAF-Export laufen inline in der Engine.
 3. PASS 2b — Pause-Cutaways (Stille-basiert)
 4. PASS 3 — Cleanup kurze Events (< cleanup_dur)
 5. PASS 4 — Split lange Shots (> max_shot + 3s)
-6. PASS 5 — CLIP Ignore-Filter (optional)
+6. PASS 5 — CLIP Ignore-Filter (optional): max_time/Pausen → Shift;
+   Nodding → DROP (Trinkbewegung verworfen, `clip_nodding_mode`, max-Scoring);
+   Sprachreaktionen unangetastet
+7. PASS 6 — finaler Cleanup kurzer Events (nach Split/CLIP)
 
 Reihenfolge NICHT aendern — Paesse greifen ineinander.
 

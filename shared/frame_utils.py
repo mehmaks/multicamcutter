@@ -17,24 +17,33 @@ def timecode_to_frames(tc: str, fps: float = 25.0) -> int:
     """HH:MM:SS:FF → Frame-Nummer.
 
     Akzeptiert auch Semikolon-Trenner (Drop-Frame-Notation).
+
+    Gezählt wird über die *nominale* Ganzzahl-Bildrate ``round(fps)`` (Non-Drop).
+    Das hält den Round-Trip frames→TC→frames EXAKT — auch bei krummen Raten wie
+    29,97, wo die frühere fraktionale Rechnung (`* 29.97`) um bis zu 1 Frame
+    driftete und jeden AAF-Schnitt um einen Frame verschob. Für ganzzahlige fps
+    ist ``round(fps) == fps`` → Ergebnis identisch zum bisherigen Verhalten.
     """
     parts = tc.replace(';', ':').split(':')
     h, m, s, f = int(parts[0]), int(parts[1]), int(parts[2]), int(parts[3])
-    return int((h * 3600 + m * 60 + s) * fps + f)
+    rate = int(round(fps))
+    return (h * 3600 + m * 60 + s) * rate + f
 
 
 def frames_to_timecode(frames: int, fps: float = 25.0) -> str:
-    """Frame-Nummer → HH:MM:SS:FF.
+    """Frame-Nummer → HH:MM:SS:FF (Non-Drop, nominale Ganzzahl-Rate).
 
-    Negative Frame-Werte werden auf 0 geklemmt.
+    Negative Frame-Werte werden auf 0 geklemmt. Zur nominalen Zählung (exakter
+    Round-Trip bei krummen Raten) siehe :func:`timecode_to_frames`.
     """
     if frames < 0:
         frames = 0
-    total_seconds = frames / fps
-    h = int(total_seconds // 3600)
-    m = int((total_seconds % 3600) // 60)
-    s = int(total_seconds % 60)
-    f = int(frames % fps)
+    rate = int(round(fps))
+    f = frames % rate
+    total_seconds = frames // rate
+    s = total_seconds % 60
+    m = (total_seconds // 60) % 60
+    h = total_seconds // 3600
     return f"{h:02d}:{m:02d}:{s:02d}:{f:02d}"
 
 

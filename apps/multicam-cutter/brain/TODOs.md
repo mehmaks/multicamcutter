@@ -4,6 +4,21 @@
 > `brain/TODOs-Archiv.md` (Historie + Gotchas — nicht löschen, dort steckt oft die
 > Begründung/der Fallstrick eines späteren Bugs).
 
+## 🔥 Vorgezogen — höchste Priorität
+
+- **Engine-Rebuild für den 29,97-Drop-Frame-Fix** (aufgenommen 15.08.). Der Fix
+  (`build_aaf.py` Edit-Rate 30000/1001 + Drop-Frame-Reel-TC, `shared/frame_utils.py`
+  nominale Zählung, Swift `deriveProjectFpsFromCameras`) wirkt im **Dev** sofort, muss
+  aber für die ausgelieferte App ins **PyInstaller-Bundle** (Frozen-Rebuild). Details:
+  `brain/Bekannte-Bugs.md` → „29,97-AAF: Drift + Kamera-Desync". Swift-Teil ist im
+  Binary; nur die Python-Engine braucht den Rebuild.
+  ✅ **Drop-Frame-Detektion erledigt (15.08.):** `build_aaf._detect_dropframe` liest das
+  Flag aus Sonys NonRealTimeMeta (`<LtcChange value=…>` in der Top-Level-`meta`-Box,
+  SMPTE-12M Bit 6 im Frames-Byte) — dieselbe Quelle, die Resolve anzeigt. fps-Annahme
+  (`_is_dropframe`) ist nur noch Fallback. An C9540/C8575 verifiziert (beide DF=True).
+  🔧 **Rest-Sliver (optional):** Kameras MIT `tmcd`-Track (nicht-Sony) → Flag aus dem
+  tmcd-Sample-Entry lesen (Bit 0 der Flags); die fallen aktuell auf die fps-Annahme zurück.
+
 ## Weg zu 1.0
 
 **Definition-of-Done 1.0:** „Ohne Fremdscham an einen fremden Cutter verkaufbar" —
@@ -27,7 +42,7 @@ Post-1.0 (C), nicht in diese Liste.
 | ~~5~~ ✅ | ~~**Dock-Balken gewichtet**~~ — GELIEFERT (25.07.): Engine schickt `step_weights` (Nodding/CLIP dominieren, adaptiv zu Kamerazahl+CLIP), Swift normiert `overallProgress`, Fallback bei Mismatch | ✨ B | ✓ | erledigt — nächster offener Punkt: **6** |
 | 6 | **Telemetrie** (Opt-in) — ✅ App-Seite KOMPLETT (26.07.: Consent-Prompt gebaut); Backend gebaut (Web-Session, lokal verifiziert); OFFEN: **Deploy** (Web-Repo) + E2E | 🌍 | mittel | App fertig (Toggle Default AUS + Erst-Start-Zustimmung, fire-and-forget); Rest extern |
 | ~~7~~ ✅ | ~~**Settings-Durchgang**~~ — GELIEFERT (26.07.): User-Änderungsliste (CSV) eingepflegt — ParamHelp ×20 Hilfetexte + 3 Experten-Labels an Basis angeglichen (Min./Max. Schnittlänge, Pausen kürzen) + Web-Schema `help` synchron. **String-Freeze steht**, Build grün | ✨ B | ✓ | erledigt — nächster offener Punkt: **8** |
-| 8 | **Mehrsprachigkeit DE/EN** | 🌍 | mittel–schwer | **Capstone**: Freeze-then-Translate — Engine→Keys, Swift lokalisiert, ParamHelp ×30, Web-Schema-Sync über die eingefrorene Menge → **1.0** |
+| 8 | **Mehrsprachigkeit DE/EN** — ⚡ EN-Übersetzung schon fertig auf Branch `en-screenshots` (~400 Strings), bleibt nur Infra+Verdrahtung+QA, **~2 Tage** system-folgend. Detail + Aufwandstabelle unten in „Multilanguage (planen)" | 🌍 | mittel–schwer | **Capstone**: Freeze-then-Translate — Engine→Keys, Swift lokalisiert, ParamHelp ×30, Web-Schema-Sync über die eingefrorene Menge → **1.0** |
 
 **Rückgrat der Ordnung (nicht willkürlich):** 6 → 7 → 8. Telemetrie bringt den letzten
 neuen Toggle, der Settings-Durchgang friert danach *alle* deutschen UI-Texte ein, und
@@ -246,6 +261,53 @@ Damit ist die App-Seite von Punkt 6 komplett.
      müsste mitziehen, sonst driften die Sprachen auseinander.
   4. Reihenfolge/Umfang: erst EN, weil die Website EN schon anbietet und Tester/Käufer
      darüber kommen.
+
+  **✅ Ist-Stand nach EN-Screenshot-Build (12.08.):** Auf Branch `en-screenshots` sind
+  **alle ~400 sichtbaren Strings** bereits von DE→EN übersetzt (15 Swift-Dateien +
+  `engine/multicam_engine.py` + `engine/protocol.py`, ~940 Diff-Zeilen). ⚠️ Das ist noch
+  **KEINE i18n** — die deutschen Literale wurden 1:1 durch Englisch *ersetzt*, kein
+  Umschalten. **ABER:** Der Branch-Diff (`git diff main..en-screenshots`) liefert alle
+  DE→EN-Paare fertig — **die eigentliche Übersetzungsarbeit ist erledigt**, es bleibt
+  Infrastruktur + Verdrahtung + QA. Package.swift hat noch kein `defaultLocalization`,
+  0 `NSLocalizedString`/`String(localized:)` im Code.
+  **Umfang-Messung:** ~527 Literale, davon ~102 `Text()` (SwiftUI lokalisiert automatisch,
+  Literal = Key), ~93 `Button/Label/Toggle/Picker/Section/Menu`, ~35 Alert-Texte,
+  ~19 mit String-Interpolation, ~16 Engine-Step-Labels (Python).
+
+  **Restaufwand bis „final zweisprachig" (~2 Arbeitstage, System-folgend):**
+  - **Infrastruktur (~½ Tag):** `defaultLocalization: "de"` + `en`/`de` in
+    `CFBundleLocalizations` (build_app.sh legt de.lproj schon an, s.o. Punkt 1) +
+    `Localizable.strings` je `.lproj`. Für SPM-Build den `.strings`/`.lproj`-Weg
+    nehmen (NICHT `.xcstrings` — braucht Xcode-Toolchain, wir bauen per build_app.sh).
+    SwiftUI `Text("Deutsch")` sucht dann „Deutsch" als Key in der Tabelle → für DE
+    Fallback auf Key, für EN Mapping `"Deutsch" = "English";`.
+  - **Katalog befüllen (~½ Tag):** `en.lproj/Localizable.strings` automatisch aus dem
+    Branch-Diff extrahieren (DE=Key, EN=Wert), Sonderfälle prüfen (Interpolationen,
+    mehrzeilig, gleiche DE-Strings mit unterschiedlichem Kontext).
+  - **Nicht-`Text`-Strings kapseln (~1 Tag):** `String(localized:)` für Alerts,
+    `.help()`, `ParamHelp`-Werte (×30), Menü-/Accessibility-Labels, interpolierte Formate.
+  - **Engine (~¼ Tag):** Sprache per Env/Arg an die Engine reichen + DE/EN-Dict für die
+    ~16 Step-Labels (`multicam_engine.py`/`protocol.py`). Sauberer Weg lt. Punkt 2:
+    Engine sendet **Keys**, Swift lokalisiert.
+  - **QA beide Sprachen (~½ Tag):** DE Umlaute/Truncation, EN Textlängen/Layout.
+
+  **⚖️ Eine offene Entscheidung, die den Aufwand treibt — Sprachwahl:**
+  - **System-Sprache folgen** (macOS entscheidet) → im Aufwand oben drin, praktisch gratis.
+  - **Eigener DE/EN-Umschalter in den Settings** → **+½–1 Tag** (Bundle-Swapping in
+    SwiftUI/SPM ohne Neustart ist fummelig).
+  → **Empfehlung:** erst System-folgend finalisieren (schnell, robust), In-App-Umschalter
+  nur nachrüsten, wenn LemonSqueezy-Käufer ihn verlangen.
+
+### ⏳ Zuletzt (ans Ende gestellt 15.08. — nach den 1.0-Blockern)
+
+- [ ] **CLIP-Nodding-DROP finalisieren + Prompt-Schwelle kalibrieren** (aufgenommen 27.07.,
+  ans Ende gestellt 15.08.). Code steht bereits: DROP-Modus statt Shift für Nodding-Cutaways,
+  `max`-Scoring, handlungsspezifische Prompts (`config/clip_ignore_prompts.json`,
+  `add_reactions_to_edl.py` PASS 5 + `_clip_score_for_event(score_mode='max')`).
+  **OFFEN:** (1) Schwelle `clip_nodding_threshold` 0,6 an echten Trink-Nick-Timecodes
+  bestätigen — **User liefert TCs**; (2) Dev-Lauf/echter Lauf zur Sicht-Kontrolle;
+  (3) Engine-Rebuild fürs Release. Hintergrund/Validierung:
+  `modules/multicam_cutter/CLAUDE.md` → Fixed Bugs → „Nachtrag (27.07.)".
 
 ### 📦 Post-1.0 (geparkt)
 

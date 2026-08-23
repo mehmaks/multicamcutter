@@ -110,7 +110,7 @@ struct WizardView: View {
         .sheet(isPresented: $engine.isConverting) {
             FpsConversionSheet().environmentObject(engine)
         }
-        .alert("Konvertierung fehlgeschlagen",
+        .alert("Conversion failed",
                isPresented: Binding(get: { engine.convertError != nil },
                                     set: { if !$0 { engine.convertError = nil } })) {
             Button("OK", role: .cancel) { engine.convertError = nil }
@@ -160,7 +160,7 @@ struct WizardView: View {
 struct WizardStepBar: View {
     @EnvironmentObject var engine: EngineController
     private let steps: [(WizardStep, String)] = [
-        (.persons, "Personen"), (.cameras, "Kameras"), (.overview, "Übersicht"),
+        (.persons, "People"), (.cameras, "Cameras"), (.overview, "Overview"),
     ]
 
     var body: some View {
@@ -223,10 +223,10 @@ struct PersonsStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            WizardIntro(title: "Benenne deine Sprecher:innen",
-                        text: "Aus jeder Tonspur haben wir automatisch eine Person angelegt. Gib ihnen "
-                            + "Namen, wie du sie im Schnitt wiedererkennst. Spuren, die kein Sprecher-"
-                            + "Mikrofon sind (Raumklang, Musik), wirf einfach weg.")
+            WizardIntro(title: "Name your speakers",
+                        text: "We create one person from each audio track automatically. Give them "
+                            + "names you'll recognize in the edit. Just throw away any tracks that "
+                            + "aren't a speaker's microphone (room tone, music).")
 
             // Zweispaltig ab 2 Spuren (1080er-Standardbreite, User-Wunsch 24.07.):
             // ~530 pt je Karte reichen der Waveform locker, und viele Spuren
@@ -246,10 +246,10 @@ struct PersonsStep: View {
             }
 
             if engine.activeMics.isEmpty {
-                Text("Keine aktiven Tonspuren.").foregroundStyle(.wizMuted)
+                Text("No active audio tracks.").foregroundStyle(.wizMuted)
             } else {
                 let n = engine.activeMics.count
-                Text("\(n) Person\(n == 1 ? "" : "en") — eine je Tonspur.")
+                Text("\(n) person\(n == 1 ? "" : "s") — one per audio track.")
                     .font(.callout).foregroundStyle(.wizMuted)
             }
 
@@ -261,7 +261,7 @@ struct PersonsStep: View {
                 // 1080er-Breite gespreizt (WizToggle mit Spacer) las sich
                 // beides nicht mehr als zusammengehoerig.
                 HStack(spacing: 8) {
-                    Text("Alle Tonspuren stammen aus einem Mehrspur-Recorder")
+                    Text("All audio tracks come from one multitrack recorder")
                         .font(.system(size: 14))
                     WizHelpBadge(ParamHelp.micsSameRecorder)
                     WizSwitch(isOn: $engine.params.micsSameRecorder)
@@ -270,7 +270,7 @@ struct PersonsStep: View {
             }
 
             if !engine.excludedMics.isEmpty {
-                WizRestoreChips(title: "Ausgeblendete Spuren",
+                WizRestoreChips(title: "Hidden tracks",
                                 items: engine.excludedMics.map { (id: $0.id, name: $0.displayName) },
                                 restore: { engine.setMicIncluded($0, true) })
                     .padding(.top, 6)
@@ -308,7 +308,7 @@ struct PersonRow: View {
                     LucideIcon("pencil", size: 12)
                         .foregroundStyle(.wizFaint)
                         .onTapGesture { focused = true }
-                        .help("Namen bearbeiten")
+                        .help("Edit name")
                     Spacer(minLength: 0)
                 }
                 HStack(spacing: 7) {
@@ -328,14 +328,14 @@ struct PersonRow: View {
                     .foregroundStyle(isPlaying ? Color.brandAccent : Color.secondary)
             }
             .buttonStyle(.plain)
-            .help("Ganze Spur anhören (startet an der lautesten Stelle) — "
-                  + "oder direkt in die Wellenform klicken")
+            .help("Play the whole track (starts at the loudest point) — "
+                  + "or click straight into the waveform")
 
             Button { engine.deletePerson(mic.id) } label: {
                 LucideIcon("trash-2", size: 15).foregroundStyle(.wizMuted)
             }
             .buttonStyle(.plain)
-            .help("Diese Spur ist kein Sprecher — entfernen")
+            .help("This track isn't a speaker — remove")
         }
 
         // Wellenform der ganzen Spur — Klick springt an die Position
@@ -373,9 +373,9 @@ struct SeparationBadge: View {
                 .font(.caption2.weight(.medium))
         }
         .foregroundStyle(.wizMuted)
-        .help("Trennung dieser Spur: um so viel ist sie lauter als die anderen, "
-              + "wenn diese Person spricht. Hoehere Werte bedeuten weniger "
-              + "Uebersprechen. Nur zur Info — beeinflusst den Schnitt nicht.")
+        .help("Separation of this track: how much louder it is than the others "
+              + "when this person speaks. Higher values mean less "
+              + "bleed. Just for info — doesn't affect the cut.")
     }
 
     private func fmtDb(_ v: Double) -> String {
@@ -473,7 +473,7 @@ struct WaveformStrip: View {
                 .overlay(
                     HStack(spacing: 6) {
                         ProgressView().controlSize(.mini)
-                        Text("Wellenform wird berechnet … "
+                        Text("Computing waveform … "
                              + "\(engine.waveformProgress[mic.id] ?? 0) %")
                             .font(.caption2).foregroundStyle(.wizFaint)
                     }
@@ -497,10 +497,10 @@ struct CamerasStep: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 22) {
-            WizardIntro(title: "Wer ist auf welcher Kamera zu sehen?",
-                        text: "Zieh jede Person auf jede Kamera, die sie zeigt. Ob eine Kamera eine "
-                            + "Nahaufnahme oder eine Totale ist, erkennt die App von selbst — du musst "
-                            + "nichts labeln.")
+            WizardIntro(title: "Who's on which camera?",
+                        text: "Drag each person onto every camera that shows them. The app figures out "
+                            + "on its own whether a camera is a close-up or a wide shot — you don't "
+                            + "have to label anything.")
 
             if !engine.fpsMismatches.isEmpty { FpsMismatchBanner() }
             if !engine.suspiciouslyShortCams.isEmpty { ShortCamBanner() }
@@ -508,11 +508,11 @@ struct CamerasStep: View {
 
             HStack(alignment: .top, spacing: 26) {
                 VStack(alignment: .leading, spacing: 12) {
-                    railTitle("Personen")
+                    railTitle("People")
                     ForEach(engine.persons) { p in
                         PersonToken(person: p)
                     }
-                    Text("Zieh eine Person auf jede Kamera, die sie zeigt. Mehrfachzuordnung erlaubt.")
+                    Text("Drag a person onto every camera that shows them. Multiple assignments allowed.")
                         .font(.caption2).foregroundStyle(.wizFaint)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.top, 4)
@@ -520,7 +520,7 @@ struct CamerasStep: View {
                 .frame(width: 200)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    railTitle("Kameras")
+                    railTitle("Cameras")
                     LazyVGrid(columns: [GridItem(.adaptive(minimum: 210, maximum: 260), spacing: 16)],
                               alignment: .leading, spacing: 16) {
                         ForEach(engine.activeCams) { cam in
@@ -532,7 +532,7 @@ struct CamerasStep: View {
             }
 
             if !engine.excludedCams.isEmpty {
-                WizRestoreChips(title: "Ausgeblendete Kameras",
+                WizRestoreChips(title: "Hidden cameras",
                                 items: engine.excludedCams.map { (id: $0.id, name: $0.displayName) },
                                 restore: { engine.setCamIncluded($0, true) })
             }
@@ -556,7 +556,7 @@ struct PersonToken: View {
         HStack(spacing: 9) {
             avatar(person.id, person.name, size: 26, engine)
             Text(person.name).font(.system(size: 14)).lineLimit(1)
-            if !placed { Text("· frei").font(.caption2).foregroundStyle(.brandSecondary) }
+            if !placed { Text("· free").font(.caption2).foregroundStyle(.brandSecondary) }
             Spacer(minLength: 0)
         }
         .padding(.vertical, 6).padding(.horizontal, 8)
@@ -597,7 +597,7 @@ struct WizardCamCard: View {
                         LucideIcon("trash-2", size: 12).foregroundStyle(.wizMuted)
                     }
                     .buttonStyle(.plain)
-                    .help("Diese Kamera gehört nicht zum Projekt — entfernen")
+                    .help("This camera isn't part of the project — remove")
                 }
 
                 // FPS-Mismatch direkt AN der betroffenen Karte zeigen — sonst
@@ -606,17 +606,17 @@ struct WizardCamCard: View {
                     HStack(spacing: 4) {
                         LucideIcon("triangle-alert", size: 9)
                         Text(cam.fps > 0
-                             ? "\(Self.fmtFps(cam.fps)) fps — Projekt: \(Self.fmtFps(engine.fps))"
-                             : "Bildrate nicht lesbar")
+                             ? "\(Self.fmtFps(cam.fps)) fps — Project: \(Self.fmtFps(engine.fps))"
+                             : "Frame rate unreadable")
                             .font(.caption2)
                     }
                     .foregroundStyle(.orange)
-                    .help("Diese Kamera passt nicht zur Projekt-Bildrate. Beim Start "
-                          + "der Analyse wird eine Konvertierung angeboten.")
+                    .help("This camera doesn't match the project frame rate. When the "
+                          + "analysis starts, you'll be offered a conversion.")
                 }
 
                 if assigned.isEmpty {
-                    Text("Person hierher ziehen").font(.caption).foregroundStyle(.wizFaint).padding(.vertical, 2)
+                    Text("Drag a person here").font(.caption).foregroundStyle(.wizFaint).padding(.vertical, 2)
                 } else {
                     FlowLayout(spacing: 6) {
                         ForEach(assigned) { p in personChip(p) }
@@ -624,7 +624,7 @@ struct WizardCamCard: View {
                 }
 
                 Button { engine.setCamShowsAllPersons(cam.id) } label: {
-                    Text("zeigt alle").font(.caption2).frame(maxWidth: .infinity)
+                    Text("shows everyone").font(.caption2).frame(maxWidth: .infinity)
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.wizMuted)
@@ -658,13 +658,13 @@ struct WizardCamCard: View {
     @ViewBuilder private var rolePill: some View {
         switch role {
         case .wide:
-            LucideLabel("Totale", icon: "columns-2", size: 10)
+            LucideLabel("Wide", icon: "columns-2", size: 10)
                 .font(.caption2.weight(.medium)).lineLimit(1).fixedSize()
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Color.brandSecondary).foregroundStyle(.black)
                 .clipShape(Capsule()).padding(6)
         case .close:
-            Text("Nah").font(.caption2.weight(.medium))
+            Text("Close").font(.caption2.weight(.medium))
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Color.brandAccent.opacity(0.18)).foregroundStyle(Color.brandAccent)
                 .clipShape(Capsule()).padding(6)
@@ -702,12 +702,12 @@ struct FpsMismatchBanner: View {
         VStack(alignment: .leading, spacing: 10) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 LucideIcon("triangle-alert", size: 14)
-                Text("Falsche Bildrate").fontWeight(.semibold)
+                Text("Wrong frame rate").fontWeight(.semibold)
             }
             .foregroundStyle(.brandSecondary)
 
-            Text("Diese Kameras haben nicht die Timeline-Framerate (\(fpsText(engine.fps))). Ohne "
-                 + "Korrektur driften Bild und Ton auseinander und am Ende der Timeline steht ein Standbild.")
+            Text("These cameras don't have the timeline frame rate (\(fpsText(engine.fps))). Without "
+                 + "correction, picture and sound drift apart and the timeline ends on a freeze frame.")
                 .font(.caption).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -717,13 +717,13 @@ struct FpsMismatchBanner: View {
             }
 
             Button { engine.convertMismatchedFps() } label: {
-                LucideLabel("Datei(en) auf \(fpsText(engine.fps)) fps konvertieren",
+                LucideLabel("Convert file(s) to \(fpsText(engine.fps)) fps",
                             icon: "refresh-cw", size: 12)
             }
             .buttonStyle(.borderedProminent).controlSize(.small)
 
-            Text("Erzeugt Kopien neben den Originalen (praktisch verlustfrei, Timecode bleibt erhalten). "
-                 + "Dauert je nach Dateigröße — grob im 10-Minuten-Bereich pro GB.")
+            Text("Creates copies next to the originals (practically lossless, timecode is preserved). "
+                 + "Takes a while depending on file size — roughly 10 minutes per GB.")
                 .font(.caption2).foregroundStyle(.wizFaint)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -748,16 +748,16 @@ struct ShortCamBanner: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 LucideIcon("triangle-alert", size: 14)
-                Text("Auffällig kurze Kamera").fontWeight(.semibold)
+                Text("Unusually short camera").fontWeight(.semibold)
             }
             .foregroundStyle(.brandSecondary)
 
-            Text("Diese Kamera ist deutlich kürzer als die anderen Quellen. Ab der Stelle, "
-                 + "an der sie endet, bleibt ihr Bild stehen — im Schnitt entsteht dort ein "
-                 + "Standbild. Ist das ungewollt (etwa eine abgebrochene Umwandlung, deren "
-                 + "Teildatei liegen blieb), ersetze die Datei durch die vollständige. War die "
-                 + "Kamera wirklich nur kürzer aktiv, kannst du fortfahren — beachte dann das "
-                 + "Standbild ab ihrem Ende.")
+            Text("This camera is much shorter than the other sources. From the point "
+                 + "where it ends, its picture freezes — the cut gets a freeze frame "
+                 + "there. If that's unintended (for example a canceled conversion whose "
+                 + "partial file was left behind), replace the file with the complete one. If the "
+                 + "camera really was only active for a shorter time, you can continue — but watch for the "
+                 + "freeze frame from its end.")
                 .font(.caption).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -782,19 +782,19 @@ struct UnsupportedCloseCamsBanner: View {
         VStack(alignment: .leading, spacing: 8) {
             HStack(alignment: .firstTextBaseline, spacing: 6) {
                 LucideIcon("triangle-alert", size: 14)
-                Text("Mehr als 2 Nah-Kameras — noch nicht unterstützt").fontWeight(.semibold)
+                Text("More than 2 close-up cameras — not yet supported").fontWeight(.semibold)
             }
             .foregroundStyle(.brandSecondary)
 
-            Text("Die Sprechererkennung vergleicht genau zwei Nah-Kameras. Eine dritte "
-                 + "käme nie als Sprecher zum Zug — die Person darauf bliebe im Schnitt "
-                 + "stumm, ohne dass etwas fehlschlägt. Deshalb ist der Start gesperrt.\n\n"
-                 + "Totalen sind davon nicht betroffen: Beliebig viele sind erlaubt und "
-                 + "werden für Cutaways genutzt.")
+            Text("Speaker detection compares exactly two close-up cameras. A third "
+                 + "would never get its turn as speaker — the person on it would stay "
+                 + "silent in the edit, without anything failing. That's why the start is locked.\n\n"
+                 + "Wide shots aren't affected: any number is allowed and they're "
+                 + "used for cutaways.")
                 .font(.caption).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
-            Text("Betroffen wären:").font(.caption).foregroundStyle(.wizFaint).padding(.top, 2)
+            Text("This would affect:").font(.caption).foregroundStyle(.wizFaint).padding(.top, 2)
             ForEach(engine.unsupportedCloseCams) { cam in
                 Text("• \(cam.displayName)")
                     .font(.system(.caption, design: .monospaced))
@@ -824,19 +824,19 @@ struct OverviewStep: View {
                     LucideIcon("history", size: 15)
                         .foregroundStyle(Color.brandAccent)
                     VStack(alignment: .leading, spacing: 3) {
-                        Text("Ordner bekannt — Zuordnungen geladen").fontWeight(.semibold)
-                        Text("Die App hat deine früheren Personen, Kameras und Einstellungen "
-                             + "für diesen Ordner wiederhergestellt. Über die Schritte oben "
-                             + "kannst du jederzeit etwas ändern.")
+                        Text("Folder recognized — assignments loaded").fontWeight(.semibold)
+                        Text("The app has restored your earlier people, cameras, and settings "
+                             + "for this folder. Using the steps above, you can "
+                             + "change anything at any time.")
                             .font(.caption).foregroundStyle(.wizMuted)
                             .fixedSize(horizontal: false, vertical: true)
-                        Button("Zuordnung zurücksetzen") { engine.resetSession() }
+                        Button("Reset assignments") { engine.resetSession() }
                             .buttonStyle(.plain)
                             .font(.caption)
                             .underline()
                             .foregroundStyle(Color.brandAccent)
                             .padding(.top, 2)
-                            .help("Löscht die gespeicherten Zuordnungen (.multicam) und beginnt von vorn")
+                            .help("Deletes the saved assignments (.multicam) and starts over")
                     }
                     Spacer()
                     // X mit ablaufendem Ring: zeigt, wann sich das Banner selbst
@@ -857,22 +857,22 @@ struct OverviewStep: View {
                 .onHover { bannerHovering = $0 }
             }
 
-            WizardIntro(title: "Passt alles?",
-                        text: "Das hat die App aus deinen Zuordnungen abgeleitet — Bildgrößen inklusive. "
-                            + "Stimmt etwas nicht, geh einen Schritt zurück und korrigier es. Sonst: Analyse starten.")
+            WizardIntro(title: "Does everything look right?",
+                        text: "The app derived this from your assignments — shot sizes included. "
+                            + "If something's wrong, go back a step and fix it. Otherwise: start the analysis.")
 
             HStack(alignment: .top, spacing: 22) {
                 VStack(alignment: .leading, spacing: 12) {
-                    sectionTitle("Bildgrößen je Person")
+                    sectionTitle("Shot sizes per person")
                     if engine.persons.isEmpty {
-                        Text("Keine Personen.").font(.callout).foregroundStyle(.wizMuted)
+                        Text("No people.").font(.callout).foregroundStyle(.wizMuted)
                     }
                     ForEach(engine.persons) { p in LadderRow(person: p) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 VStack(alignment: .leading, spacing: 12) {
-                    sectionTitle("Kameras")
+                    sectionTitle("Cameras")
                     ForEach(engine.activeCams) { cam in CamSummaryRow(cam: cam) }
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
@@ -890,11 +890,11 @@ struct OverviewStep: View {
         let n = engine.persons.count
         let c = engine.activeCams.count
         return (
-            Text("Automatisch erkannt: ").fontWeight(.semibold).foregroundStyle(Color.brandSecondary)
-            + Text("\(n) Sprecher:in\(n == 1 ? "" : "nen"), \(c) Kamera\(c == 1 ? "" : "s"), "
-                 + "\(totalen) Totale\(totalen == 1 ? "" : "n"). Eine Kamera mit mehreren Personen bleibt "
-                 + "eine Nahaufnahme, solange sie für eine davon die engste Einstellung ist — erst wenn "
-                 + "alle woanders enger sind, wird sie zur Totale.").foregroundStyle(Color.wizMuted)
+            Text("Automatically detected: ").fontWeight(.semibold).foregroundStyle(Color.brandSecondary)
+            + Text("\(n) speaker\(n == 1 ? "" : "s"), \(c) camera\(c == 1 ? "" : "s"), "
+                 + "\(totalen) wide shot\(totalen == 1 ? "" : "s"). A camera with several people stays "
+                 + "a close-up as long as it frames one of them tightest — only once "
+                 + "everyone is closer elsewhere does it become a wide shot.").foregroundStyle(Color.wizMuted)
         )
         .font(.callout)
         .fixedSize(horizontal: false, vertical: true)
@@ -925,7 +925,7 @@ struct LadderRow: View {
             .frame(width: 150, alignment: .leading)
 
             if ladder.isEmpty {
-                Text("keine Kamera").font(.caption).foregroundStyle(.brandSecondary)
+                Text("no camera").font(.caption).foregroundStyle(.brandSecondary)
             } else {
                 FlowLayout(spacing: 7) {
                     ForEach(Array(ladder.enumerated()), id: \.offset) { i, cam in
@@ -941,9 +941,9 @@ struct LadderRow: View {
     }
 
     private func tag(_ i: Int, _ count: Int) -> String {
-        if i == 0 { return "engste" }
-        if i == count - 1 { return "weiteste" }
-        return "weiter"
+        if i == 0 { return "tightest" }
+        if i == count - 1 { return "widest" }
+        return "wider"
     }
 
     private func shotChip(_ cam: CameraInfo, wide: Bool, tag: String) -> some View {
@@ -988,15 +988,15 @@ struct CamSummaryRow: View {
     @ViewBuilder private func rolePill(_ role: EngineController.CamRole) -> some View {
         switch role {
         case .wide:
-            Text("Totale").font(.caption2.weight(.semibold))
+            Text("Wide").font(.caption2.weight(.semibold))
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .background(Color.brandSecondary).foregroundStyle(.black).clipShape(Capsule())
         case .close:
-            Text("Nah").font(.caption2.weight(.semibold))
+            Text("Close").font(.caption2.weight(.semibold))
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .background(Color.brandAccent.opacity(0.16)).foregroundStyle(Color.brandAccent).clipShape(Capsule())
         case .unused:
-            Text("ungenutzt").font(.caption2)
+            Text("Unused").font(.caption2)
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .foregroundStyle(.wizFaint)
                 .overlay(Capsule().stroke(Color.wizBorder, lineWidth: 1))
@@ -1011,20 +1011,20 @@ struct WizardFooter: View {
 
     /// Warum der Start (noch) nicht geht — nil = bereit.
     private var startBlockedReason: String? {
-        if engine.activeCams.count < 2 { return "Mindestens 2 Kameras nötig" }
-        if engine.persons.isEmpty { return "Mindestens eine Person nötig" }
-        if engine.analysisCams.count < 2 { return "Mindestens 2 Kameras brauchen eine Person" }
-        if !engine.fpsMismatches.isEmpty { return "Bildrate weicht ab — bitte oben beheben" }
+        if engine.activeCams.count < 2 { return "At least 2 cameras needed" }
+        if engine.persons.isEmpty { return "At least one person needed" }
+        if engine.analysisCams.count < 2 { return "At least 2 cameras need a person" }
+        if !engine.fpsMismatches.isEmpty { return "Frame rate differs — please fix above" }
         // Die Diarisierung vergleicht genau zwei NAH-Kameras; eine dritte bliebe
         // stumm. Totalen sind erlaubt (siehe UnsupportedCloseCamsBanner).
-        if !engine.unsupportedCloseCams.isEmpty { return "Mehr als 2 Nah-Kameras — noch nicht unterstützt" }
-        if !engine.unassignedMics.isEmpty { return "Jede Person braucht mindestens eine Kamera" }
+        if !engine.unsupportedCloseCams.isEmpty { return "More than 2 close-up cameras — not yet supported" }
+        if !engine.unassignedMics.isEmpty { return "Every person needs at least one camera" }
         return nil
     }
 
     var body: some View {
         HStack(spacing: 14) {
-            Button("Zurück") { go(-1) }
+            Button("Back") { go(-1) }
                 .buttonStyle(WizSecondaryButton())
                 .disabled(engine.wizardStep == .persons)
                 .opacity(engine.wizardStep == .persons ? 0.4 : 1)
@@ -1039,13 +1039,13 @@ struct WizardFooter: View {
                 }
                 WizPresetDropdown()
                 Button { engine.start() } label: {
-                    LucideLabel("Analyse starten", icon: "play", size: 14)
+                    LucideLabel("Start analysis", icon: "play", size: 14)
                 }
                 .buttonStyle(WizPrimaryButton())
                 .disabled(startBlockedReason != nil)
                 .opacity(startBlockedReason == nil ? 1 : 0.4)
             } else {
-                Button { go(1) } label: { Text("Weiter").frame(minWidth: 70) }
+                Button { go(1) } label: { Text("Next").frame(minWidth: 70) }
                     .buttonStyle(WizPrimaryButton())
             }
         }
@@ -1088,7 +1088,7 @@ struct WizardSettings: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Einstellungen").font(.headline).padding(.bottom, 10)
+            Text("Settings").font(.headline).padding(.bottom, 10)
             Rectangle().fill(Color.wizBorder).frame(height: 1)
 
             if expert { expertList } else { simpleList }
@@ -1098,7 +1098,7 @@ struct WizardSettings: View {
             } label: {
                 HStack(spacing: 6) {
                     if expert { LucideIcon("chevron-up", size: 9) }
-                    Text(expert ? "Einfache Ansicht" : "Experteneinstellungen")
+                    Text(expert ? "Simple view" : "Expert settings")
                     if !expert { LucideIcon("chevron-down", size: 9) }
                 }
                 .font(.system(size: 13.5, weight: .medium))
@@ -1117,14 +1117,14 @@ struct WizardSettings: View {
     // Kuratierte 8 Essentials
     private var simpleList: some View {
         LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-            WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
-            WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)
-            WizToggle("Sprech-Erkennung", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
-            WizToggle("Kopfnicken erkennen", $engine.params.noddingEnabled, help: ParamHelp.noddingEnabled)
-            WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
-            WizToggle("Pausen-Cutaways", $engine.params.pauseCutawayEnabled, help: ParamHelp.pauseCutawayEnabled)
-            WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
-            WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
+            WizSlider("Min. shot length", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
+            WizSlider("Cutaway length", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)
+            WizToggle("Speech detection", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
+            WizToggle("Detect head nods", $engine.params.noddingEnabled, help: ParamHelp.noddingEnabled)
+            WizToggle("Trim pauses", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
+            WizToggle("Pause cutaways", $engine.params.pauseCutawayEnabled, help: ParamHelp.pauseCutawayEnabled)
+            WizSlider("Threshold", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
+            WizSlider("Max. shot length", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
         }
     }
 
@@ -1133,55 +1133,55 @@ struct WizardSettings: View {
     private var expertList: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 0) {
-                group("Generelle Schnittregeln", first: true) {
-                    WizSlider("Min. Schnittlänge", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
-                    WizSlider("Cleanup-Mindestlänge", $engine.params.cleanupDur, 0.1...5, suffix: " s", help: ParamHelp.cleanupDur)
-                    WizSlider("Max. Schnittlänge", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
+                group("General cut rules", first: true) {
+                    WizSlider("Min. shot length", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
+                    WizSlider("Min. cleanup length", $engine.params.cleanupDur, 0.1...5, suffix: " s", help: ParamHelp.cleanupDur)
+                    WizSlider("Max. shot length", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
                 }
-                group("Sprecher-Erkennung") {
-                    WizSlider("Schwelle", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
-                    WizSlider("Min. Segmentlänge", $engine.params.minEdit, 0.1...5, suffix: " s", help: ParamHelp.minEdit)
-                    WizSlider("Wechsel-Verzögerung", $engine.params.changeDelay, 0...2, suffix: " s", help: ParamHelp.changeDelay)
+                group("Speaker detection") {
+                    WizSlider("Threshold", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
+                    WizSlider("Min. segment length", $engine.params.minEdit, 0.1...5, suffix: " s", help: ParamHelp.minEdit)
+                    WizSlider("Change delay", $engine.params.changeDelay, 0...2, suffix: " s", help: ParamHelp.changeDelay)
                 }
-                group("Pausen-Trimming") {
-                    WizToggle("Pausen kürzen", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
-                    WizSlider("Max. Pause", $engine.params.maxPause, 0.1...3, suffix: " s", help: ParamHelp.maxPause)
-                    WizSlider("Stille-Schwelle", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f", help: ParamHelp.pauseSilenceDb)
+                group("Pause trimming") {
+                    WizToggle("Trim pauses", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
+                    WizSlider("Max. pause", $engine.params.maxPause, 0.1...3, suffix: " s", help: ParamHelp.maxPause)
+                    WizSlider("Silence threshold", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f", help: ParamHelp.pauseSilenceDb)
                     // Werte 1:1 aus dem Schema/der Pipeline (pause_trim_edl.py):
                     // middle | l-cut | j-cut | random — NICHT none/end.
-                    WizSegmented("Schnittmodus", $engine.params.pauseCutMode,
-                                 options: [("middle", "Mitte"), ("l-cut", "L-Cut"),
-                                           ("j-cut", "J-Cut"), ("random", "Zufall")],
+                    WizSegmented("Cut mode", $engine.params.pauseCutMode,
+                                 options: [("middle", "Middle"), ("l-cut", "L-Cut"),
+                                           ("j-cut", "J-Cut"), ("random", "Random")],
                                  help: ParamHelp.pauseCutMode)
                 }
-                group("Crossbleed-Filter") {
-                    WizToggle("Crossbleed-Gate", $engine.params.crossbleedGateEnabled, help: ParamHelp.crossbleedGateEnabled)
-                    WizSlider("Dämpfung", $engine.params.gateFloor, -60...(-5), suffix: " dB", format: "%.0f", help: ParamHelp.gateFloor)
-                    WizSlider("Hysterese", $engine.params.gateHysteresis, 0.5...10, suffix: " dB", help: ParamHelp.gateHysteresis)
-                    WizSlider("Fenster", $engine.params.gateWindow, 20...500, suffix: " ms", format: "%.0f", help: ParamHelp.gateWindow)
+                group("Crossbleed filter") {
+                    WizToggle("Crossbleed gate", $engine.params.crossbleedGateEnabled, help: ParamHelp.crossbleedGateEnabled)
+                    WizSlider("Attenuation", $engine.params.gateFloor, -60...(-5), suffix: " dB", format: "%.0f", help: ParamHelp.gateFloor)
+                    WizSlider("Hysteresis", $engine.params.gateHysteresis, 0.5...10, suffix: " dB", help: ParamHelp.gateHysteresis)
+                    WizSlider("Window", $engine.params.gateWindow, 20...500, suffix: " ms", format: "%.0f", help: ParamHelp.gateWindow)
                     WizSlider("Attack", $engine.params.gateAttack, 1...200, suffix: " ms", format: "%.0f", help: ParamHelp.gateAttack)
                     WizSlider("Release", $engine.params.gateRelease, 10...500, suffix: " ms", format: "%.0f", help: ParamHelp.gateRelease)
-                    WizSlider("Gleichzeitig-Schwelle", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB", help: ParamHelp.gateBothThreshold)
+                    WizSlider("Simultaneous threshold", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB", help: ParamHelp.gateBothThreshold)
                 }
                 // Allgemeine Cutaway-Regeln (gelten für ALLE Cutaway-Typen)
-                group("Cutaway Regeln") {
-                    WizSlider("Cutaway-Länge", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)
-                    WizSlider("Pre-Roll", Binding(
+                group("Cutaway rules") {
+                    WizSlider("Cutaway length", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)
+                    WizSlider("Pre-roll", Binding(
                         get: { Double(engine.params.preRoll) },
                         set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f",
                                   help: ParamHelp.preRoll)
-                    WizSlider("Zufallsfaktor", $engine.params.randomness, 0...0.5, format: "%.2f", help: ParamHelp.randomness)
-                    WizToggle("Ungünstige Cutaways verschieben", $engine.params.clipFilterEnabled, help: ParamHelp.clipFilterEnabled)
-                    WizSegmented("Mehrere Totalen", $engine.params.totaleMode,
-                                 options: [("round_robin", "Reihum"), ("random", "Zufällig"),
-                                           ("first", "Nur die erste")],
+                    WizSlider("Randomness", $engine.params.randomness, 0...0.5, format: "%.2f", help: ParamHelp.randomness)
+                    WizToggle("Move unsuitable cutaways", $engine.params.clipFilterEnabled, help: ParamHelp.clipFilterEnabled)
+                    WizSegmented("Multiple wide shots", $engine.params.totaleMode,
+                                 options: [("round_robin", "Round-robin"), ("random", "Random"),
+                                           ("first", "First only")],
                                  help: ParamHelp.totaleMode)
                 }
                 // Je Cutaway-Typ eine eigene Rubrik: Master-Toggle + NUR die Parameter,
                 // die wirklich dazugehören.
-                group("Kopfnicken") {
-                    WizToggle("Aktiv", $engine.params.noddingEnabled, help: ParamHelp.noddingEnabled)
-                    WizSlider("Min. Konfidenz", Binding(
+                group("Head nods") {
+                    WizToggle("Enabled", $engine.params.noddingEnabled, help: ParamHelp.noddingEnabled)
+                    WizSlider("Min. confidence", Binding(
                         get: { engine.params.minConf * 100 },
                         set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f",
                                   help: ParamHelp.minConf)
@@ -1189,7 +1189,7 @@ struct WizardSettings: View {
                 // Muster-Toggles — PRO PRESET (engine.params.noddingPatterns), dynamisch
                 // aus nodding_patterns.json. Gehören zu „Kopfnicken".
                 if !noddingPatternDefs.isEmpty {
-                    subLabel("Muster")
+                    subLabel("Patterns")
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
                         ForEach(noddingPatternDefs, id: \.name) { pat in
                             WizToggle(pat.name.replacingOccurrences(of: "_", with: " ").capitalized,
@@ -1198,41 +1198,41 @@ struct WizardSettings: View {
                         }
                     }
                 }
-                group("Sprachreaktionen") {
-                    WizToggle("Aktiv", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
+                group("Interjections") {
+                    WizToggle("Enabled", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
                     WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB", help: ParamHelp.riseDb)
-                    WizSlider("Max. Cutaway-Dauer", $engine.params.speakingMaxDur, 0.5...10, suffix: " s", help: ParamHelp.speakingMaxDur)
+                    WizSlider("Max. cutaway length", $engine.params.speakingMaxDur, 0.5...10, suffix: " s", help: ParamHelp.speakingMaxDur)
                 }
-                group("Stille") {
-                    WizToggle("Aktiv", $engine.params.pauseCutawayEnabled, help: ParamHelp.pauseCutawayEnabled)
-                    WizSlider("Min. Pausenlänge", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s", help: ParamHelp.pauseCutawayMinPause)
+                group("Silence") {
+                    WizToggle("Enabled", $engine.params.pauseCutawayEnabled, help: ParamHelp.pauseCutawayEnabled)
+                    WizSlider("Min. pause length", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s", help: ParamHelp.pauseCutawayMinPause)
                 }
                 // Bildsprache: nur wenn es eine größere Einstellung gibt — sonst
                 // haben die Übergänge keine gemeinsame Kamera und wären wirkungslos.
                 if engine.hasWideCamera {
-                    group("Bildsprache", description: ParamHelp.bildspracheIntro) {
-                        WizToggle("Übergang bei Sprecherwechsel", $engine.params.transitionSpeakerChange,
+                    group("Visual language", description: ParamHelp.bildspracheIntro) {
+                        WizToggle("Transition on speaker change", $engine.params.transitionSpeakerChange,
                                   help: ParamHelp.transitionSpeakerChange)
-                        WizSlider("Übergangs-Schwelle", $engine.params.transitionReturnFactor,
+                        WizSlider("Transition threshold", $engine.params.transitionReturnFactor,
                                   1.5...4.0, suffix: "×", format: "%.1f",
                                   help: ParamHelp.transitionReturnFactor)
                     }
-                    subLabel("Rückweg nach Cutaway über größere Einstellung")
+                    subLabel("Return after cutaway via a wider shot")
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-                        WizToggle("Nach Kopfnicken", $engine.params.transitionCutawayNodding,
+                        WizToggle("After head nod", $engine.params.transitionCutawayNodding,
                                   help: ParamHelp.transitionCutawayNodding)
-                        WizToggle("Nach Sprachreaktion", $engine.params.transitionCutawaySpeaking,
+                        WizToggle("After interjection", $engine.params.transitionCutawaySpeaking,
                                   help: ParamHelp.transitionCutawaySpeaking)
-                        WizToggle("Nach Pause", $engine.params.transitionCutawayPause,
+                        WizToggle("After pause", $engine.params.transitionCutawayPause,
                                   help: ParamHelp.transitionCutawayPause)
                     }
                     LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-                        WizSlider("Cooldown (Schnitte)", Binding(
+                        WizSlider("Cooldown (cuts)", Binding(
                             get: { Double(engine.params.transitionCutawayCooldown) },
                             set: { engine.params.transitionCutawayCooldown = Int($0) }),
                                   0...20, suffix: "", format: "%.0f",
                                   help: ParamHelp.transitionCutawayCooldown)
-                        WizSlider("Cooldown (Zeit)", $engine.params.transitionCutawayCooldownS,
+                        WizSlider("Cooldown (time)", $engine.params.transitionCutawayCooldownS,
                                   0...30, suffix: " s", format: "%.0f",
                                   help: ParamHelp.transitionCutawayCooldownS)
                     }
@@ -1487,7 +1487,7 @@ struct WizRestoreChips: View {
                         .foregroundStyle(.wizMuted)
                     }
                     .buttonStyle(.plain)
-                    .help("Wieder ins Projekt aufnehmen")
+                    .help("Add back to the project")
                 }
             }
         }
@@ -1522,7 +1522,7 @@ struct WizPresetDropdown: View {
                 set: { if let id = $0, let p = PresetManager.shared.loadPreset(id) { engine.params = p } }
             )) {
                 if matchingPresetId == nil {
-                    Text("Angepasst").tag(String?.none)
+                    Text("Custom").tag(String?.none)
                 }
                 ForEach(presets) { Text($0.name).tag(Optional($0.id)) }
             }
@@ -1531,15 +1531,15 @@ struct WizPresetDropdown: View {
 
             // Speichern / Import / Export dahinter (kompaktes Overflow-Menü).
             Menu {
-                Button("Preset speichern …") { newName = ""; showSaveSheet = true }
-                Button("Preset importieren …") {
+                Button("Save preset …") { newName = ""; showSaveSheet = true }
+                Button("Import preset …") {
                     if let (_, p) = PresetManager.shared.importPreset() {
                         engine.params = p
                         reloadPresets()   // Import legt eine Datei an → Liste neu einlesen
                     }
                 }
-                Button("Preset exportieren …") {
-                    _ = PresetManager.shared.exportPreset(engine.params, name: "Mein Preset")
+                Button("Export preset …") {
+                    _ = PresetManager.shared.exportPreset(engine.params, name: "My Preset")
                 }
             } label: {
                 LucideIcon("circle-ellipsis", size: 15).foregroundStyle(.wizMuted)
@@ -1551,11 +1551,11 @@ struct WizPresetDropdown: View {
         .onAppear { reloadPresets() }   // falls anderswo Presets dazugekommen sind
         .sheet(isPresented: $showSaveSheet) {
             VStack(spacing: 16) {
-                Text("Preset speichern").font(.headline)
-                TextField("Preset-Name", text: $newName).textFieldStyle(.roundedBorder).frame(width: 250)
+                Text("Save preset").font(.headline)
+                TextField("Preset name", text: $newName).textFieldStyle(.roundedBorder).frame(width: 250)
                 HStack {
-                    Button("Abbrechen") { showSaveSheet = false }
-                    Button("Speichern") {
+                    Button("Cancel") { showSaveSheet = false }
+                    Button("Save") {
                         guard !newName.isEmpty else { return }
                         _ = PresetManager.shared.savePreset(name: newName, params: engine.params)
                         reloadPresets()   // ohne das erscheint das neue Preset nicht im Menü

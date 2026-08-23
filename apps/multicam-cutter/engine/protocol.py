@@ -22,12 +22,12 @@ _COUNT_RE = re.compile(r"^\d+/\d+$")
 # verursacht. PASS 5 (CLIP) ist der mit Abstand teuerste.
 _PASS_RE = re.compile(r"PASS\s+(\d+[a-z]?)\s*:")
 _PASS_LABELS = {
-    "1":  "Schnittliste einlesen",
-    "2":  "Kopfnicken-Cutaways einfügen",
-    "2b": "Pausen-Cutaways einfügen",
-    "3":  "Kurze Einstellungen aufräumen",
-    "4":  "Lange Einstellungen teilen",
-    "5":  "Ungünstige Cutaways verschieben",
+    "1":  "Read edit list",
+    "2":  "Insert head-nod cutaways",
+    "2b": "Insert pause cutaways",
+    "3":  "Clean up short shots",
+    "4":  "Split long shots",
+    "5":  "Move unsuitable cutaways",
 }
 
 
@@ -115,7 +115,7 @@ class JsonLineWriter:
                     if fname in resolved_label:
                         resolved_label = resolved_label.replace(fname, dname)
                 if "Base-EDL" in step_label:
-                    self._emit({"type": "step_start_sub", "label": "Diarization + Base-EDL", "key": "base_edl"})
+                    self._emit({"type": "step_start_sub", "label": "Speaker detection + base EDL", "key": "base_edl"})
                 elif "Nodding-Analyse" in step_label:
                     # Cam-Index aus "Nodding-Analyse CAM{N}" extrahieren
                     import re
@@ -123,12 +123,12 @@ class JsonLineWriter:
                     cam_num = cam_match.group(1) if cam_match else "1"
                     self._emit({
                         "type": "step_start_sub",
-                        "label": resolved_label,
+                        "label": resolved_label.replace("Nodding-Analyse", "Head-nod analysis"),
                         "key": "nodding",
                         "preview_path": f"/tmp/multicam_preview_cam{cam_num}.jpg",
                     })
                 elif "Cutaways" in step_label:
-                    self._emit({"type": "step_start_sub", "label": "Cutaways einfügen", "key": "cutaways"})
+                    self._emit({"type": "step_start_sub", "label": "Insert cutaways", "key": "cutaways"})
                 self._emit({"type": "log", "message": line})
                 continue
             # Normaler Text -> log-Nachricht

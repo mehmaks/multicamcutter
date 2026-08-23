@@ -100,18 +100,18 @@ struct AboutView: View {
                 .foregroundStyle(.secondary)
                 .textSelection(.enabled)   // zum Kopieren in Bug-Reports
 
-            Text("Automatischer Multicam-Schnitt für Podcasts")
+            Text("Automatic multicam editing for podcasts")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .multilineTextAlignment(.center)
 
-            Button("Auf Update prüfen") {
+            Button("Check for updates") {
                 updater.checkForUpdates()
             }
             .disabled(!viewModel.canCheckForUpdates)
             .padding(.top, 4)
 
-            Button("Open-Source-Lizenzen") {
+            Button("Open-source licenses") {
                 AcknowledgementsWindowController.shared.show()
             }
             .buttonStyle(.link)
@@ -146,29 +146,29 @@ struct UpdateSettingsSection: View {
 
     var body: some View {
         Section("Updates") {
-            LabeledContent("Installiert") {
+            LabeledContent("Installed") {
                 Text(AppVersion.display)
                     .foregroundStyle(.secondary)
                     .textSelection(.enabled)   // zum Kopieren in Bug-Reports
             }
 
             if isActive {
-                Toggle("Automatisch nach Updates suchen", isOn: Binding(
+                Toggle("Check for updates automatically", isOn: Binding(
                     get: { viewModel.automaticallyChecksForUpdates },
                     set: { viewModel.automaticallyChecksForUpdates = $0 }))
-                Text("Prüft kurz nach dem Start und danach regelmäßig im "
-                     + "Hintergrund. Gefunden wird nur gemeldet — installiert "
-                     + "wird erst nach deiner Bestätigung.")
+                Text("Checks shortly after launch and then regularly in the "
+                     + "background. It only tells you when something is found — "
+                     + "nothing is installed until you confirm.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
-                Button("Jetzt nach Updates suchen") {
+                Button("Check for updates now") {
                     updater.checkForUpdates()
                 }
                 .disabled(!viewModel.canCheckForUpdates)
             } else {
                 // Dev-Build ohne SUFeedURL: kein Button, der ins Leere greift.
-                Text("Update-Prüfung ist in dieser Entwicklungsversion nicht aktiv.")
+                Text("Update checks are not active in this development version.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -189,7 +189,7 @@ final class AboutWindowController {
         if window == nil {
             let hosting = NSHostingController(rootView: AboutView(updater: updater).tint(.brandAccent))
             let w = NSWindow(contentViewController: hosting)
-            w.title = "Über MultiCamCutter"
+            w.title = "About MultiCamCutter"
             w.styleMask = [.titled, .closable]
             w.isReleasedWhenClosed = false
             w.center()

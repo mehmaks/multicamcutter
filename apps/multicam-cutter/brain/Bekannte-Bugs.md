@@ -317,6 +317,57 @@
 
 ## Gefixt
 
+### 29,97-AAF: Drift + danach Kamera-Desync — Edit-Rate UND Drop-Frame-Reel-TC — GEFIXT (15.08., ⚠️ NLE-Gegentest offen)
+- **Symptom (in zwei Wellen)**: Projekt mit zwei 29,97-Kameras (Sony, `rtmd`-Metadaten).
+  (1) App monierte fälschlich FPS-Mismatch (Timeline fix 25) → Konvertierungs-Drang.
+  (2) Nach 29,97-Timeline: AAF **driftete** (Standbild am Ende). (3) Nach Edit-Rate-Fix:
+  **ab Timeline-Start komplett asynchron** — und die **Kameras untereinander** desynchron
+  (eine am Ende schon aus, während die andere noch läuft, ~56 s Versatz).
+- **Ursachen (vier, nacheinander gefunden)**:
+  1. **App leitete Projekt-FPS nie aus dem Scan ab** (`@Published var fps = 25.0` hart).
+     → Fix (Swift): `EngineController.deriveProjectFpsFromCameras()` — gleiche FPS aller
+     aktiven Kameras (±0,01) wird Timeline-FPS. Uneinheitlich → unverändert (Warnung greift).
+  2. **Edit-Rate `int(round(fps))` = 30/1** statt 29,97 → 30er-Timeline auf 29,97-Material →
+     Speed-Adaption → **Drift/Standbild**. → Fix (`build_aaf._edit_rate`): krumme NTSC-Raten
+     als **exakter Bruch** `AAFRational(30000,1001)`; Ganzzahl-fps bleiben plain int (25er byte-identisch).
+  3. **EDL-TC-Round-Trip driftete ±1 Frame** bei krummer fps (fraktionale Rechnung).
+     → Fix (`shared/frame_utils`): Zählung über **nominale Ganzzahl-Rate** `round(fps)`
+     (Non-Drop) → Round-Trip exakt für ALLE fps, byte-identisch für Ganzzahl-fps.
+  4. **⚠️ DER Kamera-Desync-Killer: Reel-TC muss DROP-FRAME sein.** Das Sony-Material ist
+     Drop-Frame (29,97). Der ALTE Code rechnete `* 29.97` (fraktional) ≈ Drop-Frame-Zählung
+     und traf den Reel-TC damit **zufällig ~richtig**. Mein Non-Drop-Fix (Ursache 3) machte
+     den Reel-TC Non-Drop → beim Resolve-Reel+TC-Link verschob sich JEDE Kamera um ihren
+     **akkumulierten Drop-Frame-Versatz** (108 F/Std). Weil die Kameras verschiedene
+     Tageszeit-TCs haben (C9540 23:58 → Δ86 s, C8575 08:27 → Δ30 s), war der **relative**
+     Versatz **56 s** — exakt das Symptom. → Fix (`build_aaf`): `_is_dropframe(fps)`
+     (29,97/59,94 = Drop-Frame) + `_dropframe_count()`; Reel-TC (Tape) + Timeline-TC werden
+     **Drop-Frame** (`Drop=True`, Start = Drop-Frame-Zählung), `create_tape_slots(drop_frame=…)`.
+     **Wichtig:** die relative Position (`source_in`) bleibt NOMINAL — die Subtraktions-Ref
+     in `_parse_edl` ruft `_probe_embedded_tc_frames` OHNE `dropframe` → nur der ABSOLUTE
+     Reel-/Timeline-TC ist Drop-Frame, die Schnitte bleiben frame-exakt.
+- **Detektion Drop-Frame (`_detect_dropframe`, aus der Datei — wie Resolve)**: Sony `rtmd`
+  hat KEINEN `tmcd`-Track, und ffprobe/ffmpeg normalisieren den TC-String auf ':'. ABER das
+  Flag steht in Sonys **NonRealTimeMeta-XML** in der Top-Level-`meta`-Box:
+  `<LtcChange frameCount="0" value="HHHHHHHH">` = SMPTE-12M-gepackter Start-TC als Hex; im
+  **Frames-Byte (höchstes Byte) ist Bit 6 (0x40) das Drop-Frame-Flag**. `0x60375823` →
+  23:58:37:20, DF=1. An C9540/C8575 verifiziert (beide DF=True, deckt sich mit Resolve-Anzeige).
+  Nur Metadaten gelesen (schnell auch bei 100 GB). **fps-Annahme `_is_dropframe` nur Fallback**,
+  wenn kein Sony-Meta da ist (z.B. tmcd-Kameras → Rest-Sliver im TODO).
+- **Dateien**: `EngineController.swift`; `build_aaf.py` (`_edit_rate`, `_NTSC_RATIONALS`,
+  `_is_dropframe`, `_dropframe_count`, `_probe_embedded_tc_frames(dropframe=…)`, `_make_timecode_slot(drop=…)`);
+  `shared/frame_utils.py`.
+- **Validierung ohne NLE**: synthetisch + **echtes Material** → Readback: Edit-Raten `30000/1001`;
+  Reel-TC C8575=913212 / C9540=2586940 (beide `Drop=True`, = Drop-Frame-Zählung der echten
+  embedded TCs); Locator 4, MasterMobs 4; Sync sauber (Conf 123–194×). 25er byte-identisch,
+  Diarize/Totale grün. **Test-AAF im Projektordner: `49_DROPFRAME_TEST.aaf`.**
+- ⚠️ **NLE-Gegentest offen (nur User)**: `49_DROPFRAME_TEST.aaf` in **Resolve UND Premiere** —
+  Kameras untereinander synchron, A/V ab Start synchron, kein Standbild, Medien online.
+  **Fürs Release: Engine-Rebuild.**
+- **Merke**: (a) Krumme fps NIE als `int(round())` in die Edit-Rate — nur der exakte Bruch.
+  (b) Bei Drop-Frame-Material MUSS der Reel-/Timeline-TC Drop-Frame sein, sonst desynchronisieren
+  Kameras mit unterschiedlichem Tageszeit-TC über den akkumulierten DF-Versatz. (c) Interne
+  Frame-Zählung bleibt nominal/Non-Drop (exakter Round-Trip); NUR der absolute TC ist Drop-Frame.
+
 ### Schnitt-Begruendung ging zweimal auf dem Weg verloren
 - **Symptom**: Uebergangs-Einstellungen hiessen im AAF „Sprecher" statt
   „Uebergang". Sichtbar war der Schnitt korrekt — nur nicht zuzuordnen.

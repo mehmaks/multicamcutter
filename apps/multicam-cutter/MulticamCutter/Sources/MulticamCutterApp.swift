@@ -31,29 +31,29 @@ struct MulticamCutterApp: App {
 
             // About-Dialog mit Version + "Auf Update prüfen"
             CommandGroup(replacing: .appInfo) {
-                Button("Über MultiCamCutter") {
+                Button("About MultiCamCutter") {
                     AboutWindowController.shared.show(updater: updater.updater)
                 }
             }
 
             CommandGroup(replacing: .help) {
-                Button("Fehler melden…") {
+                Button("Report a bug…") {
                     engine.presentFeedback(fromError: false)
                 }
             }
 
-            CommandMenu("Projekt") {
-                Button("Neu") {
+            CommandMenu("Project") {
+                Button("New") {
                     engine.reset()
                 }
                 .keyboardShortcut("n")
 
-                Button("Ordner öffnen...") {
+                Button("Open folder...") {
                     let panel = NSOpenPanel()
                     panel.canChooseFiles = false
                     panel.canChooseDirectories = true
                     panel.allowsMultipleSelection = false
-                    panel.message = "Episode-Ordner auswählen"
+                    panel.message = "Choose episode folder"
                     if panel.runModal() == .OK, let url = panel.url {
                         engine.setFolder(url)
                     }

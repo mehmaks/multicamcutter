@@ -16,7 +16,7 @@ struct LogWindow: View {
     var body: some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
-                Text("\(engine.logMessages.count) Zeilen")
+                Text("\(engine.logMessages.count) lines")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
@@ -25,16 +25,16 @@ struct LogWindow: View {
                 Button {
                     copyAll()
                 } label: {
-                    LucideLabel("Kopieren", icon: "copy", size: 13)
+                    LucideLabel("Copy", icon: "copy", size: 13)
                 }
                 .disabled(engine.logMessages.isEmpty)
 
                 Button {
                     NSWorkspace.shared.open(EngineController.logDirectory)
                 } label: {
-                    LucideLabel("Log-Ordner öffnen", icon: "folder", size: 13)
+                    LucideLabel("Open log folder", icon: "folder", size: 13)
                 }
-                .help("Alle bisherigen Läufe als Datei — ~/Library/Logs/MulticamCutter")
+                .help("All previous runs as files — ~/Library/Logs/MulticamCutter")
             }
             .padding(8)
 
@@ -63,11 +63,11 @@ struct LogWindow: View {
             .overlay {
                 if engine.logMessages.isEmpty {
                     ContentUnavailableView {
-                        Label { Text("Kein Log für diesen Lauf") } icon: {
+                        Label { Text("No log for this run") } icon: {
                             LucideIcon("file-text", size: 40)
                         }
                     } description: {
-                        Text("Frühere Läufe liegen als Datei im Log-Ordner.")
+                        Text("Earlier runs are saved as files in the log folder.")
                     }
                 }
             }

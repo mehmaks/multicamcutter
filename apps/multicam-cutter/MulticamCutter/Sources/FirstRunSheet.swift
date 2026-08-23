@@ -33,25 +33,25 @@ struct FirstRunSheet: View {
 
     private let requirements: [Requirement] = [
         .init(icon: "audio-waveform",
-              title: "Jede Kamera braucht eine eigene Tonspur",
+              title: "Every camera needs its own audio track",
               // shared/waveform_sync.py korreliert jede Quelle gegen eine Referenz
               // (standardmaessig das laengste Mikrofon).
-              detail: "Die Synchronisierung vergleicht die Tonspuren der Kameras "
-                    + "miteinander. Eine Kamera ohne brauchbaren Ton lässt sich "
-                    + "nicht einordnen — auch nicht von Hand."),
+              detail: "Sync compares the cameras' audio tracks with each "
+                    + "other. A camera without usable audio can't be placed "
+                    + "— not even by hand."),
         .init(icon: "speech",
-              title: "Ein eigenes Mikrofon je Person",
-              detail: "Wer spricht, wird über die Lautstärke der einzelnen "
-                    + "Mikrofone bestimmt. Ein gemeinsames Mikrofon für mehrere "
-                    + "Personen lässt sich nicht auftrennen."),
+              title: "A separate microphone for each person",
+              detail: "Who's speaking is determined from the volume of each "
+                    + "microphone. A shared microphone for several people "
+                    + "can't be split apart."),
         // Bewusst KEIN Punkt zur Kamera-/Sprecherwechsel-Mechanik hier (22.07.):
         // Das ist App-Verhalten, keine Material-Anforderung, und passte nicht zur
         // Überschrift „Was dein Material mitbringen muss". Erklärung dazu gehört
         // in die Bildsprache-Hilfetexte, nicht in diese Einstiegs-Checkliste.
         .init(icon: "refresh-cw",
-              title: "Die Aufnahmen müssen sich zeitlich überlappen",
-              detail: "Ohne gemeinsamen Zeitraum findet die Synchronisierung "
-                    + "keinen Bezugspunkt. Ein Vorlauf am Anfang ist unproblematisch."),
+              title: "The recordings must overlap in time",
+              detail: "Without a shared time span, sync has no reference "
+                    + "point. A lead-in at the start is fine."),
     ]
 
     var body: some View {
@@ -60,9 +60,9 @@ struct FirstRunSheet: View {
                 LucideIcon("list-checks", size: 26)
                     .foregroundStyle(.brandAccent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Bevor du startest")
+                    Text("Before you start")
                         .font(.title3.bold())
-                    Text("Was dein Material mitbringen muss")
+                    Text("What your footage needs")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -89,8 +89,8 @@ struct FirstRunSheet: View {
             // Bewusst als Entwarnung formuliert, nicht als Anforderung: die App
             // erkennt abweichende Bildraten selbst (EngineController.fpsMismatches)
             // und bietet die Umwandlung an (--convert-fps).
-            LucideLabel("Unterschiedliche Bildraten sind kein Hindernis — die App erkennt "
-                        + "sie und bietet an, die betroffenen Dateien umzuwandeln.",
+            LucideLabel("Different frame rates are no problem — the app detects "
+                        + "them and offers to convert the affected files.",
                         icon: "info", size: 11)
                 .font(.caption)
                 .foregroundStyle(.secondary)
@@ -100,14 +100,14 @@ struct FirstRunSheet: View {
 
             HStack {
                 Text(seenRevision == 0
-                     ? "Dieser Hinweis erscheint wieder, wenn sich etwas daran ändert."
-                     : "Hier hat sich etwas geändert.")
+                     ? "This note appears again when something here changes."
+                     : "Something here has changed.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
 
                 Spacer()
 
-                Button("Verstanden") {
+                Button("Got it") {
                     seenRevision = Self.contentRevision
                     dismiss()
                 }

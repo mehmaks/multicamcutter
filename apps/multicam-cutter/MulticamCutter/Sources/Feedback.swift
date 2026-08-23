@@ -14,7 +14,7 @@ enum SystemInfo {
     static var deviceModel: String {
         var size = 0
         sysctlbyname("hw.model", nil, &size, nil, 0)
-        guard size > 0 else { return "unbekannt" }
+        guard size > 0 else { return "unknown" }
         var buf = [CChar](repeating: 0, count: size)
         sysctlbyname("hw.model", &buf, &size, nil, 0)
         return String(cString: buf)
@@ -63,7 +63,7 @@ private enum FeedbackService {
     static var endpoint: URL? { URL(string: LicenseConfig.apiBase + "/api/feedback") }
 
     static func send(_ payload: FeedbackPayload) async throws -> FeedbackResult {
-        guard let url = endpoint else { throw SendError(message: "Ungültige Endpoint-URL") }
+        guard let url = endpoint else { throw SendError(message: "Invalid endpoint URL") }
         var req = URLRequest(url: url)
         req.httpMethod = "POST"
         req.setValue("application/json", forHTTPHeaderField: "Content-Type")
@@ -73,7 +73,7 @@ private enum FeedbackService {
         let (data, resp) = try await URLSession.shared.data(for: req)
         let code = (resp as? HTTPURLResponse)?.statusCode ?? -1
         guard (200..<300).contains(code) else {
-            throw SendError(message: "Server antwortete mit HTTP \(code).")
+            throw SendError(message: "Server responded with HTTP \(code).")
         }
         // Backend liefert idealerweise issue_url/number; fehlt es, gilt es trotzdem als ok.
         return (try? JSONDecoder().decode(FeedbackResult.self, from: data))
@@ -94,7 +94,7 @@ struct FeedbackButton: View {
         }
         .buttonStyle(.plain)
         .foregroundStyle(.secondary)
-        .help("Feedback / Fehler melden")
+        .help("Feedback / Report a bug")
     }
 }
 
@@ -122,7 +122,7 @@ struct FeedbackView: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
-            Text(fromError ? "Fehler melden" : "Feedback / Fehler melden")
+            Text(fromError ? "Report a bug" : "Feedback / Report a bug")
                 .font(.title2.bold())
 
             if case .success(let url, let number) = phase {
@@ -142,7 +142,7 @@ struct FeedbackView: View {
     private var form: some View {
         if fromError && !errorMessage.isEmpty {
             VStack(alignment: .leading, spacing: 4) {
-                LucideLabel("Diese Fehlermeldung wird mitgesendet:", icon: "triangle-alert", size: 11)
+                LucideLabel("This error message will be included:", icon: "triangle-alert", size: 11)
                     .font(.caption).foregroundStyle(.brandSecondary)
                 Text(errorMessage)
                     .font(.system(.caption, design: .monospaced))
@@ -154,31 +154,31 @@ struct FeedbackView: View {
             .background(Color(.textBackgroundColor).opacity(0.4), in: RoundedRectangle(cornerRadius: 8))
         }
 
-        TextField("Betreff", text: $summary, prompt: Text("Kurz: was ist passiert?"))
+        TextField("Subject", text: $summary, prompt: Text("Briefly: what happened?"))
             .textFieldStyle(.roundedBorder)
 
         VStack(alignment: .leading, spacing: 4) {
-            Text("Beschreibung").font(.caption).foregroundStyle(.secondary)
+            Text("Description").font(.caption).foregroundStyle(.secondary)
             TextEditor(text: $details)
                 .font(.body)
                 .frame(height: 120)
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(Color(.separatorColor), lineWidth: 0.5))
         }
 
-        TextField("E-Mail für Rückfragen (optional)", text: $email)
+        TextField("Email for follow-up (optional)", text: $email)
             .textFieldStyle(.roundedBorder)
 
         Toggle(isOn: $attachLog) {
             VStack(alignment: .leading, spacing: 1) {
-                Text("Analyse-Log anhängen")
-                Text("Enthält Dateipfade/-namen deines Projekts.")
+                Text("Attach analysis log")
+                Text("Includes file paths and names from your project.")
                     .font(.caption2).foregroundStyle(.secondary)
             }
         }
         .disabled(log.isEmpty)
         .opacity(log.isEmpty ? 0.5 : 1)
 
-        Text("Mitgesendet: \(AppVersion.display) · \(SystemInfo.osVersion) · \(SystemInfo.deviceModel)")
+        Text("Included: \(AppVersion.display) · \(SystemInfo.osVersion) · \(SystemInfo.deviceModel)")
             .font(.caption2).foregroundStyle(.tertiary)
 
         if case .failure(let msg) = phase {
@@ -186,10 +186,10 @@ struct FeedbackView: View {
         }
 
         HStack {
-            Button("Abbrechen") { dismiss() }
+            Button("Cancel") { dismiss() }
                 .keyboardShortcut(.cancelAction)
             if case .failure = phase {
-                Button("Details kopieren") { copyDetails() }
+                Button("Copy details") { copyDetails() }
             }
             Spacer()
             Button {
@@ -198,7 +198,7 @@ struct FeedbackView: View {
                 if phase == .sending {
                     ProgressView().controlSize(.small)
                 } else {
-                    Text("Senden")
+                    Text("Send")
                 }
             }
             .buttonStyle(.borderedProminent)
@@ -212,16 +212,16 @@ struct FeedbackView: View {
     @ViewBuilder
     private func successPanel(url: String?, number: Int?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            LucideLabel(number.map { "Meldung #\($0) angelegt — danke!" } ?? "Meldung gesendet — danke!",
+            LucideLabel(number.map { "Report #\($0) created — thanks!" } ?? "Report sent — thanks!",
                         icon: "circle-check", size: 15)
                 .foregroundStyle(.green)
                 .font(.headline)
             if let url, let u = URL(string: url) {
-                Link("Im Browser öffnen", destination: u)
+                Link("Open in browser", destination: u)
             }
             HStack {
                 Spacer()
-                Button("Schließen") { dismiss() }
+                Button("Close") { dismiss() }
                     .buttonStyle(.borderedProminent)
                     .keyboardShortcut(.defaultAction)
             }
@@ -244,7 +244,7 @@ struct FeedbackView: View {
         episode = d.episode
         attachLog = !d.log.isEmpty
         if fromError && !d.errorMessage.isEmpty && summary.isEmpty {
-            summary = "Fehler: " + String(d.errorMessage.prefix(50))
+            summary = "Error: " + String(d.errorMessage.prefix(50))
         }
     }
 
@@ -280,7 +280,7 @@ struct FeedbackView: View {
                 let result = try await FeedbackService.send(payload)
                 await MainActor.run { phase = .success(url: result.issue_url, number: result.number) }
             } catch {
-                await MainActor.run { phase = .failure("Senden fehlgeschlagen: \(error.localizedDescription)") }
+                await MainActor.run { phase = .failure("Sending failed: \(error.localizedDescription)") }
             }
         }
     }
@@ -289,15 +289,15 @@ struct FeedbackView: View {
     private func copyDetails() {
         let p = buildPayload()
         let text = """
-        Betreff: \(p.summary)
+        Subject: \(p.summary)
 
         \(p.description)
 
         ---
         App: \(p.app_version) · \(p.os_version) · \(p.device_model)
         Episode: \(p.episode)
-        E-Mail: \(p.email)
-        \(p.source == "error" ? "Fehler: \(p.error_message)\n" : "")
+        Email: \(p.email)
+        \(p.source == "error" ? "Error: \(p.error_message)\n" : "")
         Log:
         \(p.log)
         """

@@ -75,6 +75,41 @@ Der echte Quell-TC in die TapeMob (Reel-Name = `stem`), NICHT als direkter
 Offset in den FileDescriptor. Die FileDescriptor-Slots referenzieren die
 TapeMob. (Das ist zugleich, worüber Resolve linkt.)
 
+### 6. Krumme fps (29,97 …) → EXAKTER rationaler Edit-Rate, NICHT `int(round())`
+Alle Slot-Edit-Rates + die Video-`SampleRate` kommen aus `_edit_rate(fps)`:
+- **Ganzzahl-fps** (25/30/50/60) → plain int (byte-identisch zum alten `fps_int`).
+- **Krumme NTSC-fps** → exakter Bruch: `AAFRational(30000, 1001)` für 29,97,
+  `(24000, 1001)` für 23,976, `(60000, 1001)` für 59,94 (`_NTSC_RATIONALS`).
+
+⚠️ **`int(round(29.97)) = 30` ist der Bug**: eine als 30/1 gestempelte Timeline
+mit 29,97-Material löst in Resolve/Premiere Speed-Adaption aus → A/V-Drift +
+Standbild am Ende (Realmaterial 15.08.: „funktioniert nicht mit 30fps"). Nur der
+exakte Bruch verhindert das.
+
+### 7. Drop-Frame-Reel-TC bei 29,97/59,94 — sonst desynchronisieren die Kameras
+29,97/59,94-Material ist per NTSC-Norm **Drop-Frame**. Der Reel-TC (TapeMob) UND der
+Timeline-TC müssen dann Drop-Frame sein (`_is_dropframe(fps)` → `create_tape_slots(
+drop_frame=True)`, `_make_timecode_slot(drop=True)`, Start = `_dropframe_count(tc)`).
+
+⚠️ **Warum kritisch**: Resolve linkt über Reel + TC. Ist der Reel-TC Non-Drop, aber das
+Medium Drop-Frame, verschiebt sich jede Kamera um ihren **akkumulierten DF-Versatz**
+(108 F/Std bei 29,97). Kameras mit unterschiedlichem Tageszeit-TC driften dadurch
+**relativ zueinander** (Realfall: 23:58 vs 08:27 → 56 s → „eine Cam am Ende aus, andere
+läuft noch"). Der frühere fraktionale Code (`* 29.97`) traf DF **zufällig** (Echtzeit ≈
+Drop-Frame); die nominale Umstellung brach das → deshalb explizit Drop-Frame.
+- **Detektion (`_detect_dropframe`, aus der Datei — wie Resolve)**: Sony `rtmd` hat keinen
+  `tmcd`-Track, ffprobe/ffmpeg normalisieren den TC-String auf ':'. Das Flag steht aber in
+  Sonys **NonRealTimeMeta-XML** (Top-Level-`meta`-Box): `<LtcChange value="HHHHHHHH">` =
+  SMPTE-12M-Hex, **Bit 6 (0x40) im Frames-Byte = Drop-Frame**. fps-Annahme `_is_dropframe`
+  nur noch **Fallback** (tmcd-Kameras: Flag aus tmcd-Sample-Entry lesen — Rest-Sliver).
+- **Nur der ABSOLUTE TC ist Drop-Frame.** Interne/relative Positionen (`source_in`, Record,
+  Dauern) bleiben nominal/Non-Drop: `shared/frame_utils` zählt über `round(fps)` (Round-Trip
+  exakt, byte-identisch für Ganzzahl-fps), und die Subtraktions-Ref in `_parse_edl` ruft
+  `_probe_embedded_tc_frames` OHNE `dropframe` → Schnitte bleiben frame-exakt.
+
+Isolierter Readback nach einem Umbau hier: **alle** Edit-Rates `30000/1001`, Tape-TC-Starts
+= Drop-Frame-Zählung der embedded TCs mit `Drop=True` (bei 29,97/59,94).
+
 ---
 
 ## Aktuelle Struktur in build_aaf.py (Stand 0.6.7)

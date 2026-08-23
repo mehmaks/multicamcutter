@@ -13,7 +13,7 @@ struct SyncResolutionSheet: View {
 
     /// Referenzkamera, auf die die Offsets normiert sind (Dateiname statt „1. Kamera").
     private var refName: String {
-        engine.syncReferenceFilename.isEmpty ? "der ersten Kamera" : engine.syncReferenceFilename
+        engine.syncReferenceFilename.isEmpty ? "the first camera" : engine.syncReferenceFilename
     }
 
     var body: some View {
@@ -21,12 +21,12 @@ struct SyncResolutionSheet: View {
             HStack(spacing: 10) {
                 Image(systemName: "exclamationmark.triangle.fill")
                     .foregroundStyle(.orange)
-                Text("Einige Quellen ließen sich nicht automatisch synchronisieren")
+                Text("Some sources couldn't be synced automatically")
                     .font(.headline)
             }
-            Text("Für jede betroffene Quelle: einen Offset in Frames (relativ zu "
-                 + "\(refName)) eingeben oder die Quelle vom Schnitt ausschließen. "
-                 + "Die übrigen Quellen sind bereits synchron.")
+            Text("For each affected source: enter an offset in frames (relative to "
+                 + "\(refName)) or exclude the source from the edit. "
+                 + "The remaining sources are already in sync.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -45,10 +45,10 @@ struct SyncResolutionSheet: View {
             .frame(maxHeight: 340)
 
             HStack {
-                Button("Abbrechen") { engine.cancelSyncResolution() }
+                Button("Cancel") { engine.cancelSyncResolution() }
                     .keyboardShortcut(.cancelAction)
                 Spacer()
-                Button("Erneut synchronisieren") { apply() }
+                Button("Sync again") { apply() }
                     .keyboardShortcut(.defaultAction)
                     .buttonStyle(.borderedProminent)
                     .tint(.brandAccent)
@@ -79,8 +79,8 @@ struct SyncResolutionSheet: View {
                 get: { choice[src.id] ?? .manual },
                 set: { choice[src.id] = $0 }
             )) {
-                Text("Manueller Offset").tag(Choice.manual)
-                Text("Ausschließen").tag(Choice.exclude)
+                Text("Manual offset").tag(Choice.manual)
+                Text("Exclude").tag(Choice.exclude)
             }
             .pickerStyle(.segmented)
             .labelsHidden()
@@ -96,13 +96,13 @@ struct SyncResolutionSheet: View {
                     // Rot umrandet: hier ist eine Eingabe/Bestaetigung noetig.
                     .overlay(RoundedRectangle(cornerRadius: 5)
                         .stroke(Color.red.opacity(0.85), lineWidth: 1.5))
-                    Text("Frames (relativ zu \(refName)) · Vorschlag: \(src.candidateOffsetFrames)")
+                    Text("Frames (relative to \(refName)) · Suggestion: \(src.candidateOffsetFrames)")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Text("Wird vom Schnitt ausgeschlossen — die Person auf dieser Spur "
-                     + "wird dann nicht erkannt.")
+                Text("Excluded from the edit — the person on this track "
+                     + "won't be detected then.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

@@ -101,14 +101,14 @@ struct ContentView: View {
         .sheet(isPresented: $engine.showSyncResolution) {
             SyncResolutionSheet(engine: engine)
         }
-        .alert("Download fehlgeschlagen",
+        .alert("Download failed",
                isPresented: Binding(get: { engine.clipError != nil },
                                     set: { if !$0 { engine.clipError = nil } })) {
             Button("OK", role: .cancel) { engine.clipError = nil }
         } message: {
-            Text((engine.clipError ?? "") + "\n\nDu kannst die Analyse ohne Bilderkennung "
-                 + "starten — schalte dazu „Ungünstige Cutaways verschieben (CLIP)\" in "
-                 + "den Experteneinstellungen aus.")
+            Text((engine.clipError ?? "") + "\n\nYou can start the analysis without image "
+                 + "recognition — just turn off \"Move unsuitable cutaways (CLIP)\" in "
+                 + "the expert settings.")
         }
         .onChange(of: engine.state) { oldState, newState in
             animateWindowWidth(for: newState)
@@ -364,15 +364,15 @@ struct ContentView: View {
         DockProgress.shared.hide()
         switch new {
         case .done:
-            AnalysisNotifier.notify(title: "Analyse abgeschlossen",
-                                    body: "\(engine.episodeName) ist fertig geschnitten.")
+            AnalysisNotifier.notify(title: "Analysis complete",
+                                    body: "\(engine.episodeName) has been cut.")
         case .error:
-            AnalysisNotifier.notify(title: "Analyse fehlgeschlagen",
-                                    body: engine.errorMessage.isEmpty ? "Es ist ein Fehler aufgetreten."
+            AnalysisNotifier.notify(title: "Analysis failed",
+                                    body: engine.errorMessage.isEmpty ? "An error occurred."
                                                                        : engine.errorMessage)
         case .ready:   // cancel() geht auf .ready zurück
-            AnalysisNotifier.notify(title: "Analyse abgebrochen",
-                                    body: "Die Analyse wurde gestoppt.")
+            AnalysisNotifier.notify(title: "Analysis canceled",
+                                    body: "The analysis was stopped.")
         default:
             break
         }
@@ -421,14 +421,14 @@ struct FolderDropView: View {
             LucideIcon("folder-plus", size: 64)
                 .foregroundStyle(isTargeted ? .brandAccent : .secondary)
 
-            Text("Episode-Ordner hierher ziehen")
+            Text("Drag an episode folder here")
                 .font(.title2)
                 .foregroundStyle(.secondary)
 
-            Text("oder")
+            Text("or")
                 .foregroundStyle(.tertiary)
 
-            Button("Ordner auswählen...") {
+            Button("Choose folder...") {
                 selectFolder()
             }
             .buttonStyle(.borderedProminent)
@@ -447,7 +447,7 @@ struct FolderDropView: View {
         panel.canChooseFiles = false
         panel.canChooseDirectories = true
         panel.allowsMultipleSelection = false
-        panel.message = "Ordner mit Kamera- und Mikrofon-Dateien auswählen"
+        panel.message = "Choose a folder with camera and microphone files"
         if panel.runModal() == .OK, let url = panel.url {
             engine.setFolder(url)
         }
@@ -481,17 +481,17 @@ struct FpsConversionSheet: View {
     }
 
     private var title: String {
-        let name = engine.convertLabel.isEmpty ? "Konvertiere …" : engine.convertLabel
+        let name = engine.convertLabel.isEmpty ? "Converting …" : engine.convertLabel
         guard engine.convertFileCount > 1 else { return name }
         return "\(name)  (\(engine.convertFileIndex)/\(engine.convertFileCount))"
     }
 
     private var detail: String {
-        guard engine.convertTotal > 0 else { return "Wird vorbereitet …" }
-        var s = "\(timecode(engine.convertDone)) von \(timecode(engine.convertTotal)) "
+        guard engine.convertTotal > 0 else { return "Preparing …" }
+        var s = "\(timecode(engine.convertDone)) of \(timecode(engine.convertTotal)) "
               + "(\(Int(fraction * 100)) %)"
         if let eta = engine.convertEtaSeconds, eta.isFinite, eta > 0 {
-            s += "  ·  noch ~\(etaText(eta))"
+            s += "  ·  ~\(etaText(eta)) left"
         }
         return s
     }
@@ -521,7 +521,7 @@ struct FpsConversionSheet: View {
                     .foregroundStyle(.secondary)
             }
             .buttonStyle(.plain)
-            .help("Konvertierung abbrechen")
+            .help("Cancel conversion")
         }
         .padding(20)
         .frame(width: 460)
@@ -586,7 +586,7 @@ struct EditableLabel: View {
                 }
                 .buttonStyle(.plain)
                 .foregroundStyle(.secondary)
-                .help("Episode umbenennen — bestimmt den Namen der erzeugten AAF-Datei")
+                .help("Rename episode — sets the name of the AAF file created")
             }
         }
     }
@@ -688,7 +688,7 @@ struct ProgressView_: View {
                     }
 
                     if !engine.stepETA.isEmpty && engine.stepETA != "--:--" {
-                        Text("Restzeit: \(engine.stepETA)")
+                        Text("Time left: \(engine.stepETA)")
                             .font(.system(.body, design: .monospaced))
                             .foregroundStyle(.secondary)
                     }
@@ -700,14 +700,14 @@ struct ProgressView_: View {
                     .frame(width: 400)
             }
 
-            Text("Schritt \(engine.stepNum) von \(engine.totalSteps)")
+            Text("Step \(engine.stepNum) of \(engine.totalSteps)")
                 .font(.subheadline)
                 .foregroundStyle(.tertiary)
 
             Button(role: .destructive) {
                 engine.cancel()
             } label: {
-                Text("Abbrechen")
+                Text("Cancel")
             }
             .buttonStyle(.bordered)
             .padding(.top, 4)
@@ -733,7 +733,7 @@ struct ResultView: View {
             LucideIcon("circle-check", size: 64)
                 .foregroundStyle(.green)
 
-            Text("Fertig!")
+            Text("Done!")
                 .font(.title)
 
             if let aaf = engine.resultAAF {
@@ -741,14 +741,14 @@ struct ResultView: View {
                     .font(.system(.body, design: .monospaced))
                     .foregroundStyle(.secondary)
 
-                Button("Im Finder anzeigen") {
+                Button("Show in Finder") {
                     NSWorkspace.shared.selectFile(aaf, inFileViewerRootedAtPath: "")
                 }
                 .buttonStyle(.borderedProminent)
             }
 
             if let stats = engine.resultStats {
-                GroupBox("Statistik") {
+                GroupBox("Statistics") {
                     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
                         ForEach(Array(stats.sorted(by: { $0.key < $1.key })), id: \.key) { key, value in
                             GridRow {
@@ -763,12 +763,12 @@ struct ResultView: View {
             }
 
             HStack(spacing: 16) {
-                Button("Zurück zum Projekt") {
+                Button("Back to project") {
                     engine.backToSetup()
                 }
                 .buttonStyle(.bordered)
 
-                Button("Neuen Ordner wählen") {
+                Button("Choose new folder") {
                     engine.reset()
                 }
                 .buttonStyle(.link)
@@ -793,7 +793,7 @@ struct ErrorView: View {
             LucideIcon("triangle-alert", size: 64)
                 .foregroundStyle(.red)
 
-            Text("Fehler")
+            Text("Error")
                 .font(.title)
 
             Text(engine.errorMessage)
@@ -802,13 +802,13 @@ struct ErrorView: View {
                 .frame(maxWidth: 400)
 
             HStack {
-                Button("Erneut versuchen") {
+                Button("Try again") {
                     engine.start()
                 }
-                Button("Zurück") {
+                Button("Back") {
                     engine.reset()
                 }
-                Button("Fehler melden") {
+                Button("Report a problem") {
                     engine.presentFeedback(fromError: true)
                 }
             }

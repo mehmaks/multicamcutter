@@ -15,7 +15,7 @@ struct SettingsView: View {
         TabView {
             GeneralSettingsTab(updater: updater, updaterIsActive: updaterIsActive)
                 .tabItem {
-                    Label("Allgemein", systemImage: "gearshape")
+                    Label("General", systemImage: "gearshape")
                 }
                 .tag(Tab.general)
 
@@ -33,7 +33,7 @@ struct SettingsView: View {
 
             LicenseSettingsTab()
                 .tabItem {
-                    Label("Lizenz", systemImage: "key")
+                    Label("License", systemImage: "key")
                 }
                 .tag(Tab.license)
         }
@@ -62,16 +62,16 @@ struct NoddingSettingsTab: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 10) {
             HStack {
-                Text("Nodding-Muster").font(.headline)
+                Text("Nodding patterns").font(.headline)
                 Spacer()
-                Text(source == "user" ? "Angepasst" : "Standard")
+                Text(source == "user" ? "Customized" : "Default")
                     .font(.caption2)
                     .foregroundStyle(source == "user" ? .brandSecondary : .secondary)
             }
-            Text("Globale Schwellen & Filter der Nicken-Erkennung (nodding_patterns.json) — "
-                 + "Expertenwerte. Das Aktivieren/Deaktivieren einzelner Muster liegt pro Preset "
-                 + "im Analyse-Panel (Experteneinstellungen → Cutaway Regeln). Bei defektem JSON "
-                 + "nutzt die Analyse automatisch die Defaults.")
+            Text("Global thresholds & filters for head-nod detection (nodding_patterns.json) — "
+                 + "expert values. Turning individual patterns on or off is done per preset "
+                 + "in the analysis panel (Expert settings → Cutaway rules). If the JSON is broken, "
+                 + "the analysis automatically uses the defaults.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -82,15 +82,15 @@ struct NoddingSettingsTab: View {
                 .overlay(RoundedRectangle(cornerRadius: 6).stroke(.quaternary))
 
             HStack {
-                Button("Speichern") { save() }.buttonStyle(.borderedProminent)
-                Button("Auf Standard zurücksetzen") { reset() }.disabled(source != "user")
+                Button("Save") { save() }.buttonStyle(.borderedProminent)
+                Button("Reset to defaults") { reset() }.disabled(source != "user")
                 Spacer()
                 if let message {
                     LucideLabel(message, icon: messageIsError ? "octagon-x" : "check", size: 11)
                         .font(.caption).foregroundStyle(messageIsError ? .red : .green).lineLimit(1)
                 }
             }
-            Text("Gilt beim nächsten Analyse-Lauf.").font(.caption2).foregroundStyle(.tertiary)
+            Text("Applies on the next analysis run.").font(.caption2).foregroundStyle(.tertiary)
         }
         .padding()
         .task { await load() }
@@ -105,9 +105,9 @@ struct NoddingSettingsTab: View {
         if let err = engine.saveNoddingPatterns(text) {
             message = err; messageIsError = true
         } else {
-            source = "user"; message = "Gespeichert"; messageIsError = false
+            source = "user"; message = "Saved"; messageIsError = false
             DispatchQueue.main.asyncAfter(deadline: .now() + 1.8) {
-                if message == "Gespeichert" { message = nil }
+                if message == "Saved" { message = nil }
             }
         }
     }
@@ -153,25 +153,25 @@ struct ClipSettingsTab: View {
     // ── Modell-Status + Download ──
     private var modelSection: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text("Bilderkennung (CLIP)").font(.headline)
-            Text("Optionales Modell (≈ 581 MB). Filtert ungünstige Cutaway-Frames "
-                 + "(z. B. Trinken). Ohne Modell läuft alles andere normal.")
+            Text("Image recognition (CLIP)").font(.headline)
+            Text("Optional model (≈ 581 MB). Filters out unsuitable cutaway frames "
+                 + "(e.g. drinking). Everything else runs normally without it.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             HStack(spacing: 10) {
                 switch modelInstalled {
                 case .some(true):
-                    LucideLabel("Modell geladen", icon: "circle-check", size: 13)
+                    LucideLabel("Model loaded", icon: "circle-check", size: 13)
                         .foregroundStyle(.green)
                 case .some(false):
-                    LucideLabel("Modell nicht geladen", icon: "circle-arrow-down", size: 13)
+                    LucideLabel("Model not loaded", icon: "circle-arrow-down", size: 13)
                         .foregroundStyle(.secondary)
-                    Button("Herunterladen") { engine.downloadClipModel() }
+                    Button("Download") { engine.downloadClipModel() }
                         .disabled(engine.isDownloadingClip)
                 case .none:
                     SwiftUI.ProgressView().controlSize(.small)
-                    Text("wird geprüft …").font(.caption).foregroundStyle(.secondary)
+                    Text("checking …").font(.caption).foregroundStyle(.secondary)
                 }
             }
 
@@ -190,33 +190,33 @@ struct ClipSettingsTab: View {
     private var promptSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             HStack {
-                Text("Filter-Prompts").font(.headline)
+                Text("Filter prompts").font(.headline)
                 Spacer()
-                Text(source == "user" ? "Angepasst" : "Standard")
+                Text(source == "user" ? "Customized" : "Default")
                     .font(.caption2)
                     .foregroundStyle(source == "user" ? .brandSecondary : .secondary)
             }
-            Text("Ein Prompt pro Zeile, auf Englisch (so erwartet es CLIP). "
-                 + "Ignorieren = solche Bilder werden als Cutaway vermieden, "
-                 + "Neutral = ausdrücklich erlaubt.")
+            Text("One prompt per line, in English (that's what CLIP expects). "
+                 + "Ignore = such images are avoided as cutaways, "
+                 + "Neutral = explicitly allowed.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
-            promptEditor("IGNORIEREN", text: $ignoreText)
+            promptEditor("IGNORE", text: $ignoreText)
             promptEditor("NEUTRAL", text: $neutralText)
 
             HStack {
-                Button("Speichern") { save() }
+                Button("Save") { save() }
                     .buttonStyle(.borderedProminent)
-                Button("Auf Standard zurücksetzen") { reset() }
+                Button("Reset to defaults") { reset() }
                     .disabled(source != "user")
                 Spacer()
                 if justSaved {
-                    LucideLabel("Gespeichert", icon: "check", size: 11)
+                    LucideLabel("Saved", icon: "check", size: 11)
                         .font(.caption).foregroundStyle(.green)
                 }
             }
-            Text("Gilt beim nächsten Analyse-Lauf.")
+            Text("Applies on the next analysis run.")
                 .font(.caption2).foregroundStyle(.tertiary)
         }
     }
@@ -292,21 +292,21 @@ struct GeneralSettingsTab: View {
                 UpdateSettingsSection(updater: updater, isActive: updaterIsActive)
             }
 
-            Section("Darstellung") {
-                Toggle("Kontrast der Vorschaubilder anheben", isOn: $thumbnailAutoContrast)
-                Text("Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim "
-                     + "Scrubbing). Rein kosmetisch — Analyse und Export bleiben unberührt.")
+            Section("Appearance") {
+                Toggle("Boost contrast of preview images", isOn: $thumbnailAutoContrast)
+                Text("Lifts flat Log footage in the camera previews (also while "
+                     + "scrubbing). Purely cosmetic — analysis and export stay untouched.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
 
-            Section("Datenschutz") {
-                Toggle("Anonyme Nutzungsdaten senden", isOn: Binding(
+            Section("Privacy") {
+                Toggle("Send anonymous usage data", isOn: Binding(
                     get: { analyticsConsent == 1 },
                     set: { analyticsConsent = $0 ? 1 : 2 }))
-                Text("Hilft, die App zu verbessern: nur anonyme Zahlen (Anzahl Kameras, "
-                     + "Mikrofone, Sprecher, Dauer, Laufzeit, Gerät, Einstellungen) — "
-                     + "niemals Namen, Dateien oder Pfade. Jederzeit hier abschaltbar.")
+                Text("Helps improve the app: only anonymous numbers (number of cameras, "
+                     + "microphones, speakers, duration, run time, device, settings) — "
+                     + "never names, files or paths. Can be turned off here any time.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -326,38 +326,38 @@ struct GeneralSettingsTab: View {
     // AAF-Clipnamen: frei konfigurierbares Muster, Live-Vorschau. Bestimmt, was
     // die NLE im Timeline-Segment anzeigt (MasterMob-Name im AAF).
     private var clipNameSection: some View {
-        Section("AAF-Clipnamen") {
-            Toggle("Schnittgründe in Clipnamen", isOn: $clipNameReasons)
-            Text("Benennt jeden Schnitt im AAF nach seinem Grund (Sprecher, Übergang …) — "
-                 + "hilft beim Sichten, den Grund direkt am Clip zu sehen. DaVinci Resolve "
-                 + "zeigt das am Timeline-Clip; Premiere Pro legt dafür pro Grund einen "
-                 + "zusätzlichen (korrekt verknüpften) Clip im Projekt an. Wer lieber genau "
-                 + "einen Clip pro Kamera möchte, schaltet es ab.")
+        Section("AAF clip names") {
+            Toggle("Cut reasons in clip names", isOn: $clipNameReasons)
+            Text("Names every cut in the AAF after its reason (speaker, transition …) — "
+                 + "helps you see the reason right on the clip while reviewing. DaVinci Resolve "
+                 + "shows it on the timeline clip; Premiere Pro adds one extra (correctly linked) "
+                 + "clip per reason to the project. If you'd rather have exactly "
+                 + "one clip per camera, turn it off.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if clipNameReasons {
-                Text("Muster für den Namen. Platzhalter: %S Quelldatei · %R Schnittgrund · "
-                     + "%P Person · %L smartes Label (Person bei Sprecher, sonst Grund). "
-                     + "Leere Platzhalter werden samt Trenner sauber entfernt.")
+                Text("Pattern for the name. Placeholders: %S source file · %R cut reason · "
+                     + "%P person · %L smart label (person for speaker cuts, otherwise reason). "
+                     + "Empty placeholders are removed cleanly along with their separator.")
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 HStack {
-                    TextField("Muster", text: $clipNamePattern)
+                    TextField("Pattern", text: $clipNamePattern)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                     if clipNamePattern != "%L - %S" {
-                        Button("Standard") { clipNamePattern = "%L - %S" }
+                        Button("Default") { clipNamePattern = "%L - %S" }
                             .buttonStyle(.link).font(.caption)
                     }
                 }
 
                 VStack(alignment: .leading, spacing: 3) {
-                    clipNamePreviewRow("Sprecher-Clip", source: "C0352",
-                                       reason: "Sprecher", person: "Andreas", label: "Andreas")
-                    clipNamePreviewRow("Cutaway (Totale)", source: "C0352",
-                                       reason: "Übergang", person: "", label: "Übergang")
+                    clipNamePreviewRow("Speaker clip", source: "C0352",
+                                       reason: "Speaker", person: "Andreas", label: "Andreas")
+                    clipNamePreviewRow("Cutaway (wide shot)", source: "C0352",
+                                       reason: "Transition", person: "", label: "Transition")
                 }
                 .padding(.top, 2)
             }
@@ -399,41 +399,41 @@ struct GeneralSettingsTab: View {
     // (HEVC 10-bit fuer 4:2:0, ProRes fuer 4:2:2/4:4:4). Hier nur die Qualitaets-
     // Feineinstellung fuer Cutter, die bewusst eingreifen wollen.
     private var conversionSection: some View {
-        Section("Bildraten-Umwandlung") {
-            Text("Wird eine Videodatei auf die Timeline-Bildrate umgewandelt, wählt die App "
-                 + "den Codec passend zum Quellformat — HEVC 10-bit für 4:2:0 (Action-Cams, "
-                 + "Drohnen), ProRes für 4:2:2/4:4:4 (Profikameras). Die Voreinstellungen sind "
-                 + "auf eine quellgetreue, gradebare Kopie kalibriert. Nur ändern, wenn du "
-                 + "genau weißt, was du tust.")
+        Section("Frame-rate conversion") {
+            Text("When a video file is converted to the timeline frame rate, the app picks "
+                 + "the codec to match the source format — HEVC 10-bit for 4:2:0 (action cams, "
+                 + "drones), ProRes for 4:2:2/4:4:4 (pro cameras). The defaults are "
+                 + "calibrated for a source-faithful, gradable copy. Only change these if you "
+                 + "know exactly what you're doing.")
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             VStack(alignment: .leading, spacing: 4) {
                 HStack {
-                    Text("HEVC-Qualität (4:2:0-Material)")
+                    Text("HEVC quality (4:2:0 footage)")
                     Spacer()
                     Text("\(convertHevcQuality)")
                         .monospacedDigit().foregroundStyle(.secondary)
                     if convertHevcQuality != 72 {
-                        Button("Standard") { convertHevcQuality = 72 }
+                        Button("Default") { convertHevcQuality = 72 }
                             .buttonStyle(.link).font(.caption)
                     }
                 }
                 Slider(value: Binding(get: { Double(convertHevcQuality) },
                                       set: { convertHevcQuality = Int($0.rounded()) }),
                        in: 50...95, step: 1)
-                Text("Höher = näher am Original, aber größere Dateien. 72 entspricht der "
-                     + "bisherigen Qualität (praktisch verlustfrei).")
+                Text("Higher = closer to the original, but larger files. 72 matches the "
+                     + "previous quality (practically lossless).")
                     .font(.caption2).foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
 
-            Picker("ProRes-Profil (4:2:2-Material)", selection: $convertProResProfile) {
+            Picker("ProRes profile (4:2:2 footage)", selection: $convertProResProfile) {
                 Text("Standard").tag("standard")
                 Text("HQ").tag("hq")
             }
-            Text("Nur für echtes 4:2:2/4:4:4-Material. HQ ist praktisch verlustfrei, "
-                 + "Standard etwas kleiner. (4:4:4 nutzt immer ProRes 4444.)")
+            Text("Only for true 4:2:2/4:4:4 footage. HQ is practically lossless, "
+                 + "Standard a bit smaller. (4:4:4 always uses ProRes 4444.)")
                 .font(.caption2).foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -449,9 +449,9 @@ struct LicenseSettingsTab: View {
     @State private var licenseStatus: String = {
         let d = UserDefaults.standard
         if d.bool(forKey: "lic.isValid") {
-            return d.bool(forKey: "lic.isGrace") ? "Lizenz aktiv (offline)" : "Lizenz aktiv"
+            return d.bool(forKey: "lic.isGrace") ? "License active (offline)" : "License active"
         }
-        return "Wird geprüft..."
+        return "Checking..."
     }()
     @State private var licenseEmail: String = UserDefaults.standard.string(forKey: "lic.email") ?? ""
     @State private var subLine: String = UserDefaults.standard.string(forKey: "lic.subLine") ?? ""
@@ -489,7 +489,7 @@ struct LicenseSettingsTab: View {
                         // Nur bei Mehrplatz-Lizenzen (Limit > 1): "1 von 1" waere
                         // Rauschen. Stand = letzter Serverkontakt (Lease-Refresh).
                         if isValid && seatsLimit > 1 {
-                            Text("Arbeitsplätze: \(seatsUsed) von \(seatsLimit) belegt")
+                            Text("Seats: \(seatsUsed) of \(seatsLimit) in use")
                                 .font(.caption)
                                 .foregroundStyle(seatsUsed >= seatsLimit ? .brandSecondary : .secondary)
                         }
@@ -498,7 +498,7 @@ struct LicenseSettingsTab: View {
                     if isChecking || isActivating {
                         SwiftUI.ProgressView().controlSize(.small)
                     } else if isValid {
-                        Button("Deaktivieren") {
+                        Button("Deactivate") {
                             showDeactivateConfirm = true
                         }
                         .controlSize(.small)
@@ -508,18 +508,18 @@ struct LicenseSettingsTab: View {
 
             // Key-Eingabe nur zeigen, wenn keine aktive Lizenz vorliegt
             if !isValid {
-                Section("Lizenzschlüssel") {
+                Section("License key") {
                     TextField("XXXX-XXXX-XXXX-XXXX", text: $licenseKey)
                         .textFieldStyle(.roundedBorder)
                         .font(.system(.body, design: .monospaced))
                         .onSubmit { activateKey() }
 
-                    Button("Aktivieren") {
+                    Button("Activate") {
                         activateKey()
                     }
                     .disabled(licenseKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty || isActivating)
 
-                    Text("Den Schlüssel bekommst du nach dem Kauf per E-Mail.")
+                    Text("You'll get the key by email after purchase.")
                         .font(.caption)
                         .foregroundStyle(.secondary)
                 }
@@ -527,10 +527,10 @@ struct LicenseSettingsTab: View {
                 // Umzug: Lizenz ist auf einem anderen Gerät aktiv
                 if statusCode == "activation_limit" {
                     Section {
-                        Text("Diese Lizenz ist bereits auf einem anderen Gerät aktiv.")
+                        Text("This license is already active on another device.")
                             .font(.caption)
                             .foregroundStyle(.brandSecondary)
-                        Button("Auf dieses Gerät umziehen") {
+                        Button("Move to this device") {
                             migrate()
                         }
                         .disabled(isActivating || licenseKey.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
@@ -538,7 +538,7 @@ struct LicenseSettingsTab: View {
                 }
 
                 Section {
-                    Button("Lizenz erneut prüfen") {
+                    Button("Check license again") {
                         checkLicense()
                     }
                     .disabled(isChecking || isActivating)
@@ -548,15 +548,14 @@ struct LicenseSettingsTab: View {
         .formStyle(.grouped)
         .padding()
         // Deaktivieren gibt einen Server-Slot frei → nicht versehentlich auslösen.
-        .confirmationDialog("Lizenz auf diesem Gerät deaktivieren?",
+        .confirmationDialog("Deactivate the license on this device?",
                             isPresented: $showDeactivateConfirm,
                             titleVisibility: .visible) {
-            Button("Deaktivieren", role: .destructive) { deactivate() }
-            Button("Abbrechen", role: .cancel) {}
+            Button("Deactivate", role: .destructive) { deactivate() }
+            Button("Cancel", role: .cancel) {}
         } message: {
-            Text("Der Geräte-Slot wird auf dem Server wieder freigegeben. Du kannst die "
-                 + "Lizenz jederzeit mit deinem Lizenzschlüssel erneut aktivieren — auch "
-                 + "auf einem anderen Mac.")
+            Text("The device slot is released on the server again. You can reactivate the "
+                 + "license any time with your license key — on another Mac too.")
         }
         .onAppear {
             checkLicense()
@@ -579,7 +578,7 @@ struct LicenseSettingsTab: View {
         let key = licenseKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return }
         isActivating = true
-        licenseStatus = "Wird aktiviert..."
+        licenseStatus = "Activating..."
         Task {
             let result = await runEngineCommand(["--set-key", key])
             await MainActor.run {
@@ -606,7 +605,7 @@ struct LicenseSettingsTab: View {
         let key = licenseKey.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !key.isEmpty else { return }
         isActivating = true
-        licenseStatus = "Wird umgezogen..."
+        licenseStatus = "Moving..."
         // Takeover: andere Geräte freigeben, dann auf diesem Gerät aktivieren.
         Task {
             let result = await runEngineCommand(["--migrate-key", key])
@@ -624,7 +623,7 @@ struct LicenseSettingsTab: View {
         let lastLine = output.split(separator: "\n").last.map(String.init) ?? output
         guard let data = lastLine.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            licenseStatus = "Keine Lizenz gefunden"
+            licenseStatus = "No license found"
             isValid = false
             isGrace = false
             subLine = ""
@@ -640,11 +639,11 @@ struct LicenseSettingsTab: View {
         seatsLimit = json["seats_limit"] as? Int ?? 0
 
         if isValid {
-            licenseStatus = isGrace ? "Lizenz aktiv (offline)" : "Lizenz aktiv"
+            licenseStatus = isGrace ? "License active (offline)" : "License active"
         } else if let error = json["error"] as? String, !error.isEmpty {
             licenseStatus = error
         } else {
-            licenseStatus = "Keine Lizenz hinterlegt"
+            licenseStatus = "No license on file"
         }
 
         // Abo-Anzeigezeile aus den (optionalen) LemonSqueezy-Feldern.
@@ -655,14 +654,14 @@ struct LicenseSettingsTab: View {
         if !isValid {
             subLine = ""; subIsWarning = false
         } else if !endsAt.isEmpty {
-            subLine = "Gekündigt — endet am \(formatDate(endsAt))"; subIsWarning = true
+            subLine = "Cancelled — ends on \(formatDate(endsAt))"; subIsWarning = true
         } else if status == "past_due" {
-            subLine = "Zahlung ausstehend"; subIsWarning = true
+            subLine = "Payment pending"; subIsWarning = true
         } else if status == "on_trial" {
-            subLine = renewsAt.isEmpty ? "Testphase" : "Testphase bis \(formatDate(renewsAt))"
+            subLine = renewsAt.isEmpty ? "Trial" : "Trial until \(formatDate(renewsAt))"
             subIsWarning = false
         } else if !renewsAt.isEmpty {
-            subLine = "Verlängert sich am \(formatDate(renewsAt))"; subIsWarning = false
+            subLine = "Renews on \(formatDate(renewsAt))"; subIsWarning = false
         } else {
             subLine = ""; subIsWarning = false
         }
@@ -712,7 +711,7 @@ struct LicenseSettingsTab: View {
             let enginePath = toolkitRoot
                 .appendingPathComponent("apps/multicam-cutter/engine/multicam_engine.py").path
             guard FileManager.default.fileExists(atPath: pythonPath) else {
-                return "{\"valid\": false, \"error\": \"Engine nicht gefunden\"}"
+                return "{\"valid\": false, \"error\": \"Engine not found\"}"
             }
             process.executableURL = URL(fileURLWithPath: pythonPath)
             process.arguments = [enginePath] + args

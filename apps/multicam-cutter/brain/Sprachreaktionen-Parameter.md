@@ -364,6 +364,42 @@ Richtung unterschiedlich scharf stellen, statt global.
 Ein Gast, der 11 dB leiser ankommt als der Host, produziert dreimal so viele
 Fehlschnitte auf seiner Kamera.
 
+## ❌ Verworfene Idee: Absolut-Pegel-Gate (Silence-Cutter quiet_speech) — 2026-07-27
+
+Ausgelöst durch einen realen FP (C7816, 00:03:32): „auf der Spur ist gar kein
+Ausschlag, das sollte keinen Burst auslösen". Idee: den pro Spur adaptiven
+`quiet_speech`-Floor aus `shared/audio_analysis.suggest_threshold_kmeans` (Silence
+Cutter) als **absoluten Boden** nehmen und Bursts verwerfen, deren Off-Mic-Pegel
+den Floor nicht überschreitet.
+
+**Gemessen an ep04 (22 gelabelte Cuts, 11 FP / 11 TP; Off-Mic-Spitze je Burst aus
+`speaking_debug.json`, Floor per kmeans auf denselben `db`-Fenstern):**
+
+| | FP | TP |
+|---|---|---|
+| Spitze − quiet_speech | Median **+17,6 dB** (10,7 … 22,4) | Median **+23,5 dB** (11,2 … 32,1) |
+| Spitze − noise_floor | Median +23,4 dB (16,5 … 28,0) | Median +29,3 dB (16,8 … 37,9) |
+
+**Verteilungen überlappen komplett.** Der eine FP, den Regel A verpasst (corr<0,75),
+liegt bei **+22,4 dB** — mitten unter den lautesten TPs. Ein Gate bei
+`quiet_speech + margin` entfernt bis margin +9 dB **0 FP**, bei +12 dB **1 FP gegen
+1 TP**. Nutzlos.
+
+**Warum die flache Waveform täuscht:** Am Burst gibt es sehr wohl einen
+Übersprech-Ausschlag von +17 dB über dem Floor — nur beim Rauszoomen unsichtbar.
+Der Pegel ist da; er unterscheidet bloß FP nicht von TP. Deckt sich mit dem
+früheren Befund oben („Pegel, Rise, Dauer und Confidence überlappen alle") und mit
+der Verwerfung von `mic_separation_db` als Per-Marker-Kennzahl. **Nicht erneut
+vorschlagen.** MIC1-Floor in ep04: quiet_speech −41,6 / noise_floor −47,4 → nur
+5,8 dB Rausch-zu-Sprache-Spanne, die ein 6-dB-Rise mühelos überspringt — das ist
+der Mechanismus, nicht ein fehlender Absolut-Boden.
+
+**Was bleibt:** Regel A (Korrelation) ist und bleibt der Filter (24/30 FP gesamt,
+10/11 in ep04, aktiv auch im Folder-Pfad via `run_analysis`). Die ~1/11, die A
+verpasst, sind der oben offene Sub-Typ (Spuren dekorrelieren, corr~0,58,
+Off-Mic flach/fallend während der Burst auf nachlaufender Baseline feuert) — von
+keiner getesteten Off-Mic-Kennzahl sauber trennbar.
+
 ## Datensatz und wie es weitergeht
 
 Ground Truth liegt in **`datasets/speaking-fp/`** (eigenes README mit

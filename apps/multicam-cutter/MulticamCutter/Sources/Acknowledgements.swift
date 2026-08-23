@@ -72,15 +72,15 @@ struct AcknowledgementsView: View {
                 detail(sel)
             } else if components.isEmpty {
                 ContentUnavailableView {
-                    Label { Text("Keine Lizenzinfos geladen") } icon: {
+                    Label { Text("No license info loaded") } icon: {
                         LucideIcon("file-search", size: 40)
                     }
                 } description: {
-                    Text("acknowledgements.json fehlt im Bundle.")
+                    Text("acknowledgements.json is missing from the bundle.")
                 }
             } else {
                 ContentUnavailableView {
-                    Label { Text("Komponente wählen") } icon: {
+                    Label { Text("Select a component") } icon: {
                         LucideIcon("file-text", size: 40)
                     }
                 }
@@ -101,7 +101,7 @@ struct AcknowledgementsView: View {
                     Spacer()
                     if !c.url.isEmpty, let url = URL(string: c.url) {
                         Link(destination: url) {
-                            LucideLabel("Projektseite", icon: "external-link", size: 13)
+                            LucideLabel("Project page", icon: "external-link", size: 13)
                         }
                         .font(.callout)
                     }
@@ -140,7 +140,7 @@ final class AcknowledgementsWindowController {
         if window == nil {
             let hosting = NSHostingController(rootView: AcknowledgementsView().tint(.brandAccent))
             let w = NSWindow(contentViewController: hosting)
-            w.title = "Open-Source-Lizenzen"
+            w.title = "Open-source licenses"
             w.styleMask = [.titled, .closable, .resizable, .miniaturizable]
             w.setContentSize(NSSize(width: 840, height: 560))
             w.isReleasedWhenClosed = false

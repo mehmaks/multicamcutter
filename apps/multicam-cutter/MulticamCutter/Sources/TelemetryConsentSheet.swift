@@ -26,16 +26,16 @@ struct TelemetryConsentSheet: View {
 
     private let points: [Point] = [
         .init(icon: "circle-check",
-              text: "Nur anonyme Zahlen: wie viele Kameras, Mikrofone und Personen, "
-                  + "wie lang die Aufnahmen sind, wie lange ein Durchlauf dauert, dein "
-                  + "Mac-Modell und welche Funktionen an waren."),
+              text: "Only anonymous numbers: how many cameras, microphones and people, "
+                  + "how long the recordings are, how long a run takes, your "
+                  + "Mac model and which features were on."),
         .init(icon: "circle-x",
-              text: "Niemals Namen, Dateien, Pfade oder Bilder. Kein Konto, keine "
-                  + "Werbung, kein fremder Tracker."),
+              text: "Never names, files, paths or images. No account, no "
+                  + "ads, no third-party tracker."),
         .init(icon: "shield-check",
-              text: "Anonym gespeichert auf einem Server in der EU. So sehe ich, wie "
-                  + "groß echte Projekte sind und wie schnell die App auf welcher "
-                  + "Hardware läuft — und mache sie besser."),
+              text: "Stored anonymously on a server in the EU. This shows me how "
+                  + "big real projects are and how fast the app runs on which "
+                  + "hardware — and lets me make it better."),
     ]
 
     var body: some View {
@@ -44,9 +44,9 @@ struct TelemetryConsentSheet: View {
                 LucideIcon("shield-check", size: 26)
                     .foregroundStyle(.brandAccent)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text("Anonym mithelfen?")
+                    Text("Help out anonymously?")
                         .font(.title3.bold())
-                    Text("Ganz freiwillig — und jederzeit abschaltbar.")
+                    Text("Completely optional — and can be turned off any time.")
                         .font(.callout)
                         .foregroundStyle(.secondary)
                 }
@@ -68,7 +68,7 @@ struct TelemetryConsentSheet: View {
 
             if let privacyURL {
                 Link(destination: privacyURL) {
-                    LucideLabel("Was genau? — Datenschutz", icon: "external-link", size: 11)
+                    LucideLabel("What exactly? — Privacy", icon: "external-link", size: 11)
                         .font(.caption)
                 }
             }
@@ -76,21 +76,21 @@ struct TelemetryConsentSheet: View {
             Divider()
 
             HStack(alignment: .firstTextBaseline) {
-                Text("Ändern kannst du das später jederzeit in den "
-                     + "Einstellungen → Datenschutz.")
+                Text("You can change this later any time in "
+                     + "Settings → Privacy.")
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
                 Spacer(minLength: 12)
 
-                Button("Nein danke") {
+                Button("No thanks") {
                     analyticsConsent = 2
                     dismiss()
                 }
                 .keyboardShortcut(.cancelAction)
 
-                Button("Ja, anonym helfen") {
+                Button("Yes, help anonymously") {
                     analyticsConsent = 1
                     dismiss()
                 }

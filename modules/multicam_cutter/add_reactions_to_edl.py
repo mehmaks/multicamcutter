@@ -1096,8 +1096,19 @@ def _clip_score_for_event(
     model, processor, all_prompts: List[str],
     n_ignore: int, fps: float, tmpdir: str, tag: str,
     device: str,
+    score_mode: str = 'sum',
 ) -> float:
-    """Berechnet den Ignore-Score für ein Cutaway-Event (max über 2 Frames)."""
+    """Berechnet den Ignore-Score für ein Cutaway-Event (max über 2 Frames).
+
+    score_mode='sum'  → Summe der Ignore-Prompt-Wahrscheinlichkeiten (Default,
+                        für max_time/Pausen-Cutaways). Historisch validiert.
+    score_mode='max'  → nur der stärkste einzelne Ignore-Prompt. Robuster gegen
+                        das Aufstapeln fast identischer Prompts (mehrere „drinking"-
+                        Varianten summieren sonst ihre Softmax-Masse und flaggen
+                        harmlose Frames). Für den Nodding-DROP-Pfad, wo ein
+                        Fehlflag einen echten Nick-Cutaway kostet (gemessen an
+                        ep04: max trennt echtes Glas 0,65 sauber von Gestik 0,58).
+    """
     import torch
     from PIL import Image
 
@@ -1121,7 +1132,9 @@ def _clip_score_for_event(
         with torch.no_grad():
             outputs = model(**inputs)
             probs = outputs.logits_per_image[0].softmax(dim=0).cpu().numpy()
-        scores.append(float(sum(probs[:n_ignore])))
+        ignore_probs = probs[:n_ignore]
+        scores.append(float(max(ignore_probs)) if score_mode == 'max'
+                      else float(sum(ignore_probs)))
 
     return max(scores) if scores else 0.0
 
@@ -1145,6 +1158,14 @@ def clip_filter_cutaways(
     threshold = clip_config.get('ignore_threshold', 0.65)
     shift_step_s = clip_config.get('shift_step_s', 2.0)
     max_attempts = clip_config.get('max_attempts', 5)
+    # Nodding-Cutaways: manche Nicken sind in Wahrheit Trinkbewegungen (Kopf
+    # hoch/runter ≈ Nicken). 'drop' prueft sie mit CLIP und VERWIRFT die
+    # geflagten (statt zu verschieben — Verschieben war die Ursache des
+    # 0.6.10-Spaetschnitt-Bugs). 'off' laesst sie unangetastet.
+    # max-Scoring + Schwelle 0,6: an ep04 trennt das echtes Glas (0,65) sauber
+    # von Gestik/Zuhoeren (≤0,58). Sprachreaktionen bleiben IMMER unangetastet.
+    nodding_mode = clip_config.get('nodding_mode', 'drop')
+    nodding_threshold = clip_config.get('nodding_threshold', 0.6)
 
     if not prompts_path or not Path(prompts_path).exists():
         print("\n⚠️  CLIP-Filter: Prompts-JSON nicht gefunden, überspringe")
@@ -1159,6 +1180,7 @@ def clip_filter_cutaways(
     print(f"\n🔍 PASS 5: CLIP Ignore-Filter")
     print(f"  Ignore-Prompts: {ignore_prompts}")
     print(f"  Threshold: {threshold:.0%}, Shift: {shift_step_s}s, Max Versuche: {max_attempts}")
+    print(f"  Nodding-Modus: {nodding_mode} (Schwelle {nodding_threshold:.0%}, max-Scoring)")
 
     # CLIP laden
     try:
@@ -1201,11 +1223,18 @@ def clip_filter_cutaways(
     flagged = 0
     shifted = 0
     unresolved = 0
+    nod_checked = 0
+    nod_dropped = 0
+    drop_nodding = nodding_mode == 'drop'
 
     result = list(events)
-    # Reaktions-Cutaways zaehlen NICHT mit — sie werden unten uebersprungen (A).
-    total_cutaways = sum(1 for e in result
-                         if e.reason != "speaker" and not e.reason.startswith("reaction_"))
+    # max_time/Pausen-Cutaways werden verschoben; Nodding-Cutaways im DROP-Modus
+    # zusaetzlich geprueft (verworfen statt verschoben). Sprachreaktionen NIE.
+    total_cutaways = sum(
+        1 for e in result
+        if e.reason != "speaker"
+        and (not e.reason.startswith("reaction_")
+             or (drop_nodding and e.reason.startswith("reaction_nodding"))))
     # Startzeit fuer die ETA. Dieser Pass ist der mit Abstand teuerste (ein
     # CLIP-Durchlauf je Cutaway), deshalb rechnet er seine Restzeit selbst --
     # genauso wie die Nodding-Analyse (video_reaction_analyzer_v2.4.py:903).
@@ -1216,14 +1245,57 @@ def clip_filter_cutaways(
             if event.reason == "speaker":
                 continue
 
-            # A (26.07.): Reaktions-Cutaways (Nicken/Sprachreaktion) NIE zeit-
-            # verschieben — ihr ganzer Sinn ist, GENAU auf der Reaktion zu sitzen.
-            # Der CLIP-Zeit-Shift (Default 2 s, +zuerst) schob sie vom Nicken weg,
-            # sodass der Cut auf regungslosem Zuhören landete — und zwar wegen eines
-            # False-Positive „a person drinking" auf reinen Nick-/Zuhoer-Frames
-            # (50–67 % bei 50 % Schwelle). CLIP-Filter bleibt fuer max_time/Pausen-
-            # Cutaways (dort ist das Timing flexibel). Kamera-Tausch (Backlog) waere
-            # die Alternative, greift aber im 2-Kamera-Setup nicht.
+            # Nodding-Cutaways im DROP-Modus: manche Nicken sind Trinkbewegungen
+            # (Kopf hoch/runter ≈ Nicken). CLIP prueft sie und VERWIRFT die als
+            # Trinken erkannten — statt sie zu verschieben. Verschieben war die
+            # Ursache des 0.6.10-Bugs (Cut landete 2 s spaeter auf Zuhoeren). Ein
+            # verworfener Cutaway faellt sauber zurueck auf die Sprecher-Kamera und
+            # kann das Spaetschnitt-Symptom nie erzeugen. max-Scoring (nicht Summe):
+            # die frueheren „drinking"-Prompts stapelten ihre Softmax-Masse und
+            # flaggten harmlose Nick-Frames (gemessen 50–67 %).
+            if drop_nodding and event.reason.startswith("reaction_nodding"):
+                nod_checked += 1
+                if total_cutaways:
+                    _elapsed = time.time() - clip_start_time
+                    _done = checked + nod_checked
+                    _eta = (f"{int((total_cutaways-_done)/(_done/_elapsed)//60)}:"
+                            f"{int((total_cutaways-_done)/(_done/_elapsed)%60):02d}"
+                            if _elapsed > 1 and _done > 0 else "--:--")
+                    print(f"__PROGRESS__ {_done/total_cutaways*100:.1f} "
+                          f"{_eta} {_done}/{total_cutaways}", flush=True)
+                nod_score = _clip_score_for_event(
+                    event, clip_to_video, clip_start_s,
+                    model, processor, all_prompts, n_ignore,
+                    fps, tmpdir, f"nod{i}", device, score_mode='max',
+                )
+                if nod_score < nodding_threshold:
+                    continue
+                # DROP: Cutaway zur Fortsetzung der Sprecher-Kamera umschreiben.
+                # prev_ev ist der (kontinuierliche) Sprecher-Take, den der Cutaway
+                # unterbrochen hat → Source laeuft 1:1 mit Record, also lueckenlos.
+                prev_ev = result[i - 1] if i > 0 else None
+                if (prev_ev and prev_ev.reason == "speaker"
+                        and prev_ev.clip_name in reference_frames):
+                    offset = prev_ev.source_in_frame - prev_ev.record_in_frame
+                    event.clip_name = prev_ev.clip_name
+                    event.reason = "speaker"
+                    event.source_in_frame = offset + event.record_in_frame
+                    event.source_out_frame = offset + event.record_out_frame
+                    event.source_in = frames_to_timecode(event.source_in_frame, fps)
+                    event.source_out = frames_to_timecode(event.source_out_frame, fps)
+                    nod_dropped += 1
+                    print(f"  🥤 Nick verworfen (Trinken {nod_score:.0%}) @ "
+                          f"{event.record_in} → {event.clip_name}")
+                else:
+                    print(f"  🥤 Nick als Trinken erkannt ({nod_score:.0%}) @ "
+                          f"{event.record_in}, aber kein Sprecher-Vorgänger — belasse")
+                continue
+
+            # A (26.07.): Reaktions-Cutaways NIE zeitverschieben — ihr ganzer Sinn
+            # ist, GENAU auf der Reaktion zu sitzen. Der CLIP-Zeit-Shift schob sie
+            # vom Nicken weg (0.6.10-Bug). Sprachreaktionen (und Nodding bei
+            # nodding_mode!='drop') bleiben komplett unangetastet; CLIP-Shift nur
+            # fuer max_time/Pausen-Cutaways (dort ist das Timing flexibel).
             if event.reason.startswith("reaction_"):
                 continue
 
@@ -1368,6 +1440,8 @@ def clip_filter_cutaways(
 
     print(f"  ✓ {checked} geprüft, {flagged} geflagged, "
           f"{shifted} verschoben, {unresolved} nicht lösbar")
+    if drop_nodding:
+        print(f"  ✓ Nodding: {nod_checked} geprüft, {nod_dropped} als Trinken verworfen")
     return result
 
 
@@ -1435,6 +1509,10 @@ def main():
         'shift_step_s':     float(params.get('clip_shift_step_s', 2.0)),
         'max_attempts':     int(params.get('clip_max_attempts', 5)),
         'prompts_path':     args.clip_filter_config or '',
+        # Nodding-Cutaways gegen Trinkbewegungen filtern (verwerfen statt
+        # verschieben). max-Scoring, Schwelle 0,6 (an ep04 validiert).
+        'nodding_mode':      params.get('clip_nodding_mode', 'drop'),
+        'nodding_threshold': float(params.get('clip_nodding_threshold', 0.6)),
     }
 
     settings = {

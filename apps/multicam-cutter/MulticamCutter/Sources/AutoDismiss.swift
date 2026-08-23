@@ -74,7 +74,7 @@ struct CountdownDismissButton: View {
             .frame(width: diameter, height: diameter)
         }
         .buttonStyle(.plain)
-        .help("Hinweis ausblenden")
+        .help("Dismiss notice")
         .task {
             // ~30 fps herunterzaehlen; pausiert solange der Zeiger auf dem Banner
             // liegt. @Binding im Loop zu lesen sieht Aenderungen (wie AutoDismiss

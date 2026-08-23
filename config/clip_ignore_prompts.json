@@ -1,14 +1,14 @@
 {
   "ignore": [
-    "a person drinking from a cup or glass",
-    "a person drinking water",
-    "a person drinking coffee"
+    "a person holding a cup or glass to their mouth",
+    "a person taking a sip from a mug or bottle",
+    "a person raising a drink to their lips"
   ],
   "neutral": [
-    "a person listening attentively",
-    "a person nodding",
-    "a person sitting normally",
-    "a person talking",
-    "a person looking at another person"
+    "a person talking with both hands visible",
+    "a person gesturing while speaking",
+    "a person sitting at a desk with empty hands",
+    "a person nodding while listening",
+    "a person listening attentively"
   ]
 }

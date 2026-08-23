@@ -985,7 +985,7 @@ class EngineController: ObservableObject {
         saveSession()  // Session vor dem Start sichern
 
         state = .running
-        stepLabel = "Starte..."
+        stepLabel = "Starting…"
         stepNum = 0
         totalSteps = 1
         stepPercent = 0
@@ -1345,7 +1345,7 @@ class EngineController: ObservableObject {
 
         Task {
             guard let (execPath, baseArgs) = engineCommand(extraArgs: ["--download-clip-model"]) else {
-                await MainActor.run { clipError = "Engine nicht gefunden"; isDownloadingClip = false }
+                await MainActor.run { clipError = "Engine not found"; isDownloadingClip = false }
                 return
             }
             let process = Process()
@@ -1358,7 +1358,7 @@ class EngineController: ObservableObject {
             clipProcess = process
             do { try process.run() } catch {
                 await MainActor.run {
-                    clipError = "Download konnte nicht gestartet werden: \(error.localizedDescription)"
+                    clipError = "Could not start the download: \(error.localizedDescription)"
                     isDownloadingClip = false
                 }
                 return
@@ -1402,7 +1402,7 @@ class EngineController: ObservableObject {
                 if let failure {
                     clipError = failure
                 } else if process.terminationStatus != 0 {
-                    clipError = "Download fehlgeschlagen (Code \(process.terminationStatus))."
+                    clipError = "Download failed (code \(process.terminationStatus))."
                 } else {
                     completion()
                 }
@@ -1515,10 +1515,10 @@ class EngineController: ObservableObject {
     func saveNoddingPatterns(_ raw: String) -> String? {
         guard let data = raw.data(using: .utf8),
               let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-            return "Kein gültiges JSON."
+            return "Not valid JSON."
         }
         guard obj["global"] != nil, obj["patterns"] is [Any] else {
-            return "JSON braucht die Felder 'global' und 'patterns'."
+            return "JSON needs the fields 'global' and 'patterns'."
         }
         let url = noddingUserPatternsURL
         do {
@@ -1526,7 +1526,7 @@ class EngineController: ObservableObject {
                                                     withIntermediateDirectories: true)
             try data.write(to: url)
             return nil
-        } catch { return "Schreiben fehlgeschlagen: \(error.localizedDescription)" }
+        } catch { return "Write failed: \(error.localizedDescription)" }
     }
 
     /// Zurück auf die gebündelten Defaults (löscht die User-Datei).
@@ -1550,6 +1550,30 @@ class EngineController: ObservableObject {
 
     var fpsMismatches: [CameraInfo] {
         activeCams.filter { isFpsMismatch($0) }
+    }
+
+    /// Leitet die Timeline-FPS aus den gescannten Kameras ab.
+    ///
+    /// Haben ALLE aktiven Kameras eine lesbare und untereinander gleiche Bildrate
+    /// (±0,01), dann IST das die Projekt-FPS — auch wenn sie von den vorbelegten
+    /// 25 abweicht (z.B. alle Quellen 29,97). Ohne diese Ableitung stünde die
+    /// Timeline fix auf 25 und der Mismatch-Check würde jede nicht-25-Kamera zur
+    /// unnötigen Konvertierung drängen, obwohl es GAR KEINE Abweichung zwischen den
+    /// Quellen gibt. Sind die Kameras dagegen uneinheitlich (oder eine unlesbar),
+    /// bleibt die FPS unangetastet — dann greift der Mismatch-Check zu Recht.
+    ///
+    /// Läuft nach dem Session-Restore: die real gescannten Dateien sind die Wahrheit,
+    /// nicht eine evtl. veraltete gespeicherte FPS.
+    func deriveProjectFpsFromCameras() {
+        let rates = activeCams.map { $0.fps }
+        guard !rates.isEmpty,
+              rates.allSatisfy({ $0 > 0 }),          // keine unlesbare Bildrate dabei
+              let common = rates.first,
+              rates.allSatisfy({ abs($0 - common) <= 0.01 })
+        else { return }
+        guard abs(fps - common) > 0.01 else { return }   // schon passend → nichts tun
+        fps = common
+        logMessages.append("Timeline-FPS aus den Kameras übernommen: \(String(format: "%g", common)) fps")
     }
 
     /// Konvertiert die betroffenen Dateien auf die Timeline-FPS und scannt neu.
@@ -1586,7 +1610,7 @@ class EngineController: ObservableObject {
                         "--files"] + targets
             guard let (execPath, baseArgs) = engineCommand(extraArgs: args) else {
                 await MainActor.run {
-                    convertError = "Engine nicht gefunden"
+                    convertError = "Engine not found"
                     isConverting = false
                 }
                 return
@@ -1605,7 +1629,7 @@ class EngineController: ObservableObject {
                 try process.run()
             } catch {
                 await MainActor.run {
-                    convertError = "Konvertierung konnte nicht gestartet werden: \(error.localizedDescription)"
+                    convertError = "Could not start the conversion: \(error.localizedDescription)"
                     isConverting = false
                     convertProcess = nil
                 }
@@ -1665,7 +1689,7 @@ class EngineController: ObservableObject {
                 } else if let failure {
                     convertError = failure + convertDiagnosticsTail()
                 } else if code != 0 {
-                    convertError = "Konvertierung fehlgeschlagen (Code \(code))."
+                    convertError = "Conversion failed (code \(code))."
                         + convertDiagnosticsTail()
                 }
             }
@@ -1770,12 +1794,12 @@ class EngineController: ObservableObject {
 
     private func runScan(folder: URL, decideWizardStep: Bool = true) async {
         guard let (execPath, baseArgs) = engineCommand(extraArgs: ["--folder", folder.path, "--scan"]) else {
-            errorMessage = "Engine oder Python nicht gefunden"
+            errorMessage = "Engine or Python not found"
             state = .error
             return
         }
 
-        scanLabel = "Ordner wird gescannt..."
+        scanLabel = "Scanning folder…"
         scanPercent = 0
 
         let process = Process()
@@ -1790,7 +1814,7 @@ class EngineController: ObservableObject {
         do {
             try process.run()
         } catch {
-            errorMessage = "Scan fehlgeschlagen: \(error.localizedDescription)"
+            errorMessage = "Scan failed: \(error.localizedDescription)"
             state = .error
             return
         }
@@ -1826,7 +1850,7 @@ class EngineController: ObservableObject {
 
         let output = allLines.joined(separator: "\n")
         guard !output.isEmpty else {
-            errorMessage = "Scan: keine Ausgabe vom Engine-Prozess"
+            errorMessage = "Scan: no output from the engine process"
             state = .error
             return
         }
@@ -1837,7 +1861,7 @@ class EngineController: ObservableObject {
               let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
               let camerasArr = json["cameras"] as? [[String: Any]],
               let micsArr = json["mics"] as? [[String: Any]] else {
-            errorMessage = "Scan: Ergebnis konnte nicht gelesen werden.\nEngine-Output: \(output.prefix(200))"
+            errorMessage = "Scan: could not read the result.\nEngine output: \(output.prefix(200))"
             state = .error
             return
         }
@@ -1888,12 +1912,12 @@ class EngineController: ObservableObject {
         waveformProgress = [:]
 
         if cameraInfos.count < 2 {
-            errorMessage = "Mindestens 2 Kamera-Clips erwartet, \(cameraInfos.count) gefunden."
+            errorMessage = "Expected at least 2 camera clips, found \(cameraInfos.count)."
             state = .error
             return
         }
         if micInfos.isEmpty {
-            errorMessage = "Keine Mikrofon-Dateien gefunden."
+            errorMessage = "No microphone files found."
             state = .error
             return
         }
@@ -1904,6 +1928,10 @@ class EngineController: ObservableObject {
             logMessages.append("Session wiederhergestellt (.multicam)")
             restored = true
         }
+
+        // Timeline-FPS aus den Kameras ableiten (nach dem Restore, damit die real
+        // gescannten Dateien gewinnen): einheitliche abweichende Bildrate = Projekt-FPS.
+        deriveProjectFpsFromCameras()
 
         // Phase 5: Existiert schon eine Zuordnung (Person auf Cam), direkt zur
         // Übersicht springen statt den Wizard von Schritt 1 zu starten.
@@ -1994,7 +2022,7 @@ class EngineController: ObservableObject {
         }
 
         guard let (execPath, baseArgs) = engineCommand(extraArgs: extraArgs) else {
-            errorMessage = "Engine oder Python nicht gefunden"
+            errorMessage = "Engine or Python not found"
             state = .error
             return
         }
@@ -2013,7 +2041,7 @@ class EngineController: ObservableObject {
         do {
             try process.run()
         } catch {
-            errorMessage = "Engine konnte nicht gestartet werden: \(error.localizedDescription)"
+            errorMessage = "Could not start the engine: \(error.localizedDescription)"
             state = .error
             return
         }
@@ -2032,7 +2060,7 @@ class EngineController: ObservableObject {
 
         if process.terminationStatus != 0 && state == .running {
             if errorMessage.isEmpty {
-                errorMessage = "Engine beendet mit Code \(process.terminationStatus)"
+                errorMessage = "Engine exited with code \(process.terminationStatus)"
             }
             state = .error
         }

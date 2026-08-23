@@ -399,7 +399,7 @@ def run_scan(folder, fps=25.0):
         })
 
     # ── Intelligente Audio-Preview-Stellen finden ──────────────────────────
-    scan_progress("Audio-Analyse: dominante Stellen suchen")
+    scan_progress("Audio analysis: finding key moments")
     # Dominanz = lauter als die ANDEREN — das Ergebnis haengt vom ganzen
     # Mic-Set ab, daher ein kombinierter Cache-Schluessel ueber alle Mics.
     _dom_key = hashlib.sha256(
@@ -423,7 +423,7 @@ def run_scan(folder, fps=25.0):
 
     mic_infos = []
     for i, mic in enumerate(mics):
-        scan_progress(f"Audio-Preview: {mic.name}")
+        scan_progress(f"Audio preview: {mic.name}")
         dom = mic_dominance.get(i) or {}
         offset_s = dom.get("offset", 30)
         separation_db = dom.get("separation_db")
@@ -765,7 +765,7 @@ def convert_fps_files(files, target_fps, hevc_quality=72, prores_profile="hq"):
             pix_fmt, src_p.suffix, hevc_quality, prores_profile)
         out_p = src_p.with_name(f"{src_p.stem}_{int(round(target_fps))}fps{out_suffix}")
         emit("step_start", step_num=i + 1, total_steps=total,
-             label=f"Konvertiere {src_p.name}", key="fps_convert")
+             label=f"Converting {src_p.name}", key="fps_convert")
 
         src_tc = _probe_timecode(src_p)
         dur = _probe_duration(src_p)
@@ -958,7 +958,7 @@ def run_pipeline(folder, fps, params, output_path,
              label=label, key=key)
 
     # ── 1. Scan ──────────────────────────────────────────────────────────────
-    next_step("Ordner scannen", "scan")
+    next_step("Scan folder", "scan")
     if cams_arg or mics_arg:
         # Die App hat die aktivierten Quellen explizit uebergeben — NICHT scannen,
         # sonst waeren deaktivierte Dateien wieder dabei und die positionsbasierten
@@ -1001,7 +1001,7 @@ def run_pipeline(folder, fps, params, output_path,
          mics=[m.name for m in mics])
 
     # ── 2. Waveform-Sync ─────────────────────────────────────────────────────
-    next_step("Waveform-Sync", "sync")
+    next_step("Waveform sync", "sync")
     # Bestaetigt der Nutzer, dass alle Mikrofone aus einem Mehrspur-Recorder
     # stammen, teilen sie sich eine Clock: still aufgenommene Spuren erben dann
     # den Referenz-Offset statt den Lauf abzubrechen (siehe waveform_sync.py).
@@ -1051,7 +1051,7 @@ def run_pipeline(folder, fps, params, output_path,
     # Die Step-Beschreibungen (z.B. "Base-EDL aus Audio...") werden vom
     # JsonLineWriter als log-Zeilen emittiert. Wir emittieren hier die
     # step_start-Nachrichten VOR dem Aufruf fuer die bekannten Schritte.
-    next_step("Diarization + Base-EDL", "base_edl")
+    next_step("Speaker detection + base EDL", "base_edl")
     try:
         final_edl = run_analysis(
             cam_paths, mic_paths, offsets,
@@ -1069,7 +1069,7 @@ def run_pipeline(folder, fps, params, output_path,
         raise RuntimeError(f"Analyse-Pipeline: {e}")
 
     # ── 4. Pause-Trimming ────────────────────────────────────────────────────
-    next_step("Pause-Trimming", "pause_trim")
+    next_step("Pause trimming", "pause_trim")
     audio_trims_path = work_dir / "audio_trims.json"
     audio_keeps = None
     trimmed_events = None
@@ -1111,7 +1111,7 @@ def run_pipeline(folder, fps, params, output_path,
             audio_keeps = None
 
     # ── 5. AAF-Export ────────────────────────────────────────────────────────
-    next_step("AAF-Export", "aaf")
+    next_step("AAF export", "aaf")
     output_path.parent.mkdir(parents=True, exist_ok=True)
     # Default 1.0 = kein Zoom. Frueher 1.5: jede Totale wurde still auf 150%
     # skaliert. Die Cams sind ordentlich eingerichtet — der Zoom war unnoetig.
@@ -1544,7 +1544,7 @@ def main():
         elapsed = time.time() - t_start
         stats["elapsed_s"] = round(elapsed, 1)
         stats["log_file"] = str(log_path)
-        progress("done", 100, "Fertig")
+        progress("done", 100, "Done")
         result(**stats)
 
     except SyncUnresolved:

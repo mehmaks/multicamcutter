@@ -9,63 +9,63 @@ import SwiftUI
 
 enum ParamHelp {
     // Schnittregeln
-    static let minShot = "Wie lange eine Kamera mindestens zu sehen ist, bevor zu einer Reaktion geschnitten werden darf."
-    static let maxShot = "Bleibt eine Kamera länger als dieser Wert ohne Schnitt, wird automatisch zu einer Reaktion gewechselt."
-    static let reactionDur = "Wie lange eine Reaktion mindestens gezeigt wird."
-    static let cleanupDur = "Schnitte kürzer als dieser Wert werden automatisch entfernt."
+    static let minShot = "How long a camera stays on screen at minimum before a cut to a reaction is allowed."
+    static let maxShot = "If a camera stays on longer than this without a cut, the app automatically switches to a reaction."
+    static let reactionDur = "How long a reaction is shown at minimum."
+    static let cleanupDur = "Cuts shorter than this are removed automatically."
 
     // Sprecher-Erkennung
-    static let thresholdDb = "Wie deutlich lauter jemand sein muss als die aktiv sprechende Person, damit ein Sprecherwechsel erkannt wird."
-    static let minEdit = "Sehr kurze Sprechabschnitte werden mit dem nächsten zusammengelegt. Verhindert zu häufiges Hin- und Herschneiden."
-    static let changeDelay = "Wie lange eine Person durchgehend lauter sein muss, bevor auf diese geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen."
+    static let thresholdDb = "How much louder someone has to be than the active speaker for a speaker change to be detected."
+    static let minEdit = "Very short speech segments are merged with the next one. Prevents cutting back and forth too often."
+    static let changeDelay = "How long a person has to stay louder without a break before the cut goes to them. Prevents cuts on brief overlaps."
 
     // Cutaway-Typen
-    static let noddingEnabled = "Erkennt Kopfnicken einer zuhörenden Person und schneidet in diesem Moment auf sie."
-    static let minConf = "Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird."
-    static let speakingEnabled = "Erkennt kurze Einwürfe oder Laute einer nicht aktiv sprechenden Person und schneidet in diesem Moment auf sie."
-    static let riseDb = "Wie stark die Baseline ansteigen muss, um einen Sprach-Cutaway auszulösen."
-    static let speakingMaxDur = "Maximale Dauer eines Sprach-Cutaways. Im Normalfall endet der Cutaway organisch wenn die Baseline abfällt."
-    static let pauseCutawayEnabled = "Schneidet während einer Sprechpause der aktiv sprechenden Person auf eine andere Kamera."
-    static let pauseCutawayMinPause = "Wie lang eine Sprechpause mindestens sein muss, damit ein Cutaway eingefügt wird."
-    static let clipFilterEnabled = "Prüft per Bilderkennung, ob ein Cutaway eine unerwünschte Szene zeigt (z.B. „Person trinkt“) und verschiebt ihn automatisch. Prompts können in den App-Einstellungen festgelegt werden."
+    static let noddingEnabled = "Detects a head nod from a listening person and cuts to them at that moment."
+    static let minConf = "How confident the detection has to be before a head nod is used as a cut."
+    static let speakingEnabled = "Detects brief interjections or sounds from a person who isn't the active speaker and cuts to them at that moment."
+    static let riseDb = "How much the baseline has to rise to trigger an interjection cutaway."
+    static let speakingMaxDur = "Maximum length of an interjection cutaway. Normally the cutaway ends organically when the baseline drops."
+    static let pauseCutawayEnabled = "Cuts to another camera during a speech pause of the active speaker."
+    static let pauseCutawayMinPause = "How long a speech pause has to be at minimum for a cutaway to be inserted."
+    static let clipFilterEnabled = "Uses image recognition to check whether a cutaway shows an unwanted scene (e.g. “person drinking”) and moves it automatically. Prompts can be set in the app settings."
 
     // Cutaway-Feintuning
-    static let preRoll = "Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt."
-    static let randomness = "Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell."
+    static let preRoll = "The cut is set this many frames earlier so the reaction feels more natural."
+    static let randomness = "How much the length of the reaction shots may vary. Higher values make the edit feel less mechanical."
 
     // Pausen-Trimming
-    static let pauseTrimEnabled = "Überlange Sprechpausen bei Sprecherwechseln automatisch kürzen."
-    static let maxPause = "Maximale Pausenlänge die bestehen bleibt. Längere Pausen werden auf diesen Wert gekürzt."
-    static let pauseCutMode = "Legt fest, wo der Videocut in einer Pause liegt."
-    static let totaleMode = "Bei mehreren als Totale markierten Kameras: welche wird geschnitten? Reihum wechselt der Reihe nach durch, Zufällig mischt sie (bei jedem Lauf gleich), Nur die erste nimmt immer dieselbe. Bei nur einer Totale ohne Wirkung."
-    static let pauseSilenceDb = "dB-Schwelle unter der beide Mikrofone als still gelten. Standard: -40 dB."
+    static let pauseTrimEnabled = "Automatically shorten overly long speech pauses at speaker changes."
+    static let maxPause = "Maximum pause length that is kept. Longer pauses are trimmed to this value."
+    static let pauseCutMode = "Sets where the video cut sits within a pause."
+    static let totaleMode = "When several cameras are marked as wide shots: which one gets cut to? Round-robin steps through them in order, Random shuffles them (the same on every run), First only always takes the same one. No effect with just one wide shot."
+    static let pauseSilenceDb = "dB threshold below which both microphones count as silent. Default: -40 dB."
 
     // Crossbleed-Filter
-    static let crossbleedGateEnabled = "Unterdrückt Übersprechen zwischen Mikrofonen vor der Sprechererkennung. Nützlich wenn beide Mics im selben Raum stehen."
-    static let gateFloor = "Wie stark das inaktive Mikrofon gedämpft wird. -25 dB unterdrückt Crossbleed stark, lässt aber minimale Raumakustik durch."
-    static let gateHysteresis = "Vermeidet „Flattern“ an Grenzen. Ein Wechsel findet erst statt, wenn das andere Mikrofon um diesen Betrag lauter wird."
-    static let gateWindow = "Analyse-Fenster für den Pegelvergleich. Größer für Raumhall, kleiner für schnelle Wechsel."
-    static let gateAttack = "Wie schnell das Gate öffnet. Kürzer, damit Silbenanfänge nicht verloren gehen."
-    static let gateRelease = "Wie langsam das Gate schließt. Längere Werte verhindern Pumping-Effekte."
-    static let gateBothThreshold = "Wenn der Pegelunterschied kleiner als dieser Wert ist, werden alle Mikrofone durchgelassen (gleichzeitiges Sprechen)."
-    static let gateUseFiltered = "Debug: Verwendet die gefilterten WAVs statt der Originale in der finalen Timeline. Nur zu Testzwecken."
+    static let crossbleedGateEnabled = "Suppresses crosstalk between microphones before speaker detection. Useful when both mics are in the same room."
+    static let gateFloor = "How much the inactive microphone is attenuated. -25 dB suppresses crossbleed strongly but lets a little room tone through."
+    static let gateHysteresis = "Avoids “fluttering” at the boundaries. A switch only happens once the other microphone gets louder by this amount."
+    static let gateWindow = "Analysis window for the level comparison. Larger for room reverb, smaller for fast switches."
+    static let gateAttack = "How fast the gate opens. Shorter so the starts of syllables aren't lost."
+    static let gateRelease = "How slowly the gate closes. Longer values prevent pumping."
+    static let gateBothThreshold = "When the level difference is smaller than this, all microphones pass through (people speaking at once)."
+    static let gateUseFiltered = "Debug: uses the filtered WAVs instead of the originals in the final timeline. For testing only."
 
     // Totale
-    static let totaleSimulDur = "Wie lange beide gleichzeitig sprechen müssen, bevor auf die Totale geschnitten wird."
+    static let totaleSimulDur = "How long both have to speak at once before the cut goes to the wide shot."
 
     // Allgemein (app-spezifisch, nicht im Web-Schema)
-    static let fps = "Bildrate der Timeline. Muss zur Framerate deiner Kameras passen, sonst sitzen die Schnitte nicht korrekt."
-    static let micsSameRecorder = "Aktiviere das, wenn alle deine Tonspuren aus demselben Aufnahmegerät (Mehrspur-Recorder) stammen. Dann misst die App sie gemeinsam ein — eine Spur, auf der gerade niemand spricht, kann die Synchronisierung so nicht mehr durcheinanderbringen."
+    static let fps = "Frame rate of the timeline. Must match your cameras' frame rate, otherwise the cuts won't sit correctly."
+    static let micsSameRecorder = "Turn this on if all your audio tracks come from the same recording device (a multitrack recorder). The app then syncs them together — so a track where no one is speaking can no longer throw off the sync."
 
     // Bildsprache — Übergänge über größere Einstellungen
-    static let bildspracheIntro = "Diese Einstellungen betreffen Schnitte auf eine größere Einstellung — etwa eine Totale, auf der mehrere Personen zu sehen sind. Sie werden als sanfter Zwischenschritt genutzt, statt hart von einer Nahaufnahme zur nächsten zu springen."
-    static let transitionSpeakerChange = "Beim Wechsel zwischen zwei sprechenden Personen kurz auf eine größere Einstellung schneiden, die beide zeigt, statt direkt umzuschneiden."
-    static let transitionReturnFactor = "Wie viel länger als Min. Schnittlänge der nächste Schnitt sein muss, damit der Übergang über eine größere Einstellung genutzt wird."
-    static let transitionCutawayNodding = "Nach einem Schnitt auf ein Nicken über eine größere Einstellung zurück zur sprechenden Person, statt direkt zurückzuschneiden."
-    static let transitionCutawaySpeaking = "Nach einem Schnitt auf einen kurzen Einwurf über eine größere Einstellung zurück zur sprechenden Person."
-    static let transitionCutawayPause = "Nach einem Pausen-Cutaway über eine größere Einstellung zurück zur sprechenden Person."
-    static let transitionCutawayCooldown = "Wie viele Schnitte vergehen müssen, bevor dieselbe größere Einstellung erneut als Übergang genutzt wird. Verhindert, dass sie zu oft hintereinander kommt. Wenn „Cooldown (Zeit)“ nicht vorher erreicht wird."
-    static let transitionCutawayCooldownS = "Wie viele Sekunden vergehen müssen, bevor dieselbe größere Einstellung erneut genutzt wird. Wenn „Cooldown (Schnitte)“ nicht vorher erreicht wird."
+    static let bildspracheIntro = "These settings apply to cuts to a wider shot — such as a wide shot showing several people. They're used as a gentle in-between step, instead of jumping hard from one close-up to the next."
+    static let transitionSpeakerChange = "When switching between two speaking people, briefly cut to a wider shot showing both, instead of cutting over directly."
+    static let transitionReturnFactor = "How much longer than the min. cut length the next cut has to be for the transition via a wider shot to be used."
+    static let transitionCutawayNodding = "After a cut to a head nod, return to the speaker via a wider shot instead of cutting straight back."
+    static let transitionCutawaySpeaking = "After a cut to a brief interjection, return to the speaker via a wider shot."
+    static let transitionCutawayPause = "After a pause cutaway, return to the speaker via a wider shot."
+    static let transitionCutawayCooldown = "How many cuts have to pass before the same wider shot is used again as a transition. Prevents it from coming up too often in a row. Used when “Cooldown (time)” isn't reached first."
+    static let transitionCutawayCooldownS = "How many seconds have to pass before the same wider shot is used again. Used when “Cooldown (cuts)” isn't reached first."
 }
 
 // MARK: - (?)-Badge + Wrapper
