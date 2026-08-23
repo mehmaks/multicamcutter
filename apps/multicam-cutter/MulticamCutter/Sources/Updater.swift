@@ -156,9 +156,9 @@ struct UpdateSettingsSection: View {
                 Toggle("Check for updates automatically", isOn: Binding(
                     get: { viewModel.automaticallyChecksForUpdates },
                     set: { viewModel.automaticallyChecksForUpdates = $0 }))
-                Text("Checks shortly after launch and then regularly in the "
+                Text(loc("Checks shortly after launch and then regularly in the "
                      + "background. It only tells you when something is found — "
-                     + "nothing is installed until you confirm.")
+                     + "nothing is installed until you confirm."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

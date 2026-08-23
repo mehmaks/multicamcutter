@@ -985,7 +985,7 @@ class EngineController: ObservableObject {
         saveSession()  // Session vor dem Start sichern
 
         state = .running
-        stepLabel = "Starting…"
+        stepLabel = loc("Starting…")
         stepNum = 0
         totalSteps = 1
         stepPercent = 0
@@ -1358,7 +1358,7 @@ class EngineController: ObservableObject {
             clipProcess = process
             do { try process.run() } catch {
                 await MainActor.run {
-                    clipError = "Could not start the download: \(error.localizedDescription)"
+                    clipError = String(localized: "Could not start the download: \(error.localizedDescription)")
                     isDownloadingClip = false
                 }
                 return
@@ -1402,7 +1402,7 @@ class EngineController: ObservableObject {
                 if let failure {
                     clipError = failure
                 } else if process.terminationStatus != 0 {
-                    clipError = "Download failed (code \(process.terminationStatus))."
+                    clipError = String(localized: "Download failed (code \(Int(process.terminationStatus))).")
                 } else {
                     completion()
                 }
@@ -1552,6 +1552,22 @@ class EngineController: ObservableObject {
         activeCams.filter { isFpsMismatch($0) }
     }
 
+    /// Lokalisiert ein von der Engine geliefertes Step-Label (Engine emittiert die
+    /// englischen Quell-Strings als Schlüssel). Statische Labels stehen im Katalog;
+    /// dynamische ("Head-nod analysis <Cam>", "Converting <Datei>", "Audio preview:
+    /// <Mic>") werden über ihren bekannten englischen Präfix übersetzt — der
+    /// angehängte Datei-/Kameraname (= Daten) bleibt unverändert.
+    func locStepLabel(_ s: String) -> String {
+        let hit = loc(s)
+        if hit != s { return hit }
+        for prefix in ["Head-nod analysis", "Audio preview:", "Converting"] {
+            if s.hasPrefix(prefix + " ") {
+                return loc(prefix) + String(s.dropFirst(prefix.count))
+            }
+        }
+        return s
+    }
+
     /// Leitet die Timeline-FPS aus den gescannten Kameras ab.
     ///
     /// Haben ALLE aktiven Kameras eine lesbare und untereinander gleiche Bildrate
@@ -1573,7 +1589,7 @@ class EngineController: ObservableObject {
         else { return }
         guard abs(fps - common) > 0.01 else { return }   // schon passend → nichts tun
         fps = common
-        logMessages.append("Timeline-FPS aus den Kameras übernommen: \(String(format: "%g", common)) fps")
+        logMessages.append(String(localized: "Timeline frame rate taken from cameras: \(String(format: "%g", common)) fps"))
     }
 
     /// Konvertiert die betroffenen Dateien auf die Timeline-FPS und scannt neu.
@@ -1629,7 +1645,7 @@ class EngineController: ObservableObject {
                 try process.run()
             } catch {
                 await MainActor.run {
-                    convertError = "Could not start the conversion: \(error.localizedDescription)"
+                    convertError = String(localized: "Could not start the conversion: \(error.localizedDescription)")
                     isConverting = false
                     convertProcess = nil
                 }
@@ -1662,7 +1678,7 @@ class EngineController: ObservableObject {
                         case "convert_progress":
                             convertFileIndex = msg["file_index"] as? Int ?? convertFileIndex
                             convertFileCount = msg["file_count"] as? Int ?? convertFileCount
-                            convertLabel = msg["label"] as? String ?? convertLabel
+                            convertLabel = (msg["label"] as? String).map(locStepLabel) ?? convertLabel
                             convertDone = (msg["done"] as? NSNumber)?.doubleValue ?? convertDone
                             convertTotal = (msg["total"] as? NSNumber)?.doubleValue ?? convertTotal
                         case "log":
@@ -1689,7 +1705,7 @@ class EngineController: ObservableObject {
                 } else if let failure {
                     convertError = failure + convertDiagnosticsTail()
                 } else if code != 0 {
-                    convertError = "Conversion failed (code \(code))."
+                    convertError = String(localized: "Conversion failed (code \(code)).")
                         + convertDiagnosticsTail()
                 }
             }
@@ -1799,7 +1815,7 @@ class EngineController: ObservableObject {
             return
         }
 
-        scanLabel = "Scanning folder…"
+        scanLabel = loc("Scanning folder…")
         scanPercent = 0
 
         let process = Process()
@@ -1814,7 +1830,7 @@ class EngineController: ObservableObject {
         do {
             try process.run()
         } catch {
-            errorMessage = "Scan failed: \(error.localizedDescription)"
+            errorMessage = String(localized: "Scan failed: \(error.localizedDescription)")
             state = .error
             return
         }
@@ -1831,7 +1847,7 @@ class EngineController: ObservableObject {
                     let type = json["type"] as? String ?? ""
                     if type == "scan_progress" {
                         if let pct = json["percent"] as? Double { scanPercent = pct }
-                        if let label = json["label"] as? String { scanLabel = label }
+                        if let label = json["label"] as? String { scanLabel = locStepLabel(label) }
                     } else if type == "error" {
                         if let msg = json["message"] as? String {
                             errorMessage = msg
@@ -1861,7 +1877,7 @@ class EngineController: ObservableObject {
               let json = try? JSONSerialization.jsonObject(with: lineData) as? [String: Any],
               let camerasArr = json["cameras"] as? [[String: Any]],
               let micsArr = json["mics"] as? [[String: Any]] else {
-            errorMessage = "Scan: could not read the result.\nEngine output: \(output.prefix(200))"
+            errorMessage = String(localized: "Scan: could not read the result.\nEngine output: \(output.prefix(200))")
             state = .error
             return
         }
@@ -1912,7 +1928,7 @@ class EngineController: ObservableObject {
         waveformProgress = [:]
 
         if cameraInfos.count < 2 {
-            errorMessage = "Expected at least 2 camera clips, found \(cameraInfos.count)."
+            errorMessage = String(localized: "Expected at least 2 camera clips, found \(cameraInfos.count).")
             state = .error
             return
         }
@@ -2041,7 +2057,7 @@ class EngineController: ObservableObject {
         do {
             try process.run()
         } catch {
-            errorMessage = "Could not start the engine: \(error.localizedDescription)"
+            errorMessage = String(localized: "Could not start the engine: \(error.localizedDescription)")
             state = .error
             return
         }
@@ -2060,7 +2076,7 @@ class EngineController: ObservableObject {
 
         if process.terminationStatus != 0 && state == .running {
             if errorMessage.isEmpty {
-                errorMessage = "Engine exited with code \(process.terminationStatus)"
+                errorMessage = String(localized: "Engine exited with code \(Int(process.terminationStatus))")
             }
             state = .error
         }
@@ -2084,7 +2100,7 @@ class EngineController: ObservableObject {
         case "step_start":
             if let key = json["key"] as? String { recordStepTiming(key) }
             if let label = json["label"] as? String {
-                stepLabel = label
+                stepLabel = locStepLabel(label)
                 stepPercent = 0
                 stepETA = ""
                 stepCounter = ""
@@ -2092,13 +2108,13 @@ class EngineController: ObservableObject {
             if let num = json["step_num"] as? Int { stepNum = num }
             if let total = json["total_steps"] as? Int { totalSteps = total }
             stopPreviewPolling()
-            logMessages.append("Schritt \(stepNum)/\(totalSteps): \(stepLabel)")
+            logMessages.append(String(localized: "Step \(stepNum)/\(totalSteps): \(stepLabel)"))
 
         case "step_start_sub":
             if let key = json["key"] as? String { recordStepTiming(key) }
             // Subprocess-Step innerhalb von run_analysis
             if let label = json["label"] as? String {
-                stepLabel = label
+                stepLabel = locStepLabel(label)
                 stepPercent = 0
                 stepETA = ""
                 stepCounter = ""
@@ -2110,14 +2126,14 @@ class EngineController: ObservableObject {
             } else {
                 stopPreviewPolling()
             }
-            logMessages.append("Schritt \(stepNum)/\(totalSteps): \(stepLabel)")
+            logMessages.append(String(localized: "Step \(stepNum)/\(totalSteps): \(stepLabel)"))
 
         case "step_detail":
             // Verfeinert den Text des LAUFENDEN Schritts (welcher Pass rechnet
             // gerade). Bewusst OHNE stepNum-Erhoehung -- anders als
             // step_start_sub, das einen echten neuen Schritt markiert.
             if let label = json["label"] as? String {
-                stepLabel = label
+                stepLabel = locStepLabel(label)
                 stepPercent = 0
                 stepETA = ""
                 stepCounter = ""
@@ -2163,7 +2179,7 @@ class EngineController: ObservableObject {
             if let elapsed = json["elapsed_s"] as? Double {
                 let min = Int(elapsed) / 60
                 let sec = Int(elapsed) % 60
-                stats["Dauer"] = "\(min)m \(sec)s"
+                stats["Duration"] = "\(min)m \(sec)s"
             }
             if let byType = json["events_by_type"] as? [String: Int] {
                 for (key, count) in byType.sorted(by: { $0.key < $1.key }) {

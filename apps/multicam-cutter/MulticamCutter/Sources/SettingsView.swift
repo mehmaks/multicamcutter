@@ -64,14 +64,14 @@ struct NoddingSettingsTab: View {
             HStack {
                 Text("Nodding patterns").font(.headline)
                 Spacer()
-                Text(source == "user" ? "Customized" : "Default")
+                Text(loc(source == "user" ? "Customized" : "Default"))
                     .font(.caption2)
                     .foregroundStyle(source == "user" ? .brandSecondary : .secondary)
             }
-            Text("Global thresholds & filters for head-nod detection (nodding_patterns.json) — "
+            Text(loc("Global thresholds & filters for head-nod detection (nodding_patterns.json) — "
                  + "expert values. Turning individual patterns on or off is done per preset "
                  + "in the analysis panel (Expert settings → Cutaway rules). If the JSON is broken, "
-                 + "the analysis automatically uses the defaults.")
+                 + "the analysis automatically uses the defaults."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -154,8 +154,8 @@ struct ClipSettingsTab: View {
     private var modelSection: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Image recognition (CLIP)").font(.headline)
-            Text("Optional model (≈ 581 MB). Filters out unsuitable cutaway frames "
-                 + "(e.g. drinking). Everything else runs normally without it.")
+            Text(loc("Optional model (≈ 581 MB). Filters out unsuitable cutaway frames "
+                 + "(e.g. drinking). Everything else runs normally without it."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -192,13 +192,13 @@ struct ClipSettingsTab: View {
             HStack {
                 Text("Filter prompts").font(.headline)
                 Spacer()
-                Text(source == "user" ? "Customized" : "Default")
+                Text(loc(source == "user" ? "Customized" : "Default"))
                     .font(.caption2)
                     .foregroundStyle(source == "user" ? .brandSecondary : .secondary)
             }
-            Text("One prompt per line, in English (that's what CLIP expects). "
+            Text(loc("One prompt per line, in English (that's what CLIP expects). "
                  + "Ignore = such images are avoided as cutaways, "
-                 + "Neutral = explicitly allowed.")
+                 + "Neutral = explicitly allowed."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -223,7 +223,7 @@ struct ClipSettingsTab: View {
 
     private func promptEditor(_ title: String, text: Binding<String>) -> some View {
         VStack(alignment: .leading, spacing: 3) {
-            Text(title).font(.caption2).fontWeight(.bold).foregroundStyle(.secondary)
+            Text(loc(title)).font(.caption2).fontWeight(.bold).foregroundStyle(.secondary)
             TextEditor(text: text)
                 .font(.system(.caption, design: .monospaced))
                 .frame(height: 84)
@@ -294,8 +294,8 @@ struct GeneralSettingsTab: View {
 
             Section("Appearance") {
                 Toggle("Boost contrast of preview images", isOn: $thumbnailAutoContrast)
-                Text("Lifts flat Log footage in the camera previews (also while "
-                     + "scrubbing). Purely cosmetic — analysis and export stay untouched.")
+                Text(loc("Lifts flat Log footage in the camera previews (also while "
+                     + "scrubbing). Purely cosmetic — analysis and export stay untouched."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -304,9 +304,9 @@ struct GeneralSettingsTab: View {
                 Toggle("Send anonymous usage data", isOn: Binding(
                     get: { analyticsConsent == 1 },
                     set: { analyticsConsent = $0 ? 1 : 2 }))
-                Text("Helps improve the app: only anonymous numbers (number of cameras, "
+                Text(loc("Helps improve the app: only anonymous numbers (number of cameras, "
                      + "microphones, speakers, duration, run time, device, settings) — "
-                     + "never names, files or paths. Can be turned off here any time.")
+                     + "never names, files or paths. Can be turned off here any time."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -328,18 +328,18 @@ struct GeneralSettingsTab: View {
     private var clipNameSection: some View {
         Section("AAF clip names") {
             Toggle("Cut reasons in clip names", isOn: $clipNameReasons)
-            Text("Names every cut in the AAF after its reason (speaker, transition …) — "
+            Text(loc("Names every cut in the AAF after its reason (speaker, transition …) — "
                  + "helps you see the reason right on the clip while reviewing. DaVinci Resolve "
                  + "shows it on the timeline clip; Premiere Pro adds one extra (correctly linked) "
                  + "clip per reason to the project. If you'd rather have exactly "
-                 + "one clip per camera, turn it off.")
+                 + "one clip per camera, turn it off."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
             if clipNameReasons {
-                Text("Pattern for the name. Placeholders: %S source file · %R cut reason · "
+                Text(loc("Pattern for the name. Placeholders: %S source file · %R cut reason · "
                      + "%P person · %L smart label (person for speaker cuts, otherwise reason). "
-                     + "Empty placeholders are removed cleanly along with their separator.")
+                     + "Empty placeholders are removed cleanly along with their separator."))
                     .font(.caption).foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)
 
@@ -367,7 +367,7 @@ struct GeneralSettingsTab: View {
     private func clipNamePreviewRow(_ title: String, source: String,
                                     reason: String, person: String, label: String) -> some View {
         HStack(spacing: 8) {
-            Text(title).font(.caption2).foregroundStyle(.tertiary)
+            Text(loc(title)).font(.caption2).foregroundStyle(.tertiary)
                 .frame(width: 110, alignment: .leading)
             Text(clipNamePreview(source: source, reason: reason, person: person, label: label))
                 .font(.system(.caption, design: .monospaced))
@@ -400,11 +400,11 @@ struct GeneralSettingsTab: View {
     // Feineinstellung fuer Cutter, die bewusst eingreifen wollen.
     private var conversionSection: some View {
         Section("Frame-rate conversion") {
-            Text("When a video file is converted to the timeline frame rate, the app picks "
+            Text(loc("When a video file is converted to the timeline frame rate, the app picks "
                  + "the codec to match the source format — HEVC 10-bit for 4:2:0 (action cams, "
                  + "drones), ProRes for 4:2:2/4:4:4 (pro cameras). The defaults are "
                  + "calibrated for a source-faithful, gradable copy. Only change these if you "
-                 + "know exactly what you're doing.")
+                 + "know exactly what you're doing."))
                 .font(.caption).foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -422,8 +422,8 @@ struct GeneralSettingsTab: View {
                 Slider(value: Binding(get: { Double(convertHevcQuality) },
                                       set: { convertHevcQuality = Int($0.rounded()) }),
                        in: 50...95, step: 1)
-                Text("Higher = closer to the original, but larger files. 72 matches the "
-                     + "previous quality (practically lossless).")
+                Text(loc("Higher = closer to the original, but larger files. 72 matches the "
+                     + "previous quality (practically lossless)."))
                     .font(.caption2).foregroundStyle(.tertiary)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -432,8 +432,8 @@ struct GeneralSettingsTab: View {
                 Text("Standard").tag("standard")
                 Text("HQ").tag("hq")
             }
-            Text("Only for true 4:2:2/4:4:4 footage. HQ is practically lossless, "
-                 + "Standard a bit smaller. (4:4:4 always uses ProRes 4444.)")
+            Text(loc("Only for true 4:2:2/4:4:4 footage. HQ is practically lossless, "
+                 + "Standard a bit smaller. (4:4:4 always uses ProRes 4444.)"))
                 .font(.caption2).foregroundStyle(.tertiary)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -554,8 +554,8 @@ struct LicenseSettingsTab: View {
             Button("Deactivate", role: .destructive) { deactivate() }
             Button("Cancel", role: .cancel) {}
         } message: {
-            Text("The device slot is released on the server again. You can reactivate the "
-                 + "license any time with your license key — on another Mac too.")
+            Text(loc("The device slot is released on the server again. You can reactivate the "
+                 + "license any time with your license key — on another Mac too."))
         }
         .onAppear {
             checkLicense()
@@ -654,14 +654,14 @@ struct LicenseSettingsTab: View {
         if !isValid {
             subLine = ""; subIsWarning = false
         } else if !endsAt.isEmpty {
-            subLine = "Cancelled — ends on \(formatDate(endsAt))"; subIsWarning = true
+            subLine = String(localized: "Cancelled — ends on \(formatDate(endsAt))"); subIsWarning = true
         } else if status == "past_due" {
-            subLine = "Payment pending"; subIsWarning = true
+            subLine = loc("Payment pending"); subIsWarning = true
         } else if status == "on_trial" {
-            subLine = renewsAt.isEmpty ? "Trial" : "Trial until \(formatDate(renewsAt))"
+            subLine = renewsAt.isEmpty ? loc("Trial") : String(localized: "Trial until \(formatDate(renewsAt))")
             subIsWarning = false
         } else if !renewsAt.isEmpty {
-            subLine = "Renews on \(formatDate(renewsAt))"; subIsWarning = false
+            subLine = String(localized: "Renews on \(formatDate(renewsAt))"); subIsWarning = false
         } else {
             subLine = ""; subIsWarning = false
         }

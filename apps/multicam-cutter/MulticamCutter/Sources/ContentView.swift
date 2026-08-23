@@ -106,9 +106,7 @@ struct ContentView: View {
                                     set: { if !$0 { engine.clipError = nil } })) {
             Button("OK", role: .cancel) { engine.clipError = nil }
         } message: {
-            Text((engine.clipError ?? "") + "\n\nYou can start the analysis without image "
-                 + "recognition — just turn off \"Move unsuitable cutaways (CLIP)\" in "
-                 + "the expert settings.")
+            Text((engine.clipError ?? "") + loc("\n\nYou can start the analysis without image recognition — just turn off \"Move unsuitable cutaways (CLIP)\" in the expert settings."))
         }
         .onChange(of: engine.state) { oldState, newState in
             animateWindowWidth(for: newState)
@@ -481,17 +479,17 @@ struct FpsConversionSheet: View {
     }
 
     private var title: String {
-        let name = engine.convertLabel.isEmpty ? "Converting …" : engine.convertLabel
+        let name = engine.convertLabel.isEmpty ? loc("Converting …") : engine.convertLabel
         guard engine.convertFileCount > 1 else { return name }
         return "\(name)  (\(engine.convertFileIndex)/\(engine.convertFileCount))"
     }
 
     private var detail: String {
-        guard engine.convertTotal > 0 else { return "Preparing …" }
-        var s = "\(timecode(engine.convertDone)) of \(timecode(engine.convertTotal)) "
-              + "(\(Int(fraction * 100)) %)"
+        guard engine.convertTotal > 0 else { return loc("Preparing …") }
+        let pct = "\(Int(fraction * 100)) %"
+        var s = String(localized: "\(timecode(engine.convertDone)) of \(timecode(engine.convertTotal)) (\(pct))")
         if let eta = engine.convertEtaSeconds, eta.isFinite, eta > 0 {
-            s += "  ·  ~\(etaText(eta)) left"
+            s += String(localized: "  ·  ~\(etaText(eta)) left")
         }
         return s
     }
@@ -752,7 +750,7 @@ struct ResultView: View {
                     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
                         ForEach(Array(stats.sorted(by: { $0.key < $1.key })), id: \.key) { key, value in
                             GridRow {
-                                Text(key)
+                                Text(loc(key))
                                     .foregroundStyle(.secondary)
                                 Text(value)
                             }

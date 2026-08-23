@@ -136,3 +136,21 @@ Entscheidung: Abo-Modell (monatlich/jaehrlich), NICHT das Offline-Datei-Modell
   50-95, Default 72) + ProRes-Profil (standard/hq). Engine-CLI: `--hevc-quality`,
   `--prores-profile`. App reicht sie per UserDefaults durch.
 - **TC erhalten** in allen Zweigen verifiziert (tmcd-Datenspur wandert mit).
+
+## i18n: Englisch als Quell-/Key-Sprache, Deutsch via de.lproj (system-folgend)
+- **Problem (15.08.)**: App komplett zweisprachig DE/EN machen (Punkt 8). Ausgangslage:
+  Arbeitsbaum hatte bereits die englischen Screenshot-Strings + den frischen 29,97-
+  Dropframe-Fix uncommittet vermischt.
+- **Entscheidung**: **Englisch = Key-Sprache** (Quelltext bleibt Englisch), Deutsch als
+  Übersetzung in `Localization/de.lproj/Localizable.strings`. NICHT „Deutsch als Key"
+  (der dokumentierte Ur-Plan) — das hätte ein Zurücksetzen der Swift-Quellen auf Deutsch
+  verlangt und den im selben Baum liegenden Dropframe-Fix gefährdet. Sprachwahl folgt der
+  macOS-Systemsprache (`CFBundleDevelopmentRegion=en`, `CFBundleLocalizations=(en,de)`);
+  kein In-App-Umschalter (nachrüstbar).
+- **Mechanik**: Bare `Text("literal")` lokalisiert SwiftUI automatisch (Key=Literal).
+  Für `String`-Parameter durch Views der `loc()`-Wrapper (`NSLocalizedString`); Custom-
+  Komponenten `loc()`-en intern. Interpolationen: einzeilige `Text` nativ (`%@`/`%lld`),
+  Plurale via Count-Branch + `String(localized:)`. Engine emittiert Englisch (Keys), App
+  lokalisiert per `loc()`/`locStepLabel()`. Voll dokumentiert: `brain/TODOs.md` → „Multilanguage".
+- **Preis**: `swift run` (Dev) zeigt Englisch (kein `.lproj` in Bundle.main) — Deutsch nur
+  im gebauten `.app`. Web-Schema bleibt vorerst DE-only (App ist ab jetzt die Text-Wahrheit).

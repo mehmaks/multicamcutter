@@ -24,9 +24,9 @@ struct ClipDownloadPrompt: View {
                 }
             }
 
-            Text("\"Move unsuitable cutaways\" uses image recognition (CLIP) to check whether a "
+            Text(loc("\"Move unsuitable cutaways\" uses image recognition (CLIP) to check whether a "
                  + "cutaway shows someone drinking, for example, and moves it. This downloads a "
-                 + "model once.")
+                 + "model once."))
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)

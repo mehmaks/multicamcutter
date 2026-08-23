@@ -24,9 +24,7 @@ struct SyncResolutionSheet: View {
                 Text("Some sources couldn't be synced automatically")
                     .font(.headline)
             }
-            Text("For each affected source: enter an offset in frames (relative to "
-                 + "\(refName)) or exclude the source from the edit. "
-                 + "The remaining sources are already in sync.")
+            Text("For each affected source: enter an offset in frames (relative to \(refName)) or exclude the source from the edit. The remaining sources are already in sync.")
                 .font(.callout)
                 .foregroundStyle(.secondary)
                 .fixedSize(horizontal: false, vertical: true)
@@ -101,8 +99,8 @@ struct SyncResolutionSheet: View {
                         .foregroundStyle(.secondary)
                 }
             } else {
-                Text("Excluded from the edit — the person on this track "
-                     + "won't be detected then.")
+                Text(loc("Excluded from the edit — the person on this track "
+                     + "won't be detected then."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }

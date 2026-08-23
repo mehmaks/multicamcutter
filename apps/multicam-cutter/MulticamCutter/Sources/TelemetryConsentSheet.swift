@@ -76,8 +76,8 @@ struct TelemetryConsentSheet: View {
             Divider()
 
             HStack(alignment: .firstTextBaseline) {
-                Text("You can change this later any time in "
-                     + "Settings → Privacy.")
+                Text(loc("You can change this later any time in "
+                     + "Settings → Privacy."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
                     .fixedSize(horizontal: false, vertical: true)

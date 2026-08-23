@@ -94,8 +94,8 @@ struct HelpBadge: View {
     var body: some View {
         LucideIcon("circle-question-mark", size: 11)
             .foregroundStyle(.secondary)
-            .overlay(AppKitToolTip(text: text))   // trägt den Tooltip
-            .help(text)                            // Fallback + VoiceOver
+            .overlay(AppKitToolTip(text: loc(text)))   // trägt den Tooltip
+            .help(loc(text))                           // Fallback + VoiceOver
     }
 }
 
@@ -111,7 +111,7 @@ struct HelpLabel: View {
 
     var body: some View {
         HStack(spacing: 4) {
-            Text(title)
+            Text(loc(title))
             HelpBadge(text: help)
         }
     }

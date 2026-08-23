@@ -99,6 +99,6 @@ struct LucideLabel: View {
     }
 
     var body: some View {
-        Label { Text(title) } icon: { LucideIcon(icon, size: size) }
+        Label { Text(loc(title)) } icon: { LucideIcon(icon, size: size) }
     }
 }

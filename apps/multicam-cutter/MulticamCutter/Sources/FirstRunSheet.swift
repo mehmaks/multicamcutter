@@ -75,9 +75,9 @@ struct FirstRunSheet: View {
                             .foregroundStyle(.brandAccent)
                             .frame(width: 22, alignment: .center)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text(req.title)
+                            Text(loc(req.title))
                                 .font(.callout.weight(.medium))
-                            Text(req.detail)
+                            Text(loc(req.detail))
                                 .font(.caption)
                                 .foregroundStyle(.secondary)
                                 .fixedSize(horizontal: false, vertical: true)
@@ -99,9 +99,9 @@ struct FirstRunSheet: View {
             Divider()
 
             HStack {
-                Text(seenRevision == 0
+                Text(loc(seenRevision == 0
                      ? "This note appears again when something here changes."
-                     : "Something here has changed.")
+                     : "Something here has changed."))
                     .font(.caption)
                     .foregroundStyle(.secondary)
 

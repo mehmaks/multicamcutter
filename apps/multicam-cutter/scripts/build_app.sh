@@ -171,18 +171,19 @@ cat > "$APP_BUNDLE/Contents/Info.plist" << 'PLIST'
     <string>MultiCamCutter</string>
     <key>CFBundleDisplayName</key>
     <string>MultiCamCutter</string>
-    <!-- Sprache der App = Deutsch. OHNE das laeuft die App als "Englisch-only",
-         und macOS zwingt JEDES geladene Framework in dessen englische Strings —
-         darum war der komplette Sparkle-Update-Ablauf (Verfuegbar-Dialog,
-         Download, Neustart) englisch, obwohl Sparkle.framework eine de.lproj
-         mitbringt. CFBundleDevelopmentRegion + CFBundleLocalizations + eine echte
-         de.lproj (siehe unten) melden NSBundle Deutsch als verfuegbare Sprache,
-         dann zeigt Sparkle automatisch Deutsch. Bei EN-Ausbau (Punkt 8) hier
-         "en" ergaenzen. -->
+    <!-- Zweisprachig DE/EN (Punkt 8, 15.08.). Quell-/Key-Sprache ist Englisch
+         (CFBundleDevelopmentRegion=en) — die UI-Strings im Code sind Englisch und
+         dienen als Schluessel; Localizable.strings/de.lproj uebersetzt sie ins
+         Deutsche. CFBundleLocalizations listet BEIDE Sprachen, sodass NSBundle die
+         Systemsprache waehlt (de-System -> Deutsch, sonst Englisch) und Sparkles
+         Update-Ablauf automatisch mitzieht. Fallback fuer nicht unterstuetzte
+         Systemsprachen = Englisch (die Schluessel). Physische de.lproj/en.lproj
+         (siehe unten) sind das zuverlaessigste Signal fuer NSBundle.localizations. -->
     <key>CFBundleDevelopmentRegion</key>
-    <string>de</string>
+    <string>en</string>
     <key>CFBundleLocalizations</key>
     <array>
+        <string>en</string>
         <string>de</string>
     </array>
     <key>CFBundleIdentifier</key>
@@ -254,6 +255,18 @@ cat > "$APP_BUNDLE/Contents/Resources/de.lproj/InfoPlist.strings" << 'STRINGS'
 "CFBundleName" = "MultiCamCutter";
 "CFBundleDisplayName" = "MultiCamCutter";
 STRINGS
+
+# UI-Katalog (Localizable.strings) fuer beide Sprachen ins Bundle. Key = engl.
+# Quelltext; de.lproj uebersetzt, en.lproj ist leer (Fallback auf den Key = Englisch).
+# Quelle: MulticamCutter/Localization/{de,en}.lproj/ (versioniert im Repo).
+LOC_SRC="$APP_DIR/MulticamCutter/Localization"
+cp "$LOC_SRC/de.lproj/Localizable.strings" "$APP_BUNDLE/Contents/Resources/de.lproj/Localizable.strings"
+mkdir -p "$APP_BUNDLE/Contents/Resources/en.lproj"
+cat > "$APP_BUNDLE/Contents/Resources/en.lproj/InfoPlist.strings" << 'STRINGS'
+"CFBundleName" = "MultiCamCutter";
+"CFBundleDisplayName" = "MultiCamCutter";
+STRINGS
+cp "$LOC_SRC/en.lproj/Localizable.strings" "$APP_BUNDLE/Contents/Resources/en.lproj/Localizable.strings"
 
 # 3b. Signierung. install_name_tool hat die Linker-ad-hoc-Sig des Binaries
 # invalidiert — ohne Neu-Signierung startet die App auf arm64 nicht.

@@ -73,7 +73,7 @@ private enum FeedbackService {
         let (data, resp) = try await URLSession.shared.data(for: req)
         let code = (resp as? HTTPURLResponse)?.statusCode ?? -1
         guard (200..<300).contains(code) else {
-            throw SendError(message: "Server responded with HTTP \(code).")
+            throw SendError(message: String(localized: "Server responded with HTTP \(code)."))
         }
         // Backend liefert idealerweise issue_url/number; fehlt es, gilt es trotzdem als ok.
         return (try? JSONDecoder().decode(FeedbackResult.self, from: data))
@@ -212,7 +212,7 @@ struct FeedbackView: View {
     @ViewBuilder
     private func successPanel(url: String?, number: Int?) -> some View {
         VStack(alignment: .leading, spacing: 12) {
-            LucideLabel(number.map { "Report #\($0) created — thanks!" } ?? "Report sent — thanks!",
+            LucideLabel(number.map { String(localized: "Report #\($0) created — thanks!") } ?? loc("Report sent — thanks!"),
                         icon: "circle-check", size: 15)
                 .foregroundStyle(.green)
                 .font(.headline)

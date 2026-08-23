@@ -42,7 +42,7 @@ Post-1.0 (C), nicht in diese Liste.
 | ~~5~~ ✅ | ~~**Dock-Balken gewichtet**~~ — GELIEFERT (25.07.): Engine schickt `step_weights` (Nodding/CLIP dominieren, adaptiv zu Kamerazahl+CLIP), Swift normiert `overallProgress`, Fallback bei Mismatch | ✨ B | ✓ | erledigt — nächster offener Punkt: **6** |
 | 6 | **Telemetrie** (Opt-in) — ✅ App-Seite KOMPLETT (26.07.: Consent-Prompt gebaut); Backend gebaut (Web-Session, lokal verifiziert); OFFEN: **Deploy** (Web-Repo) + E2E | 🌍 | mittel | App fertig (Toggle Default AUS + Erst-Start-Zustimmung, fire-and-forget); Rest extern |
 | ~~7~~ ✅ | ~~**Settings-Durchgang**~~ — GELIEFERT (26.07.): User-Änderungsliste (CSV) eingepflegt — ParamHelp ×20 Hilfetexte + 3 Experten-Labels an Basis angeglichen (Min./Max. Schnittlänge, Pausen kürzen) + Web-Schema `help` synchron. **String-Freeze steht**, Build grün | ✨ B | ✓ | erledigt — nächster offener Punkt: **8** |
-| 8 | **Mehrsprachigkeit DE/EN** — ⚡ EN-Übersetzung schon fertig auf Branch `en-screenshots` (~400 Strings), bleibt nur Infra+Verdrahtung+QA, **~2 Tage** system-folgend. Detail + Aufwandstabelle unten in „Multilanguage (planen)" | 🌍 | mittel–schwer | **Capstone**: Freeze-then-Translate — Engine→Keys, Swift lokalisiert, ParamHelp ×30, Web-Schema-Sync über die eingefrorene Menge → **1.0** |
+| ~~8~~ ✅ | ~~**Mehrsprachigkeit DE/EN**~~ — GELIEFERT (15.08.): system-folgend (macOS-Sprache), EN=Quell-/Key-Sprache, `de.lproj/Localizable.strings` (375 Einträge) übersetzt; `loc()`-Helper für Laufzeit-Strings, Komponenten + interpolierte/Plural-Strings verdrahtet, `build_app.sh` kopiert beide `.lproj`. Verifiziert (DE löst auf, EN=Keys). Detail unten in „Multilanguage" | 🌍 | ✓ | erledigt → **1.0-Kern steht** (offen bleiben nur noch 3 Bundle-Größe + 6 Telemetrie-Deploy) |
 
 **Rückgrat der Ordnung (nicht willkürlich):** 6 → 7 → 8. Telemetrie bringt den letzten
 neuen Toggle, der Settings-Durchgang friert danach *alle* deutschen UI-Texte ein, und
@@ -241,7 +241,43 @@ Damit ist die App-Seite von Punkt 6 komplett.
   Wie bei Lizenz/Feedback vorab eine **Contract-MD** schreiben (`brain/Telemetrie-API.md`).
   Alternative erwägen: fertiger Dienst (PostHog/Plausible) statt Eigenbau-Storage.
 
-### Multilanguage (planen)
+### Multilanguage — ✅ GELIEFERT (15.08.)
+
+**Architektur (umgesetzt):** System-folgend (macOS-Sprache entscheidet; kein In-App-
+Umschalter — nachrüstbar). **Englisch ist die Quell-/Key-Sprache**: die UI-String-Literale
+im Swift-Code sind Englisch und dienen als Schlüssel; **`de.lproj/Localizable.strings`**
+(375 Einträge) übersetzt sie. Gewählt statt „Deutsch als Key", weil so der heutige
+Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kein Revert).
+- **Katalog-Quelle:** `MulticamCutter/Localization/{de,en}.lproj/Localizable.strings`
+  (versioniert). `en.lproj` ist **leer** → SwiftUI fällt auf den Key (= Englisch) zurück.
+  `build_app.sh` kopiert beide nach `Contents/Resources/`. `CFBundleDevelopmentRegion=en`,
+  `CFBundleLocalizations=(en,de)`.
+- **`loc(_:)`** (`Localization.swift`, `NSLocalizedString`-Wrapper): lokalisiert **Laufzeit-
+  Strings**, die als `String` durch Views laufen (SwiftUI `Text("literal")` lokalisiert nur
+  direkte Literale). Custom-Komponenten (WizSlider/WizToggle/WizSegmented/group/subLabel/
+  railTitle/LucideLabel/HelpLabel/HelpBadge/WizardIntro) `loc()`-en ihre Label/Help/Options
+  intern → alle Aufrufstellen lokalisieren automatisch.
+- **Verkettungen** (`Text("a" + "b")`): reine Literal-Concats in `loc(...)` gewickelt.
+- **Interpolierte/Plural-Strings:** einzeilige `Text("…\(x)…")` lokalisieren SwiftUI-nativ
+  (Katalog-Keys mit `%@`/`%lld`); Plurale (Person/Sprecher:in/Kamera/Totale) über
+  Count-Branch + `String(localized:)`; Fehler/Status via `String(localized:)` an der Zuweisung.
+- **Engine-Labels:** Engine emittiert weiter **Englisch** (Keys); die App lokalisiert per
+  `loc()`/`locStepLabel()` (Präfix-fähig für „Head-nod analysis <Cam>", „Converting <Datei>",
+  „Audio preview: <Mic>"). Eine Übersetzungsquelle (der Katalog) statt Python-Dict.
+- **Kollisionen aufgelöst:** „Close" → Dialog `Schließen` vs. Bildgröße `Close-up`=`Nah`;
+  „Random" → `Zufällig` (Cut-Mode-Deutsch „Zufall" vereinheitlicht).
+- **Verifiziert:** Bundle-Readback — DE löst korrekt auf (inkl. interpoliert/Plural/Engine),
+  EN = Keys. `swift build` grün; QA-`.app` startet auf Deutsch.
+- ⚠️ **Nebeneffekt:** `swift run` (Dev) zeigt jetzt **Englisch** (Bundle.main = Executable-Dir,
+  kein `.lproj`). Deutsch nur im gebauten `.app` (build_app.sh). Für DE-Dev-Vorschau die
+  `.app` bauen.
+- 🔜 **Offene Kür (optional):** Web-Schema (`multicam_params.json`) ist weiter DE-only —
+  driftet gegenüber der App, wenn dort Texte geändert werden (App = jetzt Wahrheit).
+  Straggler-Audit (bare Literale, die weder im Katalog noch sprachneutral sind) am echten
+  `.app`-Lauf. In-App-DE/EN-Umschalter nur bei Kundenwunsch.
+
+<details><summary>Ursprüngliche Planung (historisch)</summary>
+
 - [ ] **Mehrsprachigkeit konzipieren (DE/EN)**. Die Website ist bereits zweisprachig
   (next-intl, `src/messages/{de,en}.json`) — die App ist es **gar nicht**: alle
   Strings sind hart in Deutsch einkompiliert. Zu klären, bevor es teuer wird:
@@ -297,6 +333,8 @@ Damit ist die App-Seite von Punkt 6 komplett.
     SwiftUI/SPM ohne Neustart ist fummelig).
   → **Empfehlung:** erst System-folgend finalisieren (schnell, robust), In-App-Umschalter
   nur nachrüsten, wenn LemonSqueezy-Käufer ihn verlangen.
+
+</details>
 
 ### ⏳ Zuletzt (ans Ende gestellt 15.08. — nach den 1.0-Blockern)
 

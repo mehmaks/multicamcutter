@@ -193,7 +193,7 @@ struct WizardStepBar: View {
                             .foregroundStyle(active ? Color.black : Color.wizMuted)
                     }
                 }
-                Text(label).font(.subheadline).fontWeight(active ? .semibold : .regular)
+                Text(loc(label)).font(.subheadline).fontWeight(active ? .semibold : .regular)
                     .foregroundStyle(active ? Color.wizText : Color.wizMuted)
             }
         }
@@ -208,8 +208,8 @@ struct WizardIntro: View {
     let text: String
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title).font(.system(size: 22, weight: .semibold))
-            Text(text).font(.system(size: 15)).lineSpacing(3).foregroundStyle(.wizMuted)
+            Text(loc(title)).font(.system(size: 22, weight: .semibold))
+            Text(loc(text)).font(.system(size: 15)).lineSpacing(3).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .frame(maxWidth: 640, alignment: .leading)
@@ -249,7 +249,9 @@ struct PersonsStep: View {
                 Text("No active audio tracks.").foregroundStyle(.wizMuted)
             } else {
                 let n = engine.activeMics.count
-                Text("\(n) person\(n == 1 ? "" : "s") — one per audio track.")
+                Text(n == 1
+                     ? "\(n) person — one per audio track."
+                     : "\(n) people — one per audio track.")
                     .font(.callout).foregroundStyle(.wizMuted)
             }
 
@@ -541,7 +543,7 @@ struct CamerasStep: View {
     }
 
     private func railTitle(_ t: String) -> some View {
-        Text(t.uppercased()).font(.caption2).fontWeight(.bold)
+        Text(loc(t).uppercased()).font(.caption2).fontWeight(.bold)
             .foregroundStyle(.wizFaint).tracking(1)
     }
 }
@@ -706,8 +708,7 @@ struct FpsMismatchBanner: View {
             }
             .foregroundStyle(.brandSecondary)
 
-            Text("These cameras don't have the timeline frame rate (\(fpsText(engine.fps))). Without "
-                 + "correction, picture and sound drift apart and the timeline ends on a freeze frame.")
+            Text("These cameras don't have the timeline frame rate (\(fpsText(engine.fps))). Without correction, picture and sound drift apart and the timeline ends on a freeze frame.")
                 .font(.caption).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -717,13 +718,13 @@ struct FpsMismatchBanner: View {
             }
 
             Button { engine.convertMismatchedFps() } label: {
-                LucideLabel("Convert file(s) to \(fpsText(engine.fps)) fps",
+                LucideLabel(String(localized: "Convert file(s) to \(fpsText(engine.fps)) fps"),
                             icon: "refresh-cw", size: 12)
             }
             .buttonStyle(.borderedProminent).controlSize(.small)
 
-            Text("Creates copies next to the originals (practically lossless, timecode is preserved). "
-                 + "Takes a while depending on file size — roughly 10 minutes per GB.")
+            Text(loc("Creates copies next to the originals (practically lossless, timecode is preserved). "
+                 + "Takes a while depending on file size — roughly 10 minutes per GB."))
                 .font(.caption2).foregroundStyle(.wizFaint)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -752,12 +753,12 @@ struct ShortCamBanner: View {
             }
             .foregroundStyle(.brandSecondary)
 
-            Text("This camera is much shorter than the other sources. From the point "
+            Text(loc("This camera is much shorter than the other sources. From the point "
                  + "where it ends, its picture freezes — the cut gets a freeze frame "
                  + "there. If that's unintended (for example a canceled conversion whose "
                  + "partial file was left behind), replace the file with the complete one. If the "
                  + "camera really was only active for a shorter time, you can continue — but watch for the "
-                 + "freeze frame from its end.")
+                 + "freeze frame from its end."))
                 .font(.caption).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -786,11 +787,11 @@ struct UnsupportedCloseCamsBanner: View {
             }
             .foregroundStyle(.brandSecondary)
 
-            Text("Speaker detection compares exactly two close-up cameras. A third "
+            Text(loc("Speaker detection compares exactly two close-up cameras. A third "
                  + "would never get its turn as speaker — the person on it would stay "
                  + "silent in the edit, without anything failing. That's why the start is locked.\n\n"
                  + "Wide shots aren't affected: any number is allowed and they're "
-                 + "used for cutaways.")
+                 + "used for cutaways."))
                 .font(.caption).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
 
@@ -825,9 +826,9 @@ struct OverviewStep: View {
                         .foregroundStyle(Color.brandAccent)
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Folder recognized — assignments loaded").fontWeight(.semibold)
-                        Text("The app has restored your earlier people, cameras, and settings "
+                        Text(loc("The app has restored your earlier people, cameras, and settings "
                              + "for this folder. Using the steps above, you can "
-                             + "change anything at any time.")
+                             + "change anything at any time."))
                             .font(.caption).foregroundStyle(.wizMuted)
                             .fixedSize(horizontal: false, vertical: true)
                         Button("Reset assignments") { engine.resetSession() }
@@ -889,12 +890,13 @@ struct OverviewStep: View {
         let totalen = engine.activeCams.filter { engine.camRoles()[$0.id] == .wide }.count
         let n = engine.persons.count
         let c = engine.activeCams.count
+        let speakers = n == 1 ? String(localized: "\(n) speaker") : String(localized: "\(n) speakers")
+        let cameras  = c == 1 ? String(localized: "\(c) camera")  : String(localized: "\(c) cameras")
+        let wides    = totalen == 1 ? String(localized: "\(totalen) wide shot") : String(localized: "\(totalen) wide shots")
+        let explain  = loc("A camera with several people stays a close-up as long as it frames one of them tightest — only once everyone is closer elsewhere does it become a wide shot.")
         return (
             Text("Automatically detected: ").fontWeight(.semibold).foregroundStyle(Color.brandSecondary)
-            + Text("\(n) speaker\(n == 1 ? "" : "s"), \(c) camera\(c == 1 ? "" : "s"), "
-                 + "\(totalen) wide shot\(totalen == 1 ? "" : "s"). A camera with several people stays "
-                 + "a close-up as long as it frames one of them tightest — only once "
-                 + "everyone is closer elsewhere does it become a wide shot.").foregroundStyle(Color.wizMuted)
+            + Text(verbatim: "\(speakers), \(cameras), \(wides). \(explain)").foregroundStyle(Color.wizMuted)
         )
         .font(.callout)
         .fixedSize(horizontal: false, vertical: true)
@@ -905,7 +907,7 @@ struct OverviewStep: View {
     }
 
     private func sectionTitle(_ t: String) -> some View {
-        Text(t.uppercased()).font(.caption2).fontWeight(.bold)
+        Text(loc(t).uppercased()).font(.caption2).fontWeight(.bold)
             .foregroundStyle(.wizFaint).tracking(1)
     }
 }
@@ -1250,13 +1252,13 @@ struct WizardSettings: View {
         if !first {
             Rectangle().fill(Color.wizBorder).frame(height: 1).padding(.top, 16)
         }
-        Text(title.uppercased())
+        Text(loc(title).uppercased())
             .font(.caption2).fontWeight(.bold).foregroundStyle(.brandSecondary).tracking(0.8)
             .padding(.top, first ? 16 : 12).padding(.bottom, 2)
         // Optionaler Einleitungstext für Rubriken, deren Sinn sich nicht aus den
         // Parameternamen erschließt (z.B. Bildsprache).
         if !description.isEmpty {
-            Text(description)
+            Text(loc(description))
                 .font(.caption2).foregroundStyle(.wizMuted)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.bottom, 6)
@@ -1266,7 +1268,7 @@ struct WizardSettings: View {
 
     @ViewBuilder
     private func subLabel(_ title: String) -> some View {
-        Text(title.uppercased())
+        Text(loc(title).uppercased())
             .font(.caption2).fontWeight(.semibold).foregroundStyle(.wizMuted).tracking(0.8)
             .padding(.top, 12).padding(.bottom, 2)
     }
@@ -1282,7 +1284,7 @@ struct WizHelpBadge: View {
     var body: some View {
         LucideIcon("circle-question-mark", size: 12)
             .foregroundStyle(.wizFaint)
-            .help(text)
+            .help(loc(text))
     }
 }
 
@@ -1302,7 +1304,7 @@ struct WizSlider: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(label).font(.system(size: 14)).lineLimit(1)
+            Text(loc(label)).font(.system(size: 14)).lineLimit(1)
             if !help.isEmpty { WizHelpBadge(help) }
             Spacer(minLength: 8)
             WizSliderControl(value: $value, range: range)
@@ -1328,7 +1330,7 @@ struct WizToggle: View {
 
     var body: some View {
         HStack {
-            Text(label).font(.system(size: 14)).lineLimit(1)
+            Text(loc(label)).font(.system(size: 14)).lineLimit(1)
             if !help.isEmpty { WizHelpBadge(help) }
             Spacer()
             WizSwitch(isOn: $isOn)
@@ -1357,13 +1359,13 @@ struct WizSegmented: View {
 
     var body: some View {
         HStack(spacing: 12) {
-            Text(label).font(.system(size: 14)).lineLimit(1)
+            Text(loc(label)).font(.system(size: 14)).lineLimit(1)
             if !help.isEmpty { WizHelpBadge(help) }
             Spacer(minLength: 8)
             HStack(spacing: 2) {
                 ForEach(options, id: \.value) { opt in
                     let active = selection == opt.value
-                    Text(opt.display)
+                    Text(loc(opt.display))
                         .font(.system(size: 11.5, weight: active ? .semibold : .regular))
                         .foregroundStyle(active ? Color.black : Color.wizMuted)
                         .padding(.horizontal, 8).padding(.vertical, 4)
@@ -1472,7 +1474,7 @@ struct WizRestoreChips: View {
 
     var body: some View {
         VStack(alignment: .leading, spacing: 8) {
-            Text(title.uppercased())
+            Text(loc(title).uppercased())
                 .font(.caption2).fontWeight(.bold).foregroundStyle(.wizFaint).tracking(1)
             FlowLayout(spacing: 8) {
                 ForEach(items, id: \.id) { item in
