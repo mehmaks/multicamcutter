@@ -27,6 +27,7 @@ hidden_imports = [
     'modules.multicam_cutter.shot_sizes',
     'modules.multicam_cutter.build_fcpxml',
     'shared.waveform_sync',
+    'shared.split_audio',
     'shared.frame_utils',
     'shared.ffmpeg_utils',
     'shared.aaf_builder',

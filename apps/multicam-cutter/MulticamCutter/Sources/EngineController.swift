@@ -64,6 +64,11 @@ struct MicInfo: Identifiable, Hashable {
     var durationSeconds: Double
     /// Siehe CameraInfo.included.
     var included: Bool = true
+    /// Gesplittete Rekorder-Aufnahme (z. B. Zoom: neue Datei nach 1 GB): die
+    /// Originalteile in Aufnahmereihenfolge. `path` zeigt dann auf die temporaere
+    /// Gesamt-WAV der Engine (Analyse, Waveform, Abspielen); der AAF-Export
+    /// verweist auf die Teile. Leer = normale Einzeldatei.
+    var parts: [String] = []
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: MicInfo, rhs: MicInfo) -> Bool { lhs.id == rhs.id }
@@ -1912,7 +1917,8 @@ class EngineController: ObservableObject {
                 previewPath: mic["preview"] as? String,
                 previewOffsetS: (mic["preview_offset_s"] as? NSNumber)?.doubleValue ?? 0,
                 separationDb: (mic["separation_db"] as? NSNumber)?.doubleValue,
-                durationSeconds: mic["duration_s"] as? Double ?? 0
+                durationSeconds: mic["duration_s"] as? Double ?? 0,
+                parts: mic["parts"] as? [String] ?? []
             ))
         }
 
@@ -2240,6 +2246,22 @@ class EngineController: ObservableObject {
             .appendingPathComponent("Library/Logs/MulticamCutter")
     }
 
+    // MARK: - Temporaere Gesamt-WAVs (gesplittete Aufnahmen)
+
+    /// Hier legt die Engine die zusammengefuegten WAVs gesplitteter Aufnahmen ab
+    /// (`MCC_JOIN_DIR`). Nur fuer die Analyse — sie landen nie im Schnittprojekt
+    /// (der AAF-Export verweist auf die Originalteile).
+    nonisolated static var splitJoinDirectory: URL {
+        FileManager.default.temporaryDirectory
+            .appendingPathComponent("MultiCamCutter-joined", isDirectory: true)
+    }
+
+    /// Loescht die temporaeren Gesamt-WAVs. Beim Beenden der App und beim Start
+    /// (falls die App zuletzt abgestuerzt ist). Beim naechsten Scan entstehen sie neu.
+    nonisolated static func removeSplitJoinDirectory() {
+        try? FileManager.default.removeItem(at: splitJoinDirectory)
+    }
+
     // MARK: - Path Resolution
 
     /// True wenn die App als Bundle läuft (nicht via swift run)
@@ -2322,6 +2344,7 @@ class EngineController: ObservableObject {
         var env = ProcessInfo.processInfo.environment
         LicenseConfig.apply(to: &env)
         env["PYTHONUNBUFFERED"] = "1"
+        env["MCC_JOIN_DIR"] = Self.splitJoinDirectory.path
         if let dir = ffmpegDirectory {
             let existing = env["PATH"] ?? "/usr/bin:/bin:/usr/sbin:/sbin"
             env["PATH"] = dir + ":" + existing

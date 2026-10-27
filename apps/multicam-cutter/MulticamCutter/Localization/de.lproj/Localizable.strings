@@ -373,3 +373,5 @@
 "Speaker detection + base EDL" = "Sprechererkennung + Basis-EDL";
 "Split long shots" = "Lange Einstellungen teilen";
 "Waveform sync" = "Waveform-Sync";
+"%lld parts" = "%lld Teile";
+"Split recording — joined automatically from:" = "Gesplittete Aufnahme — automatisch zusammengefügt aus:";

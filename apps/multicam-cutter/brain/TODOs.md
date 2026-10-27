@@ -395,7 +395,16 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
 - [ ] Timeline-View: NLE-artige Darstellung der generierten Timeline.
   Farbkodierte Clips, Reason-Labels, scrollbar, zoombar.
   Spaeter: RMS-Wellenform, Decision-Log-Marker.
-- [ ] **Mehrere Dateien einer Quelle nahtlos als eine behandeln.** User-Kontext: GoPro-Cams
+- [ ] **Mehrere Dateien einer Quelle nahtlos als eine behandeln.**
+  **Audio: automatische Erkennung GELIEFERT (26.10.)** — BWF-Zeitstempel + Nahtpruefung
+  im Signal, temporaere Gesamt-WAV fuer die Analyse, AAF verweist auf die Originalteile
+  (Details: Dateiformate.md „Gesamt-WAVs“, AAF-Struktur.md). Getestet an Folge 59
+  (Zoom H6essential, 2 Spuren × 2 Teile) + synthetisch. Kompletter Lauf Folge 59 +
+  Resolve-Import: alle Teile linken (26.10., nach BWF-TC-Fix). **Offen:** (a) Naht-Sync
+  anhoeren + Premiere-Gegentest;
+  (b) manuelle Zuordnung „gehoert zu …“ fuer nicht erkannte Teile (ohne bext / Stille
+  an der Naht); (c) Video-Splits (GoPro/DJI) — dort fehlt bext, andere Erkennung.
+  User-Kontext: GoPro-Cams
   und DJI-Mic-Rekorder splitten lange Aufnahmen in mehrere Dateien (z. B. 2-h-Folge → 4
   nahtlos aneinander passende Teile). Die gehören zu EINER Person/Cam („Mic 2"), nicht zu
   vier verschiedenen. Heute sieht die App jede Datei als eigene Quelle.

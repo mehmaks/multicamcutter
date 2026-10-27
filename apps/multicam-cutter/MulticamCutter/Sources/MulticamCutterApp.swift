@@ -12,6 +12,14 @@ struct MulticamCutterApp: App {
         // Tooltips schneller einblenden. AppKit wartet per Default ~1–2 s;
         // NSInitialToolTipDelay ist in Millisekunden und gilt nur fuer diese App.
         UserDefaults.standard.set(200, forKey: "NSInitialToolTipDelay")
+        // Temporaere Gesamt-WAVs gesplitteter Aufnahmen: Reste eines Absturzes
+        // jetzt wegraeumen, beim Beenden wieder (sie sind je ~1 GB gross).
+        EngineController.removeSplitJoinDirectory()
+        NotificationCenter.default.addObserver(
+            forName: NSApplication.willTerminateNotification, object: nil, queue: nil
+        ) { _ in
+            EngineController.removeSplitJoinDirectory()
+        }
     }
 
     var body: some Scene {

@@ -95,6 +95,27 @@ warnings, errors, log-Zeilen, result, session_end.
 - `cam{i}_{stem}.jpg` — Thumbnails (320px breit)
 - `mic{i}_{stem}.wav` — Audio-Previews (5s, 22050 Hz, mono)
 
+## Gesamt-WAVs gesplitteter Aufnahmen (temporaer)
+
+Rekorder wie der Zoom H6essential splitten lange Aufnahmen (neue Datei nach 1 GB).
+Der Scan (`shared/split_audio.py`) erkennt die Teile OHNE Dateinamen: BWF-
+`time_reference` (Teil B beginnt exakt am Ende von A, gleiches Format/Rekorder) +
+bei Mehrspur-Rekordern die Nahtpruefung im Signal (LPC-Vorhersage ueber den
+Uebergang, nahtlos ≈ 1, falsche Spur ≥ 3). Nur bei digitaler Stille entscheidet
+die Namensaehnlichkeit.
+
+- Ort: `$TMPDIR/MultiCamCutter-joined/<hash der Teile>/<Name von Teil 1>`
+  (`MCC_JOIN_DIR`, von der App gesetzt). Die App loescht den Ordner beim Beenden
+  und beim Start; der naechste Scan erzeugt die Dateien neu.
+- Inhalt: Header (inkl. bext) von Teil 1, Audiodaten aller Teile bytegleich
+  hintereinander (> 4 GB → RF64).
+- Manifest daneben: `<gesamt>.parts.json` → `{"parts": [{"path", "start_sample",
+  "n_samples", "sample_rate"}], "sample_rate"}`. **Vertrag:** Analyse/Sync laufen
+  auf der Gesamt-WAV; `build_aaf` liest das Manifest und verweist NUR auf die
+  Originalteile (die Gesamt-WAV kommt nie ins Schnittprojekt).
+- `.multicam` speichert wie gehabt den Dateinamen — der ist bei der Gesamt-WAV der
+  von Teil 1, Zuordnungen bleiben also stabil.
+
 ## Pipeline-Output
 
 `/tmp/resolve-toolkit/{md5-hash}/`

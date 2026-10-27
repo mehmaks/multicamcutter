@@ -2,6 +2,18 @@
 
 ## OFFEN
 
+### Split-Teil 2 linkt nicht in Resolve („timecode extents do not match") — GEFIXT (26.10., in Resolve bestätigt)
+- **Symptom**: AAF von Folge 59 (Zoom H6essential, 29,97 DF): Teil 1 linkt, Teil 2
+  jeder gesplitteten Spur bleibt rot (Offline).
+- **Ursache (per Test-AAFs in Resolve eingegrenzt)**: Reel-TC aus BWF-`time_reference`
+  wurde mit gerundetem `fps` 29,97 statt 30000/1001 und mit `round` gerechnet. Resolve
+  gibt der Datei aber den ersten VOLLEN Frame (aufgerundet) als Start und nur volle
+  Frames als Länge. Teil 2 wird ab Frame 0 bis zum Ende genutzt → Bereich ragte vorn
+  bzw. (aufgerundete Teil-Länge) hinten 1 Frame über die Datei → kein Link. Teil 1 und
+  Einzeldateien linkten trotzdem, lagen bei NTSC-Raten aber 1 Frame versetzt.
+- **Fix**: `_bwf_start_frame` (exakt + aufgerundet), Teil-Länge = volle Frames bis
+  Dateiende, Rest Filler. Details: `AAF-Struktur.md` → Gesplittete Aufnahmen.
+
 ### PyInstaller-Excludes brachen Nodding (+ CLIP) im Frozen-Build — GEFIXT (25.07.), Rebuild+Patch nötig
 - **Symptom**: Auf dem **Release**-Build (Kollege) bricht die Analyse bei „Schritt 5/9:
   Nodding-Analyse" ab: `ERROR: No module named 'matplotlib'`. Im **Dev** (`swift run`,

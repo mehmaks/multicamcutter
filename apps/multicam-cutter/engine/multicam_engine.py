@@ -71,6 +71,26 @@ def scan_folder(folder):
     return cams, mics
 
 
+def join_split_mics(mics, on_join=None):
+    """Gesplittete Rekorder-Aufnahmen (z. B. Zoom: neue Datei nach 1 GB) zu je
+    EINER temporaeren WAV zusammenfuegen — die Analyse sieht dann eine Spur je
+    Person. Der AAF-Export verweist ueber das Manifest wieder auf die Originale
+    (shared/split_audio.py). Gibt (mics, {joined: [teile]}) zurueck.
+    `on_join(name)` wird vor jedem Zusammenfuegen aufgerufen (Fortschritt)."""
+    from shared.split_audio import detect_split_groups, join_group
+    out, joined_map = [], {}
+    for g in detect_split_groups(mics):
+        if len(g) == 1:
+            out.append(Path(g[0]))
+            continue
+        if on_join:
+            on_join(Path(g[0]).name, len(g))
+        j = join_group(g)
+        out.append(Path(j))
+        joined_map[j] = g
+    return out, joined_map
+
+
 # ── CLIP Person-Check fuer Thumbnails ─────────────────────────────────────────
 
 def _preview_cache_dir() -> Path:
@@ -324,6 +344,7 @@ def run_scan(folder, fps=25.0):
     preview_dir = _preview_cache_dir()
 
     # Fortschritt: Schritte = Cams (Dauer + Thumbnail) + Audio-Analyse + Mic-Previews
+    # (+ je gesplitteter Aufnahme ein Schritt fuers Zusammenfuegen, s. unten)
     total_scan_steps = len(cams) + 1 + len(mics)
     scan_step = 0
 
@@ -398,6 +419,15 @@ def run_scan(folder, fps=25.0):
             "fps": round(fps_val, 3),   # 0.0 = nicht lesbar
         })
 
+    # ── Gesplittete Aufnahmen zusammenfuegen ───────────────────────────────
+    # Jeder Folgeteil faellt als eigene Spur weg; dafuer kommt ein Join-Schritt
+    # dazu → die Gesamtzahl bleibt passend.
+    def _on_join(name, n_parts):
+        scan_progress(f"Joining split recording: {name} ({n_parts} parts)")
+    raw_mics = mics
+    mics, joined_map = join_split_mics(mics, on_join=_on_join)
+    total_scan_steps -= len(raw_mics) - len(mics) - len(joined_map)
+
     # ── Intelligente Audio-Preview-Stellen finden ──────────────────────────
     scan_progress("Audio analysis: finding key moments")
     # Dominanz = lauter als die ANDEREN — das Ergebnis haengt vom ganzen
@@ -468,6 +498,9 @@ def run_scan(folder, fps=25.0):
             # Trennung/Isolation in dB (Median-Pegelabstand, wenn diese Person
             # spricht). None wenn nicht messbar (1 Mic / zu wenig Sprache).
             "separation_db": separation_db,
+            # Gesplittete Aufnahme: `path` ist dann die temporaere Gesamt-WAV,
+            # `parts` die Originalteile in Aufnahmereihenfolge (leer = Einzeldatei).
+            "parts": [str(p) for p in joined_map.get(str(mic), [])],
         })
 
     # Default-Zuordnung: MIC1->CAM2, MIC2->CAM1 (wie bisheriger Workflow)
@@ -965,8 +998,17 @@ def run_pipeline(folder, fps, params, output_path,
         # Zuordnungen (--cam-mics u.a.) wuerden verrutschen.
         cams = [Path(p) for p in (cams_arg or [])]
         mics = [Path(p) for p in (mics_arg or [])]
+        # Die App uebergibt fuer gesplittete Aufnahmen die temporaere Gesamt-WAV
+        # aus dem Scan. Die wird beim Beenden der App geloescht — fehlt sie, muss
+        # der Ordner neu eingelesen werden (erzeugt sie wieder).
+        missing = [m.name for m in mics if not m.exists()]
+        if missing:
+            raise RuntimeError(
+                f"Audiodatei nicht gefunden: {', '.join(missing)}. "
+                f"Bitte den Ordner neu laden.")
     else:
         cams, mics = scan_folder(folder)
+        mics, _ = join_split_mics(mics)
 
     if len(cams) < 2:
         raise RuntimeError(

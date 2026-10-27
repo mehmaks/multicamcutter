@@ -18,6 +18,7 @@ Benötigt: pip install pyaaf2
 """
 
 import json
+import math
 import re
 import subprocess
 from pathlib import Path
@@ -179,6 +180,17 @@ def _probe_video_info(path: str):
     return w, h
 
 
+def _bwf_exact_frames(time_ref: int, sample_rate: int, fps: float) -> float:
+    """BWF time_reference (Samples ab Mitternacht) → Frames, exakte Rate."""
+    return time_ref / sample_rate * float(_edit_rate(fps))
+
+
+def _bwf_start_frame(time_ref: int, sample_rate: int, fps: float) -> int:
+    """Reel-TC-Frame einer BWF-Datei so, wie Resolve ihn vergibt: erster VOLLER
+    Frame ab dem Startzeitpunkt (Toleranz gegen Float-Rauschen)."""
+    return math.ceil(_bwf_exact_frames(time_ref, sample_rate, fps) - 1e-6)
+
+
 def _probe_embedded_tc_frames(path: str, fps: float, dropframe: bool = False) -> int:
     """
     Liest embedded TC aus Video- oder Audiodateien:
@@ -227,10 +239,15 @@ def _probe_embedded_tc_frames(path: str, fps: float, dropframe: bool = False) ->
             pass
 
     # 2) BWF BEXT time_reference: Sample-Offset ab Mitternacht (in Datei-Samplerate)
+    # Wie Resolve: exakte Rate (29,97 → 30000/1001, nicht der gerundete fps-Wert —
+    # bei Tageszeit ~50000 s macht das >1 Frame aus) und AUFGERUNDET auf den ersten
+    # vollen Frame. Mit round/abgerundet lag der Reel-TC vor dem Datei-TC, den
+    # Resolve vergibt → "timecode extents do not match", sobald ein Clip ab
+    # Dateianfang genutzt wird (Split-Teil 2, Folge 59).
     time_ref = fmt_tags.get('time_reference')
     if time_ref and sample_rate:
         try:
-            return round(int(time_ref) / sample_rate * fps)
+            return _bwf_start_frame(int(time_ref), sample_rate, fps)
         except (ValueError, ZeroDivisionError):
             pass
 
@@ -238,6 +255,17 @@ def _probe_embedded_tc_frames(path: str, fps: float, dropframe: bool = False) ->
 
 
 from frame_utils import timecode_to_frames as _tc_to_frames
+
+
+def _split_parts(path):
+    """Originalteile einer zusammengefuegten Gesamt-WAV (gesplittete Rekorder-
+    Aufnahme, shared/split_audio.py) — sonst None. Ohne das shared-Modul im
+    Pfad (alte Standalone-Aufrufe) gibt es schlicht keine Teile."""
+    try:
+        from shared.split_audio import load_parts
+    except ImportError:
+        return None
+    return load_parts(path)
 
 
 # ── AAF helpers ───────────────────────────────────────────────────────────────
@@ -437,7 +465,6 @@ def build_aaf(
     # M Mikrofone — alle mic_paths
     mics        = mic_paths
     mic_durs    = [_probe_duration_frames(str(p), fps) for p in mics]
-    mic_infos   = [_probe_audio_info(str(p))           for p in mics]
     mic_offsets = [offsets.get(f'MIC{i + 1}', 0)      for i in range(len(mics))]
 
     total_frames = sum(e['source_out'] - e['source_in'] for e in events)
@@ -516,12 +543,26 @@ def build_aaf(
             cam_files.append((file_mob, fm_slot))
 
         # ── Audio: TapeMob + SourceMob + MasterMob ───────────────────────────
-        mic_tc      = [_probe_embedded_tc_frames(str(p), fps, dropframe=dropframe) for p in mics]
-        mic_masters = []
-        for idx, (mp, dur, tc, (channels, sr, bits)) in enumerate(
-                zip(mics, mic_durs, mic_tc, mic_infos)):
+        def _audio_master(mp, n_samples=None):
+            """Mob-Kette (Tape → Source → Master) fuer EINE Audiodatei.
+            Gibt (master, m_slot, dur_frames) zurueck. `n_samples` (bekannt bei
+            Split-Teilen): Laenge = Zahl der VOLLEN Frames zwischen Reel-TC-Start
+            (aufgerundet, s. _bwf_start_frame) und Dateiende — genau die TC-
+            Ausdehnung, die Resolve der Datei gibt. Ein Frame mehr (aufgerundete
+            Laenge) → Teil linkt nicht; der Rest am Teil-Ende wird Filler."""
+            channels, sr, bits = _probe_audio_info(str(mp))
+            if n_samples is not None:
+                from shared.split_audio import read_wav_info
+                t_ref = read_wav_info(str(mp)).get('time_ref') or 0
+                t0 = _bwf_exact_frames(t_ref, sr, fps)
+                dur = (math.floor(t0 + n_samples / sr * float(edit_rate) + 1e-6)
+                       - _bwf_start_frame(t_ref, sr, fps))
+                dur_samples = n_samples
+            else:
+                dur = _probe_duration_frames(str(mp), fps)
+                dur_samples = int(dur / fps * sr)
+            tc = _probe_embedded_tc_frames(str(mp), fps, dropframe=dropframe)
             block_align = channels * (bits // 8)
-            dur_samples = int(dur / fps * sr)
             stem = Path(mp).stem
 
             # TapeMob — Reel-Name + embedded TC (BWF time_reference oder timecode-Tag)
@@ -568,7 +609,58 @@ def build_aaf(
             sc.mob = src; sc.slot = slot; sc.start = 0; sc.length = dur
             m_slot.segment.components.append(sc)
             f.content.mobs.append(master)
-            mic_masters.append((master, m_slot))
+            return master, m_slot, dur
+
+        # Je Mic eine Liste von Segmenten (master, m_slot, start_frame, dur_frames)
+        # in Frames der Gesamtspur. Normalfall: EIN Segment ab 0. Gesplittete
+        # Aufnahme (Analyse lief auf der temporaeren Gesamt-WAV): je Originalteil
+        # ein Segment — die AAF verweist so nur auf die Originaldateien. Der Start
+        # jedes Teils wird ABSOLUT gerundet (Sample → Frame), damit sich bei
+        # mehreren Nahtstellen der Rundungsfehler (≤ ½ Frame) nicht aufaddiert.
+        mic_segments = []
+        for mp in mics:
+            parts = _split_parts(mp)
+            if parts:
+                segs = []
+                for p in parts:
+                    master, m_slot, dur = _audio_master(p['path'], n_samples=p['n_samples'])
+                    start = round(p['start_sample'] / p['sample_rate'] * float(edit_rate))
+                    segs.append((master, m_slot, start, dur))
+                print(f"  {Path(mp).name}: {len(parts)} Originalteile statt Gesamt-WAV")
+            else:
+                master, m_slot, dur = _audio_master(mp)
+                segs = [(master, m_slot, 0, dur)]
+            mic_segments.append(segs)
+
+        def _append_mic_range(a_slot, segs, start, length):
+            """Haengt den Bereich [start, start+length) der Gesamtspur an a_slot an.
+            Ueber eine Nahtstelle hinweg entstehen zwei Clips (je Teil einer);
+            Material jenseits eines Teil-Endes wird zu Filler, damit die Laenge
+            und damit der Sync aller folgenden Clips stimmt."""
+            if len(segs) == 1:
+                master, m_slot, _, _ = segs[0]
+                a_slot.segment.components.append(master.create_source_clip(
+                    slot_id=m_slot.slot_id, start=start, length=length))
+                return
+            pos, remaining = start, length
+            while remaining > 0:
+                k = 0
+                for i, s in enumerate(segs):
+                    if s[2] <= pos:
+                        k = i
+                master, m_slot, seg_start, seg_dur = segs[k]
+                seg_end = segs[k + 1][2] if k + 1 < len(segs) else pos + remaining
+                take = min(remaining, max(1, seg_end - pos))
+                local = pos - seg_start
+                clip_len = max(0, min(take, seg_dur - local))
+                if clip_len > 0:
+                    a_slot.segment.components.append(master.create_source_clip(
+                        slot_id=m_slot.slot_id, start=local, length=clip_len))
+                if take > clip_len:
+                    a_slot.segment.components.append(
+                        f.create.Filler(media_kind='sound', length=take - clip_len))
+                pos += take
+                remaining -= take
 
         # ── CompositionMob (Timeline) ──────────────────────────────────────────
         comp = f.create.CompositionMob()
@@ -720,9 +812,8 @@ def build_aaf(
             v_slot.segment = v_seq
 
         # A1 / A2 — MIC-Clips (segmentiert bei Pause-Trim, sonst kontinuierlich)
-        for i, (mic_data, mic_off, mic_dur) in enumerate(
-                zip(mic_masters, mic_offsets, mic_durs)):
-            master, m_slot = mic_data
+        for i, (segs, mic_off, mic_dur) in enumerate(
+                zip(mic_segments, mic_offsets, mic_durs)):
             mic_start  = max(0, abs_start0 - mic_off)
 
             a_slot = comp.create_sound_slot(edit_rate=edit_rate)
@@ -746,22 +837,18 @@ def build_aaf(
                         seg_dur += seg_src_start
                         seg_src_start = 0
                     if seg_dur > 0:
-                        sc = master.create_source_clip(
-                            slot_id=m_slot.slot_id, start=seg_src_start, length=seg_dur)
-                        a_slot.segment.components.append(sc)
+                        _append_mic_range(a_slot, segs, seg_src_start, seg_dur)
                         cursor += seg_dur
             else:
                 actual_dur = min(total_frames, max(0, mic_dur - mic_start))
                 if actual_dur <= 0:
                     continue
-                sc = master.create_source_clip(
-                    slot_id=m_slot.slot_id, start=mic_start, length=actual_dur)
-                a_slot.segment.components.append(sc)
+                _append_mic_range(a_slot, segs, mic_start, actual_dur)
 
                 tail = total_frames - actual_dur
                 if tail > 0:
                     filler = f.create.Filler(media_kind='sound', length=tail)
                     a_slot.segment.components.append(filler)
 
-    print(f"  → {output.name}  ({len(events)} Cuts, {len(mic_masters)} MIC-Spur(en))")
+    print(f"  → {output.name}  ({len(events)} Cuts, {len(mic_segments)} MIC-Spur(en))")
     return output

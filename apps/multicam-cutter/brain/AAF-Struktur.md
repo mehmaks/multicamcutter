@@ -138,6 +138,24 @@ selbst) UND Premiere.
 
 ---
 
+### Gesplittete Aufnahmen (seit 26.10.)
+Laeuft die Analyse auf einer temporaeren Gesamt-WAV (Manifest `<wav>.parts.json`,
+s. Dateiformate.md), legt `build_aaf` je **Originalteil** die normale Audio-Kette
+(Tape → Source → Master) an und `_append_mic_range` verteilt jeden Bereich der
+Gesamtspur auf die Teile (ueber die Naht → zwei Clips). Teil-Starts werden absolut
+auf Frames gerundet (≤ ½ Frame Versatz nach der Naht, keine Aufsummierung);
+Teil-Laenge = volle Frames bis Dateiende (s. unten). Einzeldateien: Ausgabe
+bis auf den BWF-Reel-TC (s. unten) identisch zum alten Code (geprueft 26.10.). **Resolve: linkt (26.10., Folge 59). Offen: Naht-Sync anhoeren, Premiere-Gegentest.**
+
+**BWF-Reel-TC wie Resolve (Fix 26.10., in Resolve an Folge 59 bestaetigt — alle Teile linken):**
+`time_reference` → Frames mit EXAKTER Rate (`_bwf_exact_frames`, 29,97 → 30000/1001,
+nie der gerundete `fps`) und **aufgerundet** auf den ersten vollen Frame
+(`_bwf_start_frame`). Teil-Laenge = volle Frames von dort bis Dateiende (abgerundet),
+Rest am Teil-Ende → Filler. Resolve vergibt der Datei genau diese TC-Ausdehnung; ein
+Frame davor (round/float-Rate) oder dahinter (aufgerundete Laenge) →
+*"failed to link because the timecode extents do not match"*. Einzeldateien linkten
+mit dem alten Wert trotzdem (Clip nie ab Frame 0), lagen aber 1 Frame versetzt.
+
 ## Getestet-funktionierende Referenz-Struktur (DaVinci-Style, Premiere 25.6.4)
 
 7 Mobs pro Quelle, mit **`CDCIDescriptor`** (Video) + **`PCMDescriptor`** (Audio),

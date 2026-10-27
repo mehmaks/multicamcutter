@@ -317,6 +317,16 @@ struct PersonRow: View {
                     Text(mic.filename)
                         .font(.system(.caption2, design: .monospaced))
                         .foregroundStyle(.wizFaint)
+                    // Gesplittete Rekorder-Aufnahme: die Engine hat die Teile fuer die
+                    // Analyse zusammengefuegt; der Export verweist auf die Originale.
+                    if mic.parts.count > 1 {
+                        Text("\(mic.parts.count) parts")
+                            .font(.caption2)
+                            .foregroundStyle(.wizMuted)
+                            .help(loc("Split recording — joined automatically from:") + "\n"
+                                  + mic.parts.map { ($0 as NSString).lastPathComponent }
+                                      .joined(separator: "\n"))
+                    }
                     if let sep = mic.separationDb {
                         SeparationBadge(db: sep)
                     }
