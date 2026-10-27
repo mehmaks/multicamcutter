@@ -329,6 +329,30 @@
 
 ## Gefixt
 
+### Preset mit Built-in-Namen überschreiben tat scheinbar nichts — GEFIXT (15.08.)
+- **Symptom:** Ein bestehendes Preset mit demselben Namen überschreiben (v.a. eines der
+  drei Built-ins wie „Podcast 2-Cam") → gespeichert, aber nichts wurde sichtbar/geladen.
+- **Ursache:** `PresetManager.listPresets` fügte Built-ins zuerst ein und **übersprang**
+  dann eine User-Datei gleicher id; `loadPreset` prüfte Built-ins **zuerst**. Die
+  `<slug>.json` des Users wurde also geschrieben, aber vom gleichnamigen Built-in verdeckt.
+- **Fix (`EngineController.swift`):** **User-Datei hat jetzt Vorrang** — `listPresets`
+  ersetzt ein Built-in gleicher id durch die User-Version (User-Name, `builtIn:false`),
+  `loadPreset` liest die User-Datei zuerst und fällt nur sonst aufs Built-in zurück. Der
+  Preset-Picker zeigt nach dem Speichern automatisch das Preset als ausgewählt (Rückmeldung).
+- **Nebeneffekt (ok):** Ein über ein Built-in gespeichertes Preset verdeckt dieses (User
+  gewinnt). Original zurück = die User-Datei in Application Support/MulticamCutter/presets löschen.
+
+### Preset-Picker zeigte nach Auswahl das falsche (parameter-gleiche) Preset — GEFIXT (15.08.)
+- **Symptom:** „JENA UNITED 3" auswählen → nach Schließen der Liste steht „JENA UNITED 2" da.
+- **Ursache:** Die angezeigte Auswahl war KEIN gemerkter Zustand, sondern abgeleitet:
+  `matchingPresetId = presets.first { loadPreset == engine.params }`. Bei zwei Presets mit
+  IDENTISCHEN Parametern (2 vs. 3) liefert `.first` das ERSTE — also „2", egal was gewählt war.
+- **Fix (`WizardView.swift` → `WizPresetDropdown`):** eigener `@State selectedId` als
+  Anzeige-Wahrheit; der Picker bindet daran. Bei EXTERNEN Parameter-Änderungen (Slider/Toggle)
+  gleicht `.onChange(of: engine.params)` ab: bleibt der Stand exakt auf dem gewählten Preset,
+  bleibt die Auswahl (auch bei Duplikaten); sonst passendes Preset oder „Custom". Speichern
+  setzt `selectedId` aufs frische Preset.
+
 ### 29,97-AAF: Drift + danach Kamera-Desync — Edit-Rate UND Drop-Frame-Reel-TC — GEFIXT (15.08., ⚠️ NLE-Gegentest offen)
 - **Symptom (in zwei Wellen)**: Projekt mit zwei 29,97-Kameras (Sony, `rtmd`-Metadaten).
   (1) App monierte fälschlich FPS-Mismatch (Timeline fix 25) → Konvertierungs-Drang.

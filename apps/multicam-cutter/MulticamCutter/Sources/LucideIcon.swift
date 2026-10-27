@@ -42,7 +42,8 @@ struct LucideIcon: View {
     ///
     /// Reihenfolge: Icons direkt in den App-Resources (der robuste Ort, den
     /// `build_app.sh` befuellt) → SPM-Bundle in den Resources (Release) →
-    /// SPM-Bundle neben dem Binary (`swift run`).
+    /// SPM-Bundle neben dem Binary (`swift run`) — flach (alter SwiftPM-Build)
+    /// oder als echtes Bundle mit `Contents/Resources` (neues `.build/out`-Layout).
     private static let searchRoots: [URL] = {
         let spm = "MulticamCutter_MulticamCutter.bundle"
         var roots: [URL] = []
@@ -50,7 +51,9 @@ struct LucideIcon: View {
             roots.append(res)
             roots.append(res.appendingPathComponent(spm))
         }
-        roots.append(Bundle.main.bundleURL.appendingPathComponent(spm))
+        let devBundle = Bundle.main.bundleURL.appendingPathComponent(spm)
+        roots.append(devBundle)
+        roots.append(devBundle.appendingPathComponent("Contents/Resources"))
         return roots
     }()
 

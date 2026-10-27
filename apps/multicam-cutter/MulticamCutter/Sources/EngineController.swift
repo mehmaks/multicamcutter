@@ -361,39 +361,57 @@ final class PresetManager: Sendable {
     ]
 
     func listPresets() -> [Preset] {
-        var result = builtInPresets.map { Preset(id: $0.0, name: $0.1, builtIn: true) }
-
-        // User-Presets aus dem Dateisystem
+        // User-Dateien zuerst einlesen (id → Name). Eine User-Datei ÜBERSCHREIBT ein
+        // Built-in gleicher id — sonst blieb ein „über ein Built-in gespeichertes"
+        // Preset unsichtbar (Built-in verdeckte es) und Überschreiben tat scheinbar nichts.
+        var userNames: [String: String] = [:]
         if let files = try? FileManager.default.contentsOfDirectory(
             at: presetsDir, includingPropertiesForKeys: nil
         ) {
             for file in files where file.pathExtension == "json" {
                 let id = file.deletingPathExtension().lastPathComponent
-                if result.contains(where: { $0.id == id }) { continue }
-                // Name aus JSON lesen
                 if let data = try? Data(contentsOf: file),
                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let name = json["name"] as? String {
-                    result.append(Preset(id: id, name: name, builtIn: false))
+                    userNames[id] = name
                 }
             }
+        }
+        var result: [Preset] = []
+        var seen = Set<String>()
+        // Built-ins in fester Reihenfolge — vom User überschriebene tragen den User-Namen
+        // und gelten als nicht-built-in (bearbeitbar/löschbar).
+        for b in builtInPresets {
+            if let userName = userNames[b.0] {
+                result.append(Preset(id: b.0, name: userName, builtIn: false))
+            } else {
+                result.append(Preset(id: b.0, name: b.1, builtIn: true))
+            }
+            seen.insert(b.0)
+        }
+        // Reine User-Presets (keine Built-in-id), stabil nach Name sortiert.
+        for (id, name) in userNames.sorted(by: { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending })
+        where !seen.contains(id) {
+            result.append(Preset(id: id, name: name, builtIn: false))
         }
         return result
     }
 
     func loadPreset(_ id: String) -> PipelineParams? {
-        // Built-in?
+        // User-Datei hat VORRANG (überschreibt ein Built-in gleicher id).
+        let file = presetsDir.appendingPathComponent("\(id).json")
+        if let data = try? Data(contentsOf: file),
+           let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let paramsDict = json["params"] as? [String: Any] {
+            var params = PipelineParams()
+            params.apply(paramsDict)
+            return params
+        }
+        // Sonst das Built-in.
         if let builtIn = builtInPresets.first(where: { $0.0 == id }) {
             return builtIn.2
         }
-        // User-Preset
-        let file = presetsDir.appendingPathComponent("\(id).json")
-        guard let data = try? Data(contentsOf: file),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let paramsDict = json["params"] as? [String: Any] else { return nil }
-        var params = PipelineParams()
-        params.apply(paramsDict)
-        return params
+        return nil
     }
 
     /// Name des Built-in-Presets, dessen Parameter EXAKT den uebergebenen entsprechen

@@ -6,6 +6,16 @@
 
 ## 🔥 Vorgezogen — höchste Priorität
 
+> **🚦 Release-Strategie (User, 15.08.): KEINE Subversion mehr vor v1.0.** Der nächste
+> öffentliche Release ist direkt **v1.0** und bündelt alles (Dropframe-Fix, i18n, Bundle-
+> Größe, Telemetrie). Also KEIN 0.6.11-Zwischen-Release. Frozen-Rebuild + `release.sh`
+> laufen erst zum v1.0-Zeitpunkt — Gate: Telemetrie-Backend deployed (Web-Session).
+> **v1.0-Changelog sammelt** (bei Release aus den Commits final formulieren):
+> - **Neu:** Englische Sprachunterstützung (App folgt der macOS-Systemsprache DE/EN).
+> - **Behoben:** 29,97-fps-Projekte (Drop-Frame, z.B. Sony) — Kameras liefen im AAF
+>   auseinander, Bild/Ton ab Start versetzt (falsch gestempelte Timeline-Bildrate).
+>   Jetzt exakt 29,97 + Drop-Frame-TC. ⚠️ Hinweis: 29,97-Schnitte neu exportieren.
+
 - **Engine-Rebuild für den 29,97-Drop-Frame-Fix** (aufgenommen 15.08.). Der Fix
   (`build_aaf.py` Edit-Rate 30000/1001 + Drop-Frame-Reel-TC, `shared/frame_utils.py`
   nominale Zählung, Swift `deriveProjectFpsFromCameras`) wirkt im **Dev** sofort, muss
@@ -40,7 +50,7 @@ Post-1.0 (C), nicht in diese Liste.
 | 3 | **Bundle-Größe** — ⚠️ WIEDER OFFEN (25.07.): „verifiziert" war FALSCH. Excludes brachen im Release Nodding (mediapipe→matplotlib) + CLIP (transformers→pandas/pyarrow/sklearn). Spec gefixt; braucht **Frozen-Rebuild + Patch-Release + Nodding-Lauf am Release**. Sichere Excludes: nur llvmlite/numba/plotly | 🎯 A | leicht | Lehre: sys.modules-Trace statt grep |
 | ~~4~~ ✅ | ~~**Mehrere Totalen Stufe 1**~~ — GELIEFERT (25.07.): `totale_mode` (round_robin/random/first), Reset + Multi-Person-Fallback rotieren, Experten-Picker + Schema. Rest-Sliver: Base-EDL-Totale (Binär-Simultan) noch first-only | ✨ B | ✓ | erledigt — nächster offener Punkt: **5** |
 | ~~5~~ ✅ | ~~**Dock-Balken gewichtet**~~ — GELIEFERT (25.07.): Engine schickt `step_weights` (Nodding/CLIP dominieren, adaptiv zu Kamerazahl+CLIP), Swift normiert `overallProgress`, Fallback bei Mismatch | ✨ B | ✓ | erledigt — nächster offener Punkt: **6** |
-| 6 | **Telemetrie** (Opt-in) — ✅ App-Seite KOMPLETT (26.07.: Consent-Prompt gebaut); Backend gebaut (Web-Session, lokal verifiziert); OFFEN: **Deploy** (Web-Repo) + E2E | 🌍 | mittel | App fertig (Toggle Default AUS + Erst-Start-Zustimmung, fire-and-forget); Rest extern |
+| ~~6~~ ✅ | **Telemetrie** (Opt-in) — App-Seite KOMPLETT (26.07.); Backend **LIVE** (verifiziert 05.10.: `/api/telemetry`→405 [existiert, nur POST], `/de/privacy`→200). OFFEN nur noch: **E2E-Bestätigung** (echter Consent-Lauf → Event in Neon-DB, Web-Session) — kein Release-Blocker mehr | 🌍 | ✓ | Deploy erledigt → Release-Gate weg |
 | ~~7~~ ✅ | ~~**Settings-Durchgang**~~ — GELIEFERT (26.07.): User-Änderungsliste (CSV) eingepflegt — ParamHelp ×20 Hilfetexte + 3 Experten-Labels an Basis angeglichen (Min./Max. Schnittlänge, Pausen kürzen) + Web-Schema `help` synchron. **String-Freeze steht**, Build grün | ✨ B | ✓ | erledigt — nächster offener Punkt: **8** |
 | ~~8~~ ✅ | ~~**Mehrsprachigkeit DE/EN**~~ — GELIEFERT (15.08.): system-folgend (macOS-Sprache), EN=Quell-/Key-Sprache, `de.lproj/Localizable.strings` (375 Einträge) übersetzt; `loc()`-Helper für Laufzeit-Strings, Komponenten + interpolierte/Plural-Strings verdrahtet, `build_app.sh` kopiert beide `.lproj`. Verifiziert (DE löst auf, EN=Keys). Detail unten in „Multilanguage" | 🌍 | ✓ | erledigt → **1.0-Kern steht** (offen bleiben nur noch 3 Bundle-Größe + 6 Telemetrie-Deploy) |
 

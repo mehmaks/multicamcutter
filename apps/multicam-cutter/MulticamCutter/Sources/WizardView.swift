@@ -1516,10 +1516,16 @@ struct WizPresetDropdown: View {
     /// frisch gespeichertes Preset nicht im Menü auf. Nach Speichern/Import neu laden.
     /// Nebeneffekt: spart die mehrfachen Verzeichnis-/JSON-Lesevorgänge pro Render.
     @State private var presets: [Preset] = PresetManager.shared.listPresets()
+    /// Die tatsächlich GEWÄHLTE Preset-ID (Anzeige-Wahrheit). Früher wurde die Anzeige
+    /// aus dem Parameter-Vergleich abgeleitet — bei parameter-GLEICHEN Presets (z.B.
+    /// „JENA UNITED 2/3") zeigte der Picker dann das ERSTE Treffer-Preset statt des
+    /// gewählten. Jetzt merkt er sich die Auswahl explizit.
+    @State private var selectedId: String?
 
     private func reloadPresets() { presets = PresetManager.shared.listPresets() }
 
-    /// ID des Presets, das exakt den aktuellen Parametern entspricht (sonst „Angepasst").
+    /// ID des ersten Presets, das exakt den aktuellen Parametern entspricht (sonst nil
+    /// → „Custom"). Nur für den Abgleich bei EXTERNEN Parameter-Änderungen.
     private var matchingPresetId: String? {
         presets.first { PresetManager.shared.loadPreset($0.id) == engine.params }?.id
     }
@@ -1530,10 +1536,13 @@ struct WizPresetDropdown: View {
 
             // Natives Menü-Dropdown: dunkle Box + aktueller Name + Chevron (wie Dummy).
             Picker("", selection: Binding(
-                get: { matchingPresetId },
-                set: { if let id = $0, let p = PresetManager.shared.loadPreset(id) { engine.params = p } }
+                get: { selectedId },
+                set: { newId in
+                    selectedId = newId
+                    if let id = newId, let p = PresetManager.shared.loadPreset(id) { engine.params = p }
+                }
             )) {
-                if matchingPresetId == nil {
+                if selectedId == nil {
                     Text("Custom").tag(String?.none)
                 }
                 ForEach(presets) { Text($0.name).tag(Optional($0.id)) }
@@ -1541,9 +1550,21 @@ struct WizPresetDropdown: View {
             .labelsHidden()
             .frame(minWidth: 150)
 
-            // Speichern / Import / Export dahinter (kompaktes Overflow-Menü).
+            // Sichtbarer „Preset speichern"-Button. Vorher steckte Speichern nur im
+            // ⋯-Overflow-Menü und war dadurch unauffindbar (User, 15.08.).
+            Button { newName = ""; showSaveSheet = true } label: {
+                LucideLabel("Save preset", icon: "folder-plus", size: 12)
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.wizText)
+                    .padding(.horizontal, 10).padding(.vertical, 5)
+                    .background(Color.wizSurface2, in: Capsule())
+                    .overlay(Capsule().stroke(Color.wizBorder2, lineWidth: 1))
+            }
+            .buttonStyle(.plain)
+            .help("Save the current settings as a preset")
+
+            // Import / Export bleiben im kompakten ⋯-Menü.
             Menu {
-                Button("Save preset …") { newName = ""; showSaveSheet = true }
                 Button("Import preset …") {
                     if let (_, p) = PresetManager.shared.importPreset() {
                         engine.params = p
@@ -1560,7 +1581,17 @@ struct WizPresetDropdown: View {
             .menuIndicator(.hidden)
             .fixedSize()
         }
-        .onAppear { reloadPresets() }   // falls anderswo Presets dazugekommen sind
+        .onAppear {
+            reloadPresets()   // falls anderswo Presets dazugekommen sind
+            selectedId = matchingPresetId   // Start: passt der aktuelle Stand zu einem Preset?
+        }
+        .onChange(of: engine.params) { _, _ in
+            // Externe Parameter-Änderung (Slider/Toggle): Auswahl abgleichen. Steht der
+            // Stand exakt auf dem gewählten Preset, bleibt die Auswahl (auch bei
+            // parameter-gleichen Duplikaten). Sonst passendes Preset oder „Custom".
+            if let id = selectedId, PresetManager.shared.loadPreset(id) == engine.params { return }
+            selectedId = matchingPresetId
+        }
         .sheet(isPresented: $showSaveSheet) {
             VStack(spacing: 16) {
                 Text("Save preset").font(.headline)
@@ -1569,8 +1600,9 @@ struct WizPresetDropdown: View {
                     Button("Cancel") { showSaveSheet = false }
                     Button("Save") {
                         guard !newName.isEmpty else { return }
-                        _ = PresetManager.shared.savePreset(name: newName, params: engine.params)
+                        let saved = PresetManager.shared.savePreset(name: newName, params: engine.params)
                         reloadPresets()   // ohne das erscheint das neue Preset nicht im Menü
+                        selectedId = saved.id   // frisch gespeichertes Preset direkt anzeigen
                         showSaveSheet = false
                     }
                     .buttonStyle(.borderedProminent).disabled(newName.isEmpty)
