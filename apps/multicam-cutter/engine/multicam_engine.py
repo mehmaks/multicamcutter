@@ -71,15 +71,49 @@ def scan_folder(folder):
     return cams, mics
 
 
-def join_split_mics(mics, on_join=None):
+def join_split_mics(mics, on_join=None, manual_groups=None, keep_separate=None):
     """Gesplittete Rekorder-Aufnahmen (z. B. Zoom: neue Datei nach 1 GB) zu je
     EINER temporaeren WAV zusammenfuegen — die Analyse sieht dann eine Spur je
     Person. Der AAF-Export verweist ueber das Manifest wieder auf die Originale
-    (shared/split_audio.py). Gibt (mics, {joined: [teile]}) zurueck.
-    `on_join(name)` wird vor jedem Zusammenfuegen aufgerufen (Fortschritt)."""
-    from shared.split_audio import detect_split_groups, join_group
-    out, joined_map = [], {}
-    for g in detect_split_groups(mics):
+    (shared/split_audio.py). `on_join(name)` wird vor jedem Zusammenfuegen
+    aufgerufen (Fortschritt).
+
+    Manuelle Korrekturen aus der App (per Dateiname, in `.multicam` gespeichert):
+    - `manual_groups`: Listen von Dateien, die zusammengehoeren ("gehoert zu ...")
+      — gehen der Erkennung vor, ohne Zeit-/Nahtpruefung.
+    - `keep_separate`: Dateien, die NIE automatisch verbunden werden ("trennen").
+
+    Gibt (mics, {joined: [teile]}, {manuell verbundene joined}, [warnungen]) zurueck."""
+    from shared.split_audio import detect_split_groups, join_group, order_manual_group
+    mics = [Path(m) for m in mics]
+    by_name = {m.name: m for m in mics}
+    position = {str(m): k for k, m in enumerate(mics)}
+    groups, manual, used, warnings = [], set(), set(), []
+    for names in manual_groups or []:
+        paths = [by_name[n] for n in names if n in by_name and n not in used]
+        if len(paths) < 2:
+            continue
+        try:
+            g = order_manual_group(paths)
+        except ValueError as e:
+            warnings.append(str(e))
+            continue
+        used.update(Path(p).name for p in g)
+        groups.append(g)
+        manual.add(len(groups) - 1)
+    keep = set(keep_separate or [])
+    for g in detect_split_groups([m for m in mics if m.name not in used]):
+        if len(g) > 1 and any(Path(p).name in keep for p in g):
+            groups.extend([p] for p in g)
+        else:
+            groups.append(g)
+
+    # Spur-Reihenfolge wie im Ordner (nach der Position des fruehesten Teils)
+    order = sorted(range(len(groups)),
+                   key=lambda k: min(position[str(p)] for p in groups[k]))
+    out, joined_map, manual_joined = [], {}, set()
+    for k in order:
+        g = groups[k]
         if len(g) == 1:
             out.append(Path(g[0]))
             continue
@@ -88,7 +122,9 @@ def join_split_mics(mics, on_join=None):
         j = join_group(g)
         out.append(Path(j))
         joined_map[j] = g
-    return out, joined_map
+        if k in manual:
+            manual_joined.add(j)
+    return out, joined_map, manual_joined, warnings
 
 
 # ── CLIP Person-Check fuer Thumbnails ─────────────────────────────────────────
@@ -327,7 +363,7 @@ def _find_dominant_mic_positions(mics, analysis_duration=120, window_s=1.0):
 
 # ── Scan-Modus: Thumbnails + Audio-Previews ──────────────────────────────────
 
-def run_scan(folder, fps=25.0):
+def run_scan(folder, fps=25.0, join_groups=None, keep_separate=None):
     """Scannt Ordner, extrahiert Thumbnails und Audio-Previews.
 
     Gibt ein Dict zurueck das als JSON an die SwiftUI-App geht.
@@ -425,7 +461,8 @@ def run_scan(folder, fps=25.0):
     def _on_join(name, n_parts):
         scan_progress(f"Joining split recording: {name} ({n_parts} parts)")
     raw_mics = mics
-    mics, joined_map = join_split_mics(mics, on_join=_on_join)
+    mics, joined_map, manual_joined, join_warnings = join_split_mics(
+        mics, on_join=_on_join, manual_groups=join_groups, keep_separate=keep_separate)
     total_scan_steps -= len(raw_mics) - len(mics) - len(joined_map)
 
     # ── Intelligente Audio-Preview-Stellen finden ──────────────────────────
@@ -501,6 +538,8 @@ def run_scan(folder, fps=25.0):
             # Gesplittete Aufnahme: `path` ist dann die temporaere Gesamt-WAV,
             # `parts` die Originalteile in Aufnahmereihenfolge (leer = Einzeldatei).
             "parts": [str(p) for p in joined_map.get(str(mic), [])],
+            # True = vom Nutzer verbunden ("gehoert zu ..."), False = erkannt
+            "parts_manual": str(mic) in manual_joined,
         })
 
     # Default-Zuordnung: MIC1->CAM2, MIC2->CAM1 (wie bisheriger Workflow)
@@ -514,6 +553,8 @@ def run_scan(folder, fps=25.0):
         "cameras": cam_infos,
         "mics": mic_infos,
         "default_mapping": default_mapping,
+        # Manuelle Verbindungen, die nicht gingen (z. B. anderes Audioformat)
+        "join_warnings": join_warnings,
     }
 
 
@@ -1008,7 +1049,7 @@ def run_pipeline(folder, fps, params, output_path,
                 f"Bitte den Ordner neu laden.")
     else:
         cams, mics = scan_folder(folder)
-        mics, _ = join_split_mics(mics)
+        mics = join_split_mics(mics)[0]
 
     if len(cams) < 2:
         raise RuntimeError(
@@ -1253,6 +1294,12 @@ def main():
     parser.add_argument("--cam-mics", nargs="+", default=None)
     parser.add_argument("--cam-types", nargs="+", default=None)
     parser.add_argument("--cam-nodding", nargs="+", default=None)
+    parser.add_argument("--join-groups", default=None,
+                        help="--scan: JSON-Liste von Dateinamen-Listen, die als EINE "
+                             "Aufnahme gelten (manuell, ueberstimmt die Erkennung)")
+    parser.add_argument("--keep-separate", default=None,
+                        help="--scan: JSON-Liste von Dateinamen, die nie automatisch "
+                             "verbunden werden")
     parser.add_argument("--skip-analysis", action="store_true")
     parser.add_argument("--skip-base-edl", action="store_true")
     parser.add_argument("--speaking-mode", choices=["rms", "peak"], default=None)
@@ -1462,7 +1509,10 @@ def main():
             return 1
         folder = Path(args.folder).resolve()
         try:
-            scan_result = run_scan(folder, args.fps)
+            scan_result = run_scan(
+                folder, args.fps,
+                join_groups=json.loads(args.join_groups) if args.join_groups else None,
+                keep_separate=json.loads(args.keep_separate) if args.keep_separate else None)
             # Scan-Ergebnis als einzelnes JSON-Objekt ausgeben
             emit("scan_complete", **scan_result)
             return 0

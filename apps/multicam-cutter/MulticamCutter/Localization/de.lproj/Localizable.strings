@@ -376,3 +376,8 @@
 "Save the current settings as a preset" = "Aktuelle Einstellungen als Preset speichern";
 "%lld parts" = "%lld Teile";
 "Split recording — joined automatically from:" = "Gesplittete Aufnahme — automatisch zusammengefügt aus:";
+"Joined manually from:" = "Manuell zusammengefügt aus:";
+"Belongs to …" = "Gehört zu …";
+"Split into separate files" = "In Einzeldateien trennen";
+"Recording split into several files? Join it with the track it belongs to" = "Aufnahme in mehrere Dateien gesplittet? Mit der Spur verbinden, zu der sie gehört";
+"Couldn't join recordings" = "Aufnahmen konnten nicht verbunden werden";

@@ -69,6 +69,8 @@ struct MicInfo: Identifiable, Hashable {
     /// Gesamt-WAV der Engine (Analyse, Waveform, Abspielen); der AAF-Export
     /// verweist auf die Teile. Leer = normale Einzeldatei.
     var parts: [String] = []
+    /// true = vom Nutzer verbunden („Gehört zu …"), false = automatisch erkannt.
+    var partsManual: Bool = false
 
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: MicInfo, rhs: MicInfo) -> Bool { lhs.id == rhs.id }
@@ -580,6 +582,14 @@ class EngineController: ObservableObject {
     @Published var convertLabel = ""           // Dateiname der aktuellen Konvertierung
     @Published var convertLog: [String] = []   // ffmpeg-Roh-Log (nur fuer Fehler-Diagnose)
     @Published var convertError: String?
+    /// Manuelle Verbindung gesplitteter Aufnahmen ging nicht (z. B. anderes Format).
+    @Published var joinWarning: String?
+
+    /// Manuelle Korrekturen der Split-Erkennung, per DATEINAME (stabil wie die
+    /// übrigen Session-Daten), gespeichert in `.multicam`. Gehen als
+    /// `--join-groups`/`--keep-separate` an den Scan — die Engine fügt zusammen.
+    private var audioJoinGroups: [[String]] = []
+    private var audioKeepSeparate: [String] = []
     @Published var convertFileIndex = 0        // laufende Datei (1-basiert)
     @Published var convertFileCount = 0        // Anzahl zu konvertierender Dateien
     @Published var convertDone: Double = 0     // konvertierte Sekunden der aktuellen Datei
@@ -898,9 +908,63 @@ class EngineController: ObservableObject {
                  "included": mic.included] as [String: Any]
             },
             "params": params.toDict(),
+            "audio_joins": audioJoinGroups,
+            "audio_keep_separate": audioKeepSeparate,
         ]
         guard let data = try? JSONSerialization.data(withJSONObject: session, options: .prettyPrinted) else { return }
         try? data.write(to: url)
+    }
+
+    /// Liest NUR die Split-Korrekturen aus `.multicam` — sie werden VOR dem Scan
+    /// gebraucht, der Rest der Session erst danach (Match über die Scan-Ergebnisse).
+    private func loadAudioJoinSettings() {
+        audioJoinGroups = []
+        audioKeepSeparate = []
+        guard let url = sessionFileURL,
+              let data = try? Data(contentsOf: url),
+              let session = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+        audioJoinGroups = session["audio_joins"] as? [[String]] ?? []
+        audioKeepSeparate = session["audio_keep_separate"] as? [String] ?? []
+    }
+
+    // MARK: - Gesplittete Aufnahmen manuell korrigieren
+
+    /// Originaldateien einer Spur (eine, oder die Teile einer gesplitteten Aufnahme).
+    private func partFilenames(_ mic: MicInfo) -> [String] {
+        mic.parts.isEmpty ? [mic.filename] : mic.parts.map { ($0 as NSString).lastPathComponent }
+    }
+
+    /// „Gehört zu …": Spur `micId` ist Teil derselben Aufnahme wie `targetId`. Die
+    /// Engine ordnet nach Zeitstempel (sonst: Ziel zuerst) und fügt beim Scan zusammen.
+    func joinMic(_ micId: Int, into targetId: Int) {
+        guard let mic = micInfos.first(where: { $0.id == micId }),
+              let target = micInfos.first(where: { $0.id == targetId }) else { return }
+        let names = partFilenames(target) + partFilenames(mic)
+        audioJoinGroups.removeAll { !Set($0).isDisjoint(with: names) }
+        audioKeepSeparate.removeAll { names.contains($0) }
+        audioJoinGroups.append(names)
+        Task { await rescanForAudioJoins() }
+    }
+
+    /// Verbundene Spur wieder in ihre Einzeldateien zerlegen — auch eine falsch
+    /// ERKANNTE (dann werden die Teile von der Erkennung ausgenommen).
+    func splitMic(_ micId: Int) {
+        guard let mic = micInfos.first(where: { $0.id == micId }), mic.parts.count > 1 else { return }
+        let names = partFilenames(mic)
+        audioJoinGroups.removeAll { !Set($0).isDisjoint(with: names) }
+        for n in names where !audioKeepSeparate.contains(n) { audioKeepSeparate.append(n) }
+        Task { await rescanForAudioJoins() }
+    }
+
+    /// Speichern + neu scannen. Namen/Zuordnungen kommen danach über `.multicam`
+    /// (Match per Dateiname) zurück; die verbundene Spur trägt den Namen ihres
+    /// ersten Teils. Der Scan ist billig (Thumbnails/Previews gecacht).
+    private func rescanForAudioJoins() async {
+        guard let folder = folderURL else { return }
+        stopAllPlayback()
+        saveSession()
+        state = .scanning
+        await runScan(folder: folder, decideWizardStep: false)
     }
 
     func loadSession() -> Bool {
@@ -1832,7 +1896,19 @@ class EngineController: ObservableObject {
     // MARK: - Scan (Engine --scan)
 
     private func runScan(folder: URL, decideWizardStep: Bool = true) async {
-        guard let (execPath, baseArgs) = engineCommand(extraArgs: ["--folder", folder.path, "--scan"]) else {
+        loadAudioJoinSettings()
+        var scanArgs = ["--folder", folder.path, "--scan"]
+        if !audioJoinGroups.isEmpty,
+           let d = try? JSONSerialization.data(withJSONObject: audioJoinGroups),
+           let j = String(data: d, encoding: .utf8) {
+            scanArgs += ["--join-groups", j]
+        }
+        if !audioKeepSeparate.isEmpty,
+           let d = try? JSONSerialization.data(withJSONObject: audioKeepSeparate),
+           let j = String(data: d, encoding: .utf8) {
+            scanArgs += ["--keep-separate", j]
+        }
+        guard let (execPath, baseArgs) = engineCommand(extraArgs: scanArgs) else {
             errorMessage = "Engine or Python not found"
             state = .error
             return
@@ -1936,8 +2012,13 @@ class EngineController: ObservableObject {
                 previewOffsetS: (mic["preview_offset_s"] as? NSNumber)?.doubleValue ?? 0,
                 separationDb: (mic["separation_db"] as? NSNumber)?.doubleValue,
                 durationSeconds: mic["duration_s"] as? Double ?? 0,
-                parts: mic["parts"] as? [String] ?? []
+                parts: mic["parts"] as? [String] ?? [],
+                partsManual: mic["parts_manual"] as? Bool ?? false
             ))
+        }
+
+        if let warnings = json["join_warnings"] as? [String], !warnings.isEmpty {
+            joinWarning = warnings.joined(separator: "\n")
         }
 
         // Keine Auto-Zuordnung — Mics starten als "nicht zugeordnet".

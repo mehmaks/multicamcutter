@@ -319,6 +319,30 @@ def _fmt_key(i):
             i["block_align"], i["originator"])
 
 
+def order_manual_group(paths):
+    """Vom Nutzer zusammengefasste Teile ("gehoert zu ...") pruefen und ordnen.
+
+    Anders als bei der Erkennung gibt es keine Zeit-/Nahtpruefung — der Nutzer
+    entscheidet. Pflicht ist nur gleiches Audioformat, sonst waere die Gesamt-WAV
+    Datenmuell. Reihenfolge: nach bext-Zeitstempel, wenn ALLE Teile einen haben,
+    sonst wie uebergeben. Wirft ValueError mit lesbarer Begruendung."""
+    paths = [str(p) for p in paths]
+    infos = [read_wav_info(p) for p in paths]
+    for p, i in zip(paths, infos):
+        if i is None:
+            raise ValueError(f"{Path(p).name} ist keine WAV-Datei")
+    fmt = lambda i: (i["format"], i["channels"], i["sample_rate"], i["bits"], i["block_align"])
+    desc = lambda i: f"{i['sample_rate']} Hz / {i['bits']} bit / {i['channels']} ch"
+    for p, i in zip(paths[1:], infos[1:]):
+        if fmt(i) != fmt(infos[0]):
+            raise ValueError(f"{Path(p).name} passt nicht zu {Path(paths[0]).name}: "
+                             f"anderes Audioformat ({desc(i)} statt {desc(infos[0])})")
+    if all(i["time_ref"] is not None for i in infos):
+        order = sorted(range(len(paths)), key=lambda k: infos[k]["time_ref"])
+        return [paths[k] for k in order]
+    return paths
+
+
 # ── Zusammenfuegen ───────────────────────────────────────────────────────────
 
 def _group_key(parts) -> str:

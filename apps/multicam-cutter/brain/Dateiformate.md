@@ -115,6 +115,13 @@ die Namensaehnlichkeit.
   Originalteile (die Gesamt-WAV kommt nie ins Schnittprojekt).
 - `.multicam` speichert wie gehabt den Dateinamen — der ist bei der Gesamt-WAV der
   von Teil 1, Zuordnungen bleiben also stabil.
+- **Manuelle Korrekturen** (seit 27.10.) in `.multicam`, per Dateiname:
+  `"audio_joins": [["a.wav", "b.wav"], …]` (vom Nutzer verbunden, „Gehört zu …" —
+  geht der Erkennung vor, ohne Zeit-/Nahtpruefung; nur gleiches Audioformat) und
+  `"audio_keep_separate": ["c.wav", …]` (nie automatisch verbinden, „In Einzeldateien
+  trennen"). Die App liest beides VOR dem Scan und reicht es als `--join-groups` /
+  `--keep-separate` an die Engine. Reihenfolge der Teile: bext-Zeitstempel, wenn alle
+  einen haben, sonst wie gewaehlt (Ziel-Spur zuerst).
 
 ## Pipeline-Output
 

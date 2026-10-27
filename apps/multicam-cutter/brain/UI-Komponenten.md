@@ -58,7 +58,9 @@ eine `PersonRow`. Grundregel der App: **1 Person = 1 Mic**.
 
 **PersonRow**: Avatar (Initialen auf Identitätsfarbe) · editierbares `TextField`
 (Name) + Dateiname (monospaced) · Play/Pause (`toggleMicPreview`, ab erster
-lauter Stelle) · Trash (`deletePerson` — Spur ist kein Sprecher).
+lauter Stelle) · Link-Menue (gesplittete Aufnahmen: „Gehört zu …" → `joinMic`,
+„In Einzeldateien trennen" → `splitMic`; beide speichern und scannen neu, Badge
+„N Teile" mit Teil-Liste im Tooltip) · Trash (`deletePerson` — Spur ist kein Sprecher).
 - Name-Commit bei `.onSubmit`, Fokusverlust (`onChange(of: focused)`) **und**
   `.onDisappear` (Sicherheitsnetz gegen verlorene Umbenennung bei „Weiter").
 - `liveName` liest aus `engine.micInfos` (reagiert auf Rename von außen).

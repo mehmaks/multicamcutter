@@ -110,6 +110,11 @@ struct WizardView: View {
         .sheet(isPresented: $engine.isConverting) {
             FpsConversionSheet().environmentObject(engine)
         }
+        .alert("Couldn't join recordings",
+               isPresented: Binding(get: { engine.joinWarning != nil },
+                                    set: { if !$0 { engine.joinWarning = nil } })) {
+            Button("OK", role: .cancel) { engine.joinWarning = nil }
+        } message: { Text(engine.joinWarning ?? "") }
         .alert("Conversion failed",
                isPresented: Binding(get: { engine.convertError != nil },
                                     set: { if !$0 { engine.convertError = nil } })) {
@@ -323,8 +328,9 @@ struct PersonRow: View {
                         Text("\(mic.parts.count) parts")
                             .font(.caption2)
                             .foregroundStyle(.wizMuted)
-                            .help(loc("Split recording — joined automatically from:") + "\n"
-                                  + mic.parts.map { ($0 as NSString).lastPathComponent }
+                            .help(loc(mic.partsManual ? "Joined manually from:"
+                                                      : "Split recording — joined automatically from:")
+                                  + "\n" + mic.parts.map { ($0 as NSString).lastPathComponent }
                                       .joined(separator: "\n"))
                     }
                     if let sep = mic.separationDb {
@@ -342,6 +348,29 @@ struct PersonRow: View {
             .buttonStyle(.plain)
             .help("Play the whole track (starts at the loudest point) — "
                   + "or click straight into the waveform")
+
+            // Gesplittete Aufnahmen korrigieren: Teile, die die Erkennung nicht
+            // verbunden hat (kein Zeitstempel, Stille an der Naht), von Hand
+            // zusammenfassen — oder eine falsch verbundene Spur wieder trennen.
+            Menu {
+                Menu("Belongs to …") {
+                    ForEach(engine.micInfos.filter { $0.id != mic.id }) { other in
+                        Button(other.displayName + " (" + other.filename + ")") {
+                            engine.joinMic(mic.id, into: other.id)
+                        }
+                    }
+                }
+                .disabled(engine.micInfos.count < 2)
+                if mic.parts.count > 1 {
+                    Button("Split into separate files") { engine.splitMic(mic.id) }
+                }
+            } label: {
+                LucideIcon("link", size: 15).foregroundStyle(.wizMuted)
+            }
+            .menuStyle(.borderlessButton)
+            .menuIndicator(.hidden)
+            .fixedSize()
+            .help("Recording split into several files? Join it with the track it belongs to")
 
             Button { engine.deletePerson(mic.id) } label: {
                 LucideIcon("trash-2", size: 15).foregroundStyle(.wizMuted)

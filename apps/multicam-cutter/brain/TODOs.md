@@ -412,8 +412,9 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
   (Zoom H6essential, 2 Spuren × 2 Teile) + synthetisch. Kompletter Lauf Folge 59 +
   Resolve-Import: alle Teile linken (26.10., nach BWF-TC-Fix). **Offen:** (a) Naht-Sync
   anhoeren + Premiere-Gegentest;
-  (b) manuelle Zuordnung „gehoert zu …“ fuer nicht erkannte Teile (ohne bext / Stille
-  an der Naht); (c) Video-Splits (GoPro/DJI) — dort fehlt bext, andere Erkennung.
+  ~~(b) manuelle Zuordnung~~ GELIEFERT (27.10.): Link-Menue an der PersonRow („Gehört zu …" /
+  „In Einzeldateien trennen"), gespeichert in `.multicam` — **in der App noch vom User zu
+  testen**; (c) Video-Splits (GoPro/DJI) — dort fehlt bext, andere Erkennung.
   User-Kontext: GoPro-Cams
   und DJI-Mic-Rekorder splitten lange Aufnahmen in mehrere Dateien (z. B. 2-h-Folge → 4
   nahtlos aneinander passende Teile). Die gehören zu EINER Person/Cam („Mic 2"), nicht zu
