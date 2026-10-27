@@ -5,6 +5,36 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.0.0
+
+**Neu: MultiCamCutter spricht Englisch**
+
+Die App folgt jetzt der Systemsprache deines Macs: Auf einem englischen System erscheint sie auf
+Englisch, sonst wie gewohnt auf Deutsch.
+
+**Neu: Gesplittete Aufnahmen werden automatisch zusammengefügt**
+
+Viele Rekorder, etwa der Zoom H6essential, teilen lange Aufnahmen in mehrere Dateien auf. Die App
+erkennt solche Teile jetzt selbst und behandelt sie als eine durchgehende Spur. In der
+Personen-Übersicht steht dann z. B. „2 Teile“. Im fertigen Schnittprojekt liegen weiterhin deine
+Originaldateien, nahtlos hintereinander. Wird eine Aufnahme nicht erkannt, kannst du sie über das
+Ketten-Symbol mit „Gehört zu …“ von Hand zuordnen. Eine falsche Zuordnung trennst du dort auch wieder.
+
+**Behoben: 29,97-fps-Projekte liefen auseinander**
+
+Bei Kameras mit 29,97 Bildern pro Sekunde (z. B. Sony, Drop-Frame) liefen die Kameras im
+Schnittprojekt mit der Zeit auseinander, und Bild und Ton konnten schon ab dem Start versetzt sein.
+Externe Tonaufnahmen von Rekordern lagen in solchen Projekten außerdem um ein Bild daneben. Beides
+ist behoben. **Wenn du 29,97-fps-Material mit einer früheren Version geschnitten hast, exportiere
+diese Projekte bitte neu.**
+
+**Behoben: Presets**
+
+Hast du ein Preset unter dem Namen eines mitgelieferten Presets gespeichert, schien das Speichern
+wirkungslos. Außerdem zeigte die Auswahl bei zwei Presets mit gleichen Einstellungen manchmal das
+falsche an. Beides funktioniert jetzt. Zum Speichern gibt es zusätzlich einen sichtbaren Button
+„Preset speichern“.
+
 ## 0.6.10
 
 **Behoben: Reaktions-Schnitte (Kopfnicken, Einwürfe) sitzen wieder genau auf der Reaktion**

@@ -348,7 +348,8 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
 
 ### ⏳ Zuletzt (ans Ende gestellt 15.08. — nach den 1.0-Blockern)
 
-- [ ] **CLIP-Nodding-DROP finalisieren + Prompt-Schwelle kalibrieren** (aufgenommen 27.07.,
+- [ ] **CLIP-Nodding-DROP finalisieren + Prompt-Schwelle kalibrieren** (⚠️ 27.10.: für 1.0
+  per Default **AUS** — `clip_nodding_mode='off'`; nach Kalibrierung wieder auf `'drop'`) (aufgenommen 27.07.,
   ans Ende gestellt 15.08.). Code steht bereits: DROP-Modus statt Shift für Nodding-Cutaways,
   `max`-Scoring, handlungsspezifische Prompts (`config/clip_ignore_prompts.json`,
   `add_reactions_to_edl.py` PASS 5 + `_clip_score_for_event(score_mode='max')`).

@@ -4,6 +4,34 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.0.0
+
+**New: MultiCamCutter now speaks English**
+
+The app follows your Mac's system language: on an English system it appears in English, otherwise
+in German as before.
+
+**New: split recordings are joined automatically**
+
+Many recorders, such as the Zoom H6essential, split long recordings into several files. The app now
+detects these parts on its own and treats them as one continuous track. The person overview then
+shows e.g. "2 parts". Your edit project still uses your original files, placed seamlessly one after
+another. If a recording isn't detected, use the link icon and choose "Belongs to …" to assign it by
+hand. You can also split a wrong assignment there.
+
+**Fixed: 29.97 fps projects drifting apart**
+
+With cameras recording at 29.97 frames per second (e.g. Sony, drop-frame), the cameras in the edit
+project drifted apart over time, and picture and sound could be offset right from the start.
+External audio recorders were also off by one frame in such projects. Both are fixed. **If you
+edited 29.97 fps footage with an earlier version, please export those projects again.**
+
+**Fixed: presets**
+
+Saving a preset under the name of a built-in preset seemed to have no effect. Also, with two presets
+that had identical settings, the picker sometimes showed the wrong one. Both work now, and there is
+a visible "Save preset" button.
+
 ## 0.6.10
 
 **Fixed: reaction cuts (head nods, interjections) sit exactly on the reaction again**

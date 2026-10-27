@@ -1164,7 +1164,9 @@ def clip_filter_cutaways(
     # 0.6.10-Spaetschnitt-Bugs). 'off' laesst sie unangetastet.
     # max-Scoring + Schwelle 0,6: an ep04 trennt das echtes Glas (0,65) sauber
     # von Gestik/Zuhoeren (≤0,58). Sprachreaktionen bleiben IMMER unangetastet.
-    nodding_mode = clip_config.get('nodding_mode', 'drop')
+    # Default 'off' (User, 27.10.): Schwelle erst an echten Trink-Nick-TCs
+    # kalibrieren, dann einschalten — 1.0 soll nicht an ihr haengen.
+    nodding_mode = clip_config.get('nodding_mode', 'off')
     nodding_threshold = clip_config.get('nodding_threshold', 0.6)
 
     if not prompts_path or not Path(prompts_path).exists():
@@ -1511,7 +1513,8 @@ def main():
         'prompts_path':     args.clip_filter_config or '',
         # Nodding-Cutaways gegen Trinkbewegungen filtern (verwerfen statt
         # verschieben). max-Scoring, Schwelle 0,6 (an ep04 validiert).
-        'nodding_mode':      params.get('clip_nodding_mode', 'drop'),
+        # Default AUS bis zur Kalibrierung (siehe clip_filter_cutaways).
+        'nodding_mode':      params.get('clip_nodding_mode', 'off'),
         'nodding_threshold': float(params.get('clip_nodding_threshold', 0.6)),
     }
 
