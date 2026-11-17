@@ -56,7 +56,7 @@ R2_BUCKET="${R2_BUCKET:-multicamcutter-downloads}"
 # ── Vorbedingungen ─────────────────────────────────────────────────────────
 [ -f "$DMG" ]     || { echo "✗ DMG fehlt: $DMG"; echo "  Erst: bash scripts/release.sh $VERSION"; exit 1; }
 [ -f "$APPCAST" ] || { echo "✗ appcast.xml fehlt: $APPCAST"; exit 1; }
-[ -d "$WEB_REPO/.git" ] || { echo "✗ Website-Repo nicht gefunden: $WEB_REPO"; echo "  Mit WEB_REPO=… überschreiben."; exit 1; }
+git -C "$WEB_REPO" rev-parse --git-dir >/dev/null 2>&1 || { echo "✗ Website-Repo nicht gefunden: $WEB_REPO"; echo "  Mit WEB_REPO=… überschreiben."; exit 1; }
 
 # ── Guard: Website-Repo MUSS auf dem Produktions-Branch stehen ──────────────
 # publish committet den Appcast auf den GERADE ausgecheckten Branch. Stand das
