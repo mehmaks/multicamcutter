@@ -313,10 +313,8 @@ Erreichbar über Cmd+, (SwiftUI Settings Scene), `.tint(.brandAccent)` auf dem
   Standard zurücksetzen" löscht sie; Engine bevorzugt die User-Datei, Fallback auf
   Defaults bei defekt. **Das AN/AUS einzelner Muster liegt NICHT hier**, sondern pro
   Preset im Wizard (Experteneinstellungen → Cutaway Regeln → Nicken-Muster).
-- **Lizenz** (`LicenseSettingsTab`): Status, Key aktivieren/umziehen/deaktivieren.
-  Zeigt beim Öffnen **optimistisch** den letzten validierten Stand aus einem
-  UserDefaults-Cache (`lic.*`-Keys) und prüft dann im Hintergrund nach — kein
-  „inaktiv"-Flackern mehr. `parseLicenseResult` schreibt den Cache bei jeder Prüfung.
+- ~~Lizenz~~-Tab: seit 1.0.1 entfernt (App kostenlos). Alte `lic.*`-UserDefaults
+  bei Bestandsnutzern bleiben liegen, werden aber nicht mehr gelesen.
 
 ⚠️ Die Settings-Scene muss `.environmentObject(engine)` bekommen (in
 `MulticamCutterApp.swift`) — der CLIP-Tab liest `@EnvironmentObject engine`.

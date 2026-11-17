@@ -4,6 +4,13 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.0.1
+
+**MultiCamCutter is now free**
+
+You no longer need a license or a subscription. The 30-minute limit per recording is gone, so you
+can cut episodes of any length. The License section in the settings has been removed.
+
 ## 1.0.0
 
 **New: MultiCamCutter now speaks English**

@@ -1,5 +1,11 @@
 # Lizenz-API — Contract zwischen App und Backend
 
+> ⚠️ **Historisch.** Seit 1.0.1 ist die App kostenlos und spricht diese API nicht
+> mehr an (siehe Entscheidungen.md → „App ist kostenlos"). Ältere Versionen
+> (≤ 1.0.0) rufen `/api/license/*` aber noch auf — Endpoints erst abschalten,
+> wenn das für die Website-Session okay ist (alte Apps fallen dann in den
+> Free-Tier-Fall bzw. „Lizenz ungültig").
+
 Vertrag zwischen **App** (Swift + Python-Engine) und **Backend** (Website-Session).
 Zahlungsanbieter: **LemonSqueezy** (Merchant of Record + Lizenzschlüssel-API).
 Modell: Abo + selbst-erneuernde, signierte **Lease** (siehe Entscheidungen.md).

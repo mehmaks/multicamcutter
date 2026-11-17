@@ -560,10 +560,6 @@ def run_scan(folder, fps=25.0, join_groups=None, keep_separate=None):
 
 # ── Hauptpipeline ───────────────────────────────────────────────────────────
 
-# Free-Tier: ohne aktives Abo darf die laengste Quelldatei max. so lang sein.
-FREE_TIER_MAX_S = 30 * 60
-
-
 # ── CLIP-Modell (optionaler Download) ────────────────────────────────────────
 # Das Modell ist NICHT im Bundle (waere +577 MB in der DMG). Es wird auf
 # ausdruecklichen Wunsch des Users einmalig in den HF-Cache geladen
@@ -962,31 +958,6 @@ def _probe_duration(path):
         return 0.0
 
 
-def _enforce_free_tier(cam_paths, mic_paths):
-    """Ohne gueltige Lizenz: laengste Quelldatei <= 30 Min, sonst RuntimeError.
-    Mit Lizenz (oder Dummy-Modus) keine Beschraenkung."""
-    try:
-        from licensing.license import validate
-        if validate().valid:
-            return  # lizenziert → keine Grenze
-    except Exception:
-        pass  # Lizenzpruefung nicht moeglich → als Free-Tier behandeln
-
-    longest, longest_name = 0.0, ""
-    for p in cam_paths + mic_paths:
-        d = _probe_duration(p)
-        if d > longest:
-            longest, longest_name = d, os.path.basename(p)
-
-    if longest > FREE_TIER_MAX_S:
-        raise RuntimeError(
-            f"Free-Tier-Grenze: Die laengste Quelldatei ({longest_name}, "
-            f"{int(longest // 60)} Min) ueberschreitet das 30-Minuten-Limit. "
-            f"Fuer unbegrenzte Laenge bitte ein Abo aktivieren "
-            f"(Einstellungen → Lizenz)."
-        )
-
-
 class SyncUnresolved(Exception):
     """Sync fand nicht automatisch einordbare Quellen. `sync_unresolved` wurde
     bereits emittiert; die Pipeline stoppt sauber und die App loest auf
@@ -1075,9 +1046,6 @@ def run_pipeline(folder, fps, params, output_path,
 
     cam_paths = [str(c) for c in cams]
     mic_paths = [str(m) for m in mics]
-
-    # Free-Tier-Grenze prüfen, bevor die schwere Arbeit (Sync) beginnt
-    _enforce_free_tier(cam_paths, mic_paths)
 
     emit("scan_result",
          cameras=[c.name for c in cams],
@@ -1253,16 +1221,6 @@ def main():
     parser.add_argument("--fps", type=float, default=25.0)
     parser.add_argument("--scan", action="store_true",
                         help="Nur Ordner scannen + Previews generieren, keine Analyse")
-    parser.add_argument("--check-license", action="store_true",
-                        help="Lizenzstatus prüfen und als JSON ausgeben")
-    parser.add_argument("--install-license", default=None,
-                        help="Lizenzdatei installieren (Pfad zur .json)")
-    parser.add_argument("--set-key", default=None,
-                        help="Lizenzschlüssel hinterlegen + aktivieren (Abo-Modus)")
-    parser.add_argument("--clear-license", action="store_true",
-                        help="Lokale Lizenz entfernen (deaktivieren)")
-    parser.add_argument("--migrate-key", default=None,
-                        help="Lizenz auf dieses Gerät umziehen (Takeover + aktivieren)")
     parser.add_argument("--params", default="{}", help="JSON-String oder Pfad zu .json")
     parser.add_argument("--output", default=None, help="AAF-Ausgabepfad")
     parser.add_argument("--check-clip-model", action="store_true",
@@ -1320,106 +1278,6 @@ def main():
                              "(Frames relativ zu CAM1) direkt uebernommen. Fuer nicht "
                              "automatisch syncbare Quellen (Baustein 3).")
     args = parser.parse_args()
-
-    # ── Lizenz-Operationen ──────────────────────────────────────────────────
-    if args.check_license:
-        try:
-            from licensing.license import validate
-            info = validate()
-            result_json = json.dumps({
-                "valid": info.valid,
-                "email": info.email or "",
-                "expires": info.expires or "",
-                "modules": info.modules,
-                "grace": info.grace,
-                "status": info.status or "",
-                "sub_status": info.sub_status or "",
-                "renews_at": info.renews_at or "",
-                "ends_at": info.ends_at or "",
-                "seats_used": info.seats_used,
-                "seats_limit": info.seats_limit,
-                "error": info.error or "",
-            })
-            sys.__stdout__.write(result_json + "\n")
-        except Exception as e:
-            sys.__stdout__.write(json.dumps({"valid": False, "error": str(e)}) + "\n")
-        return 0
-
-    if args.install_license:
-        try:
-            from licensing.license import install_license
-            info = install_license(args.install_license)
-            result_json = json.dumps({
-                "valid": info.valid,
-                "email": info.email or "",
-                "expires": info.expires or "",
-                "modules": info.modules,
-                "error": info.error or "",
-            })
-            sys.__stdout__.write(result_json + "\n")
-        except Exception as e:
-            sys.__stdout__.write(json.dumps({"valid": False, "error": str(e)}) + "\n")
-        return 0
-
-    if args.set_key:
-        try:
-            from licensing.license import set_license_key
-            info = set_license_key(args.set_key)
-            result_json = json.dumps({
-                "valid": info.valid,
-                "email": info.email or "",
-                "expires": info.expires or "",
-                "modules": info.modules,
-                "grace": info.grace,
-                "status": info.status or "",
-                "sub_status": info.sub_status or "",
-                "renews_at": info.renews_at or "",
-                "ends_at": info.ends_at or "",
-                "seats_used": info.seats_used,
-                "seats_limit": info.seats_limit,
-                "error": info.error or "",
-            })
-            sys.__stdout__.write(result_json + "\n")
-        except Exception as e:
-            sys.__stdout__.write(json.dumps({"valid": False, "error": str(e)}) + "\n")
-        return 0
-
-    if args.migrate_key:
-        try:
-            from licensing.license import migrate_license_key
-            info = migrate_license_key(args.migrate_key)
-            sys.__stdout__.write(json.dumps({
-                "valid": info.valid,
-                "email": info.email or "",
-                "expires": info.expires or "",
-                "modules": info.modules,
-                "grace": info.grace,
-                "status": info.status or "",
-                "sub_status": info.sub_status or "",
-                "renews_at": info.renews_at or "",
-                "ends_at": info.ends_at or "",
-                "seats_used": info.seats_used,
-                "seats_limit": info.seats_limit,
-                "error": info.error or "",
-            }) + "\n")
-        except Exception as e:
-            sys.__stdout__.write(json.dumps({"valid": False, "error": str(e)}) + "\n")
-        return 0
-
-    if args.clear_license:
-        try:
-            from licensing.license import clear_license
-            info = clear_license()
-            sys.__stdout__.write(json.dumps({
-                "valid": info.valid,
-                "email": "",
-                "expires": "",
-                "modules": [],
-                "error": info.error or "",
-            }) + "\n")
-        except Exception as e:
-            sys.__stdout__.write(json.dumps({"valid": False, "error": str(e)}) + "\n")
-        return 0
 
     # ── CLIP-Prompts lesen (leichtgewichtig, kein ffmpeg/torch nötig) ─────────
     if args.get_clip_prompts:

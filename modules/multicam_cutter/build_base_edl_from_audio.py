@@ -2108,7 +2108,7 @@ def main():
         # Debug-Dump: nur im Dev-Modus, wie Decision Log und Console-Capture
         _sp_debug = None
         try:
-            from licensing.license import is_dev_mode
+            from shared.dev_mode import is_dev_mode
             if is_dev_mode():
                 _sp_debug = []
         except ImportError:

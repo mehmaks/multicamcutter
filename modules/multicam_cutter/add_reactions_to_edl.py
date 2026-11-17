@@ -1534,7 +1534,7 @@ def main():
     # Decision Log: nur im Dev-Modus aktiv
     decision_log = None
     try:
-        from licensing.license import is_dev_mode
+        from shared.dev_mode import is_dev_mode
         if is_dev_mode():
             decision_log = []
     except ImportError:

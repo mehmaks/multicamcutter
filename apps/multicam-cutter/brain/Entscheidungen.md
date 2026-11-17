@@ -61,7 +61,15 @@ Es gibt zwei unabhaengige Ed25519-Keypairs mit unterschiedlichem Zweck:
 - Lizenz-Signaturformat: `_canonical()` in `license.py`/`keysign.py`
   (sortierte Keys, Listen als sortierter CSV, `k=v` mit `|` verkettet).
 
-## Lizenzmodell: Abo via LemonSqueezy + signierte Lease (MODE=remote)
+## App ist kostenlos (ab 1.0.1, 17.11.2026)
+Entscheidung des Users: MultiCamCutter wird kostenlos angeboten. In der App
+entfernt: Lizenz-Tab, Lizenz-Env (`TOOLKIT_LICENSE_MODE`/`_API`), Engine-Lizenz-
+Flags, 30-Min-Free-Tier-Gate, `licensing/` im Bundle. `LicenseConfig.apiBase`
+bleibt (Feedback, Telemetrie, Datenschutz-Link). Debug-Artefakte haengen jetzt
+an `shared/dev_mode.py` statt am Lizenzmodus (siehe Bekannte-Bugs.md).
+Der Abschnitt unten ist Historie.
+
+## (Historie) Lizenzmodell: Abo via LemonSqueezy + signierte Lease (MODE=remote)
 Entscheidung: Abo-Modell (monatlich/jaehrlich), NICHT das Offline-Datei-Modell
 (`MODE=local`) — monatlich manuell eine license.json nachladen waere kein Abo-UX.
 

@@ -2441,7 +2441,6 @@ class EngineController: ObservableObject {
     /// duration_s = 0 und keine Thumbnails (alle ffprobe/ffmpeg-Aufrufe scheitern).
     func engineEnvironment() -> [String: String] {
         var env = ProcessInfo.processInfo.environment
-        LicenseConfig.apply(to: &env)
         env["PYTHONUNBUFFERED"] = "1"
         env["MCC_JOIN_DIR"] = Self.splitJoinDirectory.path
         if let dir = ffmpegDirectory {

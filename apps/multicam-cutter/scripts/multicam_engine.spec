@@ -31,13 +31,7 @@ hidden_imports = [
     'shared.frame_utils',
     'shared.ffmpeg_utils',
     'shared.aaf_builder',
-    'licensing.license',
-
-    # Lizenz: Remote-Validierung (HTTP) + Signaturprüfung (Ed25519)
-    'requests',
-    'cryptography',
-    'cryptography.hazmat.primitives.asymmetric.ed25519',
-    'cryptography.hazmat.backends.openssl',
+    'shared.dev_mode',
 
     # MediaPipe
     'mediapipe',
@@ -89,12 +83,6 @@ datas = [
     (str(ROOT / 'config' / 'nodding_patterns.json'), 'config'),
     # CLIP Ignore Prompts
     (str(ROOT / 'config' / 'clip_ignore_prompts.json'), 'config'),
-    # Licensing — NUR license.py (enthaelt den PUBLIC Key) + __init__.py.
-    # NIEMALS license_private.key / keygen.py / keysign.py / licenses/ bundlen —
-    # der Lizenz-Private-Key wuerde sonst mit jeder App ausgeliefert und
-    # koennte zum Faelschen beliebiger Lizenzen genutzt werden!
-    (str(ROOT / 'licensing' / 'license.py'), 'licensing'),
-    (str(ROOT / 'licensing' / '__init__.py'), 'licensing'),
     # Protocol module
     (str(ENGINE / 'protocol.py'), 'engine'),
 ]

@@ -1143,7 +1143,7 @@ def main():
     # ── Dev-Modus: Console-Capture starten ──────────────────────────────────
     _dev_console_log = None
     try:
-        from licensing.license import is_dev_mode
+        from shared.dev_mode import is_dev_mode
         if is_dev_mode():
             _console_log_path = work_dir / 'console.log'
             _dev_console_log = open(_console_log_path, 'w', encoding='utf-8')

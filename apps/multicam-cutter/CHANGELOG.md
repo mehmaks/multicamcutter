@@ -5,6 +5,14 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.0.1
+
+**MultiCamCutter ist jetzt kostenlos**
+
+Du brauchst keine Lizenz und kein Abo mehr. Die Grenze von 30 Minuten pro Aufnahme fällt weg, du
+kannst also beliebig lange Folgen schneiden. Den Lizenz-Bereich in den Einstellungen gibt es nicht
+mehr.
+
 ## 1.0.0
 
 **Neu: MultiCamCutter spricht Englisch**

@@ -51,7 +51,7 @@ ENGINE_DIR="$APP_DIR/dist/multicam-engine"
 # Build meldete dabei Erfolg.
 if [ -f "$ENGINE_DIR/multicam-engine" ]; then
     STALE="$(find "$TOOLKIT_ROOT/modules" "$TOOLKIT_ROOT/shared" \
-                  "$TOOLKIT_ROOT/licensing" "$APP_DIR/engine" \
+                  "$APP_DIR/engine" \
                   -name '*.py' -newer "$ENGINE_DIR/multicam-engine" 2>/dev/null \
              | grep -v '/dist/\|/release/' || true)"
     if [ -n "$STALE" ]; then

@@ -7,24 +7,10 @@ multicam-engine --folder /path --fps 25 --params '{...}' --output /path/final.aa
 multicam-engine --folder /path --scan   # Nur Thumbnails + Audio-Previews
 ```
 
-## Lizenz-Modi (einzeiliges JSON auf stdout, kein Streaming)
+## Lizenz / Free-Tier — entfernt (1.0.1)
 
-| Flag | Beschreibung |
-|------|-------------|
-| --check-license | Aktuellen Lizenzstatus prüfen |
-| --set-key KEY | Schlüssel hinterlegen + aktivieren (Abo) |
-| --clear-license | Lizenz deaktivieren (lokal löschen + best-effort Server-Slot frei) |
-| --install-license PFAD | Legacy: signierte license.json-Datei installieren |
-
-JSON-Ausgabe: `{valid, email, expires, modules, grace, sub_status, renews_at,
-ends_at, error}`. `expires` = Lease-Fenster (NICHT Abo-Ende). Abo-Datum via
-`renews_at`/`ends_at` (nur wenn Backend `subscription`-Block liefert).
-Voraussetzung Remote: `TOOLKIT_LICENSE_MODE=remote` (setzt LicenseConfig.swift).
-
-## Free-Tier
-
-Ohne gültige Lizenz bricht `run_pipeline` vor dem Sync ab, wenn die längste
-Quelldatei > 30 Min ist (`_enforce_free_tier`) → als `error`-Message an die UI.
+Seit 1.0.1 ist die App kostenlos: keine Lizenz-Flags (`--check-license`,
+`--set-key`, …) und keine 30-Min-Grenze mehr. Historie: `brain/Lizenz-API.md`.
 
 ## Explizite Quelllisten (--cams / --mics) — WICHTIG
 

@@ -48,10 +48,9 @@ automatisieren wollen.
   der finale Export passiert im eigenen Schnittprogramm.
 
 ## Preismodell
-- **Abo** (monatlich oder jährlich) über LemonSqueezy, jederzeit kündbar.
-- **Free-Tier**: nutzbar ohne Abo, aber die längste Quelldatei ist auf
-  **30 Minuten** begrenzt (für unbegrenzte Länge → Abo).
+- **Kostenlos** (ab 1.0.1): keine Lizenz, kein Abo, keine Längengrenze.
+  (Bis 1.0.0: Abo über LemonSqueezy + Free-Tier mit 30-Min-Grenze.)
 
 ## Wichtig fürs Framing (nicht falsch bewerben)
 - AAF/„Schnittliste" **nicht als „fertiges Video"** framen.
-- Free-Tier (30-Min-Limit) ist in der App umgesetzt — kann beworben werden.
+- Kein Abo, kein Free-Tier, kein 30-Min-Limit mehr bewerben — die App ist komplett kostenlos.

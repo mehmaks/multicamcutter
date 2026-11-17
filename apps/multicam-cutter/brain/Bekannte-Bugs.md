@@ -270,35 +270,6 @@
   ⚠️ Audio-Keeps dabei weiterhin aus den getrimmten Video-Events ableiten
   (siehe `modules/multicam_cutter/CLAUDE.md`, Fixed Bugs) — nicht separat rechnen.
 
-### Dev-Only-Artefakte entstehen aus der Mac-App NIE (`decision_log.json`, `speaking_debug.json`)
-- **Symptom**: Nach einem vollständigen Lauf aus der App liegen im Work-Dir zwar
-  `final.edl` und `final.colors.json`, aber **weder** `decision_log.json` **noch**
-  `speaking_debug.json`. Auch im Dev-Build (`swift run`) nicht. Beobachtet 20.07.
-  an `/tmp/resolve-toolkit/19bdb46b2e59/`.
-- **Ursache**: Beide Artefakte hängen an `is_dev_mode()` (`licensing/license.py:473`),
-  das nichts über Debugging aussagt, sondern **nur** `MODE == "dummy"` prüft.
-  `MODE` kommt aus `TOOLKIT_LICENSE_MODE` und defaultet zwar auf `"dummy"` —
-  die App überschreibt das aber für jeden Engine-Subprozess:
-  `LicenseConfig.mode = "remote"` (`LicenseConfig.swift:8`) →
-  `LicenseConfig.apply(to:)` (`:16`) → `engineEnvironment()`
-  (`EngineController.swift:1758`). Damit ist `is_dev_mode()` in **jedem** aus der App
-  gestarteten Lauf `False`.
-  Verifiziert: `TOOLKIT_LICENSE_MODE` nicht gesetzt → `True`, `dummy` → `True`,
-  `remote` → `False`.
-- **Sofort-Workaround**: Dev-App mit gesetzter Variable starten — `apply(to:)`
-  respektiert einen bereits vorhandenen Wert:
-  ```
-  TOOLKIT_LICENSE_MODE=dummy swift run --package-path apps/multicam-cutter/MulticamCutter
-  ```
-- **Richtiger Fix (offen, zu entscheiden)**: Debug-Artefakte vom **Lizenzmodus
-  entkoppeln**. Der Lizenzmodus beschreibt, wie lizenziert wird, nicht ob geloggt
-  werden soll — die Kopplung ist der eigentliche Fehler. Eigenes Signal, z. B.
-  `MULTICAM_DEBUG=1` (von der App im Debug-Build gesetzt) oder ein verstecktes
-  Setting. Betrifft `add_reactions_to_edl.py:1153`,
-  `build_base_edl_from_audio.py` (speaking-Debug) und `run_from_bin.py:984`
-  (Console-Capture — vermutlich aus demselben Grund ebenfalls wirkungslos, noch
-  nicht gegengeprüft).
-
 ### ffmpeg nicht gefunden in PASS 5 (CLIP-Filter) — Issue #3
 - **Symptom**: Durchlauf bricht ab mit `[Errno 2] No such file or directory: 'ffmpeg'`.
   Log (Issue #3, `mehmaks/resolve-toolkit`): Sync + Nodding liefen bis **96,9 %** durch,
@@ -328,6 +299,43 @@
 - **Workaround**: Expertenmodus → „Ungünstige Cutaways verschieben (CLIP)" AUS.
 
 ## Gefixt
+
+### Dev-Only-Artefakte entstehen aus der Mac-App NIE (`decision_log.json`, `speaking_debug.json`)
+- **Symptom**: Nach einem vollständigen Lauf aus der App liegen im Work-Dir zwar
+  `final.edl` und `final.colors.json`, aber **weder** `decision_log.json` **noch**
+  `speaking_debug.json`. Auch im Dev-Build (`swift run`) nicht. Beobachtet 20.07.
+  an `/tmp/resolve-toolkit/19bdb46b2e59/`.
+- **Ursache**: Beide Artefakte hängen an `is_dev_mode()` (`licensing/license.py:473`),
+  das nichts über Debugging aussagt, sondern **nur** `MODE == "dummy"` prüft.
+  `MODE` kommt aus `TOOLKIT_LICENSE_MODE` und defaultet zwar auf `"dummy"` —
+  die App überschreibt das aber für jeden Engine-Subprozess:
+  `LicenseConfig.mode = "remote"` (`LicenseConfig.swift:8`) →
+  `LicenseConfig.apply(to:)` (`:16`) → `engineEnvironment()`
+  (`EngineController.swift:1758`). Damit ist `is_dev_mode()` in **jedem** aus der App
+  gestarteten Lauf `False`.
+  Verifiziert: `TOOLKIT_LICENSE_MODE` nicht gesetzt → `True`, `dummy` → `True`,
+  `remote` → `False`.
+- **Sofort-Workaround**: Dev-App mit gesetzter Variable starten — `apply(to:)`
+  respektiert einen bereits vorhandenen Wert:
+  ```
+  TOOLKIT_LICENSE_MODE=dummy swift run --package-path apps/multicam-cutter/MulticamCutter
+  ```
+- **Ursprünglich vorgeschlagener Fix**: Debug-Artefakte vom **Lizenzmodus
+  entkoppeln**. Der Lizenzmodus beschreibt, wie lizenziert wird, nicht ob geloggt
+  werden soll — die Kopplung ist der eigentliche Fehler. Eigenes Signal, z. B.
+  `MULTICAM_DEBUG=1` (von der App im Debug-Build gesetzt) oder ein verstecktes
+  Setting. Betrifft `add_reactions_to_edl.py:1153`,
+  `build_base_edl_from_audio.py` (speaking-Debug) und `run_from_bin.py:984`
+  (Console-Capture — vermutlich aus demselben Grund ebenfalls wirkungslos, noch
+  nicht gegengeprüft).
+- **Fix (1.0.1, 17.11.)**: Entkoppelt über `shared/dev_mode.py`. Die drei Stellen
+  importieren `is_dev_mode` jetzt von dort. Regel: `MULTICAM_DEBUG=1` → an;
+  eingefrorene Engine (Release-App) → aus; Quellcode-Lauf → an, solange
+  `TOOLKIT_LICENSE_MODE` fehlt oder `dummy` ist. Auslöser: Die App setzt seit 1.0.1
+  keinen Lizenzmodus mehr — mit der alten Kopplung hätte jede Kunden-App
+  Debug-Dateien geschrieben (PyInstaller hätte `licensing.license` über den Import
+  trotzdem mitgenommen, Default `dummy`).
+
 
 ### Preset mit Built-in-Namen überschreiben tat scheinbar nichts — GEFIXT (15.08.)
 - **Symptom:** Ein bestehendes Preset mit demselben Namen überschreiben (v.a. eines der

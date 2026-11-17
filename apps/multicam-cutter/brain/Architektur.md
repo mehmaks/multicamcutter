@@ -64,9 +64,8 @@ Python: venv > Homebrew > System
 
 Must-have: Python 3.12, PyTorch, MediaPipe, OpenCV, numpy, scipy, soundfile,
 pyaaf2, torchaudio, transformers + CLIP, ffmpeg + ffprobe.
-Lizenz (Remote-Modus): **requests** (HTTP) + **cryptography** (Ed25519-Signatur).
-Beide MÜSSEN im Bundle sein — sonst schlägt die Signaturprüfung still fehl
-(alle Lizenzen ungültig). In hidden_imports des Spec + im Build-venv installiert.
+Lizenz: seit 1.0.1 entfernt (App kostenlos) — `licensing/` wird nicht mehr
+gebundelt, `requests`/`cryptography` stehen nicht mehr in den hidden_imports.
 
 Nicht im Bundle: Whisper, DaVinci Resolve API, Streamlit.
 

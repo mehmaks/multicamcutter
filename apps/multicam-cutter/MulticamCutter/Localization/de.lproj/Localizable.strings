@@ -13,8 +13,6 @@
 "A separate microphone for each person" = "Ein eigenes Mikrofon je Person";
 "AAF clip names" = "AAF-Clipnamen";
 "About MultiCamCutter" = "Über MultiCamCutter";
-"Activate" = "Aktivieren";
-"Activating..." = "Wird aktiviert...";
 "Add back to the project" = "Wieder ins Projekt aufnehmen";
 "After a cut to a brief interjection, return to the speaker via a wider shot." = "Nach einem Schnitt auf einen kurzen Einwurf über eine größere Einstellung zurück zur sprechenden Person.";
 "After a cut to a head nod, return to the speaker via a wider shot instead of cutting straight back." = "Nach einem Schnitt auf ein Nicken über eine größere Einstellung zurück zur sprechenden Person, statt direkt zurückzuschneiden.";
@@ -55,7 +53,6 @@
 "Check for updates" = "Auf Update prüfen";
 "Check for updates automatically" = "Automatisch nach Updates suchen";
 "Check for updates now" = "Jetzt nach Updates suchen";
-"Check license again" = "Lizenz erneut prüfen";
 "Checking..." = "Wird geprüft...";
 "Checks shortly after launch and then regularly in the background. It only tells you when something is found — nothing is installed until you confirm." = "Prüft kurz nach dem Start und danach regelmäßig im Hintergrund. Gefunden wird nur gemeldet — installiert wird erst nach deiner Bestätigung.";
 "Choose a folder with camera and microphone files" = "Ordner mit Kamera- und Mikrofon-Dateien auswählen";
@@ -90,8 +87,6 @@
 "Cutaway rules" = "Cutaway Regeln";
 "Cuts shorter than this are removed automatically." = "Schnitte kürzer als dieser Wert werden automatisch entfernt.";
 "Cuts to another camera during a speech pause of the active speaker." = "Schneidet während einer Sprechpause der aktiv sprechenden Person auf eine andere Kamera.";
-"Deactivate" = "Deaktivieren";
-"Deactivate the license on this device?" = "Lizenz auf diesem Gerät deaktivieren?";
 "Debug: uses the filtered WAVs instead of the originals in the final timeline. For testing only." = "Debug: Verwendet die gefilterten WAVs statt der Originale in der finalen Timeline. Nur zu Testzwecken.";
 "Default" = "Standard";
 "Deletes the saved assignments (.multicam) and starts over" = "Löscht die gespeicherten Zuordnungen (.multicam) und beginnt von vorn";
@@ -176,10 +171,6 @@
 "Interjections" = "Sprachreaktionen";
 "Invalid endpoint URL" = "Ungültige Endpoint-URL";
 "JSON needs the fields 'global' and 'patterns'." = "JSON braucht die Felder 'global' und 'patterns'.";
-"License" = "Lizenz";
-"License active" = "Lizenz aktiv";
-"License active (offline)" = "Lizenz aktiv (offline)";
-"License key" = "Lizenzschlüssel";
 "Lifts flat Log footage in the camera previews (also while scrubbing). Purely cosmetic — analysis and export stay untouched." = "Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim Scrubbing). Rein kosmetisch — Analyse und Export bleiben unberührt.";
 "Manual offset" = "Manueller Offset";
 "Max. cutaway length" = "Max. Cutaway-Dauer";
@@ -196,9 +187,7 @@
 "Model loaded" = "Modell geladen";
 "Model not loaded" = "Modell nicht geladen";
 "More than 2 close-up cameras — not yet supported" = "Mehr als 2 Nah-Kameras — noch nicht unterstützt";
-"Move to this device" = "Auf dieses Gerät umziehen";
 "Move unsuitable cutaways" = "Ungünstige Cutaways verschieben";
-"Moving..." = "Wird umgezogen...";
 "Multiple wide shots" = "Mehrere Totalen";
 "My Preset" = "Mein Preset";
 "Name your speakers" = "Benenne deine Sprecher:innen";
@@ -207,9 +196,7 @@
 "New" = "Neu";
 "Next" = "Weiter";
 "No active audio tracks." = "Keine aktiven Tonspuren.";
-"No license found" = "Keine Lizenz gefunden";
 "No license info loaded" = "Keine Lizenzinfos geladen";
-"No license on file" = "Keine Lizenz hinterlegt";
 "No log for this run" = "Kein Log für diesen Lauf";
 "No microphone files found." = "Keine Mikrofon-Dateien gefunden.";
 "No people." = "Keine Personen.";
@@ -244,7 +231,6 @@
 "Random" = "Zufällig";
 "Randomness" = "Zufallsfaktor";
 "Rename episode — sets the name of the AAF file created" = "Episode umbenennen — bestimmt den Namen der erzeugten AAF-Datei";
-"Renews on %@" = "Verlängert sich am %@";
 "Report #%lld created — thanks!" = "Meldung #%lld angelegt — danke!";
 "Report a bug" = "Fehler melden";
 "Report a bug…" = "Fehler melden…";
@@ -262,7 +248,6 @@
 "Scan: could not read the result.\nEngine output: %@" = "Scan: Ergebnis konnte nicht gelesen werden.\nEngine-Output: %@";
 "Scan: no output from the engine process" = "Scan: keine Ausgabe vom Engine-Prozess";
 "Scanning folder…" = "Ordner wird gescannt...";
-"Seats: %lld of %lld in use" = "Arbeitsplätze: %lld von %lld belegt";
 "Select a component" = "Komponente wählen";
 "Send" = "Senden";
 "Send anonymous usage data" = "Anonyme Nutzungsdaten senden";
@@ -297,7 +282,6 @@
 "The app derived this from your assignments — shot sizes included. If something's wrong, go back a step and fix it. Otherwise: start the analysis." = "Das hat die App aus deinen Zuordnungen abgeleitet — Bildgrößen inklusive. Stimmt etwas nicht, geh einen Schritt zurück und korrigier es. Sonst: Analyse starten.";
 "The app has restored your earlier people, cameras, and settings for this folder. Using the steps above, you can change anything at any time." = "Die App hat deine früheren Personen, Kameras und Einstellungen für diesen Ordner wiederhergestellt. Über die Schritte oben kannst du jederzeit etwas ändern.";
 "The cut is set this many frames earlier so the reaction feels more natural." = "Der Schnitt wird um diese Anzahl Bilder früher gesetzt, damit die Reaktion natürlicher wirkt.";
-"The device slot is released on the server again. You can reactivate the license any time with your license key — on another Mac too." = "Der Geräte-Slot wird auf dem Server wieder freigegeben. Du kannst die Lizenz jederzeit mit deinem Lizenzschlüssel erneut aktivieren — auch auf einem anderen Mac.";
 "The recordings must overlap in time" = "Die Aufnahmen müssen sich zeitlich überlappen";
 "These cameras don't have the timeline frame rate (%@). Without correction, picture and sound drift apart and the timeline ends on a freeze frame." = "Diese Kameras haben nicht die Timeline-Framerate (%@). Ohne Korrektur driften Bild und Ton auseinander und am Ende der Timeline steht ein Standbild.";
 "These settings apply to cuts to a wider shot — such as a wide shot showing several people. They're used as a gentle in-between step, instead of jumping hard from one close-up to the next." = "Diese Einstellungen betreffen Schnitte auf eine größere Einstellung — etwa eine Totale, auf der mehrere Personen zu sehen sind. Sie werden als sanfter Zwischenschritt genutzt, statt hart von einer Nahaufnahme zur nächsten zu springen.";
@@ -305,7 +289,6 @@
 "This camera is much shorter than the other sources. From the point where it ends, its picture freezes — the cut gets a freeze frame there. If that's unintended (for example a canceled conversion whose partial file was left behind), replace the file with the complete one. If the camera really was only active for a shorter time, you can continue — but watch for the freeze frame from its end." = "Diese Kamera ist deutlich kürzer als die anderen Quellen. Ab der Stelle, an der sie endet, bleibt ihr Bild stehen — im Schnitt entsteht dort ein Standbild. Ist das ungewollt (etwa eine abgebrochene Umwandlung, deren Teildatei liegen blieb), ersetze die Datei durch die vollständige. War die Kamera wirklich nur kürzer aktiv, kannst du fortfahren — beachte dann das Standbild ab ihrem Ende.";
 "This camera isn't part of the project — remove" = "Diese Kamera gehört nicht zum Projekt — entfernen";
 "This error message will be included:" = "Diese Fehlermeldung wird mitgesendet:";
-"This license is already active on another device." = "Diese Lizenz ist bereits auf einem anderen Gerät aktiv.";
 "This note appears again when something here changes." = "Dieser Hinweis erscheint wieder, wenn sich etwas daran ändert.";
 "This track isn't a speaker — remove" = "Diese Spur ist kein Sprecher — entfernen";
 "This would affect:" = "Betroffen wären:";
@@ -315,8 +298,6 @@
 "Transition" = "Übergang";
 "Transition on speaker change" = "Übergang bei Sprecherwechsel";
 "Transition threshold" = "Übergangs-Schwelle";
-"Trial" = "Testphase";
-"Trial until %@" = "Testphase bis %@";
 "Trim pauses" = "Pausen kürzen";
 "Try again" = "Erneut versuchen";
 "Turn this on if all your audio tracks come from the same recording device (a multitrack recorder). The app then syncs them together — so a track where no one is speaking can no longer throw off the sync." = "Aktiviere das, wenn alle deine Tonspuren aus demselben Aufnahmegerät (Mehrspur-Recorder) stammen. Dann misst die App sie gemeinsam ein — eine Spur, auf der gerade niemand spricht, kann die Synchronisierung so nicht mehr durcheinanderbringen.";
@@ -342,7 +323,6 @@
 "Wrong frame rate" = "Falsche Bildrate";
 "Yes, help anonymously" = "Ja, anonym helfen";
 "You can change this later any time in Settings → Privacy." = "Ändern kannst du das später jederzeit in den Einstellungen → Datenschutz.";
-"You'll get the key by email after purchase." = "Den Schlüssel bekommst du nach dem Kauf per E-Mail.";
 "\"Move unsuitable cutaways\" uses image recognition (CLIP) to check whether a cutaway shows someone drinking, for example, and moves it. This downloads a model once." = "„Ungünstige Cutaways verschieben\" prüft per Bilderkennung (CLIP), ob ein Cutaway z. B. jemanden beim Trinken zeigt, und verschiebt ihn. Dafür wird einmalig ein Modell geladen.";
 "\n\nYou can start the analysis without image recognition — just turn off \"Move unsuitable cutaways (CLIP)\" in the expert settings." = "\n\nDu kannst die Analyse auch ohne Bilderkennung starten — schalte dazu „Ungünstige Cutaways verschieben (CLIP)“ in den Experten-Einstellungen aus.";
 "acknowledgements.json is missing from the bundle." = "acknowledgements.json fehlt im Bundle.";
