@@ -421,6 +421,27 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
       innerhalb einer Folge sehr gut; Deadband um Sprecherwechsel; Gelb = Mund-Schließen)
       für andere Ideen (z. B. „Nicken nur bei Lächeln" unten).
 
+- [ ] **Umschnitt bei direkter Ansprache (Transkript-basiert) — Idee, Versuch planen.**
+  (User, 18.11.) Beobachtung aus dem eigenen Schnitt: Er schneidet gern auf die NICHT
+  sprechende Person, wenn sie explizit angesprochen wird. Idee: Fragewörter und direkte
+  Ansprache („du/dich/dir/euch/ihr/Sie") im Satz → Umschnitt.
+  - **Voraussetzung:** Transkript mit Wort-Zeitstempeln. Favorit: macOS-eigene
+    Spracherkennung (on-device, kein Bundle-Zuwachs; Eignung für lange Aufnahmen +
+    Mindest-macOS prüfen) statt Whisper (große neue Abhängigkeit, Bundle-Größe!).
+    Vorteil: ein Mikro je Person → sauberer Ton, Sprecher bekannt.
+  - **Risiko:** generisches „du" („da musst du halt …") ist im Deutschen sehr häufig →
+    Wörter allein erzeugen viele Fehlschnitte. Stärkere Signale, kombinieren:
+    Fragezeichen + 2. Person · **Name der anderen Person** (aus der Audio-Benennung
+    bekannt, stärkster Hinweis) · Fragewort am Satzanfang.
+  - **Zwei Fälle unterscheiden:** (a) Antwort folgt sofort → Sprecherwechsel kommt eh,
+    Gewinn wäre der FRÜHERE Wechsel am Fragende (statt erst, wenn die Antwort laut wird);
+    (b) Fragender redet weiter → klassischer Cutaway auf den Angesprochenen.
+  - **Versuch wie beim Mund-Test:** Ground Truth = User-Schnitte. Finale Timelines von
+    2–3 Folgen als EDL exportieren → Stellen, an denen auf den Zuhörer geschnitten wurde,
+    obwohl der andere noch sprach. Gegen Ansprache-Hinweise im Transkript halten:
+    Trefferquote je Signal-Kombination, Fehlschnitt-Rate bei generischem „du".
+    Erst bei klarem Signal bauen (Checkbox, Standard aus).
+
 - [ ] **Nicken-Reaktionen nur bei Lächeln (Checkbox) — Test planen.**
   (User, 18.11.) Idee: Nicken-Cutaways optional nur verwenden, wenn die nickende Person
   dabei lächelt; doppelt abgesichert per CLIP-Check (z. B. Prompt „a person smiling").
