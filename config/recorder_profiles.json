@@ -1,0 +1,46 @@
+{
+  "version": 1,
+  "_doc": "Regeldatenbank fuer die Split-Erkennung je Rekorder. Erstes passendes Profil gewinnt, sonst 'default'. Erklaerung der Felder: config/recorder_profiles.md",
+  "profiles": [
+    {
+      "id": "zoom-h6essential",
+      "name": "Zoom H6essential",
+      "verified": "2026-11-18 — Folgen 55–61 (5 Splits, 10 Ketten), Firmware 1.10",
+      "match": {
+        "originator": "^ZOOM H6essential$"
+      },
+      "track_id": {
+        "source": "coding_history",
+        "pattern": "(?:^|[;,\\s])TRK=([0-9A-Za-z]+)"
+      },
+      "split_detection": {
+        "steps": ["track", "signal", "name"]
+      },
+      "notes": "Neue Datei nach 1 GB. TRK = Eingang am Rekorder (Tr1 im Dateinamen = TRK 3, Tr2 = TRK 4, TrLR = TRK 7). FDR (Pegel) ist oft auf beiden Spuren gleich, taugt nicht. zSCENE/ZOOM-JUNK = nur Schliesszeit der Datei."
+    },
+    {
+      "id": "zoom-generic",
+      "name": "Zoom (anderes Modell, ungeprueft)",
+      "verified": "",
+      "match": {
+        "originator": "^ZOOM\\b"
+      },
+      "track_id": {
+        "source": "coding_history",
+        "pattern": "(?:^|[;,\\s])TRK=([0-9A-Za-z]+)"
+      },
+      "split_detection": {
+        "steps": ["track", "signal", "name"]
+      },
+      "notes": "Annahme: gleiche Coding-History wie H6essential. Fehlt TRK, faellt 'track' von selbst auf 'signal' zurueck. Bei erstem echten Material pruefen und als eigenes Profil eintragen."
+    }
+  ],
+  "default": {
+    "id": "generic",
+    "name": "Unbekannter Rekorder",
+    "split_detection": {
+      "steps": ["signal", "name"]
+    },
+    "notes": "Kein Profil: Zeit + Nahtsignal, Namen nur als Tie-Break."
+  }
+}

@@ -83,6 +83,8 @@ datas = [
     (str(ROOT / 'config' / 'nodding_patterns.json'), 'config'),
     # CLIP Ignore Prompts
     (str(ROOT / 'config' / 'clip_ignore_prompts.json'), 'config'),
+    # Rekorder-Regeldatenbank (Split-Erkennung je Geraet)
+    (str(ROOT / 'config' / 'recorder_profiles.json'), 'config'),
     # Protocol module
     (str(ENGINE / 'protocol.py'), 'engine'),
 ]

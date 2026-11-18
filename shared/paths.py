@@ -15,6 +15,7 @@ CONFIG_INI       = CONFIG_DIR / "config.ini"
 CONFIG_TEMPLATE  = CONFIG_DIR / "config.template.ini"
 NODDING_PATTERNS = CONFIG_DIR / "nodding_patterns.json"
 CLIP_IGNORE      = CONFIG_DIR / "clip_ignore_prompts.json"
+RECORDER_PROFILES = CONFIG_DIR / "recorder_profiles.json"
 PRESETS_DIR      = CONFIG_DIR / "presets"
 PROJECT_SETTINGS = CONFIG_DIR / "project_settings"
 SCHEMAS_DIR      = CONFIG_DIR / "schemas"
@@ -26,6 +27,7 @@ SCHEMAS_DIR      = CONFIG_DIR / "schemas"
 USER_CONFIG_DIR       = Path.home() / "Library" / "Application Support" / "MulticamCutter"
 USER_CLIP_PROMPTS     = USER_CONFIG_DIR / "clip_prompts.json"
 USER_NODDING_PATTERNS = USER_CONFIG_DIR / "nodding_patterns.json"
+USER_RECORDER_PROFILES = USER_CONFIG_DIR / "recorder_profiles.json"
 
 def effective_clip_prompts_path() -> Path:
     """CLIP-Ignore-Prompts: user-editierte Datei bevorzugen, sonst gebündelte Defaults."""
@@ -34,6 +36,10 @@ def effective_clip_prompts_path() -> Path:
 def effective_nodding_patterns_path() -> Path:
     """Nodding-Pattern-Config: user-editierte Datei bevorzugen, sonst gebündelte Defaults."""
     return USER_NODDING_PATTERNS if USER_NODDING_PATTERNS.exists() else NODDING_PATTERNS
+
+def effective_recorder_profiles_path() -> Path:
+    """Rekorder-Regeldatenbank (Split-Erkennung): User-Datei bevorzugen, sonst gebündelt."""
+    return USER_RECORDER_PROFILES if USER_RECORDER_PROFILES.exists() else RECORDER_PROFILES
 
 # ── Dokumentation & Logs ─────────────────────────────────────────────────────
 DOCS_DIR = ROOT / "docs"

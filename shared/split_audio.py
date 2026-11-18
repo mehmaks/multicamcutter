@@ -116,7 +116,8 @@ def read_wav_info(path):
         "bits": bits, "block_align": block_align,
         "data_off": data_off, "data_len": data_len,
         "n_samples": data_len // block_align,
-        "time_ref": None, "originator": "", "rec_track": None,
+        "time_ref": None, "originator": "", "description": "",
+        "coding_history": "", "ixml": "",
         "chunks": chunks,
     }
     bext = cmap.get(b"bext")
@@ -124,13 +125,110 @@ def read_wav_info(path):
         lo, hi = struct.unpack("<II", bext[338:346])
         info["time_ref"] = lo + (hi << 32)
         info["originator"] = bext[256:288].split(b"\0")[0].decode("latin1").strip()
-        # Coding History (ab Byte 602): Zoom schreibt dort den Rekorder-Eingang,
-        # z. B. "…;TRK=3;…". Bleibt ueber alle Split-Teile einer Spur gleich
-        # (geprueft an Folge 55–61, 10 Ketten) → primaerer Zuordnungsschluessel.
-        m = re.search(rb"(?:^|[;,\s])TRK=([0-9A-Za-z]+)", bext[602:])
-        if m:
-            info["rec_track"] = m.group(1).decode("latin1")
+        info["description"] = bext[0:256].split(b"\0")[0].decode("latin1")
+        info["coding_history"] = bext[602:].split(b"\0")[0].decode("latin1")
+    ixml = cmap.get(b"iXML")
+    if ixml:
+        info["ixml"] = ixml.split(b"\0")[0].decode("utf-8", "replace")
+    info["recorder"] = _identify_recorder(info)
+    info["profile"] = match_recorder_profile(info)
+    info["rec_track"] = _extract_track_id(info, info["profile"])
     return info
+
+
+# ── Rekorder-Erkennung + Regeldatenbank ─────────────────────────────────────
+# Welche Regeln je Geraet gelten, steht in config/recorder_profiles.json (Doku:
+# config/recorder_profiles.md). Fehlt/defekt → _BUILTIN_DEFAULT (= Verhalten ohne
+# Profil: Zeit + Nahtsignal + Namen).
+
+_PROFILE_SOURCES = ("originator", "coding_history", "description", "ixml")
+_STEPS = ("track", "signal", "name")
+_BUILTIN_DEFAULT = {"id": "generic", "name": "Unbekannter Rekorder",
+                    "split_detection": {"steps": ["signal", "name"]}}
+_profiles_cache = None
+
+
+def _load_profiles():
+    """(profiles, default) aus der Regeldatenbank; einmal je Prozess."""
+    global _profiles_cache
+    if _profiles_cache is not None:
+        return _profiles_cache
+    profiles, default = [], _BUILTIN_DEFAULT
+    try:
+        from shared.paths import effective_recorder_profiles_path
+        data = json.loads(effective_recorder_profiles_path().read_text(encoding="utf-8"))
+        for p in data.get("profiles", []):
+            if _valid_profile(p):
+                profiles.append(p)
+        if _valid_profile(data.get("default", {}), need_match=False):
+            default = data["default"]
+    except Exception:
+        pass                                   # defekt/fehlend → eingebaute Regeln
+    _profiles_cache = (profiles, default)
+    return _profiles_cache
+
+
+def _valid_profile(p, need_match=True) -> bool:
+    if not isinstance(p, dict) or not p.get("id"):
+        return False
+    steps = p.get("split_detection", {}).get("steps")
+    if not isinstance(steps, list) or any(s not in _STEPS for s in steps):
+        return False
+    try:
+        if need_match:
+            m = p.get("match")
+            if not isinstance(m, dict) or not m or any(k not in _PROFILE_SOURCES for k in m):
+                return False
+            for rx in m.values():
+                re.compile(rx)
+        t = p.get("track_id")
+        if t is not None:
+            if t.get("source") not in _PROFILE_SOURCES:
+                return False
+            if re.compile(t["pattern"]).groups < 1:
+                return False
+    except (re.error, KeyError, TypeError, AttributeError):
+        return False
+    return True
+
+
+def _identify_recorder(info) -> dict:
+    """Geraet aus den Metadaten: Originator (bext) + Modell/Firmware aus der
+    Coding History (`T=…`, `VERSION=…`, so bei Zoom)."""
+    ch = info.get("coding_history", "")
+    model = re.search(r"(?:^|[;,\s])T=([^;,\r\n]+)", ch)
+    fw = re.search(r"(?:^|[;,\s])VERSION=([^;,\r\n]+)", ch)
+    return {"originator": info.get("originator", ""),
+            "model": model.group(1).strip() if model else "",
+            "firmware": fw.group(1).strip() if fw else ""}
+
+
+def match_recorder_profile(info) -> dict:
+    """Erstes Profil, dessen `match`-Regex alle passen; sonst das Default-Profil."""
+    profiles, default = _load_profiles()
+    for p in profiles:
+        if all(re.search(rx, info.get(src, "") or "") for src, rx in p["match"].items()):
+            return p
+    return default
+
+
+def _extract_track_id(info, profile):
+    t = profile.get("track_id")
+    if not t:
+        return None
+    m = re.search(t["pattern"], info.get(t["source"], "") or "")
+    return m.group(1) if m else None
+
+
+def describe_recorder(path) -> dict:
+    """Diagnose: erkanntes Geraet, Profil und Spur-Kennung einer Datei."""
+    i = read_wav_info(path)
+    if not i:
+        return {"path": str(path), "error": "keine lesbare WAV"}
+    return {"path": str(path), "recorder": i["recorder"],
+            "profile": i["profile"]["id"], "track_id": i["rec_track"],
+            "steps": i["profile"]["split_detection"]["steps"],
+            "has_bext": i["time_ref"] is not None, "has_ixml": bool(i["ixml"])}
 
 
 def _same_format(a, b) -> bool:
@@ -237,69 +335,80 @@ def _match_by_track(preds, succs):
 
 def _match_seam(preds, succs):
     """Ordnet Vorgaenger ↔ Nachfolger an EINER Nahtstelle zu. Gibt [(pred, succ)]
-    zurueck — nur eindeutige Paare."""
-    # 1. Rekorder-Eingang aus den Metadaten — eindeutig, wenn vorhanden. Das
-    #    Signal dient nur noch als Sicherung gegen einen klaren Sprung.
-    by_track = _match_by_track(preds, succs)
-    if by_track is not None:
-        out = []
-        for p, s in by_track:
-            sc = seam_score(p, s)
-            if sc is None or sc <= _SEAM_SINGLE_MAX:
-                out.append((p, s))
-        return out
+    zurueck — nur eindeutige Paare. Welche Schritte in welcher Reihenfolge gelten,
+    legt das Rekorder-Profil fest (alle Kandidaten haben denselben Originator,
+    siehe _fmt_key → dasselbe Profil)."""
+    steps = preds[0]["profile"]["split_detection"]["steps"]
 
-    # 2. Ohne Eingangsnummer: Signal am Uebergang (+ Namen als Tie-Break)
+    # track: Spur-Kennung aus den Metadaten — eindeutig, wenn vorhanden. Das
+    # Signal dient nur noch als Sicherung gegen einen klaren Sprung.
+    if "track" in steps:
+        by_track = _match_by_track(preds, succs)
+        if by_track is not None:
+            out = []
+            for p, s in by_track:
+                sc = seam_score(p, s) if "signal" in steps else None
+                if sc is None or sc <= _SEAM_SINGLE_MAX:
+                    out.append((p, s))
+            return out
+
     if len(preds) == 1 and len(succs) == 1:
-        s = seam_score(preds[0], succs[0])
-        if s is not None and s > _SEAM_SINGLE_MAX:
-            return []                          # Zeit passt, Signal springt → lieber nicht
+        if "signal" in steps:
+            s = seam_score(preds[0], succs[0])
+            if s is not None and s > _SEAM_SINGLE_MAX:
+                return []                      # Zeit passt, Signal springt → lieber nicht
         return [(preds[0], succs[0])]
 
+    use_name = "name" in steps
+    if "signal" in steps:
+        result = _match_by_signal(preds, succs, use_name)
+        if result is not None:
+            return result
+    # Signal nicht entscheidbar / nicht vorgesehen → Namen, nur eindeutig
+    if use_name:
+        return [(preds[i], succs[j]) for i, j in _match_by_name(preds, succs)]
+    return []
+
+
+def _match_by_signal(preds, succs, use_name):
+    """Nahtpruefung im Audio. None = nicht entscheidbar (digitale Stille o. ae.)."""
     scores = [[seam_score(p, s) for s in succs] for p in preds]
     decidable = all(v is not None for row in scores for v in row)
+    if not decidable or len(preds) > 7 or len(succs) > 7:
+        return None
 
-    if decidable and len(preds) <= 7 and len(succs) <= 7:
-        # Beste Gesamtzuordnung (kleine N → alle Permutationen)
-        n = min(len(preds), len(succs))
-        best, best_cost, second_cost = None, float("inf"), float("inf")
-        if len(preds) <= len(succs):
-            for perm in permutations(range(len(succs)), n):
-                cost = sum(np.log1p(scores[i][j]) for i, j in enumerate(perm))
-                if cost < best_cost:
-                    best, best_cost, second_cost = [(i, j) for i, j in enumerate(perm)], cost, best_cost
-                elif cost < second_cost:
-                    second_cost = cost
-        else:
-            for perm in permutations(range(len(preds)), n):
-                cost = sum(np.log1p(scores[i][j]) for j, i in enumerate(perm))
-                if cost < best_cost:
-                    best, best_cost, second_cost = [(i, j) for j, i in enumerate(perm)], cost, best_cost
-                elif cost < second_cost:
-                    second_cost = cost
-        pairs = [(i, j) for i, j in best if scores[i][j] <= _SEAM_MAX]
-        # Eindeutig: jede gewaehlte Paarung klar besser als jede Alternative in
-        # ihrer Zeile. Sonst lieber gar nicht verbinden (→ manuelle Zuordnung).
-        ok = []
-        for i, j in pairs:
-            others = [scores[i][k] for k in range(len(succs)) if k != j]
-            if not others or min(others) >= scores[i][j] * _SEAM_MARGIN:
-                ok.append((preds[i], succs[j]))
-        if len(ok) == len(pairs):
-            return ok
-        # Signal nicht eindeutig (z. B. Raumrauschen an der Naht: alle Paare ~1,
-        # Folge 61). Dann entscheiden die Namen — aber nur, wo das Signal ihnen
-        # nicht widerspricht: Namenspaar == Paar der besten Gesamtzuordnung und
-        # als nahtlos bewertet. Sonst lieber nicht verbinden (→ manuell).
-        best_set = set(best)
-        out = []
-        for i, j in _match_by_name(preds, succs):
-            if (i, j) in best_set and scores[i][j] <= _SEAM_MAX:
-                out.append((preds[i], succs[j]))
-        return out
-
-    # Signal nicht entscheidbar → Namensaehnlichkeit als Tie-Break, nur eindeutig
-    return [(preds[i], succs[j]) for i, j in _match_by_name(preds, succs)]
+    # Beste Gesamtzuordnung (kleine N → alle Permutationen)
+    n = min(len(preds), len(succs))
+    best, best_cost = None, float("inf")
+    if len(preds) <= len(succs):
+        for perm in permutations(range(len(succs)), n):
+            cost = sum(np.log1p(scores[i][j]) for i, j in enumerate(perm))
+            if cost < best_cost:
+                best, best_cost = [(i, j) for i, j in enumerate(perm)], cost
+    else:
+        for perm in permutations(range(len(preds)), n):
+            cost = sum(np.log1p(scores[i][j]) for j, i in enumerate(perm))
+            if cost < best_cost:
+                best, best_cost = [(i, j) for j, i in enumerate(perm)], cost
+    pairs = [(i, j) for i, j in best if scores[i][j] <= _SEAM_MAX]
+    # Eindeutig: jede gewaehlte Paarung klar besser als jede Alternative in
+    # ihrer Zeile. Sonst lieber gar nicht verbinden (→ manuelle Zuordnung).
+    ok = []
+    for i, j in pairs:
+        others = [scores[i][k] for k in range(len(succs)) if k != j]
+        if not others or min(others) >= scores[i][j] * _SEAM_MARGIN:
+            ok.append((preds[i], succs[j]))
+    if len(ok) == len(pairs):
+        return ok
+    if not use_name:
+        return []
+    # Signal nicht eindeutig (z. B. Raumrauschen an der Naht: alle Paare ~1,
+    # Folge 61). Dann entscheiden die Namen — aber nur, wo das Signal ihnen
+    # nicht widerspricht: Namenspaar == Paar der besten Gesamtzuordnung und
+    # als nahtlos bewertet. Sonst lieber nicht verbinden (→ manuell).
+    best_set = set(best)
+    return [(preds[i], succs[j]) for i, j in _match_by_name(preds, succs)
+            if (i, j) in best_set and scores[i][j] <= _SEAM_MAX]
 
 
 def _match_by_name(preds, succs):
@@ -435,6 +544,8 @@ def join_group(parts, out_dir=None, progress_cb=None):
     manifest = {
         "parts": [],
         "sample_rate": first["sample_rate"],
+        "recorder": first.get("recorder", {}),
+        "profile": first.get("profile", {}).get("id", ""),
     }
     cursor = 0
     for i in infos:

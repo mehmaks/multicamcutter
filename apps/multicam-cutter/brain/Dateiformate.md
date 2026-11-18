@@ -100,7 +100,13 @@ warnings, errors, log-Zeilen, result, session_end.
 Rekorder wie der Zoom H6essential splitten lange Aufnahmen (neue Datei nach 1 GB).
 Der Scan (`shared/split_audio.py`) erkennt die Teile OHNE Dateinamen: BWF-
 `time_reference` (Teil B beginnt exakt am Ende von A, gleiches Format/Rekorder).
-Bei Mehrspur-Rekordern (mehrere Kandidaten an einer Naht), in dieser Reihenfolge:
+Bei Mehrspur-Rekordern (mehrere Kandidaten an einer Naht) entscheidet das
+**Rekorder-Profil** aus der Regeldatenbank `config/recorder_profiles.json` (Doku
+daneben: `recorder_profiles.md`; User-Override in Application Support). Geraet wird
+per bext-Originator/Coding-History erkannt (`describe_recorder(pfad)` zur Diagnose),
+das Profil legt Spur-Kennung + Schrittfolge (`track`/`signal`/`name`) fest; ohne
+Profil gilt `generic` = Signal + Namen. Das Manifest haelt Geraet + Profil fest.
+Fuer den Zoom H6essential (Profil `zoom-h6essential`):
 1. **Rekorder-Eingang** aus der bext-Coding-History (`TRK=3`, Zoom) — gleich ueber
    alle Teile einer Spur (Folge 55–61 geprueft). Greift, wenn alle Kandidaten einen
    eindeutigen Eingang haben; Signal nur noch als Sicherung (Sprung > 10 → nicht
