@@ -5,6 +5,18 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0-beta.2
+
+**Verbessert: Verständlichere Fortschrittsanzeige**
+
+Während der Analyse heißt der Schritt jetzt „Reaktionsanalyse“ statt „Nicken-Analyse“, weil dort
+inzwischen auch die Mundbewegung ausgewertet wird. Statt „CAM1“ steht der Name der Person mit der
+Einstellungsgröße da, z. B. „Reaktionsanalyse Seb · Nah (C9667.MP4)“.
+
+**Behoben: „Schließen“ an den Kamerakarten**
+
+Auf Deutsch stand an den Kamerakarten „Schließen“ statt „Nah“. Das ist korrigiert.
+
 ## 1.1.0-beta.1
 
 **Neu: Beta-Versionen**

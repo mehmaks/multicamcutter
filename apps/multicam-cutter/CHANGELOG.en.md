@@ -4,6 +4,19 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0-beta.2
+
+**Improved: Clearer progress display**
+
+During analysis the step is now called “Reaction analysis” instead of “Head-nod analysis”, because
+it now also evaluates mouth movement. Instead of “CAM1” it shows the person's name with the shot
+size, e.g. “Reaction analysis Seb · Close-up (C9667.MP4)”.
+
+**Fixed: Camera label in German**
+
+In German, the camera cards showed “Schließen” (close the window) instead of “Nah” (close-up). This
+is corrected.
+
 ## 1.1.0-beta.1
 
 **New: Beta versions**
