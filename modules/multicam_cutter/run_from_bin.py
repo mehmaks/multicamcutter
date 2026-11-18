@@ -848,7 +848,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             nodding_enabled = cam_nodding[i] if i < len(cam_nodding) else True
             wants_mouth = mouth_enabled and cp in mouth_npz
             if not nodding_enabled and not wants_mouth:
-                print(f"\n  Nodding-Analyse CAM{i + 1} übersprungen (nodding_detection=false)")
+                print(f"\n  Reaktionsanalyse CAM{i + 1} übersprungen (Nicken und Mund aus)")
                 continue
             # Totalen liefern nie eigene Reaktions-Cutaways: PASS 2 sammelt
             # ausschliesslich aus close_cams (add_reactions_to_edl.py:183-189).
@@ -862,7 +862,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             # ("Close gewinnt", EngineController.camRoles) — ein Zwei-Personen-Bild
             # wird also nur uebersprungen, wenn es fuer NIEMANDEN die engste ist.
             if i < len(cam_types) and cam_types[i] == 'wide':
-                print(f"\n  Nodding-Analyse CAM{i + 1} übersprungen (Totale — "
+                print(f"\n  Reaktionsanalyse CAM{i + 1} übersprungen (Totale — "
                       f"PASS 2 verwendet nur Close-Kameras)")
                 continue
             json_out = work_dir / (Path(cp).stem + '_reactions.json')
@@ -889,7 +889,7 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                 args_list += ['--auto-accuracy']
             if lut_path:
                 args_list += ['--lut', lut_path]
-            run(args_list, f"Nodding-Analyse CAM{i + 1} ({Path(cp).name})")
+            run(args_list, f"Reaktionsanalyse CAM{i + 1} ({Path(cp).name})")
 
     # ── Schritt 3: Cameras-JSON bauen und Cutaways einfügen ──────────────────
     cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')

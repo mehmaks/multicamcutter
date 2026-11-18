@@ -1659,12 +1659,36 @@ class EngineController: ObservableObject {
     func locStepLabel(_ s: String) -> String {
         let hit = loc(s)
         if hit != s { return hit }
-        for prefix in ["Head-nod analysis", "Audio preview:", "Converting"] {
+        for prefix in ["Reaction analysis", "Head-nod analysis", "Audio preview:", "Converting"] {
             if s.hasPrefix(prefix + " ") {
                 return loc(prefix) + String(s.dropFirst(prefix.count))
             }
         }
         return s
+    }
+
+    /// Schrittname der Reaktionsanalyse (Nicken + Mund) je Kamera:
+    /// „Reaktionsanalyse Seb · Nah (C9667.MP4)". Person = Anzeigename des EINEN
+    /// zugeordneten Mics (bei mehreren keine Person), Größe aus der Kamerarolle.
+    /// Der Dateiname bleibt in Klammern, damit man die Quelle sicher erkennt.
+    func reactionStepLabel(file: String) -> String {
+        let base = loc("Reaction analysis")
+        guard let cam = cameraInfos.first(where: { $0.filename == file }) else {
+            return "\(base) (\(file))"
+        }
+        var parts: [String] = []
+        if cam.assignedMics.count == 1,
+           let mic = micInfos.first(where: { $0.id == cam.assignedMics[0] }),
+           !mic.displayName.isEmpty {
+            parts.append(mic.displayName)
+        }
+        switch camRoles()[cam.id] {
+        case .wide: parts.append(loc("Wide"))
+        case .close: parts.append(loc("Close-up"))
+        default: break
+        }
+        let name = parts.joined(separator: " · ")
+        return name.isEmpty ? "\(base) (\(file))" : "\(base) \(name) (\(file))"
     }
 
     /// Leitet die Timeline-FPS aus den gescannten Kameras ab.
@@ -2231,7 +2255,11 @@ class EngineController: ObservableObject {
             if let key = json["key"] as? String { recordStepTiming(key) }
             // Subprocess-Step innerhalb von run_analysis
             if let label = json["label"] as? String {
-                stepLabel = locStepLabel(label)
+                if let file = json["cam_file"] as? String, !file.isEmpty {
+                    stepLabel = reactionStepLabel(file: file)
+                } else {
+                    stepLabel = locStepLabel(label)
+                }
                 stepPercent = 0
                 stepETA = ""
                 stepCounter = ""

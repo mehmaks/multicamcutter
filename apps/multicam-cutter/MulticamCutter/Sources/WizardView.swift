@@ -705,7 +705,7 @@ struct WizardCamCard: View {
                 .background(Color.brandSecondary).foregroundStyle(.black)
                 .clipShape(Capsule()).padding(6)
         case .close:
-            Text("Close").font(.caption2.weight(.medium))
+            Text("Close-up").font(.caption2.weight(.medium))   // NICHT "Close" = Button „Schließen"
                 .padding(.horizontal, 7).padding(.vertical, 3)
                 .background(Color.brandAccent.opacity(0.18)).foregroundStyle(Color.brandAccent)
                 .clipShape(Capsule()).padding(6)
@@ -1033,7 +1033,7 @@ struct CamSummaryRow: View {
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .background(Color.brandSecondary).foregroundStyle(.black).clipShape(Capsule())
         case .close:
-            Text("Close").font(.caption2.weight(.semibold))
+            Text("Close-up").font(.caption2.weight(.semibold))
                 .padding(.horizontal, 8).padding(.vertical, 2)
                 .background(Color.brandAccent.opacity(0.16)).foregroundStyle(Color.brandAccent).clipShape(Capsule())
         case .unused:
