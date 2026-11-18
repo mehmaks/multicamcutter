@@ -129,6 +129,10 @@ struct PipelineParams: Equatable {
     var minConf: Double = 0.60
     var riseDb: Double = 6.0
     var speakingMaxDur: Double = 2.5
+    // Beta „Mund + Mikro": Einwürfe zusätzlich über Mundbewegung erkennen
+    var mouthReactionsEnabled: Bool = false
+    var mouthDeadband: Double = 1.0
+    var mouthWindow: Double = 0.33
     var pauseCutawayMinPause: Double = 2.0
     var clipFilterEnabled: Bool = false
 
@@ -192,6 +196,9 @@ struct PipelineParams: Equatable {
             "randomness": randomness,
             "rise_db": riseDb,
             "speaking_max_dur": speakingMaxDur,
+            "mouth_reactions_enabled": mouthReactionsEnabled,
+            "mouth_deadband_s": mouthDeadband,
+            "mouth_window_s": mouthWindow,
             "gate_floor": gateFloor,
             "gate_hysteresis": gateHysteresis,
             "gate_window": gateWindow,
@@ -229,6 +236,8 @@ struct PipelineParams: Equatable {
             "clip_filter_enabled": clipFilterEnabled,
             "pre_roll": preRoll, "randomness": randomness,
             "rise_db": riseDb, "speaking_max_dur": speakingMaxDur,
+            "mouth_reactions_enabled": mouthReactionsEnabled,
+            "mouth_deadband_s": mouthDeadband, "mouth_window_s": mouthWindow,
             "gate_floor": gateFloor, "gate_hysteresis": gateHysteresis,
             "gate_window": gateWindow, "gate_attack": gateAttack,
             "gate_release": gateRelease, "gate_both_threshold": gateBothThreshold,
@@ -267,6 +276,9 @@ struct PipelineParams: Equatable {
         if let v = dict["randomness"] as? Double { randomness = v }
         if let v = dict["rise_db"] as? Double { riseDb = v }
         if let v = dict["speaking_max_dur"] as? Double { speakingMaxDur = v }
+        if let v = dict["mouth_reactions_enabled"] as? Bool { mouthReactionsEnabled = v }
+        if let v = dict["mouth_deadband_s"] as? Double { mouthDeadband = v }
+        if let v = dict["mouth_window_s"] as? Double { mouthWindow = v }
         if let v = dict["gate_floor"] as? Double { gateFloor = v }
         if let v = dict["gate_hysteresis"] as? Double { gateHysteresis = v }
         if let v = dict["gate_window"] as? Double { gateWindow = v }

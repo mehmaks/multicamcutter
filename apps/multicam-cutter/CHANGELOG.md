@@ -5,6 +5,24 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0-beta.1
+
+**Neu: Beta-Versionen**
+
+In den Einstellungen unter „Updates“ kannst du jetzt „Beta-Versionen erhalten“ einschalten. Dann
+bekommst du neue Funktionen schon vor dem offiziellen Release. Schaltest du es wieder aus, bietet
+dir die App an, zur aktuellen stabilen Version zurückzukehren.
+
+**Neu (Beta): Einwürfe über die Mundbewegung erkennen**
+
+Bisher hat die App kurze Einwürfe der zuhörenden Person nur am Ton erkannt und dabei viele
+übersehen. Mit „Mundbewegung (Beta)“ unter Experteneinstellungen → Einwürfe achtet sie zusätzlich
+darauf, ob sich der Mund der Person bewegt. Ein Schnitt kommt nur dazu, wenn sich der Mund bewegt
+und gleichzeitig das eigene Mikro Ton aufnimmt. So findet die App deutlich mehr echte Einwürfe wie
+„Ja“, „Krass“ oder ein kurzes Lachen. Direkt an Sprecherwechseln wird die Mundbewegung ignoriert.
+Die Funktion ist standardmäßig aus und braucht etwas mehr Rechenzeit, wenn die Nicken-Erkennung
+ausgeschaltet ist.
+
 ## 1.0.2
 
 **Behoben: Gesplittete Aufnahmen wurden manchmal nicht zusammengefügt**

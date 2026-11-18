@@ -658,6 +658,14 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
         speaking_enabled = False
         pause_cutaway_enabled = False
 
+    # „Mund + Mikro" (Beta): zusaetzliche Quelle fuer Sprachreaktionen aus der
+    # Gesichtsanalyse. Haengt an den Sprachreaktionen (gleicher Cutaway-Typ) und
+    # ist wie diese vorerst nur im binaeren Pfad verfuegbar. Braucht die
+    # Gesichtsanalyse → bei skip_analysis aus.
+    mouth_enabled = bool(params.get('mouth_reactions_enabled', False)) and speaking_enabled
+    if mouth_enabled and (use_n_path or skip_analysis):
+        mouth_enabled = False
+
     # ── Schritt 1 (N-Pfad): Base-EDL ueber Personen → engste Kamera ──────────
     # Diarisiert ueber die Personen-Mics und schneidet jede auf ihre engste
     # Kamera. Nicken/Simultan/Uebergaenge laufen; Sprech-/Pausen-Reaktionen (s.o.)
@@ -833,11 +841,13 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     params_json_path = work_dir / 'params.json'
     params_json_path.write_text(json.dumps(params, indent=2), encoding='utf-8')
 
+    mouth_npz = {cp: work_dir / (Path(cp).stem + '_mouth.npz') for cp in (cam1_path, cam2_path)}
     if not skip_analysis:
         analyzer = str(SCRIPT_DIR / 'video_reaction_analyzer_v2.4.py')
         for i, cp in enumerate(cam_paths):
             nodding_enabled = cam_nodding[i] if i < len(cam_nodding) else True
-            if not nodding_enabled:
+            wants_mouth = mouth_enabled and cp in mouth_npz
+            if not nodding_enabled and not wants_mouth:
                 print(f"\n  Nodding-Analyse CAM{i + 1} übersprungen (nodding_detection=false)")
                 continue
             # Totalen liefern nie eigene Reaktions-Cutaways: PASS 2 sammelt
@@ -856,7 +866,16 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                       f"PASS 2 verwendet nur Close-Kameras)")
                 continue
             json_out = work_dir / (Path(cp).stem + '_reactions.json')
-            args_list = [analyzer, cp, '--output', str(json_out), '--params', str(params_json_path)]
+            cam_params = params_json_path
+            if not nodding_enabled:
+                # Nur fuer die Mund-Daten analysiert → keine Nicken-Erkennung, sonst
+                # entstuenden Nicken-Cutaways auf einer Kamera, wo sie aus sind.
+                cam_params = work_dir / 'params_mouth_only.json'
+                cam_params.write_text(json.dumps({**params, 'nodding_enabled': False}, indent=2),
+                                      encoding='utf-8')
+            args_list = [analyzer, cp, '--output', str(json_out), '--params', str(cam_params)]
+            if wants_mouth:
+                args_list += ['--mouth-out', str(mouth_npz[cp])]
             off_sec = off_sections_map.get(cp)
             if off_sec and off_sec.exists():
                 args_list += ['--off-sections', str(off_sec)]
@@ -876,6 +895,23 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
     cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
     speaking_jsons = {cam1_path: cam1_speaking_json, cam2_path: cam2_speaking_json}
+
+    # ── Schritt 2b: „Mund + Mikro" — Einwuerfe in die Sprachreaktionen eintragen ─
+    if mouth_enabled:
+        try:
+            from mouth_reactions import add_mouth_reactions
+            _mc = []
+            for cp, mics_for in ((cam1_path, mic_cam1_paths), (cam2_path, mic_cam2_paths)):
+                m = mics_for[0]
+                _mc.append({'video': cp, 'cam_key': f'CAM{cam_paths.index(cp) + 1}',
+                            'mic': m, 'mic_key': f'MIC{mic_paths.index(m) + 1}',
+                            'mouth_npz': str(mouth_npz[cp]),
+                            'speaking_json': str(speaking_jsons[cp])})
+            print("\n  Mund + Mikro: Einwürfe der Zuhörer suchen...")
+            add_mouth_reactions(base_edl, _mc, offsets, fps, params)
+        except Exception as e:
+            # Beta-Funktion darf den Lauf nie kaputt machen → ohne sie weiter
+            print(f"  ⚠️  Mund + Mikro übersprungen: {e}")
 
     cameras_config = []
     for i, cp in enumerate(cam_paths):

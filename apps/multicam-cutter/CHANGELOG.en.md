@@ -4,6 +4,23 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0-beta.1
+
+**New: Beta versions**
+
+In the settings under “Updates” you can now turn on “Receive beta versions”. You then get new
+features before the official release. If you turn it off again, the app offers to take you back to
+the current stable version.
+
+**New (beta): Detect interjections from mouth movement**
+
+Until now, the app only recognised short interjections from the listening person by sound and missed
+many of them. With “Mouth movement (beta)” under Expert settings → Interjections, it also watches
+whether the person's mouth moves. A cut is only added when the mouth moves and their own microphone
+picks up sound at the same time. This finds considerably more real interjections like “yes”, “wow”
+or a short laugh. Right at a change of speaker, mouth movement is ignored. The feature is off by
+default and takes a bit more processing time if head-nod detection is turned off.
+
 ## 1.0.2
 
 **Fixed: Split recordings were sometimes not joined**

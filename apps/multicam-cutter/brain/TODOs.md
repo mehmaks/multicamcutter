@@ -360,6 +360,86 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
 
 ### 📦 Post-1.0 (geparkt)
 
+- [ ] **Sprachreaktionen per Mundbewegung — als QUELLE eingebaut (1.1.0-beta.1, 18.11.).**
+  Missverständnis aufgelöst: User will keinen FP-Filter, sondern zusätzliche Cutaways auf
+  echte Einwürfe. Folge 61/62: 535 Einwürfe (Mund + Mikro), App erkannte davon vorher nur
+  139 (93 geschnitten), 369 waren neu; alle 34 gesichteten „neuen" echt. Umsetzung:
+  `modules/multicam_cutter/mouth_reactions.py`, Checkbox Experten → Einwürfe, Standard aus.
+  **Offen:** echte Vorrang-Regel (mit Mund gewinnt bei Kollision) bräuchte Eingriff in
+  PASS 2 (chronologisch first-come) — bewusst nicht in der Beta. Feedback aus der Beta abwarten.
+- [ ] *(Historie)* **Sprachreaktionen per Mundbewegung verfeinern (MediaPipe, „Regel D").**
+  (User, 18.11.) Audio-Sprechererkennung bleibt die Grundstruktur. MediaPipe prüft NUR bei
+  den gerade NICHT sprechenden Personen, ob ihr Mund spricht. Whisper bewusst NICHT (erkennt
+  Mic-Bleed als Sprache). **Leitlinie des Users:** rein verfeinernd, darf die App nur besser,
+  nie schlechter machen; einfach halten — evtl. reichen zwei Parameter:
+  **Wechsel-Deadband** (X s vor/nach jedem Sprecherwechsel ignorieren, Start 1,0 s) und
+  **Messfenster** („Messgenauigkeit", Lippen-Tempo über 0,33 s statt 1 s).
+  - Skripte: `analyse/mund_aktivitaet/` — `aufzeichnen.py` (Rohdaten je Bild, keine
+    Schwellen), `auswerten.py` (Kriterien K1–K3), `pruef_timeline.py` (AAF, schneidet an
+    Markern auf den ZUHÖRER), `marker_edl.py` (Resolve-Marker-EDL, TC aus der AAF).
+  - **Folge 61 (Seb/Kim):** K1 Sichtbarkeit 99,7/99,9 % · K2 AUC Sprechen↔Zuhören
+    0,98/0,97 (bestes Merkmal **Lippen-Tempo** = Mittel |Δ Lippenabstand innen| /
+    Gesichtshöhe, NICHT Mundöffnung) · K3 Mund-Auslöser treffen eigenes Mikro ×2,7–5,5
+    häufiger als Zufall. User-Sichtung von 90 Markern: 15 grüne + 19 gelbe lagen < 1 s an
+    einem Sprecherwechsel (= Hauptfehler, Deadband 1,0 s entfernt alle, 0 echte verloren).
+    Grün außerhalb: 15/15 echt. Blau außerhalb: 8/25 waren echte „Ja" aus offenem/lächelndem
+    Mund — das 1-s-Fenster verwässert 0,2-s-„Ja"; mit 0,33 s alle 8 erkannt, aber auch 7/17
+    Nicht-Reaktionen (Lippe lecken, Schniefen, Lächeln).
+  - **Folge 62 (Seb/Barbara, Gegenprobe, Deadband 1,0 s, Marker mit 0,33-s-Fenster):**
+    K1 99,6/99,9 % · K2 0,98/0,97 · K3 ×3–7. Sichtung: **Grün 30/30 echt** (inkl. Lachen,
+    „Mhm" hinter der Hand); 7 davon fand NUR das 0,33-s-Fenster → kurzes Fenster lohnt
+    sich in Kombination mit dem Mikro. **Gelb** = überwiegend Mund-SCHLIESSEN nach
+    Einwurf/Lächeln (78 % Schließbewegung vs. 50 % bei Grün, User-Beobachtung bestätigt);
+    3× evtl. Nicken (Kopfneigung kippt den sichtbaren Lippenabstand) — n=3, offen.
+    **Blau 10/30 echt** (6 Wörter, 4× hörbares Lachen) — Mund war schon offen.
+  - **Stärkster Befund (beide Folgen, Blau außerhalb Deadband, n=55):** Mikro-Ausschlag
+    + Mund GESCHLOSSEN (mittlerer Lippenabstand/Gesichtshöhe < 0,005 rund um den
+    Ausschlag) = Übersprechen: 25/37 erkannt, nur 1/18 echte verloren. Echte Einwürfe
+    kommen meist aus offenem Mund (Median 0,054). → Das trifft genau den bekannten
+    Fehlalarm der Sprachreaktionen (Crossbleed). ⚠️ Schwelle an denselben 2 Folgen
+    gefunden → Überanpassung möglich.
+  - **Mögliche Minimal-Regel (nur verfeinernd):** im Deadband nichts tun · Mikro + Mund
+    bewegt → bestätigt · Mikro + Mund zu → Übersprechen, verwerfen · sonst bisherige
+    Audio-Regeln entscheiden lassen. Mund allein löst NIE aus.
+  - **❌ ERGEBNIS Ground Truth (18.11., `analyse/mund_aktivitaet/ground_truth.py`):**
+    90 markierte Sprachreaktions-Cutaways aus echten App-Läufen (`datasets/speaking-fp/`,
+    ep01–ep04 = Folgen 45/47/44/46; 55 TP / 35 FP), Mund direkt im Cutaway-Bild,
+    Schwellen VORAB aus 61/62 fixiert. Fenster sitzt nachweislich richtig (Trennung
+    am besten bei 0 bis −1 s, fällt bei Verschiebung ab).
+    - Trennung echt↔Fehlalarm nur **AUC 0,68** (Lippen-Tempo; je Folge 0,58–0,76) statt
+      0,97 in 61/62. „Mund zu = Übersprechen" überträgt sich NICHT (ep02 sogar umgekehrt,
+      AUC 0,32) → war an 61/62 überangepasst.
+    - Regel allein: verwirft 12/35 FP, aber 16/55 TP. FP-Rate 39 % → 37 %.
+    - **Auf Audio-Regel A (Korrelation ≥ 0,75) obendrauf** (ep02–04, sauber verknüpfbar;
+      ep01 fehlen 5 Merkmal-Zeilen): A verwirft schon 15/19 FP bei 2/49 TP. Von den 4
+      übrigen FP fängt das Mund-Veto 0–1, kostet aber 11–23 von 47 echten Reaktionen.
+      11/47 echte Sprachreaktionen zeigen praktisch KEINE Mundbewegung („Mhm" mit
+      geschlossenem Mund) — genau die würde ein Mund-Veto vernichten.
+    - **Entscheidung (Leitlinie des Users: nur verbessern, nie verschlechtern):**
+      Mund-Regel für Sprachreaktionen NICHT bauen. Regel A bleibt der Filter.
+      Was bleibt: Rohdaten-Pipeline + Erkenntnisse (Lippen-Tempo trennt Sprechen/Zuhören
+      innerhalb einer Folge sehr gut; Deadband um Sprecherwechsel; Gelb = Mund-Schließen)
+      für andere Ideen (z. B. „Nicken nur bei Lächeln" unten).
+
+- [ ] **Nicken-Reaktionen nur bei Lächeln (Checkbox) — Test planen.**
+  (User, 18.11.) Idee: Nicken-Cutaways optional nur verwenden, wenn die nickende Person
+  dabei lächelt; doppelt abgesichert per CLIP-Check (z. B. Prompt „a person smiling").
+  - **Ausgangspunkt NICHT die „gelben Marker"** des Mund-Versuchs. Herleitung Gelb (Folge
+    61): Zuhörer (laut base.edl nicht aktiv), Gesicht erkannt, Lippen-Tempo (1-s-Fenster)
+    ≥ 25-%-Quantil der EIGENEN Sprech-Verteilung, Strecke ≥ 0,2 s, und KEIN Ausschlag des
+    eigenen Mikros im Umkreis ±0,3 s (Ausschlag = eigener Pegel ≥ Übersprechen + 8 dB und
+    ≥ Grundrauschen + 10 dB; Übersprechen = Median eigenes−fremdes Mikro, während der
+    andere laut redet). Gelb heißt also nur „Mund bewegt sich ohne Ton".
+  - ⚠️ **Gelb ≠ Lächeln (gemessen):** `mouthSmile` (MediaPipe-Blendshape, Mittel L/R)
+    bei Gelb außerhalb der Wechselzone meist 0,0–0,36, nur 2/11 > 0,6; Gelb und Grün
+    haben denselben Median (0,54 / 0,55). Die Aussage „Gelb ist fast immer Lächeln" war
+    eine Deutung, keine Messung.
+  - **Test-Vorschlag:** Lächeln direkt messen — `mouthSmileLeft/Right` liegen je Bild schon
+    in den Rohdaten (`aufzeichnen.py`, Feld `bs`). An Nicken-Cutaways einer Folge den
+    Lächeln-Wert im Nick-Fenster auswerten, User sichtet „lächelt / lächelt nicht" →
+    Schwelle ableiten → CLIP-Prompt als zweite Prüfung gegen dieselbe Sichtung.
+    Erst dann Checkbox (pro Preset, Standard AUS).
+
 - [ ] **Telemetrie: Aufnahmegeräte erfassen (Rekorder-Regeldatenbank füttern).**
   (User, 18.11.) Ziel: wissen, welche Rekorder die Nutzer einsetzen → gezielt
   Profile in `config/recorder_profiles.json` anlegen. Quelle: `describe_recorder()` /

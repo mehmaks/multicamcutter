@@ -18,6 +18,14 @@
 
 Nodding ist ~80% der Gesamtzeit. Bei 2 Cams a 90 Min: ~20 Min total.
 
+**„Mund + Mikro" (Beta, `mouth_reactions_enabled`, nur binärer Pfad):** Die Nodding-
+Analyse schreibt zusätzlich `<cam>_mouth.npz` (Lippenabstand je Bild der Off-Sektionen,
+`--mouth-out`). Ist Nicken für eine Kamera aus, läuft die Analyse trotzdem — dann mit
+`params_mouth_only.json` (nodding_enabled=false), also nur für die Mund-Daten.
+Danach (vor `cutaways`) trägt `mouth_reactions.add_mouth_reactions` Einwürfe in die
+`<cam>_speaking.json` ein (`source: "mund"`) bzw. markiert bestätigte Audio-Erkennungen
+(`mund_bestaetigt`). PASS 2 bleibt unverändert. Fehler darin brechen den Lauf nie ab.
+
 ## Pipeline-Code
 
 Engine: `multicam_engine.py:run_pipeline()` orchestriert.
