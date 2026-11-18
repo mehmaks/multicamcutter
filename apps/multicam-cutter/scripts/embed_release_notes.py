@@ -88,7 +88,7 @@ def embed(version: str, appcast_path: Path) -> int:
 
     def process(m):
         item = m.group()
-        vm = re.search(r"MultiCamCutter-([0-9][0-9.]*)\.dmg", item)
+        vm = re.search(r"MultiCamCutter-([0-9][0-9A-Za-z.-]*)\.dmg", item)   # auch 1.1.0-beta.1
         if vm is None:
             return item  # Version nicht ableitbar → unangetastet
         ver = vm.group(1)

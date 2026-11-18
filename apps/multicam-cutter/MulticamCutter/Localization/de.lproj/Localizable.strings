@@ -361,3 +361,13 @@
 "Split into separate files" = "In Einzeldateien trennen";
 "Recording split into several files? Join it with the track it belongs to" = "Aufnahme in mehrere Dateien gesplittet? Mit der Spur verbinden, zu der sie gehört";
 "Couldn't join recordings" = "Aufnahmen konnten nicht verbunden werden";
+
+/* Beta-Kanal (Einstellungen → Updates) */
+"Receive beta versions" = "Beta-Versionen erhalten";
+"Beta versions bring new features before the official release. They are tested, but may still contain errors. You can switch back at any time." = "Beta-Versionen bringen neue Funktionen vor dem offiziellen Release. Sie sind getestet, können aber noch Fehler enthalten. Du kannst jederzeit zurückwechseln.";
+"Return to the stable version?" = "Zur stabilen Version zurückkehren?";
+"You are using beta version %@. Updates will no longer offer betas. Do you want to download the latest stable version %@ now? Afterwards, open the downloaded file and drag the app into your Applications folder." = "Du nutzt die Beta-Version %1$@. Updates bieten ab jetzt keine Betas mehr an. Möchtest du die aktuelle stabile Version %2$@ jetzt herunterladen? Öffne danach die geladene Datei und ziehe die App in deinen Programme-Ordner.";
+"Download stable version" = "Stabile Version laden";
+"Keep beta" = "Beta behalten";
+"Stable version not found" = "Stabile Version nicht gefunden";
+"The update feed could not be loaded. You will receive the next stable version automatically, or you can download it from the website." = "Der Update-Feed konnte nicht geladen werden. Die nächste stabile Version bekommst du automatisch, oder du lädst sie auf der Website herunter.";

@@ -3,6 +3,7 @@ set -euo pipefail
 
 # ── MultiCamCutter Release (ein Befehl) ────────────────────────────────────
 #   bash scripts/release.sh 0.5.0
+#   bash scripts/release.sh 1.1.0-beta.1 --beta     (Beta-Kanal, siehe unten)
 #
 # Macht in einem Rutsch:
 #   1. Version setzen (an build_app.sh durchgereicht)
@@ -20,6 +21,12 @@ set -euo pipefail
 # greifen auf private Schlüssel im Login-Schlüsselbund zu. Beim ersten Mal je ein
 # Dialog → „Immer erlauben"; danach nie wieder.
 #
+# Beta-Kanal: --beta markiert die neue Version im Appcast mit
+# <sparkle:channel>beta</sparkle:channel>. Nur Apps mit eingeschaltetem
+# „Beta-Versionen erhalten" bekommen sie angeboten. Versionsformat dann zwingend
+# X.Y.Z-beta.N (und umgekehrt: -beta nur mit --beta). Website-Contract:
+# brain/Appcast-Hosting.md → Beta-Kanal.
+#
 # Env:
 #   SIGN_IDENTITY        Developer-ID-String (Default: aus dem Schlüsselbund erkannt)
 #   NOTARY_PROFILE       notarytool-Profil (Default: MulticamNotary)
@@ -32,9 +39,20 @@ APP_DIR="$SCRIPT_DIR/.."
 
 # ── 1. Version prüfen ──────────────────────────────────────────────────────
 VERSION="${1:-}"
-if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Aufruf: bash scripts/release.sh <version>   (z. B. 0.5.0)"
+BETA=0
+[ "${2:-}" = "--beta" ] && BETA=1
+if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-beta\.[0-9]+)?$ ]]; then
+    echo "Aufruf: bash scripts/release.sh <version> [--beta]"
+    echo "  z. B. 1.0.3   oder   1.1.0-beta.1 --beta"
     exit 1
+fi
+# Version und Kanal muessen zusammenpassen — sonst landet eine Beta im stabilen
+# Kanal (alle Nutzer bekaemen sie) oder eine stabile Version nur bei Beta-Nutzern.
+if [[ "$VERSION" == *-beta.* && "$BETA" != 1 ]]; then
+    echo "✗ $VERSION ist eine Beta-Version — bitte mit --beta aufrufen."; exit 1
+fi
+if [[ "$VERSION" != *-beta.* && "$BETA" == 1 ]]; then
+    echo "✗ --beta braucht eine Beta-Versionsnummer (X.Y.Z-beta.N)."; exit 1
 fi
 
 # ── 2. Signier-Identität ermitteln ─────────────────────────────────────────
@@ -46,7 +64,7 @@ if [ -z "$SIGN_IDENTITY" ]; then
     exit 1
 fi
 
-echo "=== MultiCamCutter Release $VERSION ==="
+echo "=== MultiCamCutter Release $VERSION $([ $BETA = 1 ] && echo '(BETA-Kanal)') ==="
 echo "  Identität: $SIGN_IDENTITY"
 echo "  Notary:    ${NOTARY_PROFILE:-MulticamNotary}"
 echo ""
@@ -95,10 +113,22 @@ echo "► generate_appcast (signiert jede DMG mit dem Sparkle-Schlüssel)..."
 # Lokal bleibt also alles liegen; aufgeraeumt wird nur im Bucket, von Hand.
 # OHNE --embed-release-notes: das kann nur EINE, einsprachige <description>.
 # Die zweisprachige Einbettung macht embed_release_notes.py danach.
+# Vorherigen Feed sichern: daran prueft appcast_channels.py, dass jeder Eintrag
+# seinen Kanal behaelt (generate_appcast setzt --channel nur fuer die NEUE Version).
+PREV_APPCAST="$UPDATES_DIR/appcast.prev.xml"
+if [ -f "$UPDATES_DIR/appcast.xml" ]; then cp "$UPDATES_DIR/appcast.xml" "$PREV_APPCAST"; else : > "$PREV_APPCAST"; fi
+CHANNEL_ARGS=()
+[ "$BETA" = 1 ] && CHANNEL_ARGS=(--channel beta)
 "$GEN_APPCAST" "$UPDATES_DIR" \
     --download-url-prefix "$DOWNLOAD_URL_PREFIX" \
-    --maximum-versions 5
+    --maximum-versions 5 \
+    ${CHANNEL_ARGS[@]+"${CHANNEL_ARGS[@]}"}
 echo "  ✓ $UPDATES_DIR/appcast.xml"
+
+echo "► Kanal-Vermerke pruefen (stabil/Beta)..."
+"$PYBIN" "$SCRIPT_DIR/appcast_channels.py" "$PREV_APPCAST" "$UPDATES_DIR/appcast.xml" "$VERSION" \
+    $([ "$BETA" = 1 ] && echo --beta) \
+    || { echo "✗ Kanal-Pruefung fehlgeschlagen — nichts veroeffentlicht."; exit 1; }
 
 # Changelog zweisprachig ins <item> einbetten: <description xml:lang="de"> (Pflicht)
 # und, falls CHANGELOG.en.md den Abschnitt hat, xml:lang="en". Die Website waehlt

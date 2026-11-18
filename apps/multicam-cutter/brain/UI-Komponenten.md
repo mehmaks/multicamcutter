@@ -340,7 +340,14 @@ sind weg — Rollen werden aus dem Personen-Graphen **abgeleitet** (`camRoles()`
 hängen am selben `SPUUpdater`). Zeigt die installierte Version, den Schalter
 „Automatisch nach Updates suchen" und einen Prüfen-Button.
 
-- **Kein eigener `@AppStorage`-Schlüssel.** Sparkle persistiert den Schalter
+- **„Beta-Versionen erhalten"** (`@AppStorage("updates.betaChannel")`, Standard aus).
+  Hier IST ein eigener Schlüssel richtig: Sparkle speichert keine Kanalwahl, sondern
+  fragt sie über `UpdaterChannelDelegate.allowedChannels` ab. Abschalten während eine
+  Beta läuft (`UpdateChannel.isBetaBuild`, erkannt an „beta" in der Anzeige-Version)
+  → Rückfrage, ob die neueste stabile Version geladen werden soll (`StableRelease`
+  liest dazu den Appcast, Delta-Enclosures ausgenommen; Download öffnet im Browser).
+  Sparkle selbst installiert nie eine ältere Version.
+- **Kein eigener `@AppStorage`-Schlüssel** (für die Auto-Prüfung). Sparkle persistiert den Schalter
   selbst unter `SUEnableAutomaticChecks`; ein zweiter Speicher liefe auseinander.
   Der `UpdaterViewModel` reicht nur durch.
 - **Default an**: `SUEnableAutomaticChecks` steht in der Info.plist auf `true`

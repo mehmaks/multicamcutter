@@ -32,6 +32,8 @@ sind (21.07.):
 | `the code is valid but does not seem to be an app` | Im Plist-Template stand `CFBundlePackagetype` — **kleines „t"**. macOS-Keys sind case-sensitiv, der Eintrag wurde ignoriert und spctl erkannte das Bundle nicht als Programm. | `build_app.sh`, Key korrigiert |
 | `rejected — source=no usable signature` (DMG) | `make_dmg.sh` hat das DMG nur erzeugt, nie signiert. Notarisieren + Stapeln allein genügt Gatekeeper nicht. | `make_dmg.sh` signiert jetzt mit `SIGN_IDENTITY`, **vor** der Einreichung |
 
+| `notarytool`: `HTTP status code: 403. A required agreement is missing or has expired` (27.10., 1.0.0) | Apple hat eine neue Fassung des Developer-Program-Lizenzvertrags veröffentlicht; ohne Zustimmung blockt der Notary-Service. Kein Code-Problem, nichts eingereicht. | Als Account Holder auf developer.apple.com/account einloggen → Banner „Review agreement" akzeptieren (ggf. auch App Store Connect → Verträge). Dann `release.sh` komplett neu starten |
+
 Dazu wurde `SIGN_IDENTITY` durch die ganze Kette gereicht
 (`release.sh` → `notarize.sh` → `make_dmg.sh`); vorher endete es bei
 `build_app.sh` und die Subprozesse sahen es nicht.
@@ -257,6 +259,12 @@ dann bis zu 90 s auf den Vercel-Deploy warten und den Live-Feed gegenprüfen.
    Update prüfen" muss die neue Version anbieten, laden, verifizieren, installieren.
 
 </details>
+
+**Beta-Release:** `bash scripts/release.sh 1.1.0-beta.1 --beta` — Version MUSS
+`X.Y.Z-beta.N` sein (und `--beta` nur mit Beta-Nummer, sonst Abbruch). Changelog-
+Abschnitt heißt dann `## 1.1.0-beta.1`. Nur Apps mit „Beta-Versionen erhalten" sehen
+das Update. Kanal-Prüfung läuft automatisch (`appcast_channels.py`). Details:
+`brain/Appcast-Hosting.md` → Beta-Kanal.
 
 Kurzform: **`release.sh` (publisht am Ende selbst, fragt einmal) → aus alter
 Installation testen.**

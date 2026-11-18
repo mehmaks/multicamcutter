@@ -127,6 +127,36 @@ appcast.xml → `public/appcast.xml`. **Vollständige Schritt-für-Schritt-Check
 - Solange noch **keine** `appcast.xml` gehostet ist, zeigt der Button erwartungs-
   gemäß einen Netzwerkfehler — kein Bug.
 
+## Beta-Kanal (ab 1.1.0-beta.1, 18.11.2026)
+
+**Ein Feed, zwei Kanäle.** Beta-Versionen stehen in derselben `appcast.xml` wie
+stabile, erkennbar an einem Kind-Element des `<item>`:
+
+```xml
+<item>
+  <title>1.1.0-beta.1</title>
+  <sparkle:channel>beta</sparkle:channel>
+  <sparkle:version>202612010900</sparkle:version>
+  <sparkle:shortVersionString>1.1.0-beta.1</sparkle:shortVersionString>
+  …
+  <enclosure url="https://multicamcutter.pantake.com/downloads/MultiCamCutter-1.1.0-beta.1.dmg" …/>
+</item>
+```
+
+- **Stabil** = Item OHNE `<sparkle:channel>`. **Beta** = `<sparkle:channel>beta</sparkle:channel>`.
+  Jeder andere Kanalwert = nicht stabil behandeln.
+- Die **App** filtert selbst (Sparkle `allowedChannels`): Beta-Items sieht nur, wer in
+  Einstellungen → Updates „Beta-Versionen erhalten" eingeschaltet hat. Deshalb muss
+  `/appcast.xml` **unverändert alle Items** ausliefern — die Website darf den Feed
+  NICHT filtern oder umschreiben.
+- **Reihenfolge/„neueste"** immer nach `sparkle:version` (Build-Nummer, Zeitstempel
+  JJJJMMTTHHMM), nie nach `shortVersionString` (Textsortierung: „1.1.0-beta.1" vs. „1.1.0").
+- Beta-DMGs liegen im selben R2-Bucket, `/downloads/<datei>` mappt unverändert.
+- Absicherung auf App-Seite: `scripts/appcast_channels.py` prüft bei jedem Release, dass
+  jeder Eintrag seinen Kanal behält (generate_appcast setzt `--channel` nur für die neue
+  Version) — bricht sonst vor dem Publish ab.
+- `app_version` in Feedback/Telemetrie kann jetzt `1.1.0-beta.1` sein.
+
 ## Sparkle-Keys (Referenz)
 
 - **Public-Key** (in der App, `SUPublicEDKey`): `kcPVTCojTVp36MscXhRzKlgyNAa/fkekxnoVfsxfRDY=`
