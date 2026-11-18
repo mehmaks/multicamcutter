@@ -4,6 +4,16 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.0.2
+
+**Fixed: Split recordings were sometimes not joined**
+
+When a recorder split a long multitrack recording into several files, the app sometimes failed to
+recognise which parts belonged together, especially when nobody was speaking at the transition. The
+parts then showed up as separate tracks. This is fixed. With Zoom recorders, the app now matches the
+parts using the recorder input stored in every file, which is much more reliable than before. Your
+existing edits are not affected.
+
 ## 1.0.1
 
 **MultiCamCutter is now free**

@@ -5,6 +5,16 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.0.2
+
+**Behoben: Gesplittete Aufnahmen wurden manchmal nicht zusammengefügt**
+
+Hat der Rekorder eine lange Aufnahme mit mehreren Spuren in Teile aufgeteilt, erkannte die App die
+Zusammengehörigkeit in manchen Fällen nicht, besonders wenn an der Übergangsstelle gerade niemand
+sprach. Die Teile erschienen dann als einzelne Spuren. Das ist behoben. Bei Zoom-Rekordern ordnet die
+App die Teile jetzt anhand des Rekorder-Eingangs zu, der in jeder Datei gespeichert ist. Das ist
+deutlich zuverlässiger als bisher. Deine bisherigen Schnittprojekte sind nicht betroffen.
+
 ## 1.0.1
 
 **MultiCamCutter ist jetzt kostenlos**
