@@ -421,6 +421,21 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
       innerhalb einer Folge sehr gut; Deadband um Sprecherwechsel; Gelb = Mund-Schließen)
       für andere Ideen (z. B. „Nicken nur bei Lächeln" unten).
 
+- [ ] **„Analysespur": Mikro ohne Übersprechen als Grundlage aller Audio-Analysen — Versuch läuft.**
+  (User, 18.11.) Idee: Spur muss nicht hörbar schön sein, nur Sprache klar vom Rest
+  trennen — wie das Auge in der Resolve-Waveform. Skript `analyse/sprachspur/sprachspur.py`.
+  - **Wellenform-Abzug scheitert** am Raumhall: Kohärenz der Mikros nur 0,2–0,5 (64 ms) →
+    max. 1–2 dB. **Leistungs-Abzug je Frequenz** (|H(f)|² = Median eigen/anders, wenn das
+    andere Mikro dominiert) wirkt: Folge 61 Abstand Sprache↔Übersprechen Seb 17,9 → 29,2 dB,
+    Kim 11,9 → 20,8 dB. User: Bleed „erstaunlich gut gefiltert", alle kurzen Einwürfe
+    („Ja", „voll") an den Prüfstellen klar sicht- und hörbar.
+  - **Grundrauschen war nie der Engpass** (Sprache 27–39 dB darüber); Rauschabzug bringt
+    nur +3–4 dB. → Kein Gate/Expander vor der Analyse (Analyse-Skripte sind selbst
+    Schwellen; festes Gate würde leise Einwürfe vorab abschneiden). Pegel egal für Analyse.
+  - **Nächster Schritt:** Bestehende Erkennungen (Sprecherwechsel, Einwürfe, Pausen) auf
+    der Analysespur laufen lassen, gegen Ground Truth messen (`datasets/speaking-fp`,
+    Sichtungen 61/62). Produktiv: in Stücken rechnen (Versuch braucht bis 36 GB RAM).
+
 - [ ] **Umschnitt bei direkter Ansprache (Transkript-basiert) — Idee, Versuch planen.**
   (User, 18.11.) Beobachtung aus dem eigenen Schnitt: Er schneidet gern auf die NICHT
   sprechende Person, wenn sie explizit angesprochen wird. Idee: Fragewörter und direkte
