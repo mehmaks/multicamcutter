@@ -360,6 +360,22 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
 
 ### 📦 Post-1.0 (geparkt)
 
+- [ ] **Telemetrie: Aufnahmegeräte erfassen (Rekorder-Regeldatenbank füttern).**
+  (User, 18.11.) Ziel: wissen, welche Rekorder die Nutzer einsetzen → gezielt
+  Profile in `config/recorder_profiles.json` anlegen. Quelle: `describe_recorder()` /
+  `info["recorder"]` aus `shared/split_audio.py` (bext-Originator, Modell `T=`,
+  Firmware `VERSION=`) + gematchtes Profil + ob ein Split erkannt wurde.
+  - **Payload:** je Lauf eine Liste `recorders: [{profile_id, originator, model,
+    firmware, files, split_chains}]`. `profile_id` ist ein Enum (unkritisch).
+  - ⚠️ **DSGVO-Regel 2 (nur Zahlen/Enums)** — Originator/Modell sind Strings. Sie kommen
+    vom Hersteller, nicht vom Nutzer, sind aber technisch frei beschreibbar. Daher:
+    auf `[A-Za-z0-9 ._-]` normalisieren, max. 32 Zeichen, nichts aus Description/iXML
+    (dort stehen Szene/Notizen/Projektnamen!). Entscheidung + Begründung in
+    `brain/Telemetrie-API.md` festhalten, **bevor** gebaut wird.
+  - Contract-Erweiterung mit der Website-Session abstimmen (neues Feld, optional →
+    abwärtskompatibel), Datenschutzerklärung um „verwendetes Aufnahmegerät" ergänzen.
+  - Auswertung: Liste „Originator ohne eigenes Profil" = Kandidaten für neue Profile.
+
 - [ ] **Multitrack-AAF: eine Videospur je Kamera, Umschnitte per Clip-Aktivierung.**
   (Externes Feedback, 26.07. — im Workflow des Users nie relevant, für andere Cutter
   aber wichtig; stand bisher NICHT im TODO.) Statt alle Umschnitte auf EINE Videospur zu
