@@ -300,6 +300,20 @@
 
 ## Gefixt
 
+### Split-Erkennung verbindet Rekorder-Teile nicht, wenn die Naht leise ist — GEFIXT (18.11., Folge 61)
+- **Symptom**: Zoom-H6essential-Aufnahme, 2 Spuren × 2 Teile (`…085955_Tr1/Tr2`,
+  `…103306_Tr1/Tr2`). Zeitstempel passen samplegenau, trotzdem 4 Einzeldateien
+  statt 2 Ketten.
+- **Ursache**: Bei mehreren Kandidaten an einer Naht entscheidet `seam_score`.
+  An dieser Naht lagen ALLE Paare bei ~1 (richtig 0,61/0,96, falsch 1,10/1,19 —
+  Raumrauschen, kein Sprung), die Eindeutigkeitsschwelle `_SEAM_MARGIN` (×2) wurde
+  knapp verfehlt → `_match_seam` gab `[]` zurück. Der Namens-Tie-Break lief nur,
+  wenn das Signal gar nicht berechenbar war, nicht bei „berechenbar, aber uneindeutig".
+- **Fix**: `shared/split_audio.py` → `_match_seam`: Ist das Signal uneindeutig,
+  entscheiden die Namen (`_match_by_name`), aber nur Paare, die auch in der besten
+  Signal-Gesamtzuordnung liegen und `<= _SEAM_MAX` sind. Widerspricht das Signal
+  den Namen → weiterhin keine Verbindung (manuell „Gehört zu …").
+
 ### Dev-Only-Artefakte entstehen aus der Mac-App NIE (`decision_log.json`, `speaking_debug.json`)
 - **Symptom**: Nach einem vollständigen Lauf aus der App liegen im Work-Dir zwar
   `final.edl` und `final.colors.json`, aber **weder** `decision_log.json` **noch**

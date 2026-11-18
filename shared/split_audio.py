@@ -256,17 +256,32 @@ def _match_seam(preds, succs):
                 ok.append((preds[i], succs[j]))
         if len(ok) == len(pairs):
             return ok
-        return []
+        # Signal nicht eindeutig (z. B. Raumrauschen an der Naht: alle Paare ~1,
+        # Folge 61). Dann entscheiden die Namen — aber nur, wo das Signal ihnen
+        # nicht widerspricht: Namenspaar == Paar der besten Gesamtzuordnung und
+        # als nahtlos bewertet. Sonst lieber nicht verbinden (→ manuell).
+        best_set = set(best)
+        out = []
+        for i, j in _match_by_name(preds, succs):
+            if (i, j) in best_set and scores[i][j] <= _SEAM_MAX:
+                out.append((preds[i], succs[j]))
+        return out
 
     # Signal nicht entscheidbar → Namensaehnlichkeit als Tie-Break, nur eindeutig
+    return [(preds[i], succs[j]) for i, j in _match_by_name(preds, succs)]
+
+
+def _match_by_name(preds, succs):
+    """Eindeutige Zuordnung ueber das gemeinsame Namensende ('…_Tr1' ↔ '…_Tr1').
+    Gibt [(pred_idx, succ_idx)] zurueck."""
     out, used = [], set()
-    for p in preds:
+    for i, p in enumerate(preds):
         sims = [(_name_similarity(p["path"], s["path"]), idx) for idx, s in enumerate(succs)]
         sims.sort(reverse=True)
         if sims and sims[0][0] > 0 and (len(sims) == 1 or sims[0][0] > sims[1][0]) \
                 and sims[0][1] not in used:
             used.add(sims[0][1])
-            out.append((p, succs[sims[0][1]]))
+            out.append((i, sims[0][1]))
     return out
 
 
