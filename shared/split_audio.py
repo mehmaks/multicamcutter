@@ -25,6 +25,7 @@ import hashlib
 import json
 import os
 import shutil
+import re
 import struct
 import tempfile
 from itertools import permutations
@@ -115,7 +116,7 @@ def read_wav_info(path):
         "bits": bits, "block_align": block_align,
         "data_off": data_off, "data_len": data_len,
         "n_samples": data_len // block_align,
-        "time_ref": None, "originator": "",
+        "time_ref": None, "originator": "", "rec_track": None,
         "chunks": chunks,
     }
     bext = cmap.get(b"bext")
@@ -123,6 +124,12 @@ def read_wav_info(path):
         lo, hi = struct.unpack("<II", bext[338:346])
         info["time_ref"] = lo + (hi << 32)
         info["originator"] = bext[256:288].split(b"\0")[0].decode("latin1").strip()
+        # Coding History (ab Byte 602): Zoom schreibt dort den Rekorder-Eingang,
+        # z. B. "…;TRK=3;…". Bleibt ueber alle Split-Teile einer Spur gleich
+        # (geprueft an Folge 55–61, 10 Ketten) → primaerer Zuordnungsschluessel.
+        m = re.search(rb"(?:^|[;,\s])TRK=([0-9A-Za-z]+)", bext[602:])
+        if m:
+            info["rec_track"] = m.group(1).decode("latin1")
     return info
 
 
@@ -216,9 +223,33 @@ def _name_similarity(a: str, b: str) -> int:
     return n
 
 
+def _match_by_track(preds, succs):
+    """Zuordnung ueber den Rekorder-Eingang (`rec_track`, z. B. Zoom TRK=3).
+    Nur wenn ALLE Kandidaten einen haben und er je Seite eindeutig ist — sonst
+    None (→ Signal/Namen). Paare nur bei gleichem Eingang."""
+    tp = [p["rec_track"] for p in preds]
+    ts = [s["rec_track"] for s in succs]
+    if None in tp or None in ts or len(set(tp)) != len(tp) or len(set(ts)) != len(ts):
+        return None
+    by_track = {s["rec_track"]: s for s in succs}
+    return [(p, by_track[p["rec_track"]]) for p in preds if p["rec_track"] in by_track]
+
+
 def _match_seam(preds, succs):
     """Ordnet Vorgaenger ↔ Nachfolger an EINER Nahtstelle zu. Gibt [(pred, succ)]
     zurueck — nur eindeutige Paare."""
+    # 1. Rekorder-Eingang aus den Metadaten — eindeutig, wenn vorhanden. Das
+    #    Signal dient nur noch als Sicherung gegen einen klaren Sprung.
+    by_track = _match_by_track(preds, succs)
+    if by_track is not None:
+        out = []
+        for p, s in by_track:
+            sc = seam_score(p, s)
+            if sc is None or sc <= _SEAM_SINGLE_MAX:
+                out.append((p, s))
+        return out
+
+    # 2. Ohne Eingangsnummer: Signal am Uebergang (+ Namen als Tie-Break)
     if len(preds) == 1 and len(succs) == 1:
         s = seam_score(preds[0], succs[0])
         if s is not None and s > _SEAM_SINGLE_MAX:

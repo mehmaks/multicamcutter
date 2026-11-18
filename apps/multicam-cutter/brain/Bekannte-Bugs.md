@@ -313,6 +313,10 @@
   entscheiden die Namen (`_match_by_name`), aber nur Paare, die auch in der besten
   Signal-Gesamtzuordnung liegen und `<= _SEAM_MAX` sind. Widerspricht das Signal
   den Namen → weiterhin keine Verbindung (manuell „Gehört zu …").
+- **Nachgezogen (18.11.)**: Primaer jetzt der Rekorder-Eingang (`TRK=` in der
+  bext-Coding-History, `_match_by_track`) — macht die Zuordnung bei Zoom komplett
+  unabhaengig vom Signal. Folge 55 lag mit 1,53 auf der richtigen Naht ebenfalls
+  wackelig. Details: `Dateiformate.md` → Gesamt-WAVs.
 
 ### Dev-Only-Artefakte entstehen aus der Mac-App NIE (`decision_log.json`, `speaking_debug.json`)
 - **Symptom**: Nach einem vollständigen Lauf aus der App liegen im Work-Dir zwar

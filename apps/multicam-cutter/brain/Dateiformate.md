@@ -99,10 +99,18 @@ warnings, errors, log-Zeilen, result, session_end.
 
 Rekorder wie der Zoom H6essential splitten lange Aufnahmen (neue Datei nach 1 GB).
 Der Scan (`shared/split_audio.py`) erkennt die Teile OHNE Dateinamen: BWF-
-`time_reference` (Teil B beginnt exakt am Ende von A, gleiches Format/Rekorder) +
-bei Mehrspur-Rekordern die Nahtpruefung im Signal (LPC-Vorhersage ueber den
-Uebergang, nahtlos ≈ 1, falsche Spur ≥ 3). Nur bei digitaler Stille entscheidet
-die Namensaehnlichkeit.
+`time_reference` (Teil B beginnt exakt am Ende von A, gleiches Format/Rekorder).
+Bei Mehrspur-Rekordern (mehrere Kandidaten an einer Naht), in dieser Reihenfolge:
+1. **Rekorder-Eingang** aus der bext-Coding-History (`TRK=3`, Zoom) — gleich ueber
+   alle Teile einer Spur (Folge 55–61 geprueft). Greift, wenn alle Kandidaten einen
+   eindeutigen Eingang haben; Signal nur noch als Sicherung (Sprung > 10 → nicht
+   verbinden). Ungleicher Eingang → nie verbinden. Achtung: `Tr1` im Dateinamen ist
+   NICHT der Eingang (Tr1 = TRK 3). `FDR` (Pegel) taugt nicht, ist oft gleich.
+2. Ohne Eingang: Nahtpruefung im Signal (LPC-Vorhersage, nahtlos ≈ 1). An leisen
+   Naehten (Raumrauschen) liegen auch falsche Paare bei ~1 → dann Namensaehnlichkeit,
+   aber nur passend zur besten Signal-Zuordnung.
+`zSCENE` / ZOOM-JUNK-Block enthalten nur die Schliesszeit der Datei (= Start des
+naechsten Teils) — redundant zur Zeitpruefung.
 
 - Ort: `$TMPDIR/MultiCamCutter-joined/<hash der Teile>/<Name von Teil 1>`
   (`MCC_JOIN_DIR`, von der App gesetzt). Die App loescht den Ordner beim Beenden
