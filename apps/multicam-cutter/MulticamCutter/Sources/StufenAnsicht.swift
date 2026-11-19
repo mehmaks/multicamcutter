@@ -30,6 +30,11 @@ struct StufenKachel: View {
     let kategorie: StufenKategorie
 
     private var schaltbar: Bool { !kategorie.anSchluessel.isEmpty }
+    /// Nur ein Regler mit demselben Namen wie die Kachel (z. B. Tempo) → keine
+    /// doppelte Überschrift.
+    private var einRegler: Bool {
+        kategorie.regler.count == 1 && kategorie.regler[0].titel == kategorie.titel
+    }
     private var an: Bool { !schaltbar || Stufen.istAn(kategorie, engine.params) }
 
     private func umschalten() {
@@ -44,7 +49,7 @@ struct StufenKachel: View {
             // Piktogramm — Klick schaltet die Kategorie
             HStack {
                 Spacer()
-                LucideIcon(kategorie.piktogramm, size: 76)
+                LucideIcon(kategorie.piktogramm, size: 64)
                     .foregroundStyle(an ? Color.brandAccent : Color.wizFaint)
                     .opacity(an ? 1 : 0.55)
                     .contentShape(Rectangle())
@@ -58,19 +63,23 @@ struct StufenKachel: View {
                     .foregroundStyle(an ? Color.wizText : Color.wizMuted)
                 WizHelpBadge(kategorie.hilfe)
                 Spacer()
+                if einRegler, Stufen.stufe(kategorie.regler[0], in: engine.params) == nil {
+                    Text(loc("custom")).font(.caption2).foregroundStyle(.brandSecondary)
+                        .help(loc("Changed in the expert settings — pick a level to reset."))
+                }
                 if schaltbar {
                     WizSwitch(isOn: Binding(get: { an }, set: { neu in if neu != an { umschalten() } }))
                 }
             }
             ForEach(kategorie.regler) { r in
-                StufenSchalter(regler: r, kategorie: kategorie)
+                StufenSchalter(regler: r, kategorie: kategorie, ohneTitel: einRegler)
                     .disabled(!an)
                     .opacity(an ? 1 : 0.4)
             }
             Spacer(minLength: 0)
         }
         .padding(14)
-        .frame(maxWidth: .infinity, minHeight: 300, alignment: .top)
+        .frame(maxWidth: .infinity, minHeight: 236, alignment: .top)
         .background(Color.wizSurface2, in: RoundedRectangle(cornerRadius: 12))
         .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.wizBorder, lineWidth: 1))
     }
@@ -81,11 +90,12 @@ struct StufenSchalter: View {
     @EnvironmentObject var engine: EngineController
     let regler: StufenRegler
     let kategorie: StufenKategorie
+    var ohneTitel: Bool = false
 
     var body: some View {
         let aktiv = Stufen.stufe(regler, in: engine.params)
         VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
+            if !ohneTitel { HStack(spacing: 6) {
                 Text(loc(regler.titel)).font(.system(size: 13))
                 WizHelpBadge(regler.hilfe)
                 Spacer()
@@ -93,7 +103,7 @@ struct StufenSchalter: View {
                     Text(loc("custom")).font(.caption2).foregroundStyle(.brandSecondary)
                         .help(loc("Changed in the expert settings — pick a level to reset."))
                 }
-            }
+            } }
             HStack(spacing: 2) {
                 ForEach(Array(regler.stufen.enumerated()), id: \.offset) { i, name in
                     let on = aktiv == i
