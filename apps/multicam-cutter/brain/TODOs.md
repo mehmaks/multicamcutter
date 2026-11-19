@@ -370,6 +370,10 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
   im Analyse-Player läuft). Verwandt: offene Vorrang-Regel „Mund + Mikro" unten.
 
 - [ ] **Sprachreaktionen per Mundbewegung — als QUELLE eingebaut (1.1.0-beta.1, 18.11.).**
+  **⏸ Seit 19.11. abgeschaltet, nicht verworfen** (User): Die Einwurf-Erkennung auf der
+  Analysespur (`analyse/aktivitaet/einwurf_b.py`) verfolgt dasselbe Ziel ohne Gesichtsanalyse
+  und ist gesichtet (Folge 61: 368/381 trifft, Folge 62: 296/309). Schalter:
+  `MOUTH_REACTIONS_AVAILABLE` (run_from_bin.py) + `FeatureFlags.mouthReactions` (Swift).
   Missverständnis aufgelöst: User will keinen FP-Filter, sondern zusätzliche Cutaways auf
   echte Einwürfe. Folge 61/62: 535 Einwürfe (Mund + Mikro), App erkannte davon vorher nur
   139 (93 geschnitten), 369 waren neu; alle 34 gesichteten „neuen" echt. Umsetzung:

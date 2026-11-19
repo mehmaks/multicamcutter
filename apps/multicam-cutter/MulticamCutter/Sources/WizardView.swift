@@ -1243,11 +1243,13 @@ struct WizardSettings: View {
                     WizToggle("Enabled", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
                     WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB", help: ParamHelp.riseDb)
                     WizSlider("Max. cutaway length", $engine.params.speakingMaxDur, 0.5...10, suffix: " s", help: ParamHelp.speakingMaxDur)
-                    WizToggle("Mouth movement (beta)", $engine.params.mouthReactionsEnabled, help: ParamHelp.mouthReactionsEnabled)
-                        .disabled(!engine.params.speakingEnabled)
-                    if engine.params.mouthReactionsEnabled && engine.params.speakingEnabled {
-                        WizSlider("Ignore at speaker change", $engine.params.mouthDeadband, 0...3, suffix: " s", help: ParamHelp.mouthDeadband)
-                        WizSlider("Measuring window", $engine.params.mouthWindow, 0.2...1.0, suffix: " s", format: "%.2f", help: ParamHelp.mouthWindow)
+                    if FeatureFlags.mouthReactions {
+                        WizToggle("Mouth movement (beta)", $engine.params.mouthReactionsEnabled, help: ParamHelp.mouthReactionsEnabled)
+                            .disabled(!engine.params.speakingEnabled)
+                        if engine.params.mouthReactionsEnabled && engine.params.speakingEnabled {
+                            WizSlider("Ignore at speaker change", $engine.params.mouthDeadband, 0...3, suffix: " s", help: ParamHelp.mouthDeadband)
+                            WizSlider("Measuring window", $engine.params.mouthWindow, 0.2...1.0, suffix: " s", format: "%.2f", help: ParamHelp.mouthWindow)
+                        }
                     }
                 }
                 group("Silence") {

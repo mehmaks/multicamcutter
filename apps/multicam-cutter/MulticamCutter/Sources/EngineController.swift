@@ -90,6 +90,15 @@ struct UnsyncableSource: Identifiable, Hashable {
     var id: String { path }
 }
 
+// MARK: - Feature-Schalter
+
+enum FeatureFlags {
+    /// „Mund + Mikro" (Beta 1.1.0): vorerst abgeschaltet, Code bleibt (19.11.).
+    /// Die Engine ignoriert den Parameter ebenfalls (`MOUTH_REACTIONS_AVAILABLE`
+    /// in run_from_bin.py). Wieder an: beide auf true.
+    static let mouthReactions = false
+}
+
 // MARK: - Parameters
 
 struct PipelineParams: Equatable {

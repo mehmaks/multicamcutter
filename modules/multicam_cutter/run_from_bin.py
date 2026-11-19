@@ -33,6 +33,10 @@ from shot_sizes import camera_roles
 
 SCRIPT_DIR = Path(__file__).parent
 
+# „Mund + Mikro" (Beta 1.1.0): vorerst abgeschaltet, Code bleibt (User, 19.11.).
+# Nachfolger: Einwurf-Erkennung auf der Analysespur (analyse/aktivitaet/einwurf_b.py).
+MOUTH_REACTIONS_AVAILABLE = False
+
 
 # ── Media Pool helpers ────────────────────────────────────────────────────────
 
@@ -662,7 +666,10 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     # Gesichtsanalyse. Haengt an den Sprachreaktionen (gleicher Cutaway-Typ) und
     # ist wie diese vorerst nur im binaeren Pfad verfuegbar. Braucht die
     # Gesichtsanalyse → bei skip_analysis aus.
-    mouth_enabled = bool(params.get('mouth_reactions_enabled', False)) and speaking_enabled
+    # Seit 19.11. abgeschaltet (nicht verworfen): die Einwurf-Erkennung auf der
+    # Analysespur verfolgt dasselbe Ziel ohne Gesichtsanalyse. Wieder an: True.
+    mouth_enabled = (MOUTH_REACTIONS_AVAILABLE
+                     and bool(params.get('mouth_reactions_enabled', False)) and speaking_enabled)
     if mouth_enabled and (use_n_path or skip_analysis):
         mouth_enabled = False
 
