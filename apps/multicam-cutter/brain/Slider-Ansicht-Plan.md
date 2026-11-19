@@ -56,12 +56,12 @@ Werte = App-Standard (die Engine hat für CLI-Läufe teils andere Rückfallwerte
 
 | Parameter (Schlüssel) | UI | Standard | Wirkung | Status |
 |---|---|---|---|---|
-| Min. Einstellungslänge (`min_shot`) | einfach + Experte | 3,0 s | kürzeste Einstellung; Mindestabstand zwischen zwei Schnitten | 🎚 Rhythmus |
-| Max. Einstellungslänge (`max_shot`) | einfach + Experte | 14 s | längere Sprecher-Einstellungen bekommen „Max.-Time"-Cutaways | 🎚 Rhythmus |
-| Min. Aufräumlänge (`cleanup_dur`) | Experte | 1,8 s | PASS 3/6 entfernen kürzere Reststücke | 🎚 Rhythmus (mitgeführt) |
-| Cutaway-Länge (`reaction_dur`) | einfach + Experte | 1,8 s | Mindestdauer jedes Reaktions-Cutaways | 🎚 Rhythmus |
+| Min. Einstellungslänge (`min_shot`) | einfach + Experte | 3,0 s | kürzeste Einstellung; Mindestabstand zwischen zwei Schnitten | 🎚 Tempo |
+| Max. Einstellungslänge (`max_shot`) | einfach + Experte | 14 s | längere Sprecher-Einstellungen bekommen „Max.-Time"-Cutaways | 🎚 Tempo |
+| Min. Aufräumlänge (`cleanup_dur`) | Experte | 1,8 s | PASS 3/6 entfernen kürzere Reststücke | 🎚 Tempo (mitgeführt) |
+| Cutaway-Länge (`reaction_dur`) | einfach + Experte | 1,8 s | Mindestdauer jedes Reaktions-Cutaways | 🎚 Tempo |
 | Pre-Roll (`pre_roll`) | Experte | 15 Bilder | Cutaway beginnt so viel vor der Reaktion | 🔧 |
-| Zufallsfaktor (`randomness`) | Experte | 0,2 | Cutaway-Länge zufällig bis +20 % (ohne festen Startwert → jeder Lauf leicht anders) | 🎚 Rhythmus |
+| Zufallsfaktor (`randomness`) | Experte | 0,2 | Cutaway-Länge zufällig bis +20 % (ohne festen Startwert → jeder Lauf leicht anders) | 🎚 Tempo |
 | Cluster-Abstand (`cluster_max_gap_frames`) | — | 75 Bilder | Reaktionen < 2,5 s Abstand = eine Gruppe, Schnitt rückt an den Gruppenanfang | 🔒 |
 | Vorrang Einwürfe vor Nicken (`speaking_priority`) | Experte | aus | Nicken weicht, wenn es einen Einwurf blockieren würde | 🎚 Kopfnicken/Einwürfe (Wie oft) |
 
@@ -172,7 +172,7 @@ legt Dateien in den Medienordner des Nutzers — auch das spricht fürs Entferne
 
 | Kategorie | Slider | steuert (Entwurf) |
 |---|---|---|
-| **Rhythmus** | ruhig ↔ lebendig | `min_shot`, `max_shot`, `reaction_dur`, `cleanup_dur`, `randomness` |
+| **Tempo** | ruhig ↔ lebendig | `min_shot`, `max_shot`, `reaction_dur`, `cleanup_dur`, `randomness` |
 | **Kopfnicken** | Wie oft (aus … viel) | Schnittabstand für Nicken*, `speaking_priority` |
 | | Wie sicher | `min_conf`, aktive Muster |
 | **Sprachreaktionen** | Wie oft (aus … viel) | Schnittabstand für Einwürfe*, Deadband |
@@ -208,7 +208,7 @@ Muster aus) · `speaking_umgebung_db` / `speaking_uebersprechen_db` / `speaking_
 
 | Kategorie | Slider | links · Mitte · rechts |
 |---|---|---|
-| Rhythmus | Tempo | ruhig · ausgewogen · lebendig |
+| Tempo | Tempo | ruhig · ausgewogen · lebendig |
 | Kopfnicken | Wie oft | selten · ausgewogen · oft |
 | | Treffsicherheit | großzügig · ausgewogen · streng |
 | Sprachreaktionen | Wie oft | selten · ausgewogen · oft |
@@ -220,6 +220,28 @@ Muster aus) · `speaking_umgebung_db` / `speaking_uebersprechen_db` / `speaking_
 Kopfnicken „Treffsicherheit" aus der Sichtung: streng = nur oscillation · ausgewogen =
 + slow ab 0,7 · großzügig = + slow ab 0,6 + strong.
 
+## Kennlinien (entschieden 19.11., Werte zum Nachjustieren)
+
+Mitte „ausgewogen" = User-Einstellungen bzw. gesichtete Werte.
+
+**Tempo** (ruhig · ausgewogen · lebendig): min_shot 4,0 / 3,0 / 1,2 s · max_shot 20 / 14 /
+6,5 s · reaction_dur 2,2 / 1,8 / 1,2 s · cleanup_dur 1,8 / 1,5 / 1,0 s (nie über
+reaction_dur) · randomness 0,2 / 0,3 / 0,3. „lebendig" bewusst für Social Clips.
+
+**Kopfnicken** Wie oft (selten · ausgewogen · oft): nodding_cooldown_s 14 / 8 / 0.
+Treffsicherheit (großzügig · ausgewogen · streng): alle Muster ab 0,6 / slow ab 0,7 +
+strong aus / nur oscillation.
+
+**Sprachreaktionen** Wie oft: speaking_cooldown_s 12 / 4 / 0. Treffsicherheit:
+übersprechen/umgebung +9/+4,5 · +12/+6 (gesichtet) · +15/+8 dB. Vorrang vor Nicken immer an.
+
+**Totale** Wie oft: totale_simul_dur 5 / 3 / 2 s · Rückweg über Totale: nie / nach
+Einwürfen / nach allen.
+
+**Pausen** (Piktogramm schaltet die Kategorie): Pausen kürzen = verbleibende Pausenlänge
+1,5 / 1,0 / 0,6 s (sanft · ausgewogen · straff); Cutaways in Pausen: keine / lange Pausen
+(ab 3 s) / oft (ab 1,5 s).
+
 ## Piktogramme (Higgsfield)
 
 - Modell: **GPT Image 2.6 mit SVG-Ausgabe** (echte Vektoren, transparenter Hintergrund,
@@ -228,7 +250,7 @@ Kopfnicken „Treffsicherheit" aus der Sichtung: streng = nur oscillation · aus
 - Stil: Referenz-Maskottchen (runder Kopf, Punktaugen, Strich-Lächeln, Ohr, Haarschopf),
   einfarbig **Lime #C6F24E**, in der App auf **#191C15** (wizSurface).
 - **(entschieden)** Kategorien heißen **Kopfnicken · Sprachreaktionen · Pausen · Totale ·
-  Rhythmus**. Finale SVGs in `apps/multicam-cutter/design/piktogramme/` (kopfnicken,
+  Tempo**. Finale SVGs in `apps/multicam-cutter/design/piktogramme/` (kopfnicken,
   sprachreaktionen, pausen, totale, rhythmus). Motive: Nicken + Auf-ab-Pfeil · offener
   Mund + Schallbögen · zurückgelehnt, Hand hinterm Kopf, „…" · zwei Figuren im
   Bildrahmen · Filmstreifen mit einer Unterteilung, Schere schneidet, Köpfe links/rechts.
