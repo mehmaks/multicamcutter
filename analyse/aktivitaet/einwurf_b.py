@@ -73,7 +73,8 @@ def detect(d, params=None):
                 rej.append((s, e, "zu lang"))
             else:
                 events.append((int(s), int(e)))
-        res.append({"events": events, "rejected": [(int(s), int(e), r) for s, e, r in rej],
+        res.append({"roh": (listen & (x >= thr)).astype(np.float32), "puffer": near.astype(np.float32),
+                    "events": events, "rejected": [(int(s), int(e), r) for s, e, r in rej],
                     "umgebung": umgebung + p["umgebung_db"], "erwartet": erwartet + p["uebersprechen_db"],
                     "leise": sprache - p["leise_db"], "gain_db": gain, "sprache_db": sprache})
     return res, p

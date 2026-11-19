@@ -113,6 +113,9 @@ def main():
         add(f"orig{k}", np.maximum(d[f"lv_orig{k}"], -110))
         add(f"b_umg{k}", b_res[k]["umgebung"])
         add(f"b_erw{k}", b_res[k]["erwartet"])
+        add(f"b_roh{k}", b_res[k]["roh"])
+        if k == 0:
+            add("puffer", b_res[0]["puffer"])
         for c in ("db", "base", "thr", "freeze"):
             add(f"a_{c}{k}", a_cur[k][c])
         adb = a_cur[k]["db"][np.isfinite(a_cur[k]["db"])]
