@@ -43,28 +43,24 @@ struct StufenAnsicht: View {
     }
 }
 
-/// „Was dich erwartet" — die gewählten Stufen in einfacher Sprache, live.
+/// „Was dich erwartet" — die gewählten Stufen in einfacher Sprache, live. Gestaltet
+/// wie der Infokasten „Automatisch erkannt" (zurückhaltend, Flieder-Ton).
 struct StufenZusammenfassung: View {
     @EnvironmentObject var engine: EngineController
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            Text(loc("What to expect"))
-                .font(.caption2).fontWeight(.bold).foregroundStyle(.brandSecondary).tracking(0.8)
-                .textCase(.uppercase)
-            Text(Stufen.zusammenfassung(engine.params, mitTotale: engine.hasWideCamera))
-                .font(.system(size: 16))
-                .foregroundStyle(Color.wizText)
-                .lineSpacing(4)
-                .fixedSize(horizontal: false, vertical: true)
-                .animation(.easeInOut(duration: 0.15), value: Stufen.zusammenfassung(engine.params, mitTotale: engine.hasWideCamera))
-            Spacer(minLength: 0)
-        }
-        .padding(18)
-        .frame(maxWidth: .infinity, minHeight: 236, alignment: .topLeading)
-        .background(Color.wizSurface2.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
-        .overlay(RoundedRectangle(cornerRadius: 12)
-            .stroke(Color.wizBorder, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
+        (
+            Text(loc("What to expect") + ": ").fontWeight(.semibold).foregroundStyle(Color.brandSecondary)
+            + Text(verbatim: Stufen.zusammenfassung(engine.params, mitTotale: engine.hasWideCamera))
+                .foregroundStyle(Color.wizMuted)
+        )
+        .font(.callout)
+        .lineSpacing(3)
+        .fixedSize(horizontal: false, vertical: true)
+        .padding(12)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(Color.brandSecondary.opacity(0.08), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12).stroke(Color.brandSecondary.opacity(0.25), lineWidth: 1))
     }
 }
 

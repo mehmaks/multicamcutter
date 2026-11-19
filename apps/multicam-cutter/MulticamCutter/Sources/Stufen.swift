@@ -210,7 +210,7 @@ extension Stufen {
         switch stufe("tempo", "tempo", p) {
         case 0: saetze.append(loc("A calm cut with longer shots."))
         case 1: saetze.append(loc("A balanced cut."))
-        case 2: saetze.append(loc("A lively cut with short shots – well suited for social clips."))
+        case 2: saetze.append(loc("A lively cut with short shots."))
         default: saetze.append(loc("A cut with your own shot lengths."))
         }
 
