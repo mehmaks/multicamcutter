@@ -91,6 +91,7 @@ button.unklar.on { background: #4a4120; border-color: var(--unk); }
     <span style="color:var(--dim);font-size:12px">Ziehen = verschieben · Scrollen = zoomen · Klick = springen · <b>F</b> = hier fehlt ein Umschnitt</span>
   </footer>
   <aside>
+    <video id="clip" muted playsinline preload="auto" style="display:none;width:100%;background:#000;border-bottom:1px solid var(--line)"></video>
     <div id="filter"></div>
     <div id="detail"></div>
     <div id="liste"></div>
@@ -133,6 +134,8 @@ const st = { view0: 0, fpp: 10, sel: null, filter: "offen", ton: "original", sol
   spuren: { schnitte: true, b: true, a: true }, weiter: true, drag: null, playing: false };
 const FARBE = ["#5aa9ff", "#ffa04d"];
 const STATUS_FARBE = { treffer: "#3ecf7a", daneben: "#ff5c5c", unklar: "#f2c94c" };
+// Bewertungsknöpfe je Runde (Manifest „bewertungen": [[schlüssel, Beschriftung, Farbe], …])
+let BEW = [["treffer", "✓ Trifft", "#3ecf7a"], ["daneben", "✗ Nicht", "#ff5c5c"], ["unklar", "? Unklar", "#f2c94c"]];
 const ART = { nur_b: ["Nur B (Analysespur)", "#3ecf7a"], nur_a: ["Nur A (heute)", "#ff5c5c"], neu: ["Neu in Runde 2", "#3ecf7a"], fehlt: ["Fehlt (von dir)", "#b48cff"] };
 
 // ── Timecode (SMPTE 12M Drop-Frame, wie marker_edl.py) ─────────────────────
@@ -160,6 +163,10 @@ async function laden() {
   M = await (await fetch("/s/manifest.json")).json();
   const buf = await (await fetch("/s/kurven.bin")).arrayBuffer();
   N = M.n; FPS = M.fps; PERS = M.personen;
+  if (M.bewertungen) BEW = M.bewertungen;
+  for (const [k, , c] of BEW) STATUS_FARBE[k] = c;
+  Object.assign(ART, M.arten || {});
+  if (M.marker.some(m => m.clip)) $("#app").style.gridTemplateColumns = "1fr 480px";
   for (const k of M.kurven) K[k.name] = new Float32Array(buf, k.offset * 4, N);
   try { const l = await (await fetch("/api/labels")).json(); if (l && l.marker) labels = l; } catch (e) {}
   labels.eigene = labels.eigene || [];
@@ -190,17 +197,15 @@ function alleMarker() {
   return [...M.marker, ...e].sort((a, b) => a.start - b.start);
 }
 const status = m => m.art === "fehlt" ? "fehlt" : (labels.marker[m.id] || {}).status || "offen";
-function gefiltert() {
-  const f = st.filter;
-  return alleMarker().filter(m => f === "alle" || (f === "offen" ? status(m) === "offen" : f === "fehlt" ? m.art === "fehlt" :
-    f === "nur_b" || f === "nur_a" ? m.art === f : status(m) === f));
-}
+const passt = (m, f) => f === "alle" || (f === "offen" ? status(m) === "offen" : f === "fehlt" ? m.art === "fehlt" :
+  f.startsWith("art:") ? m.art === f.slice(4) : status(m) === f);
+function gefiltert() { return alleMarker().filter(m => passt(m, st.filter)); }
 function filterLeiste() {
-  const all = alleMarker(), n = f => all.filter(m => f === "alle" || (f === "offen" ? status(m) === "offen" : f === "fehlt" ? m.art === "fehlt" :
-    f === "nur_b" || f === "nur_a" ? m.art === f : status(m) === f)).length;
-  const arten = new Set(M.marker.map(m => m.art));
-  const F = [["offen", "Offen"], ["alle", "Alle"], ["nur_b", "Nur B"], ["nur_a", "Nur A"], ["treffer", "✓ Trifft"], ["daneben", "✗ Nicht"], ["unklar", "? Unklar"], ["fehlt", "Fehlt"]]
-    .filter(([k]) => !(k === "nur_b" || k === "nur_a") || arten.has(k));
+  const all = alleMarker(), n = f => all.filter(m => passt(m, f)).length;
+  const arten = [...new Set(M.marker.map(m => m.art))];
+  const F = [["offen", "Offen"], ["alle", "Alle"],
+    ...(arten.length > 1 ? arten.map(a => ["art:" + a, (ART[a] || [a])[0]]) : []),
+    ...BEW.map(([k, l]) => [k, l]), ["fehlt", "Fehlt"]];
   $("#filter").innerHTML = F.map(([k, l]) => `<button data-f="${k}" class="${st.filter === k ? "on" : ""}">${l} ${n(k)}</button>`).join("");
   $("#filter").querySelectorAll("button").forEach(b => b.onclick = () => { st.filter = b.dataset.f; filterLeiste(); liste(); });
 }
@@ -211,7 +216,7 @@ function liste() {
     return `<div class="row ${st.sel === m.id ? "sel" : ""}" data-id="${m.id}">
       <span class="dot" style="background:${ART[m.art][1]}"></span><span class="mono">${tcOf(m.start)}</span>
       <span style="color:${FARBE[m.person]}">${PERS[m.person].name}</span>
-      <span class="pill ${s}">${{ offen: "offen", treffer: "trifft", daneben: "nicht", unklar: "unklar", fehlt: "fehlt" }[s]}</span></div>`;
+      <span class="pill ${s}" style="${STATUS_FARBE[s] ? `color:${STATUS_FARBE[s]};border-color:${STATUS_FARBE[s]}` : ""}">${s === "offen" ? "offen" : s === "fehlt" ? "fehlt" : (BEW.find(b => b[0] === s) || [s, s])[1]}</span></div>`;
   }).join("") || `<div style="padding:12px;color:var(--dim)">Keine Marker in diesem Filter.</div>`;
   $("#liste").querySelectorAll(".row").forEach(r => r.onclick = () => waehle(r.dataset.id, true));
   const s = $("#liste .sel"); if (s) s.scrollIntoView({ block: "nearest" });
@@ -219,6 +224,7 @@ function liste() {
 function markerById(id) { return alleMarker().find(m => m.id === id); }
 function waehle(id, abspielen) {
   st.sel = id; const m = markerById(id); if (!m) return;
+  clipFuer(m);
   const breite = N && st.fpp * $("#main").clientWidth;
   if (m.start < st.view0 + breite * .1 || m.end > st.view0 + breite * .9) st.view0 = Math.max(0, m.start - breite * .35);
   seek(Math.max(0, m.start - 2 * FPS));
@@ -237,7 +243,7 @@ function bewerte(s) {
   labels.marker[m.id] = { ...alt, status: alt.status === s ? "offen" : s, art: m.art, person: PERS[m.person].name, tc: tcOf(m.start), zeit: new Date().toISOString() };
   speichern(); filterLeiste();
   if (st.weiter && labels.marker[m.id].status !== "offen") {
-    const L = alleMarker().filter(x => status(x) === "offen" && x.start > m.start && (st.filter === "alle" || st.filter === "offen" || x.art === m.art || st.filter === "fehlt"));
+    const L = alleMarker().filter(x => status(x) === "offen" && x.start > m.start && (st.filter === "alle" || st.filter === "offen" || passt(x, st.filter) || x.art === m.art));
     if (L.length) { waehle(L[0].id, true); return; }
   }
   liste(); detail(); zeichnen();
@@ -305,11 +311,9 @@ function detail() {
   $("#detail").innerHTML = `
     <div class="kopf"><span style="color:${ART[m.art][1]}">●</span> ${ART[m.art][0]} · <span style="color:${FARBE[m.person]}">${PERS[m.person].name}</span> · <span class="mono">${tcOf(m.start)}</span></div>
     ${M.hinweis && !eigen ? `<div class="warum" style="color:#9fd8b4">${M.hinweis}</div>` : ""}
-    <div class="warum">${eigen ? "Von dir gesetzt: hier fehlt ein Umschnitt." : warumB(m) + "\n" + warumA(m)}</div>
+    <div class="warum">${eigen ? "Von dir gesetzt: hier fehlt ein Umschnitt." : m.notiz ? m.notiz : M.warum === false ? "" : warumB(m) + "\n" + warumA(m)}</div>
     ${eigen ? `<div class="knoepfe"><button id="pers">Person: ${PERS[m.person].name} ⇄</button><button id="del">Löschen (Entf)</button></div>` :
-    `<div class="knoepfe"><button class="treffer ${s === "treffer" ? "on" : ""}" data-s="treffer">✓ Trifft (1)</button>
-      <button class="daneben ${s === "daneben" ? "on" : ""}" data-s="daneben">✗ Nicht (2)</button>
-      <button class="unklar ${s === "unklar" ? "on" : ""}" data-s="unklar">? Unklar (3)</button></div>`}
+    `<div class="knoepfe">${BEW.map(([k, l, c], i) => `<button data-s="${k}" style="${s === k ? `background:${c}33;border-color:${c}` : ""}">${l} (${i + 1})</button>`).join("")}</div>`}
     <textarea id="notiz" placeholder="Notiz (optional)">${(eigen ? m.notiz : lab.notiz) || ""}</textarea>`;
   $("#detail").querySelectorAll("[data-s]").forEach(b => b.onclick = () => bewerte(b.dataset.s));
   const del = $("#del"); if (del) del.onclick = loeschen;
@@ -342,16 +346,36 @@ function solo(s) {
   else { set(0, 0, 0); set(1, 1, 1); }
 }
 const aktFrame = () => Math.round(audio.currentTime * FPS);
-function seek(f) { audio.currentTime = Math.max(0, Math.min(N - 1, f)) / FPS; zeichnen(); }
+function seek(f) { audio.currentTime = Math.max(0, Math.min(N - 1, f)) / FPS; zeichnen(); clipSync(); }
+// ── Video-Clip je Marker (z. B. Nicken: Bild der zuhörenden Person) ─────────
+// m.clip = Datei im Sitzungsordner, m.clip_start = Timeline-Bild des Clip-Anfangs.
+const clipEl = () => $("#clip");
+let clipM = null;
+function clipFuer(m) {
+  const v = clipEl();
+  if (!m || !m.clip) { clipM = null; v.style.display = "none"; v.removeAttribute("src"); return; }
+  if (clipM !== m) { clipM = m; v.src = "/s/" + m.clip; v.style.display = "block"; }
+  v.playbackRate = audio.playbackRate;
+}
+function clipSync() {
+  const v = clipEl(); if (!clipM || !v.src) return;
+  const t = audio.currentTime - clipM.clip_start / FPS, d = v.duration || 0;
+  if (t < 0 || (d && t > d)) { if (!v.paused) v.pause(); v.currentTime = Math.max(0, Math.min(t, d || 0)); return; }
+  v.playbackRate = audio.playbackRate;
+  if (Math.abs(v.currentTime - t) > 0.12) v.currentTime = t;
+  if (audio.paused && !v.paused) v.pause();
+  if (!audio.paused && v.paused) v.play().catch(() => {});
+}
 function spielen(an) {
   tonGraph(); if (ctx.state === "suspended") ctx.resume();
   if (an === undefined) an = audio.paused;
   if (an) audio.play(); else audio.pause();
 }
 audio.onplay = () => { $("#play").textContent = "❚❚"; loop(); };
-audio.onpause = () => { $("#play").textContent = "▶"; zeichnen(); };
+audio.onpause = () => { $("#play").textContent = "▶"; zeichnen(); clipSync(); };
 function loop() {
   if (audio.paused) return;
+  clipSync();
   const f = aktFrame(), w = st.fpp * $("#main").clientWidth;
   if (f > st.view0 + w * .85 && !st.drag) st.view0 = f - w * .15;
   zeichnen(); requestAnimationFrame(loop);
@@ -498,7 +522,7 @@ cv.addEventListener("mousedown", e => { st.drag = { x: e.offsetX, v: st.view0, m
 window.addEventListener("mouseup", e => {
   if (st.drag && !st.drag.moved && e.target === cv) {
     const f = Math.round(fOf(e.offsetX)), m = alleMarker().find(m => f >= m.start && f <= m.end);
-    if (m) { st.sel = m.id; liste(); detail(); }
+    if (m) { st.sel = m.id; clipFuer(m); liste(); detail(); }
     seek(f);
   }
   st.drag = null;
@@ -554,7 +578,7 @@ document.addEventListener("keydown", e => {
   if (k === " ") { e.preventDefault(); spielen(); }
   else if (k === "ArrowRight" || k === "l") { e.preventDefault(); naechster(1); }
   else if (k === "ArrowLeft" || k === "j") { e.preventDefault(); naechster(-1); }
-  else if (k === "1") bewerte("treffer"); else if (k === "2") bewerte("daneben"); else if (k === "3") bewerte("unklar");
+  else if (/^[1-9]$/.test(k) && BEW[+k - 1]) bewerte(BEW[+k - 1][0]);
   else if (k === "f" || k === "F") fehltHier();
   else if (k === "Delete" || k === "Backspace") loeschen();
   else if (k === "r" || k === "R") { const m = st.sel && markerById(st.sel); if (m) { seek(Math.max(0, m.start - 2 * FPS)); spielen(true); } }

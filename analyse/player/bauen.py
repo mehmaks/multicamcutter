@@ -86,6 +86,9 @@ def main():
     ap.add_argument("--neu-gegen", help="manifest.json einer früheren Runde: Prüf-Marker = nur die "
                     "B-Erkennungen, die dort noch nicht vorkamen; Ton wird per Hardlink übernommen")
     ap.add_argument("--hinweis", default="", help="Text, der bei jedem Marker als Hintergrund steht")
+    ap.add_argument("--marker-json", help="eigene Runde: JSON {marker: [...], bewertungen: [...], "
+                    "arten: {...}, warum: bool} — ersetzt die A/B-Unterschiede")
+    ap.add_argument("--ton-von", help="Sitzungsordner, dessen Tondateien per Hardlink übernommen werden")
     x = ap.parse_args()
     cfg = json.loads(Path(x.config).read_text(encoding="utf-8"))
     out = Path(x.out)
@@ -153,6 +156,11 @@ def main():
             for s, e in P["b_events"]:
                 if not any(ps < e + 15 and pe > s - 15 for ps, pe in prev):
                     marker.append({"id": f"n{s}_{k}", "start": max(0, s - 15), "end": e, "person": k, "art": "neu"})
+    extra = {}
+    if x.marker_json:
+        mj = json.loads(Path(x.marker_json).read_text(encoding="utf-8"))
+        marker = mj["marker"]
+        extra = {k: mj[k] for k in ("bewertungen", "arten", "warum") if k in mj}
     marker.sort(key=lambda m: m["start"])
 
     # Sprecher als Läufe
@@ -166,15 +174,16 @@ def main():
         "sprecher": sprecher, "schnitt_a": A, "schnitt_b": B, "marker": marker,
         "b_params": b_params, "a_params": a_D["params"],
         "ton": {"original": "ton_original.m4a", "analysespur": "ton_analysespur.m4a"},
-        "hinweis": x.hinweis,
+        "hinweis": x.hinweis, **extra,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     print(f"{len(marker)} Prüf-Marker, {len(kurven)} Kurven → {out}")
 
-    if x.neu_gegen:
+    if x.neu_gegen or x.ton_von:
         import os
+        quelle = Path(x.ton_von) if x.ton_von else Path(x.neu_gegen).parent
         for f in ("ton_original.m4a", "ton_analysespur.m4a"):
-            src, dst = Path(x.neu_gegen).parent / f, out / f
+            src, dst = quelle / f, out / f
             if src.exists() and not dst.exists():
                 os.link(src, dst)
         return

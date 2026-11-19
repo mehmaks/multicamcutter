@@ -22,6 +22,13 @@ Stand mit allen Einzelparametern bleibt als **Expertenmodus**.
   Beleg aus der Sichtung 61/62: eine Mindestlänge als Filter (≙ „strenger") hätte bei
   0,2 s 170 echte Einwürfe gekostet und nur 24 Geräusche entfernt.
 
+- **(entschieden)** Alle Kandidaten zum Entfernen (🗑) fliegen raus: Crossbleed-Filter
+  (8 Parameter, Code + UI), Erkennung A samt Regel A sobald B Standard ist, Mischform,
+  toter Schlüssel `speaking_min_confidence`, CLI-Altversuche.
+- **(entschieden)** Neuer **Schnittabstand je Cutaway-Typ** (Cooldown: „nach einem
+  Nick-/Einwurf-/Pausen-Cutaway frühestens nach X s der nächste dieses Typs") — die
+  eigentliche Stellschraube für „Wie oft".
+
 ## Prinzipien (Vorschlag)
 
 1. **Kennlinie je Slider:** Jede Stufe ist eine Tabelle „Parameter → Wert". Zwischen den
@@ -174,20 +181,16 @@ legt Dateien in den Medienordner des Nutzers — auch das spricht fürs Entferne
 | **Totale** (nur mit Totale) | selten ↔ oft | `totale_simul_dur`, Übergänge, Rückwege + Cooldown |
 | **Sprechererkennung** | kein Slider | automatisch (Expertenmodus bleibt) |
 
-\* **Lücke im heutigen Modell:** Es gibt keinen Schnittabstand JE CUTAWAY-TYP — nur den
-globalen `min_shot`. Für „Wie oft" je Kategorie bräuchte es einen Cooldown je Typ (z. B.
-„nach einem Nick-Cutaway frühestens nach X s der nächste"). Das passt zu deinem Gedanken,
-die Cooldown-Parameter der Cutaways als eigentliche „Wie oft"-Stellschraube zu sehen.
+\* Schnittabstand je Cutaway-Typ — gibt es heute nicht (nur globales `min_shot`), wird
+neu eingeführt (entschieden, s. o.).
 
 ## Offene Fragen
 
 1. Kategorien und Zuordnung oben — passt das, fehlt etwas, ist etwas zu viel?
-2. Cooldown je Cutaway-Typ neu einführen (für „Wie oft")? Oder „Wie oft" über
-   `min_shot` + Prioritäten lösen?
-3. Crossbleed-Filter ganz entfernen (Code + UI) oder nur aus der UI nehmen?
-4. Erkennung A: entfernen, sobald B Standard ist — oder als Rückfall behalten?
-5. Anzahl Stufen: 5 oder 7? Stufennamen?
-6. Wie prüfen wir Kennlinien? Vorschlag: je Stufe ein Lauf auf Folge 61/62, im Player
+2. Cooldown je Typ: Wirkt er nur innerhalb des Typs (Nicken→Nicken) oder auch
+   typübergreifend (Nicken→Einwurf)? Mit „Vorrang vor Nicken" zusammen denken.
+3. Anzahl Stufen: 5 oder 7? Stufennamen?
+4. Wie prüfen wir Kennlinien? Vorschlag: je Stufe ein Lauf auf Folge 61/62, im Player
    die Unterschiede zur Nachbarstufe sichten.
 
 ## Noch zu belegen (Testläufe)
