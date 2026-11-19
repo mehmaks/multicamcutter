@@ -184,6 +184,42 @@ legt Dateien in den Medienordner des Nutzers — auch das spricht fürs Entferne
 \* Schnittabstand je Cutaway-Typ — gibt es heute nicht (nur globales `min_shot`), wird
 neu eingeführt (entschieden, s. o.).
 
+## Anordnung (User-Skizze 19.11.)
+
+Raster aus Kacheln, je Kategorie: **großes Piktogramm** oben, darunter die Slider
+(höchstens zwei), jeder mit Überschrift und (?)-Tooltip. Vorschlag: Klick aufs
+Piktogramm schaltet die Kategorie an/aus (aus = Piktogramm abgedunkelt, Slider
+ausgegraut) — so brauchen die Slider keine Stufe „aus".
+
+## Stufen (Vorschlag 19.11., User tendiert zu 3)
+
+**3 Stufen** je Slider; Wording je Kategorie, Mitte immer „ausgewogen":
+
+| Kategorie | Slider | links · Mitte · rechts |
+|---|---|---|
+| Schnittrhythmus | Tempo | ruhig · ausgewogen · lebendig |
+| Kopfnicken | Wie oft | selten · ausgewogen · oft |
+| | Treffsicherheit | großzügig · ausgewogen · streng |
+| Sprachreaktionen | Wie oft | selten · ausgewogen · oft |
+| | Treffsicherheit | großzügig · ausgewogen · streng |
+| Pausen | Pausen straffen | sanft · ausgewogen · straff |
+| | Cutaways in Pausen | selten · ausgewogen · oft |
+| Totale (nur mit Totale) | Wie oft | selten · ausgewogen · oft |
+
+Kopfnicken „Treffsicherheit" aus der Sichtung: streng = nur oscillation · ausgewogen =
++ slow ab 0,7 · großzügig = + slow ab 0,6 + strong.
+
+## Piktogramme (Higgsfield)
+
+- Modell: **GPT Image 2.6 mit SVG-Ausgabe** (echte Vektoren, transparenter Hintergrund,
+  skaliert scharf, Farbe in der App nachträglich anpassbar). ~1,5 Credits je Bild in
+  hoher Qualität. Alternative: Recraft V4.1 `vector` mit fester Palette (2,5 Credits).
+- Stil: Referenz-Maskottchen (runder Kopf, Punktaugen, Strich-Lächeln, Ohr, Haarschopf),
+  einfarbig **Lime #C6F24E**, in der App auf **#191C15** (wizSurface).
+- Motive: Kopfnicken (Nicken + Auf-ab-Pfeil) · Sprachreaktionen (offener Mund +
+  Schallbögen) · Pausen (zurückgelehnt, Hand hinterm Kopf, Auslassungspunkte) ·
+  Schnittrhythmus (Seitenblick + Tempostriche) · Totale (zwei Figuren im Bildrahmen).
+
 ## Offene Fragen
 
 1. Kategorien und Zuordnung oben — passt das, fehlt etwas, ist etwas zu viel?
