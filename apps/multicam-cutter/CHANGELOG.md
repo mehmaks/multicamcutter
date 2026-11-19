@@ -5,6 +5,31 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0-beta.3
+
+**Neu (Beta): Einwürfe aus der Analysespur**
+
+Unter Experteneinstellungen → Sprachreaktionen gibt es den Schalter „Aus der Analysespur (Beta)“. Die App erstellt dann
+für jedes Mikrofon eine bereinigte Kopie, aus der die Stimme der anderen Person und das Grundrauschen
+entfernt sind. Kurze Einwürfe wie „Mhm“ oder „Ja“ heben sich dort deutlich ab. In unseren Testfolgen
+entstanden so drei- bis viermal so viele Einwurf-Schnitte wie bisher, und rund 95 % der zusätzlichen
+Einwürfe waren echt. Ab und zu hält die App ein lautes Einatmen, Räuspern oder Klopfen für einen
+Einwurf. Die Analyse dauert etwa eine Minute länger. Der Regler „Anstieg“ gehört zur bisherigen
+Erkennung und wird ausgeblendet, solange der Schalter an ist. Die Funktion braucht zwei Personen mit
+je eigenem Mikrofon; in anderen Aufbauten bleibt die bisherige Erkennung aktiv.
+
+**Neu: Vorrang für Einwürfe vor Nicken**
+
+Mit „Vorrang vor Nicken“ (ebenfalls unter Sprachreaktionen) weicht ein Nick-Cutaway, wenn er sonst einen
+kurz darauf folgenden Einwurf verhindern würde, zum Beispiel wegen der Mindestlänge einer
+Einstellung. Der Schalter ist nur aktiv, wenn Kopfnicken und Sprachreaktionen eingeschaltet sind.
+
+**Vorerst entfernt: Einwürfe über die Mundbewegung**
+
+Die Beta-Funktion „Mundbewegung“ aus 1.1.0-beta.1 ist ausgeblendet. Die neue Erkennung über die
+Analysespur verfolgt dasselbe Ziel und braucht dafür keine Gesichtsanalyse. Hattest du sie
+eingeschaltet, läuft die Analyse jetzt ohne sie.
+
 ## 1.1.0-beta.2
 
 **Verbessert: Verständlichere Fortschrittsanzeige**

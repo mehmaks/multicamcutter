@@ -4,6 +4,31 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0-beta.3
+
+**New (beta): Interjections from the analysis track**
+
+Under Expert settings → Interjections there is a new switch, “From analysis track (beta)”. The app then
+creates a cleaned-up copy of each microphone with the other person's voice and the background noise
+removed. Short interjections like “mhm” or “yes” stand out clearly there. In our test episodes this
+produced three to four times as many interjection cuts as before, and about 95 % of the additional
+interjections were genuine. Now and then the app mistakes a loud breath, a throat-clearing or a knock
+for an interjection. The analysis takes about one minute longer. The “Rise” slider belongs to the
+previous detection and is hidden while the switch is on. The feature needs two people with their own
+microphone each; in other setups the previous detection stays active.
+
+**New: Interjections take priority over head nods**
+
+With “Priority over head nods” (also under Interjections), a head-nod cutaway gives way when it would
+otherwise block an interjection shortly after it, for example because of the minimum shot length.
+The switch is only active when both head nods and interjections are turned on.
+
+**Removed for now: Interjections from mouth movement**
+
+The beta feature “Mouth movement” from 1.1.0-beta.1 is hidden. The new detection on the analysis
+track has the same goal and does not need face analysis. If you had it turned on, the analysis now
+simply runs without it.
+
 ## 1.1.0-beta.2
 
 **Improved: Clearer progress display**

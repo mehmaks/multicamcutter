@@ -173,6 +173,7 @@
 "JSON needs the fields 'global' and 'patterns'." = "JSON braucht die Felder 'global' und 'patterns'.";
 "Lifts flat Log footage in the camera previews (also while scrubbing). Purely cosmetic — analysis and export stay untouched." = "Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim Scrubbing). Rein kosmetisch — Analyse und Export bleiben unberührt.";
 "Manual offset" = "Manueller Offset";
+"Rise" = "Anstieg";
 "Max. cutaway length" = "Max. Cutaway-Dauer";
 "Max. pause" = "Max. Pause";
 "Max. shot length" = "Max. Schnittlänge";
