@@ -1544,6 +1544,10 @@ def clip_filter_cutaways(
 
 
 def main():
+    # Nur für Testläufe (analyse/stufen_test.py): fester Startwert für den
+    # Zufallsfaktor, damit Varianten vergleichbar sind. Die App setzt ihn nicht.
+    if os.environ.get('MCC_RANDOM_SEED'):
+        random.seed(int(os.environ['MCC_RANDOM_SEED']))
     parser = argparse.ArgumentParser(
         description='Fügt Reaktions-Cutaways zu EDL hinzu (v4.0 - N Kameras)'
     )
