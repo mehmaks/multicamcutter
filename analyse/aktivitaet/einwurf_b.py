@@ -2,6 +2,7 @@
 
 Ein Hügel auf der Spur des Zuhörers (während die andere Person spricht) zählt, wenn er
   - über der UMGEBUNG liegt:   Pegel ≥ 80. Perzentil der letzten/nächsten 3 s + umgebung_db
+    (ohne die eigene Sprache der Person — sonst ist die Schwelle nahe Sprecherwechseln zu hoch)
   - über dem ERWARTETEN Übersprechen liegt: Pegel ≥ (Sprecher-Spur, lautester Wert
     in ±0,2 s) + gelernter Abstand + uebersprechen_db
   - nicht viel leiser als die eigene Sprache ist: ≥ Median eigene Sprache − leise_db
@@ -19,6 +20,9 @@ PARAMS = {
     "umgebung_s": 6.0, "umgebung_pctl": 80, "umgebung_db": 6.0,
     "uebersprechen_db": 12.0, "hall_s": 0.4, "leise_db": 12.0,
     "luecke_s": 0.2, "min_s": 0.1, "zusammen_s": 0.5, "max_s": 2.5, "deadband_s": 1.0,
+    # Runde 2 (Sichtung 61): Nahe Sprecherwechseln enthielt das Umgebungsfenster die EIGENE
+    # Sprache der Person → Schwelle zu hoch, echte Einwürfe verpasst. Eigene Sprache raus.
+    "umgebung_ohne_eigene": True,
 }
 
 
@@ -57,7 +61,8 @@ def detect(d, params=None):
         sel = listen & (o >= np.percentile(o[listen], 60))
         gain = float(np.median(x[sel] - o[sel]))
         erwartet = maximum_filter1d(o, max(1, int(p["hall_s"] * fps))) + gain
-        umgebung = percentile_filter(x, p["umgebung_pctl"], size=int(p["umgebung_s"] * fps))
+        xu = np.where(eng == k, -110.0, x) if p["umgebung_ohne_eigene"] else x
+        umgebung = percentile_filter(xu, p["umgebung_pctl"], size=int(p["umgebung_s"] * fps))
         sprache = float(np.median(x[eng == k]))
         thr = np.maximum(np.maximum(umgebung + p["umgebung_db"], erwartet + p["uebersprechen_db"]),
                          sprache - p["leise_db"])

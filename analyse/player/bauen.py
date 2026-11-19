@@ -83,6 +83,9 @@ def main():
     ap.add_argument("config")
     ap.add_argument("out")
     ap.add_argument("--ohne-ton", action="store_true")
+    ap.add_argument("--neu-gegen", help="manifest.json einer früheren Runde: Prüf-Marker = nur die "
+                    "B-Erkennungen, die dort noch nicht vorkamen; Ton wird per Hardlink übernommen")
+    ap.add_argument("--hinweis", default="", help="Text, der bei jedem Marker als Hintergrund steht")
     x = ap.parse_args()
     cfg = json.loads(Path(x.config).read_text(encoding="utf-8"))
     out = Path(x.out)
@@ -142,6 +145,14 @@ def main():
               for c in sp(B) if not overlaps(c, sp(A))]
     marker += [{"id": f"a{c[0]}_{c[2]}", "start": c[0], "end": c[1], "person": c[2], "art": "nur_a"}
                for c in sp(A) if not overlaps(c, sp(B))]
+    if x.neu_gegen:
+        alt = json.loads(Path(x.neu_gegen).read_text(encoding="utf-8"))
+        marker = []
+        for k, P in enumerate(personen):
+            prev = alt["personen"][k]["b_events"]
+            for s, e in P["b_events"]:
+                if not any(ps < e + 15 and pe > s - 15 for ps, pe in prev):
+                    marker.append({"id": f"n{s}_{k}", "start": max(0, s - 15), "end": e, "person": k, "art": "neu"})
     marker.sort(key=lambda m: m["start"])
 
     # Sprecher als Läufe
@@ -155,10 +166,18 @@ def main():
         "sprecher": sprecher, "schnitt_a": A, "schnitt_b": B, "marker": marker,
         "b_params": b_params, "a_params": a_D["params"],
         "ton": {"original": "ton_original.m4a", "analysespur": "ton_analysespur.m4a"},
+        "hinweis": x.hinweis,
     }
     (out / "manifest.json").write_text(json.dumps(manifest, ensure_ascii=False), encoding="utf-8")
     print(f"{len(marker)} Prüf-Marker, {len(kurven)} Kurven → {out}")
 
+    if x.neu_gegen:
+        import os
+        for f in ("ton_original.m4a", "ton_analysespur.m4a"):
+            src, dst = Path(x.neu_gegen).parent / f, out / f
+            if src.exists() and not dst.exists():
+                os.link(src, dst)
+        return
     if x.ohne_ton:
         return
     # Ton: Timeline-Bild 0 ↔ Mikrobild abs0 − off_mic (wie tabelle.py)

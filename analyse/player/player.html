@@ -87,7 +87,7 @@ button.unklar.on { background: #4a4120; border-color: var(--unk); }
     <span id="tc" class="mono">00:00:00;00</span>
     <input id="goto" placeholder="Gehe zu TC" title="z. B. 00:06:55;20 — Enter">
     <button id="zout" title="−">−</button><button id="zin" title="+">+</button>
-    <select id="speed"><option>1</option><option>1.25</option><option>1.5</option><option>2</option></select>
+    <span style="color:var(--dim)">Tempo</span><select id="speed" title="Abspieltempo"><option value="1">1×</option><option value="1.5">1,5×</option><option value="2" selected>2×</option></select>
     <span style="color:var(--dim);font-size:12px">Ziehen = verschieben · Scrollen = zoomen · Klick = springen · <b>F</b> = hier fehlt ein Umschnitt</span>
   </footer>
   <aside>
@@ -133,7 +133,7 @@ const st = { view0: 0, fpp: 10, sel: null, filter: "offen", ton: "original", sol
   spuren: { schnitte: true, b: true, a: true }, weiter: true, drag: null, playing: false };
 const FARBE = ["#5aa9ff", "#ffa04d"];
 const STATUS_FARBE = { treffer: "#3ecf7a", daneben: "#ff5c5c", unklar: "#f2c94c" };
-const ART = { nur_b: ["Nur B (Analysespur)", "#3ecf7a"], nur_a: ["Nur A (heute)", "#ff5c5c"], fehlt: ["Fehlt (von dir)", "#b48cff"] };
+const ART = { nur_b: ["Nur B (Analysespur)", "#3ecf7a"], nur_a: ["Nur A (heute)", "#ff5c5c"], neu: ["Neu in Runde 2", "#3ecf7a"], fehlt: ["Fehlt (von dir)", "#b48cff"] };
 
 // ── Timecode (SMPTE 12M Drop-Frame, wie marker_edl.py) ─────────────────────
 function tcOf(n) {
@@ -178,6 +178,7 @@ async function laden() {
     });
   }
   $("#audio").src = "/s/" + M.ton.original;
+  audio.addEventListener("loadedmetadata", () => { audio.playbackRate = +$("#speed").value; }, { once: true });
   st.fpp = 60 * FPS / Math.max(400, $("#main").clientWidth);
   $("#laden").style.display = "none";
   groesse(); filterLeiste(); liste(); detail(); zeichnen();
@@ -197,7 +198,9 @@ function gefiltert() {
 function filterLeiste() {
   const all = alleMarker(), n = f => all.filter(m => f === "alle" || (f === "offen" ? status(m) === "offen" : f === "fehlt" ? m.art === "fehlt" :
     f === "nur_b" || f === "nur_a" ? m.art === f : status(m) === f)).length;
-  const F = [["offen", "Offen"], ["alle", "Alle"], ["nur_b", "Nur B"], ["nur_a", "Nur A"], ["treffer", "✓ Trifft"], ["daneben", "✗ Nicht"], ["unklar", "? Unklar"], ["fehlt", "Fehlt"]];
+  const arten = new Set(M.marker.map(m => m.art));
+  const F = [["offen", "Offen"], ["alle", "Alle"], ["nur_b", "Nur B"], ["nur_a", "Nur A"], ["treffer", "✓ Trifft"], ["daneben", "✗ Nicht"], ["unklar", "? Unklar"], ["fehlt", "Fehlt"]]
+    .filter(([k]) => !(k === "nur_b" || k === "nur_a") || arten.has(k));
   $("#filter").innerHTML = F.map(([k, l]) => `<button data-f="${k}" class="${st.filter === k ? "on" : ""}">${l} ${n(k)}</button>`).join("");
   $("#filter").querySelectorAll("button").forEach(b => b.onclick = () => { st.filter = b.dataset.f; filterLeiste(); liste(); });
 }
@@ -301,6 +304,7 @@ function detail() {
   const eigen = m.art === "fehlt";
   $("#detail").innerHTML = `
     <div class="kopf"><span style="color:${ART[m.art][1]}">●</span> ${ART[m.art][0]} · <span style="color:${FARBE[m.person]}">${PERS[m.person].name}</span> · <span class="mono">${tcOf(m.start)}</span></div>
+    ${M.hinweis && !eigen ? `<div class="warum" style="color:#9fd8b4">${M.hinweis}</div>` : ""}
     <div class="warum">${eigen ? "Von dir gesetzt: hier fehlt ein Umschnitt." : warumB(m) + "\n" + warumA(m)}</div>
     ${eigen ? `<div class="knoepfe"><button id="pers">Person: ${PERS[m.person].name} ⇄</button><button id="del">Löschen (Entf)</button></div>` :
     `<div class="knoepfe"><button class="treffer ${s === "treffer" ? "on" : ""}" data-s="treffer">✓ Trifft (1)</button>
@@ -355,7 +359,7 @@ function loop() {
 function ton(art) {
   const t = audio.currentTime, an = !audio.paused;
   st.ton = art; audio.src = "/s/" + M.ton[art];
-  audio.addEventListener("loadedmetadata", () => { audio.currentTime = t; if (an) audio.play(); }, { once: true });
+  audio.addEventListener("loadedmetadata", () => { audio.currentTime = t; audio.playbackRate = +$("#speed").value; if (an) audio.play(); }, { once: true });
   document.querySelectorAll("[data-ton]").forEach(b => b.classList.toggle("on", b.dataset.ton === art));
 }
 
@@ -535,7 +539,9 @@ ov.addEventListener("mousedown", e => { ovNav(e); const mv = ev => ovNav(ev); ov
 $("#play").onclick = () => spielen();
 $("#zin").onclick = () => zoom(0.6); $("#zout").onclick = () => zoom(1 / 0.6);
 function zoom(z) { const mid = aktFrame(); st.fpp = Math.min(N / W, Math.max(0.05, st.fpp * z)); st.view0 = Math.max(0, mid - W * st.fpp / 2); zeichnen(); }
-$("#speed").onchange = e => audio.playbackRate = +e.target.value;
+function tempo(v) { audio.defaultPlaybackRate = v; audio.playbackRate = v; $("#speed").value = String(v); try { localStorage.setItem("player.tempo", String(v)); } catch (e) {} }
+$("#speed").onchange = e => tempo(+e.target.value);
+{ let v = 2; try { v = +(localStorage.getItem("player.tempo") || 2); } catch (e) {} tempo([1, 1.5, 2].includes(v) ? v : 2); }
 $("#goto").onkeydown = e => { if (e.key === "Enter") { const f = framesOf(e.target.value); if (f !== null) { st.view0 = Math.max(0, f - W * st.fpp * .35); seek(f); e.target.blur(); } else e.target.style.borderColor = "var(--bad)"; } else e.target.style.borderColor = ""; };
 document.querySelectorAll("[data-ton]").forEach(b => b.onclick = () => ton(b.dataset.ton));
 document.querySelectorAll("[data-solo]").forEach(b => b.onclick = () => { tonGraph(); solo(b.dataset.solo); });
