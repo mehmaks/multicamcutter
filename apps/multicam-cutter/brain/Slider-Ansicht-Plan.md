@@ -193,6 +193,26 @@ neu eingeführt (entschieden, s. o.).
 4. Wie prüfen wir Kennlinien? Vorschlag: je Stufe ein Lauf auf Folge 61/62, im Player
    die Unterschiede zur Nachbarstufe sichten.
 
+## Belegt: Nick-Muster (Sichtung 19.11., Folge 61 + 62, 253 Nicker)
+
+| Muster | nickt | trinkt | sonstiges | erkannt (61+62) |
+|---|---|---|---|---|
+| oscillation | 98 % | 0 | 2 | 338 |
+| slow_oscillation | 54 % | 0 | 46 | 640 |
+| strong_oscillation | 45 % | 6 (alle Trinken-Fälle) | 23 | 53 |
+
+- Trinken kommt NUR von `strong_oscillation`; Konfidenz trennt dort nicht (fast alles > 0,7).
+- `slow_oscillation` = größte Fehlerquelle der Menge nach (Lachen, Sitzposition,
+  Erstaunen, Ansetzen zum Reden). Konfidenz trennt gut: ≥0,6 → 68 % nickt, ≥0,7 → 80 %
+  (49 % bleiben), ≥0,8 → 100 % (11 % bleiben).
+- Hochrechnung bei min_conf 0,6: alle Muster ~870 Nick-Cutaways, 78 % echt; `strong` aus +
+  `slow` ab 0,7: ~650, 89 % echt (−170 Fehlalarme, −100 schwache echte).
+- Kennlinien-Vorschlag „Wie sicher" (Kopfnicken): ganz sicher = nur oscillation · sicher =
+  + slow ≥0,8 · ausgewogen = + slow ≥0,7 · mehr = + slow ≥0,6 · alles = + strong.
+  Braucht eine Konfidenzschwelle JE MUSTER (heute nur global `min_conf`).
+- Idee: Fehlalarm „beginnt zu reden" per Analysespur abfangen (eigene Spur kurz danach aktiv).
+- Daten: `<Folge>/_Aktivitaet-Test/player_nicken/labels.json`.
+
 ## Noch zu belegen (Testläufe)
 
 - **Nick-Muster: welches liefert die meisten Fehlalarme (Trinken statt Nicken)?**
