@@ -4,6 +4,27 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0-beta.4
+
+**Fixed: Many cutaways were removed again during clean-up**
+
+If the “Cutaway length” was set shorter than the “Min. cleanup length”, the final clean-up step
+removed a large share of interjection and head-nod cutaways again — about 40 % in a test run with
+1.6 s versus 1.8 s. Cutaways are now only removed if they are shorter than the cutaway length you
+set yourself. If you cut with such settings, a new run will give you noticeably more cutaways.
+
+**Improved: Interjection right before someone's own turn**
+
+If someone made a short interjection just before a change of speaker and then went on talking,
+the cutaway used to be cut short and dropped. Now that person's shot simply starts at the
+interjection — the cut to them comes a little earlier.
+
+**Improved: Clearer name**
+
+The “Max. cutaway length” slider under Interjections is now called “Max. interjection length”. It
+sets how long a sound may be to still count as an interjection — not how long the cutaway is. That
+is set under Cutaway rules → Cutaway length.
+
 ## 1.1.0-beta.3
 
 **New (beta): Interjections from the analysis track**

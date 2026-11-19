@@ -174,10 +174,10 @@
 "Lifts flat Log footage in the camera previews (also while scrubbing). Purely cosmetic — analysis and export stay untouched." = "Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim Scrubbing). Rein kosmetisch — Analyse und Export bleiben unberührt.";
 "Manual offset" = "Manueller Offset";
 "Rise" = "Anstieg";
-"Max. cutaway length" = "Max. Cutaway-Dauer";
+"Max. interjection length" = "Max. Länge eines Einwurfs";
 "Max. pause" = "Max. Pause";
 "Max. shot length" = "Max. Schnittlänge";
-"Maximum length of an interjection cutaway. Normally the cutaway ends organically when the baseline drops." = "Maximale Dauer eines Sprach-Cutaways. Im Normalfall endet der Cutaway organisch wenn die Baseline abfällt.";
+"Longest sound that still counts as an interjection — anything longer is treated as speaking. How long the cutaway itself lasts is set under Cutaway rules → Cutaway length." = "Längster Laut, der noch als Einwurf zählt — alles Längere gilt als Sprechen. Wie lange der Cutaway selbst dauert, stellst du unter Cutaway Regeln → Cutaway-Länge ein.";
 "Maximum pause length that is kept. Longer pauses are trimmed to this value." = "Maximale Pausenlänge die bestehen bleibt. Längere Pausen werden auf diesen Wert gekürzt.";
 "Middle" = "Mitte";
 "Min. cleanup length" = "Cleanup-Mindestlänge";

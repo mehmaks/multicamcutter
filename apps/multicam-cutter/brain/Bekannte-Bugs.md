@@ -2,6 +2,21 @@
 
 ## OFFEN
 
+### Aufräum-Pass löscht Cutaways, wenn Cutaway-Länge < Cleanup-Mindestlänge — GEFIXT (19.11., beta.4)
+- **Symptom** (User, Folge 62, beta.3): Von 280 Einwurf-Cutaways blieben 164 im Schnitt;
+  PASS 3 entfernte 217 Events. Auch Nick-Cutaways betroffen (98 statt 133).
+- **Ursache**: Cutaway-Länge 1,6 s (`reaction_dur`) < Cleanup-Mindestlänge 1,8 s
+  (`cleanup_dur`). PASS 3/6 entfernen JEDES Event unter `cleanup_dur` — auch Cutaways.
+  Mit Zufallsfaktor 0,3 lagen ~40 % der Cutaways darunter. Dazu Cutaways, die der
+  nächste Sprecherwechsel kappt.
+- **Fix** (`add_reactions_to_edl.cleanup_short_events`, `cutaway_min_duration`):
+  Für `reaction_*`-Events gilt höchstens die Cutaway-Länge als Mindestlänge. Gekappte
+  Cutaways, nach denen dieselbe Kamera als Sprecher folgt, gehen in deren Einstellung
+  über (Schnitt kommt früher, decision_log `merge_forward`). Gekappt vor ANDERER
+  Person → weiter entfernt. Nachbau des Laufs: Einwürfe 164 → 273, Nicken 98 → 133.
+- **Nebenbefund**: „Max. Cutaway-Dauer" war irreführend benannt (ist die max. Länge
+  des erkannten LAUTS) → „Max. Länge eines Einwurfs", Hilfetext korrigiert.
+
 ### Split-Teil 2 linkt nicht in Resolve („timecode extents do not match") — GEFIXT (26.10., in Resolve bestätigt)
 - **Symptom**: AAF von Folge 59 (Zoom H6essential, 29,97 DF): Teil 1 linkt, Teil 2
   jeder gesplitteten Spur bleibt rot (Offline).

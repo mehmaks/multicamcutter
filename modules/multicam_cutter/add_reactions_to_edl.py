@@ -698,15 +698,53 @@ def insert_cutaway_return_transitions(
 
 def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float,
                          decision_log: Optional[List] = None,
-                         pass_label: str = "PASS 3", pass_id: str = "3") -> List[EDLEvent]:
+                         pass_label: str = "PASS 3", pass_id: str = "3",
+                         cutaway_min_duration: Optional[float] = None) -> List[EDLEvent]:
+    """Entfernt Reste kürzer als min_duration (prev wird verlängert).
+
+    Reaktions-Cutaways (beta.4, User 19.11.):
+    - Für sie gilt höchstens die eingestellte Cutaway-Länge (`cutaway_min_duration`)
+      als Mindestlänge — der Cleanup soll Reste wegräumen, nicht Cutaways löschen,
+      die der Nutzer selbst so kurz eingestellt hat (Cutaway-Länge 1,6 s bei
+      Aufräumlänge 1,8 s löschte sonst ~40 % aller Cutaways).
+    - Ist ein Cutaway trotzdem zu kurz (vom nächsten Sprecherwechsel gekappt) und
+      gehört die FOLGENDE Einstellung derselben Kamera (die Person, die eingeworfen
+      hat, spricht danach selbst), wird er nicht verworfen: die folgende Einstellung
+      beginnt schon am Cutaway-Anfang — der Schnitt zu ihr kommt einfach früher.
+    """
     print(f"\n🧹 {pass_label}: Cleanup kurzer Events")
     print(f"  Min Duration: {min_duration}s ({int(min_duration * fps)} Frames)")
     min_frames = int(min_duration * fps)
+    cut_frames = (min(min_frames, int(cutaway_min_duration * fps))
+                  if cutaway_min_duration is not None else min_frames)
     cleaned = []
     removed = 0
+    merged_forward = 0
     skipped_diarization = 0
     for i, event in enumerate(events):
-        if event.duration_frames() < min_frames and cleaned:
+        is_cutaway = str(getattr(event, 'reason', '')).startswith('reaction_')
+        limit = cut_frames if is_cutaway else min_frames
+        if (is_cutaway and event.duration_frames() < limit and i + 1 < len(events)
+                and events[i + 1].clip_name == event.clip_name
+                and events[i + 1].reason == 'speaker'):
+            nxt = events[i + 1]
+            shift = nxt.record_in_frame - event.record_in_frame
+            nxt.record_in_frame = event.record_in_frame
+            nxt.record_in = event.record_in
+            nxt.source_in_frame -= shift
+            nxt.source_in = frames_to_timecode(nxt.source_in_frame, fps)
+            merged_forward += 1
+            print(f"  ↦ Früher geschnitten: {event.clip_name} @ {event.record_in} "
+                  f"(Cutaway {event.duration_frames()} Frames → Sprecher-Einstellung beginnt hier)")
+            if decision_log is not None:
+                decision_log.append({
+                    "pass": pass_id, "action": "merge_forward", "reason": "cutaway_before_own_turn",
+                    "timecode": event.record_in, "event_clip": event.clip_name,
+                    "duration_frames": event.duration_frames(),
+                    "detail": f"{event.clip_name}: gekappter Cutaway geht in die eigene Sprecher-Einstellung über",
+                })
+            continue
+        if event.duration_frames() < limit and cleaned:
             prev = cleaned[-1]
             # Bruecken sind BEWUSST gesetzte Einstellungen, keine Fragmente.
             # PASS 3 raeumt Reste weg — eine Uebergangs-Einstellung ist keiner,
@@ -747,7 +785,8 @@ def cleanup_short_events(events: List[EDLEvent], min_duration: float, fps: float
                 })
         else:
             cleaned.append(event)
-    print(f"  ✓ {removed} entfernt, {skipped_diarization} Sprecherwechsel beibehalten, {len(cleaned)} verbleiben")
+    print(f"  ✓ {removed} entfernt, {merged_forward} früher geschnitten, {skipped_diarization} "
+          f"Sprecherwechsel beibehalten, {len(cleaned)} verbleiben")
     return cleaned
 
 
@@ -1718,7 +1757,8 @@ def main():
 
     # Pass 3: Cleanup
     final_events = cleanup_short_events(all_events, cleanup_min_duration, args.fps,
-                                        decision_log=decision_log)
+                                        decision_log=decision_log,
+                                        cutaway_min_duration=reaction_min_duration)
 
     # Pass 4: Split zu lange Shots
     all_cam_names  = [cam['name'] for cam in cameras]
@@ -1747,7 +1787,8 @@ def main():
     # echte Sprecherwechsel bleiben geschuetzt (dieselbe Logik wie PASS 3).
     final_events = cleanup_short_events(
         final_events, cleanup_min_duration, args.fps,
-        decision_log=decision_log, pass_label="PASS 6", pass_id="6")
+        decision_log=decision_log, pass_label="PASS 6", pass_id="6",
+        cutaway_min_duration=reaction_min_duration)
 
     write_edl(final_events, args.output)
 

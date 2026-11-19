@@ -5,6 +5,28 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0-beta.4
+
+**Behoben: Viele Cutaways wurden beim Aufräumen wieder gelöscht**
+
+War die „Cutaway-Länge“ kürzer eingestellt als die „Cleanup-Mindestlänge“, hat die App beim
+abschließenden Aufräumen einen großen Teil der Einwurf- und Nick-Cutaways wieder entfernt — in
+einem Testlauf mit 1,6 s gegenüber 1,8 s waren es rund 40 %. Cutaways werden jetzt nur noch
+entfernt, wenn sie kürzer sind als die Cutaway-Länge, die du selbst eingestellt hast. Wer mit
+solchen Einstellungen geschnitten hat, bekommt mit einem neuen Durchlauf deutlich mehr Cutaways.
+
+**Verbessert: Einwurf direkt vor dem eigenen Einsatz**
+
+Wirft jemand kurz vor einem Sprecherwechsel etwas ein und spricht danach selbst weiter, wurde
+der Cutaway bisher abgeschnitten und verworfen. Jetzt beginnt die Einstellung dieser Person
+einfach schon beim Einwurf — der Schnitt zu ihr kommt etwas früher.
+
+**Verbessert: Klarere Bezeichnung**
+
+Der Regler „Max. Cutaway-Dauer“ unter Sprachreaktionen heißt jetzt „Max. Länge eines
+Einwurfs“. Er legt fest, wie lang ein Laut höchstens sein darf, um noch als Einwurf zu zählen —
+nicht, wie lang der Cutaway ist. Das stellst du unter Cutaway Regeln → Cutaway-Länge ein.
+
 ## 1.1.0-beta.3
 
 **Neu (Beta): Einwürfe aus der Analysespur**
