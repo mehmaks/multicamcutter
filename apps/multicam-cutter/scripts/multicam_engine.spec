@@ -26,6 +26,7 @@ hidden_imports = [
     'modules.multicam_cutter.pause_trim_edl',
     'modules.multicam_cutter.shot_sizes',
     'modules.multicam_cutter.build_fcpxml',
+    'modules.multicam_cutter.einwurf_analysespur',
     'shared.waveform_sync',
     'shared.split_audio',
     'shared.frame_utils',
@@ -66,6 +67,7 @@ hidden_imports = [
     'scipy',
     'scipy.signal',
     'scipy.fft',
+    'scipy.ndimage',   # Einwürfe aus der Analysespur (percentile_filter)
 
     # OpenCV
     'cv2',

@@ -670,6 +670,10 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     # Analysespur verfolgt dasselbe Ziel ohne Gesichtsanalyse. Wieder an: True.
     mouth_enabled = (MOUTH_REACTIONS_AVAILABLE
                      and bool(params.get('mouth_reactions_enabled', False)) and speaking_enabled)
+    # Einwürfe aus der Analysespur (Beta): braucht keine Gesichtsanalyse, aber wie
+    # die Sprachreaktionen nur den binären Pfad.
+    analysespur_enabled = (bool(params.get('speaking_analysespur_enabled', False))
+                           and speaking_enabled and not use_n_path)
     if mouth_enabled and (use_n_path or skip_analysis):
         mouth_enabled = False
 
@@ -906,6 +910,28 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     cam1_speaking_json = work_dir / (Path(cam1_path).stem + '_speaking.json')
     cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
     speaking_jsons = {cam1_path: cam1_speaking_json, cam2_path: cam2_speaking_json}
+
+    # ── Schritt 2a: Einwürfe aus der Analysespur (Beta) ──────────────────────
+    # ERSETZT die Einwurf-Erkennung der Basis-EDL (wandernde Grundlinie + Regel A)
+    # durch die Erkennung auf der Analysespur (Mikro ohne Übersprechen/Rauschen).
+    # Nur binärer Pfad, genau ein Mikro je Kamera. Fehler → bisherige Erkennung bleibt.
+    if analysespur_enabled:
+        if (len(mic_cam1_paths) != 1 or len(mic_cam2_paths) != 1
+                or mic_cam1_paths[0] == mic_cam2_paths[0]):
+            print("\n  ⚠️  Einwürfe aus der Analysespur brauchen genau ein eigenes Mikro je "
+                  "Kamera — bisherige Erkennung bleibt.")
+        else:
+            try:
+                from einwurf_analysespur import add_analysespur_reactions
+                _ac = [{'video': cp, 'cam_key': f'CAM{cam_paths.index(cp) + 1}',
+                        'mic': m[0], 'mic_key': f'MIC{mic_paths.index(m[0]) + 1}',
+                        'speaking_json': str(speaking_jsons[cp])}
+                       for cp, m in ((cam1_path, mic_cam1_paths), (cam2_path, mic_cam2_paths))]
+                print("\n  Einwürfe aus der Analysespur suchen...")
+                add_analysespur_reactions(base_edl, _ac, offsets, fps, params, work_dir)
+            except Exception as e:
+                # Beta-Funktion darf den Lauf nie kaputt machen → bisherige Erkennung bleibt
+                print(f"  ⚠️  Einwürfe aus der Analysespur übersprungen: {e}")
 
     # ── Schritt 2b: „Mund + Mikro" — Einwuerfe in die Sprachreaktionen eintragen ─
     if mouth_enabled:

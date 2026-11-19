@@ -372,6 +372,10 @@
 "Stable version not found" = "Stabile Version nicht gefunden";
 "The update feed could not be loaded. You will receive the next stable version automatically, or you can download it from the website." = "Der Update-Feed konnte nicht geladen werden. Die nächste stabile Version bekommst du automatisch, oder du lädst sie auf der Website herunter.";
 
+/* Beta: Einwürfe aus der Analysespur (Experten → Einwürfe) */
+"From analysis track (beta)" = "Aus der Analysespur (Beta)";
+"Beta: finds interjections on a cleaned-up copy of each microphone, with the other person's voice and the background noise removed. Short \"mhm\" and \"yes\" stand out clearly there, so far more interjections are found. Takes about a minute longer." = "Beta: Sucht Einwürfe auf einer bereinigten Kopie jedes Mikrofons — ohne die Stimme der anderen Person und ohne Grundrauschen. Kurze „Mhm“ und „Ja“ heben sich dort deutlich ab, deshalb werden viel mehr Einwürfe gefunden. Dauert etwa eine Minute länger.";
+
 /* Beta „Mund + Mikro" (Experten → Einwürfe) */
 "Mouth movement (beta)" = "Mundbewegung (Beta)";
 "Ignore at speaker change" = "Bei Sprecherwechsel ignorieren";

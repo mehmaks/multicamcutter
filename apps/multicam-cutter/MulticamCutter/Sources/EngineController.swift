@@ -138,6 +138,8 @@ struct PipelineParams: Equatable {
     var minConf: Double = 0.60
     var riseDb: Double = 6.0
     var speakingMaxDur: Double = 2.5
+    // Beta: Einwürfe auf der Analysespur erkennen (Mikro ohne Übersprechen/Rauschen)
+    var speakingAnalysespurEnabled: Bool = false
     // Beta „Mund + Mikro": Einwürfe zusätzlich über Mundbewegung erkennen
     var mouthReactionsEnabled: Bool = false
     var mouthDeadband: Double = 1.0
@@ -205,6 +207,7 @@ struct PipelineParams: Equatable {
             "randomness": randomness,
             "rise_db": riseDb,
             "speaking_max_dur": speakingMaxDur,
+            "speaking_analysespur_enabled": speakingAnalysespurEnabled,
             "mouth_reactions_enabled": mouthReactionsEnabled,
             "mouth_deadband_s": mouthDeadband,
             "mouth_window_s": mouthWindow,
@@ -245,6 +248,7 @@ struct PipelineParams: Equatable {
             "clip_filter_enabled": clipFilterEnabled,
             "pre_roll": preRoll, "randomness": randomness,
             "rise_db": riseDb, "speaking_max_dur": speakingMaxDur,
+            "speaking_analysespur_enabled": speakingAnalysespurEnabled,
             "mouth_reactions_enabled": mouthReactionsEnabled,
             "mouth_deadband_s": mouthDeadband, "mouth_window_s": mouthWindow,
             "gate_floor": gateFloor, "gate_hysteresis": gateHysteresis,
@@ -285,6 +289,7 @@ struct PipelineParams: Equatable {
         if let v = dict["randomness"] as? Double { randomness = v }
         if let v = dict["rise_db"] as? Double { riseDb = v }
         if let v = dict["speaking_max_dur"] as? Double { speakingMaxDur = v }
+        if let v = dict["speaking_analysespur_enabled"] as? Bool { speakingAnalysespurEnabled = v }
         if let v = dict["mouth_reactions_enabled"] as? Bool { mouthReactionsEnabled = v }
         if let v = dict["mouth_deadband_s"] as? Double { mouthDeadband = v }
         if let v = dict["mouth_window_s"] as? Double { mouthWindow = v }

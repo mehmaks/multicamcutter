@@ -1241,7 +1241,14 @@ struct WizardSettings: View {
                 }
                 group("Interjections") {
                     WizToggle("Enabled", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
-                    WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB", help: ParamHelp.riseDb)
+                    WizToggle("From analysis track (beta)", $engine.params.speakingAnalysespurEnabled,
+                              help: ParamHelp.speakingAnalysespurEnabled)
+                        .disabled(!engine.params.speakingEnabled)
+                    // „Anstieg" gehört zur bisherigen Erkennung (wandernde Grundlinie) — mit
+                    // der Analysespur wirkungslos, deshalb ausgeblendet.
+                    if !engine.params.speakingAnalysespurEnabled {
+                        WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB", help: ParamHelp.riseDb)
+                    }
                     WizSlider("Max. cutaway length", $engine.params.speakingMaxDur, 0.5...10, suffix: " s", help: ParamHelp.speakingMaxDur)
                     if FeatureFlags.mouthReactions {
                         WizToggle("Mouth movement (beta)", $engine.params.mouthReactionsEnabled, help: ParamHelp.mouthReactionsEnabled)
