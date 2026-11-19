@@ -510,6 +510,7 @@ def _bursts_rolling(
     post_freeze_refractory_s: float = 0.0,
     freeze_hold_max_s: float = 0.0,
     freeze_release_margin_db: float = 3.0,
+    level_floor_pct: float = None,
 ):
     """Rolling-Baseline Burst Detection mit Rise-Erkennung (Single-Pass).
 
@@ -521,6 +522,11 @@ def _bursts_rolling(
     damit die Baseline nicht durch nicht-ausgelöste Rises hochdriftet.
     """
     db        = _level_windows(audio, sr, window_s, mode=mode)
+    if level_floor_pct is not None and len(db):
+        # Analysespur (Übersprechen/Rauschen herausgerechnet) kann nahezu digital
+        # still sein → ohne Boden sinkt die Grundlinie ins Bodenlose und jedes
+        # winzige Restgeräusch wirkt wie ein großer Anstieg.
+        db = np.maximum(db, float(np.percentile(db, level_floor_pct)))
     attack_n  = max(1, int(attack_window_s  / window_s))
     release_n = max(1, int(release_window_s / window_s))
     max_wins  = max(1, int(max_duration_s   / window_s))
@@ -718,6 +724,9 @@ def detect_speaking_reactions(
     fp_corr_max: float = 0.75,
     fp_on_rise_db: float = 999.0,   # Regel B: an Episode 2 durchgefallen, siehe unten
     fp_takeover_s: float = 0.0,     # Regel C: Nutzen marginal, kostet TPs
+    det_audio1: np.ndarray = None,  # Mischform (Versuch): Kandidaten auf der
+    det_audio2: np.ndarray = None,  # Analysespur suchen, Regel A auf den Originalen
+    det_floor_pct: float = 5.0,
 ) -> tuple:
     """
     Rolling-Baseline Burst Detection auf dem Off-Kamera-Mikrofon.
@@ -755,6 +764,7 @@ def detect_speaking_reactions(
     # CAM1 spricht → MIC2-Bursts = CAM2-Reaktionen
     # CAM2 spricht → MIC1-Bursts = CAM1-Reaktionen
     cam1_reactions, cam2_reactions = [], []
+    _fp_count = {'verworfen': 0}
 
     def _fp_reject(b, off_db, on_db, seg, nxt_speaker, react_cam):
         """Drei unabhaengige FP-Ursachen. Gibt den Grund zurueck oder None.
@@ -803,15 +813,21 @@ def detect_speaking_reactions(
         if seg['speaker'] == 'CAM1':
             seg_audio = audio2[seg_start_sample:seg_end_sample]
             on_audio  = audio1[seg_start_sample:seg_end_sample]
+            det_src   = det_audio2
             cam_tz = cam2_timeline_zero_video
             target = cam2_reactions
         elif seg['speaker'] == 'CAM2':
             seg_audio = audio1[seg_start_sample:seg_end_sample]
             on_audio  = audio2[seg_start_sample:seg_end_sample]
+            det_src   = det_audio1
             cam_tz = cam1_timeline_zero_video
             target = cam1_reactions
         else:
             continue
+        # Mischform: Kandidaten auf der Analysespur (dort heben sich leise Einwürfe
+        # ab), alles andere — insbesondere Regel A — weiter auf den Originalen.
+        det_seg = (det_src[seg_start_sample:seg_end_sample]
+                   if det_src is not None else None)
 
         if len(seg_audio) < int(warmup_s * sr):
             # Segment kuerzer als die Warmup-Phase: hier wird gar nicht erst
@@ -850,7 +866,7 @@ def detect_speaking_reactions(
         _need     = _dbg or fp_filter      # Kurven auch fuer den Nachfilter noetig
         _rejected = [] if _dbg else None
         _res = _bursts_rolling(
-            seg_audio, sr, fps, window_s,
+            det_seg if det_seg is not None else seg_audio, sr, fps, window_s,
             attack_window_s, release_window_s, warmup_s,
             rise_db, min_duration_s, max_duration_s, hold_s,
             timeline_start_frame=seg_start_edl,
@@ -864,6 +880,7 @@ def detect_speaking_reactions(
             freeze_release_margin_db=freeze_release_margin_db,
             return_debug=_need,
             rejected_sink=_rejected,
+            level_floor_pct=det_floor_pct if det_seg is not None else None,
         )
         if _need:
             bursts, _db, _base, _rise = _res
@@ -872,6 +889,11 @@ def detect_speaking_reactions(
         _on_db = (_level_windows(on_audio, sr, window_s, mode=mode)
                   if _need else None)
 
+        # Regel A braucht die ORIGINAL-Pegel des Zuhörer-Mikros (dort ist das
+        # Übersprechen als Gleichtakt sichtbar) — nicht die der Analysespur.
+        _ra_db = (_level_windows(seg_audio, sr, window_s, mode=mode)
+                  if (fp_filter and det_seg is not None) else
+                  (_db if fp_filter else None))
         _fp_dropped = []
         if fp_filter:
             react_cam   = 'CAM2' if seg['speaker'] == 'CAM1' else 'CAM1'
@@ -879,12 +901,13 @@ def detect_speaking_reactions(
                            if si + 1 < len(segments) else None)
             _kept = []
             for b in bursts:
-                why = _fp_reject(b, _db, _on_db, seg, nxt_speaker, react_cam)
+                why = _fp_reject(b, _ra_db, _on_db, seg, nxt_speaker, react_cam)
                 if why:
                     _fp_dropped.append(dict(b, fp_reason=why))
                 else:
                     _kept.append(b)
             bursts = _kept
+            _fp_count['verworfen'] += len(_fp_dropped)
 
         emitted = []
         for b in bursts:
@@ -922,6 +945,9 @@ def detect_speaking_reactions(
                 'rejected': _rejected,
             })
 
+    if fp_filter:
+        print(f"  FP-Filter (Regel A{'' if det_audio1 is None else ', Mischform'}): "
+              f"{_fp_count['verworfen']} Kandidaten verworfen")
     return cam1_reactions, cam2_reactions
 
 
@@ -1550,6 +1576,10 @@ def main():
     parser.add_argument('--speaking-fp-on-rise', type=float, default=999.0,
                         help='B: verwerfen ab diesem On-Mic-Anstieg in dB. '
                              '999 = Regel aus.')
+    parser.add_argument('--speaking-detect-mic-cam1', nargs='+', default=None,
+                        help='Versuch Mischform: Analysespur(en) fuer die Kandidatensuche CAM1')
+    parser.add_argument('--speaking-detect-mic-cam2', nargs='+', default=None,
+                        help='Versuch Mischform: Analysespur(en) fuer die Kandidatensuche CAM2')
     parser.add_argument('--speaking-fp-takeover', type=float, default=0.0,
                         help='C: verwerfen, wenn der Burst so viele Sekunden vor dem '
                              'Segmentende liegt UND danach diese Cam spricht. 0 = aus.')
@@ -2114,6 +2144,22 @@ def main():
         except ImportError:
             pass
 
+        _det1 = _det2 = None
+        if args.speaking_detect_mic_cam1 and args.speaking_detect_mic_cam2:
+            _det1, _ds1 = combine_audios(args.speaking_detect_mic_cam1)
+            _det2, _ds2 = combine_audios(args.speaking_detect_mic_cam2)
+            assert _ds1 == sr1 and _ds2 == sr1, "Analysespur: andere Abtastrate"
+            def _fit(a):
+                a = a[:n]
+                return np.pad(a, (0, n - len(a))) if len(a) < n else a
+            _det1, _det2 = _fit(_det1), _fit(_det2)
+            # Dieselbe Pegelangleichung wie bei den Originalen
+            if abs(_offset_db) > 0.1:
+                _det1 = (_det1 * _gain1).astype(_det1.dtype)
+                _det2 = (_det2 * _gain2).astype(_det2.dtype)
+            print(f"  Mischform: Kandidatensuche auf Analysespuren "
+                  f"{[Path(p).name for p in args.speaking_detect_mic_cam1 + args.speaking_detect_mic_cam2]}")
+
         cam1_sr, cam2_sr = detect_speaking_reactions(
             audio_cam1, audio_cam2, sr1,
             segments,
@@ -2137,6 +2183,7 @@ def main():
             fp_corr_max=args.speaking_fp_corr,
             fp_on_rise_db=args.speaking_fp_on_rise,
             fp_takeover_s=args.speaking_fp_takeover,
+            det_audio1=_det1, det_audio2=_det2,
         )
         print(f"  CAM1 Reactions: {len(cam1_sr)}, CAM2 Reactions: {len(cam2_sr)}")
 

@@ -770,6 +770,10 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             # 2 von 55 echten Reaktionen (siehe brain/Sprachreaktionen-Parameter.md).
             # Standardverhalten, nicht in der UI — aber ueber params abschaltbar,
             # falls fremdes Material anders reagiert.
+            # Versuch Mischform (nicht in der UI): Kandidatensuche auf Analysespuren
+            if params.get('speaking_detect_mic_cam1') and params.get('speaking_detect_mic_cam2'):
+                builder_args += ['--speaking-detect-mic-cam1', *params['speaking_detect_mic_cam1'],
+                                 '--speaking-detect-mic-cam2', *params['speaking_detect_mic_cam2']]
             if params.get('speaking_fp_filter', True):
                 builder_args += [
                     '--speaking-fp-filter',

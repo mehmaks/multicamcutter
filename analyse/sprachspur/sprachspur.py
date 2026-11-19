@@ -51,21 +51,28 @@ def load(path, start, seconds):
     return np.frombuffer(subprocess.run(cmd, capture_output=True, check=True).stdout, np.float32)
 
 
-def write(path, x, src_wav, start):
-    """WAV (48 kHz, 24 bit) mit BWF-time_reference des Originals (+ Startversatz)."""
+def write(path, x, src_wav, start, roh=False):
+    """WAV (24 bit) mit Abtastrate und BWF-time_reference des Originals (+ Startversatz).
+    Gleiche Abtastrate ist Pflicht: die Engine kombiniert Original und Analysespur."""
     info = read_wav_info(src_wav)
+    out_sr = int(info["sample_rate"]) if info else 48000
     tref = 0
     if info and info["time_ref"] is not None:
         tref = int(info["time_ref"] + round(start * info["sample_rate"]))
-        tref = int(round(tref * 48000 / info["sample_rate"]))
     # Fürs Anschauen normalisieren: NICHT auf die lauteste Spitze (einzelne Ausreißer
     # drückten sonst alles andere nach unten), sondern das 99,9. Perzentil auf −3 dBFS;
     # seltene Spitzen darüber werden weich begrenzt (tanh). Für die Analyse ist der
     # Pegel egal — dort zählen nur Verhältnisse.
-    ref = float(np.percentile(np.abs(x), 99.9)) or 1.0
-    y = np.tanh(x / ref * 0.71).astype(np.float32)
+    if roh:
+        # Für die ANALYSE: Pegel unverändert wie im Original (Bandpass und Abzüge
+        # ändern die eigene Sprache kaum). Pegelvergleiche zwischen den Mikros und
+        # feste dB-Schwellen bleiben damit gültig.
+        y = np.clip(x, -1, 1).astype(np.float32)
+    else:
+        ref = float(np.percentile(np.abs(x), 99.9)) or 1.0
+        y = np.tanh(x / ref * 0.71).astype(np.float32)
     p = subprocess.run(["ffmpeg", "-v", "error", "-y", "-f", "f32le", "-ar", str(SR), "-ac", "1",
-                        "-i", "-", "-ar", "48000", "-c:a", "pcm_s24le",
+                        "-i", "-", "-ar", str(out_sr), "-c:a", "pcm_s24le",
                         "-write_bext", "1", "-metadata", f"time_reference={tref}",
                         "-metadata", "originator=MCC Sprachspur", str(path)],
                        input=y.tobytes(), capture_output=True)
@@ -80,6 +87,8 @@ def main():
     ap.add_argument("prefix")
     ap.add_argument("--start", type=float, default=0)
     ap.add_argument("--seconds", type=float, default=None)
+    ap.add_argument("--roh", action="store_true",
+                    help="nur die Analysespur, OHNE Lautstärke-Anpassung (für die Analyse)")
     a = ap.parse_args()
 
     own, other = load(a.own, a.start, a.seconds), load(a.other, a.start, a.seconds)
@@ -135,9 +144,13 @@ def main():
           f"ohne Übersprechen {floor_db(S):.1f} dB → Analysespur {floor_db(A):.1f} dB")
 
     pre = Path(a.prefix)
-    write(f"{pre}_ohne_uebersprechen.wav", s_clean[:n], a.own, a.start)
-    write(f"{pre}_analysespur.wav", s_ana[:n], a.own, a.start)
-    print(f"→ {pre}_ohne_uebersprechen.wav / _analysespur.wav")
+    if a.roh:
+        write(f"{pre}_analysespur_roh.wav", s_ana[:n], a.own, a.start, roh=True)
+        print(f"→ {pre}_analysespur_roh.wav")
+    else:
+        write(f"{pre}_ohne_uebersprechen.wav", s_clean[:n], a.own, a.start)
+        write(f"{pre}_analysespur.wav", s_ana[:n], a.own, a.start)
+        print(f"→ {pre}_ohne_uebersprechen.wav / _analysespur.wav")
 
 
 if __name__ == "__main__":
