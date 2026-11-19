@@ -56,12 +56,12 @@ Werte = App-Standard (die Engine hat für CLI-Läufe teils andere Rückfallwerte
 
 | Parameter (Schlüssel) | UI | Standard | Wirkung | Status |
 |---|---|---|---|---|
-| Min. Einstellungslänge (`min_shot`) | einfach + Experte | 3,0 s | kürzeste Einstellung; Mindestabstand zwischen zwei Schnitten | 🎚 Schnittrhythmus |
-| Max. Einstellungslänge (`max_shot`) | einfach + Experte | 14 s | längere Sprecher-Einstellungen bekommen „Max.-Time"-Cutaways | 🎚 Schnittrhythmus |
-| Min. Aufräumlänge (`cleanup_dur`) | Experte | 1,8 s | PASS 3/6 entfernen kürzere Reststücke | 🎚 Schnittrhythmus (mitgeführt) |
-| Cutaway-Länge (`reaction_dur`) | einfach + Experte | 1,8 s | Mindestdauer jedes Reaktions-Cutaways | 🎚 Schnittrhythmus |
+| Min. Einstellungslänge (`min_shot`) | einfach + Experte | 3,0 s | kürzeste Einstellung; Mindestabstand zwischen zwei Schnitten | 🎚 Rhythmus |
+| Max. Einstellungslänge (`max_shot`) | einfach + Experte | 14 s | längere Sprecher-Einstellungen bekommen „Max.-Time"-Cutaways | 🎚 Rhythmus |
+| Min. Aufräumlänge (`cleanup_dur`) | Experte | 1,8 s | PASS 3/6 entfernen kürzere Reststücke | 🎚 Rhythmus (mitgeführt) |
+| Cutaway-Länge (`reaction_dur`) | einfach + Experte | 1,8 s | Mindestdauer jedes Reaktions-Cutaways | 🎚 Rhythmus |
 | Pre-Roll (`pre_roll`) | Experte | 15 Bilder | Cutaway beginnt so viel vor der Reaktion | 🔧 |
-| Zufallsfaktor (`randomness`) | Experte | 0,2 | Cutaway-Länge zufällig bis +20 % (ohne festen Startwert → jeder Lauf leicht anders) | 🎚 Schnittrhythmus |
+| Zufallsfaktor (`randomness`) | Experte | 0,2 | Cutaway-Länge zufällig bis +20 % (ohne festen Startwert → jeder Lauf leicht anders) | 🎚 Rhythmus |
 | Cluster-Abstand (`cluster_max_gap_frames`) | — | 75 Bilder | Reaktionen < 2,5 s Abstand = eine Gruppe, Schnitt rückt an den Gruppenanfang | 🔒 |
 | Vorrang Einwürfe vor Nicken (`speaking_priority`) | Experte | aus | Nicken weicht, wenn es einen Einwurf blockieren würde | 🎚 Kopfnicken/Einwürfe (Wie oft) |
 
@@ -172,7 +172,7 @@ legt Dateien in den Medienordner des Nutzers — auch das spricht fürs Entferne
 
 | Kategorie | Slider | steuert (Entwurf) |
 |---|---|---|
-| **Schnittrhythmus** | ruhig ↔ lebendig | `min_shot`, `max_shot`, `reaction_dur`, `cleanup_dur`, `randomness` |
+| **Rhythmus** | ruhig ↔ lebendig | `min_shot`, `max_shot`, `reaction_dur`, `cleanup_dur`, `randomness` |
 | **Kopfnicken** | Wie oft (aus … viel) | Schnittabstand für Nicken*, `speaking_priority` |
 | | Wie sicher | `min_conf`, aktive Muster |
 | **Sprachreaktionen** | Wie oft (aus … viel) | Schnittabstand für Einwürfe*, Deadband |
@@ -197,7 +197,7 @@ ausgegraut) — so brauchen die Slider keine Stufe „aus".
 
 | Kategorie | Slider | links · Mitte · rechts |
 |---|---|---|
-| Schnittrhythmus | Tempo | ruhig · ausgewogen · lebendig |
+| Rhythmus | Tempo | ruhig · ausgewogen · lebendig |
 | Kopfnicken | Wie oft | selten · ausgewogen · oft |
 | | Treffsicherheit | großzügig · ausgewogen · streng |
 | Sprachreaktionen | Wie oft | selten · ausgewogen · oft |
@@ -216,9 +216,12 @@ Kopfnicken „Treffsicherheit" aus der Sichtung: streng = nur oscillation · aus
   hoher Qualität. Alternative: Recraft V4.1 `vector` mit fester Palette (2,5 Credits).
 - Stil: Referenz-Maskottchen (runder Kopf, Punktaugen, Strich-Lächeln, Ohr, Haarschopf),
   einfarbig **Lime #C6F24E**, in der App auf **#191C15** (wizSurface).
-- Motive: Kopfnicken (Nicken + Auf-ab-Pfeil) · Sprachreaktionen (offener Mund +
-  Schallbögen) · Pausen (zurückgelehnt, Hand hinterm Kopf, Auslassungspunkte) ·
-  Schnittrhythmus (Seitenblick + Tempostriche) · Totale (zwei Figuren im Bildrahmen).
+- **(entschieden)** Kategorien heißen **Kopfnicken · Sprachreaktionen · Pausen · Totale ·
+  Rhythmus**. Finale SVGs in `apps/multicam-cutter/design/piktogramme/` (kopfnicken,
+  sprachreaktionen, pausen, totale, rhythmus). Motive: Nicken + Auf-ab-Pfeil · offener
+  Mund + Schallbögen · zurückgelehnt, Hand hinterm Kopf, „…" · zwei Figuren im
+  Bildrahmen · Filmstreifen mit einer Unterteilung, Schere schneidet, Köpfe links/rechts.
+  Einfarbig #C6F24E, transparent → Farbe/Abdunkeln in der App per Code.
 
 ## Offene Fragen
 
