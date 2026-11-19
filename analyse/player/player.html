@@ -1,0 +1,562 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Analyse-Player</title>
+<style>
+:root {
+  --bg: #15171c; --panel: #1d2027; --panel2: #252932; --line: #333845; --text: #e6e8ee;
+  --dim: #8b91a1; --seb: #5aa9ff; --kim: #ffa04d; --ok: #3ecf7a; --bad: #ff5c5c; --unk: #f2c94c;
+  --eigen: #b48cff; --accent: #7aa2ff;
+}
+* { box-sizing: border-box; }
+html, body { margin: 0; height: 100%; background: var(--bg); color: var(--text);
+  font: 13px/1.4 -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; overflow: hidden; }
+button, select, input, textarea { font: inherit; color: inherit; }
+select { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 3px 6px; }
+button { background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 10px; cursor: pointer; }
+button:hover { border-color: #4a5163; }
+button.on { background: #2f3a55; border-color: var(--accent); }
+button:disabled { opacity: .4; cursor: default; }
+#app { display: grid; grid-template-columns: 1fr 340px; grid-template-rows: auto auto 1fr auto; height: 100vh; }
+header { grid-column: 1 / 3; display: flex; gap: 8px; align-items: center; padding: 8px 12px;
+  background: var(--panel); border-bottom: 1px solid var(--line); flex-wrap: wrap; }
+header h1 { font-size: 14px; margin: 0 12px 0 0; font-weight: 600; }
+.grp { display: flex; gap: 2px; align-items: center; }
+.grp > span { color: var(--dim); margin-right: 4px; }
+.grp button { border-radius: 0; }
+.grp button:first-of-type { border-radius: 6px 0 0 6px; }
+.grp button:last-of-type { border-radius: 0 6px 6px 0; }
+#status { margin-left: auto; color: var(--dim); font-size: 12px; }
+#overview { grid-column: 1; height: 44px; width: 100%; display: block; background: var(--panel); border-bottom: 1px solid var(--line); cursor: pointer; }
+#mainwrap { grid-column: 1; position: relative; overflow: hidden; }
+#main { display: block; width: 100%; height: 100%; cursor: crosshair; }
+#tip { position: absolute; pointer-events: none; background: rgba(12,14,18,.95); border: 1px solid var(--line);
+  border-radius: 6px; padding: 6px 8px; font-size: 12px; white-space: pre; display: none; z-index: 5; }
+footer { grid-column: 1; display: flex; gap: 10px; align-items: center; padding: 8px 12px; background: var(--panel); border-top: 1px solid var(--line); }
+#tc { font: 600 18px/1 ui-monospace, SFMono-Regular, Menlo, monospace; min-width: 120px; }
+#goto { width: 120px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 4px 8px; font-family: ui-monospace, Menlo, monospace; }
+#play { width: 42px; font-size: 16px; }
+aside { grid-column: 2; grid-row: 2 / 5; background: var(--panel); border-left: 1px solid var(--line); display: flex; flex-direction: column; min-height: 0; }
+#filter { display: flex; flex-wrap: wrap; gap: 4px; padding: 8px; border-bottom: 1px solid var(--line); }
+#filter button { padding: 2px 8px; font-size: 12px; }
+#detail { padding: 10px; border-bottom: 1px solid var(--line); }
+#detail .kopf { font-weight: 600; margin-bottom: 4px; }
+#detail .warum { color: var(--dim); font-size: 12px; margin: 6px 0; white-space: pre-line; }
+#detail .knoepfe { display: flex; gap: 6px; margin: 8px 0; }
+#detail .knoepfe button { flex: 1; }
+#detail textarea { width: 100%; height: 48px; background: var(--panel2); border: 1px solid var(--line); border-radius: 6px; padding: 6px; resize: vertical; }
+button.treffer.on { background: #1f4a33; border-color: var(--ok); }
+button.daneben.on { background: #4d2323; border-color: var(--bad); }
+button.unklar.on { background: #4a4120; border-color: var(--unk); }
+#liste { overflow-y: auto; flex: 1; }
+.row { display: grid; grid-template-columns: 10px 92px 1fr auto; gap: 8px; align-items: center; padding: 5px 10px; border-bottom: 1px solid #22262e; cursor: pointer; font-size: 12px; }
+.row:hover { background: #22262f; }
+.row.sel { background: #2a3142; }
+.dot { width: 10px; height: 10px; border-radius: 50%; }
+.mono { font-family: ui-monospace, Menlo, monospace; }
+.pill { font-size: 11px; padding: 1px 6px; border-radius: 10px; border: 1px solid var(--line); color: var(--dim); }
+.pill.treffer { color: var(--ok); border-color: var(--ok); }
+.pill.daneben { color: var(--bad); border-color: var(--bad); }
+.pill.unklar { color: var(--unk); border-color: var(--unk); }
+.pill.fehlt { color: var(--eigen); border-color: var(--eigen); }
+#hilfe { position: fixed; inset: 0; background: rgba(0,0,0,.6); display: none; align-items: center; justify-content: center; z-index: 10; }
+#hilfe > div { background: var(--panel); border: 1px solid var(--line); border-radius: 10px; padding: 18px 22px; max-width: 640px; }
+#hilfe kbd { background: var(--panel2); border: 1px solid var(--line); border-radius: 4px; padding: 0 5px; font-family: ui-monospace, Menlo, monospace; }
+#hilfe td { padding: 3px 10px 3px 0; vertical-align: top; }
+#laden { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: var(--bg); z-index: 20; color: var(--dim); }
+</style>
+</head>
+<body>
+<div id="laden">Lade Analyse …</div>
+<div id="app">
+  <header>
+    <h1 id="titel">Analyse-Player</h1>
+    <div class="grp"><span>Ton</span><button data-ton="original" class="on">Original</button><button data-ton="analysespur">Analysespur</button></div>
+    <div class="grp"><span>Hören</span><button data-solo="beide" class="on">Beide</button><button data-solo="0">P0</button><button data-solo="1">P1</button></div>
+    <div class="grp"><span>Zeigen</span><button data-spur="schnitte" class="on">Schnitte</button><button data-spur="b" class="on">B · Analysespur</button><button data-spur="a" class="on">A · Original</button></div>
+    <div class="grp"><span>Nach Bewertung</span><button id="weiter" class="on" title="Nach dem Bewerten zum nächsten offenen Marker springen">weiter</button></div>
+    <span id="status"></span>
+    <button id="hilfeBtn">?</button>
+  </header>
+  <canvas id="overview"></canvas>
+  <div id="mainwrap"><canvas id="main"></canvas><div id="tip"></div></div>
+  <footer>
+    <button id="play" title="Leertaste">▶</button>
+    <span id="tc" class="mono">00:00:00;00</span>
+    <input id="goto" placeholder="Gehe zu TC" title="z. B. 00:06:55;20 — Enter">
+    <button id="zout" title="−">−</button><button id="zin" title="+">+</button>
+    <select id="speed"><option>1</option><option>1.25</option><option>1.5</option><option>2</option></select>
+    <span style="color:var(--dim);font-size:12px">Ziehen = verschieben · Scrollen = zoomen · Klick = springen · <b>F</b> = hier fehlt ein Umschnitt</span>
+  </footer>
+  <aside>
+    <div id="filter"></div>
+    <div id="detail"></div>
+    <div id="liste"></div>
+  </aside>
+</div>
+<div id="hilfe"><div>
+  <h3 style="margin-top:0">Bedienung</h3>
+  <table>
+    <tr><td><kbd>Leertaste</kbd></td><td>Abspielen / Pause</td></tr>
+    <tr><td><kbd>→</kbd> <kbd>←</kbd></td><td>nächster / vorheriger Marker (spielt ab 2 s davor)</td></tr>
+    <tr><td><kbd>1</kbd> <kbd>2</kbd> <kbd>3</kbd></td><td>trifft / trifft nicht / unklar</td></tr>
+    <tr><td><kbd>F</kbd></td><td>„Hier fehlt ein Umschnitt" an der Abspielposition (Person = wer gerade zuhört)</td></tr>
+    <tr><td><kbd>Entf</kbd></td><td>eigenen Marker löschen</td></tr>
+    <tr><td><kbd>R</kbd></td><td>Marker noch einmal abspielen</td></tr>
+    <tr><td><kbd>+</kbd> <kbd>−</kbd></td><td>Zoom</td></tr>
+  </table>
+  <h3>Was die Spuren zeigen</h3>
+  <p><b>B · Analysespur</b>: Pegel der Analysespur. Weiße Linie = wirksame Schwelle (das Höchste aus
+  <span style="color:#e6c35c">Umgebung</span>, <span style="color:#5ad1d1">erwartetem Übersprechen</span> und
+  „nicht zu leise"). Grüne Balken = Einwurf erkannt: voll = löst Umschnitt aus, hohl = fällt in einen laufenden Cutaway
+  derselben Person (schon im Bild), gelb umrandet = kommt direkt nach dem Ende ihres Cutaways (feste
+  Reaktionsdauer, Rückschnitt durch Mindestabstand blockiert), rot umrandet = erkannt, aber kein Umschnitt. Graue = verworfen (Grund beim Überfahren). Dünne hellgrüne
+  Linie darüber = roh: jedes Bild über der Schwelle, ohne Mindestlänge, Lückenfüllen oder Puffer.
+  Schraffiert = Puffer ±1 s um Sprecherwechsel.
+  Abgedunkelt = diese Person spricht gerade (dort sucht B nicht).</p>
+  <p><b>A · Original</b>: Was die App heute sieht — Pegel des Original-Mikros, <span style="color:#c792ea">wandernde Grundlinie</span>
+  und Schwelle (Grundlinie + Anstieg). Schraffiert = Grundlinie eingefroren. Blau = erkannt,
+  orange = von Regel A verworfen, grau = zu kurz.</p>
+  <p><b>Marker</b>: grün = Einwurf-Schnitt nur in B, rot = nur in A, lila = von dir gesetzt („fehlt").
+  Schnitte ohne Schnittregeln (keine Mindestlänge, kein Max. Time).</p>
+  <div style="text-align:right"><button onclick="document.getElementById('hilfe').style.display='none'">Schließen</button></div>
+</div></div>
+<audio id="audio" preload="auto"></audio>
+<script>
+"use strict";
+const $ = s => document.querySelector(s);
+let M, K = {}, N, FPS, PERS;
+let labels = { version: 1, marker: {}, eigene: [] };
+const st = { view0: 0, fpp: 10, sel: null, filter: "offen", ton: "original", solo: "beide",
+  spuren: { schnitte: true, b: true, a: true }, weiter: true, drag: null, playing: false };
+const FARBE = ["#5aa9ff", "#ffa04d"];
+const STATUS_FARBE = { treffer: "#3ecf7a", daneben: "#ff5c5c", unklar: "#f2c94c" };
+const ART = { nur_b: ["Nur B (Analysespur)", "#3ecf7a"], nur_a: ["Nur A (heute)", "#ff5c5c"], fehlt: ["Fehlt (von dir)", "#b48cff"] };
+
+// ── Timecode (SMPTE 12M Drop-Frame, wie marker_edl.py) ─────────────────────
+function tcOf(n) {
+  const nom = Math.round(FPS); let f = n + M.start_tc;
+  if (M.drop_frame) {
+    const drop = nom >= 59 ? 4 : 2, per10 = nom * 600 - drop * 9, perMin = nom * 60 - drop;
+    const d = Math.floor(f / per10), m = f % per10;
+    f += m > drop ? drop * 9 * d + drop * Math.floor((m - drop) / perMin) : drop * 9 * d;
+  }
+  const p = x => String(x).padStart(2, "0");
+  return `${p(Math.floor(f / (nom * 3600)))}:${p(Math.floor(f / (nom * 60)) % 60)}:${p(Math.floor(f / nom) % 60)}${M.drop_frame ? ";" : ":"}${p(f % nom)}`;
+}
+function framesOf(tc) {
+  const p = tc.trim().replace(/[;.]/g, ":").split(":").map(Number);
+  if (p.length !== 4 || p.some(isNaN)) return null;
+  const [h, m, s, f] = p, nom = Math.round(FPS);
+  let n = (h * 3600 + m * 60 + s) * nom + f;
+  if (M.drop_frame) { const drop = nom >= 59 ? 4 : 2, tm = 60 * h + m; n -= drop * (tm - Math.floor(tm / 10)); }
+  return n - M.start_tc;
+}
+
+// ── Laden ───────────────────────────────────────────────────────────────────
+async function laden() {
+  M = await (await fetch("/s/manifest.json")).json();
+  const buf = await (await fetch("/s/kurven.bin")).arrayBuffer();
+  N = M.n; FPS = M.fps; PERS = M.personen;
+  for (const k of M.kurven) K[k.name] = new Float32Array(buf, k.offset * 4, N);
+  try { const l = await (await fetch("/api/labels")).json(); if (l && l.marker) labels = l; } catch (e) {}
+  labels.eigene = labels.eigene || [];
+  $("#titel").textContent = "Analyse-Player · " + M.titel;
+  document.querySelectorAll("[data-solo]").forEach(b => { if (b.dataset.solo !== "beide") b.textContent = PERS[+b.dataset.solo].name; });
+  M.speaker = new Int8Array(N).fill(-1);
+  for (const [s, e, p] of M.sprecher) M.speaker.fill(p, s, e);
+  // Was ist aus jeder B-Erkennung im Schnitt B geworden?
+  for (let k = 0; k < 2; k++) {
+    const cuts = M.schnitt_b.filter(c => c[2] === k && c[3] === "reaction_speaking_reaction");
+    PERS[k].b_wirkung = PERS[k].b_events.map(([s]) => {
+      if (cuts.some(c => c[0] >= s - 25 && c[0] <= s + 3)) return "schnitt";
+      if (M.schnitt_b.some(c => c[2] === k && c[0] < s && c[1] > s)) return "laeuft";
+      if (cuts.some(c => c[1] <= s && c[1] >= s - 20)) return "danach";
+      return "kein";
+    });
+  }
+  $("#audio").src = "/s/" + M.ton.original;
+  st.fpp = 60 * FPS / Math.max(400, $("#main").clientWidth);
+  $("#laden").style.display = "none";
+  groesse(); filterLeiste(); liste(); detail(); zeichnen();
+}
+
+// ── Marker ──────────────────────────────────────────────────────────────────
+function alleMarker() {
+  const e = labels.eigene.map(m => ({ ...m, art: "fehlt", end: m.frame + Math.round(FPS), start: m.frame }));
+  return [...M.marker, ...e].sort((a, b) => a.start - b.start);
+}
+const status = m => m.art === "fehlt" ? "fehlt" : (labels.marker[m.id] || {}).status || "offen";
+function gefiltert() {
+  const f = st.filter;
+  return alleMarker().filter(m => f === "alle" || (f === "offen" ? status(m) === "offen" : f === "fehlt" ? m.art === "fehlt" :
+    f === "nur_b" || f === "nur_a" ? m.art === f : status(m) === f));
+}
+function filterLeiste() {
+  const all = alleMarker(), n = f => all.filter(m => f === "alle" || (f === "offen" ? status(m) === "offen" : f === "fehlt" ? m.art === "fehlt" :
+    f === "nur_b" || f === "nur_a" ? m.art === f : status(m) === f)).length;
+  const F = [["offen", "Offen"], ["alle", "Alle"], ["nur_b", "Nur B"], ["nur_a", "Nur A"], ["treffer", "✓ Trifft"], ["daneben", "✗ Nicht"], ["unklar", "? Unklar"], ["fehlt", "Fehlt"]];
+  $("#filter").innerHTML = F.map(([k, l]) => `<button data-f="${k}" class="${st.filter === k ? "on" : ""}">${l} ${n(k)}</button>`).join("");
+  $("#filter").querySelectorAll("button").forEach(b => b.onclick = () => { st.filter = b.dataset.f; filterLeiste(); liste(); });
+}
+function liste() {
+  const L = gefiltert();
+  $("#liste").innerHTML = L.map(m => {
+    const s = status(m);
+    return `<div class="row ${st.sel === m.id ? "sel" : ""}" data-id="${m.id}">
+      <span class="dot" style="background:${ART[m.art][1]}"></span><span class="mono">${tcOf(m.start)}</span>
+      <span style="color:${FARBE[m.person]}">${PERS[m.person].name}</span>
+      <span class="pill ${s}">${{ offen: "offen", treffer: "trifft", daneben: "nicht", unklar: "unklar", fehlt: "fehlt" }[s]}</span></div>`;
+  }).join("") || `<div style="padding:12px;color:var(--dim)">Keine Marker in diesem Filter.</div>`;
+  $("#liste").querySelectorAll(".row").forEach(r => r.onclick = () => waehle(r.dataset.id, true));
+  const s = $("#liste .sel"); if (s) s.scrollIntoView({ block: "nearest" });
+}
+function markerById(id) { return alleMarker().find(m => m.id === id); }
+function waehle(id, abspielen) {
+  st.sel = id; const m = markerById(id); if (!m) return;
+  const breite = N && st.fpp * $("#main").clientWidth;
+  if (m.start < st.view0 + breite * .1 || m.end > st.view0 + breite * .9) st.view0 = Math.max(0, m.start - breite * .35);
+  seek(Math.max(0, m.start - 2 * FPS));
+  if (abspielen) spielen(true);
+  liste(); detail(); zeichnen();
+}
+function naechster(dir) {
+  const L = gefiltert().length ? gefiltert() : alleMarker(); if (!L.length) return;
+  const cur = st.sel ? markerById(st.sel) : null, ref = cur ? cur.start : aktFrame();
+  const c = dir > 0 ? L.find(m => m.start > ref) : [...L].reverse().find(m => m.start < ref);
+  if (c) waehle(c.id, true);
+}
+function bewerte(s) {
+  const m = st.sel && markerById(st.sel); if (!m || m.art === "fehlt") return;
+  const alt = labels.marker[m.id] || {};
+  labels.marker[m.id] = { ...alt, status: alt.status === s ? "offen" : s, art: m.art, person: PERS[m.person].name, tc: tcOf(m.start), zeit: new Date().toISOString() };
+  speichern(); filterLeiste();
+  if (st.weiter && labels.marker[m.id].status !== "offen") {
+    const L = alleMarker().filter(x => status(x) === "offen" && x.start > m.start && (st.filter === "alle" || st.filter === "offen" || x.art === m.art || st.filter === "fehlt"));
+    if (L.length) { waehle(L[0].id, true); return; }
+  }
+  liste(); detail(); zeichnen();
+}
+function fehltHier() {
+  const f = aktFrame(), sp = M.speaker[f], person = sp >= 0 ? 1 - sp : 0;
+  const m = { id: "u" + Date.now(), frame: f, person, notiz: "", tc: tcOf(f), name: PERS[person].name };
+  labels.eigene.push(m); speichern(); st.sel = m.id; filterLeiste(); liste(); detail(); zeichnen();
+}
+function loeschen() {
+  const i = labels.eigene.findIndex(m => m.id === st.sel); if (i < 0) return;
+  labels.eigene.splice(i, 1); st.sel = null; speichern(); filterLeiste(); liste(); detail(); zeichnen();
+}
+let saveT;
+function speichern() {
+  $("#status").textContent = "speichere …";
+  clearTimeout(saveT);
+  saveT = setTimeout(async () => {
+    try {
+      const r = await fetch("/api/labels", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify(labels) });
+      const j = await r.json(); $("#status").textContent = "gespeichert " + j.gespeichert.slice(11);
+    } catch (e) { $("#status").textContent = "⚠️ nicht gespeichert — läuft der Server?"; }
+  }, 300);
+}
+
+// ── „Warum?" je Marker ─────────────────────────────────────────────────────
+function lauf(arr, a, b, fn) { let best = -Infinity, at = a; for (let i = Math.max(0, a); i < Math.min(N, b); i++) { const v = fn(i); if (v > best) { best = v; at = i; } } return at; }
+function warumB(m) {
+  const k = m.person, P = PERS[k];
+  const ev = P.b_events.find(([s, e]) => s < m.end + FPS && e > m.start - FPS);
+  if (ev) return `B: Einwurf erkannt (${((ev[1] - ev[0]) / FPS).toFixed(2)} s)`;
+  const vw = P.b_verworfen.find(([s, e]) => s < m.end + FPS && e > m.start - FPS);
+  if (vw) return `B: Kandidat verworfen — ${vw[2]} (${((vw[1] - vw[0]) / FPS).toFixed(2)} s)`;
+  const ana = K["ana" + k], umg = K["b_umg" + k], erw = K["b_erw" + k];
+  const i = lauf(ana, m.start - 10, m.start + Math.round(1.5 * FPS), j => ana[j] - Math.max(umg[j], erw[j], P.b_leise));
+  const zuh = M.speaker[i] === 1 - k;
+  let near = false;
+  for (const [s] of M.sprecher) if (Math.abs(s - i) < FPS) near = true;
+  const z = [];
+  if (!zuh) z.push(`${P.name} gilt hier als Sprecher — B sucht nur beim Zuhören`);
+  if (near) z.push("liegt im Puffer ±1 s um einen Sprecherwechsel");
+  const f = (v, t) => `${v.toFixed(1)} dB ${v >= t ? "≥" : "<"} ${t.toFixed(1)}`;
+  z.push(`lautester Moment: ${tcOf(i)}`);
+  z.push(`Umgebung: ${f(ana[i], umg[i])}${ana[i] >= umg[i] ? " ✓" : " ✗"}`);
+  z.push(`erwartetes Übersprechen: ${f(ana[i], erw[i])}${ana[i] >= erw[i] ? " ✓" : " ✗"}`);
+  z.push(`nicht zu leise: ${f(ana[i], P.b_leise)}${ana[i] >= P.b_leise ? " ✓" : " ✗"}`);
+  return "B: nichts erkannt\n" + z.join("\n");
+}
+function warumA(m) {
+  const k = m.person, P = PERS[k];
+  const hits = P.a_events.filter(([s, e]) => s < m.end + FPS && e > m.start - FPS);
+  if (!hits.length) {
+    const db = K["a_db" + k], thr = K["a_thr" + k];
+    const i = lauf(db, m.start - 10, m.start + Math.round(1.5 * FPS), j => isNaN(db[j]) ? -1e9 : db[j] - thr[j]);
+    if (isNaN(db[i])) return "A: keine Daten (gilt hier als Sprecher)";
+    return `A: nichts erkannt — höchster Anstieg ${(db[i] - K["a_base" + k][i]).toFixed(1)} dB über Grundlinie (nötig ${M.a_params.rise_db} dB)` + (K["a_freeze" + k][i] > 0 ? ", Grundlinie eingefroren" : "");
+  }
+  return hits.map(([s, e, art, grund, c]) => `A: ${grund}` + (art === "erkannt" ? ` (Konfidenz ${c})` : "")).join("\n");
+}
+function detail() {
+  const m = st.sel && markerById(st.sel);
+  if (!m) { $("#detail").innerHTML = `<div style="color:var(--dim)">Marker in der Liste oder Zeitleiste anklicken — oder <b>F</b> drücken, wo ein Umschnitt fehlt.</div>`; return; }
+  const s = status(m), lab = labels.marker[m.id] || {};
+  const eigen = m.art === "fehlt";
+  $("#detail").innerHTML = `
+    <div class="kopf"><span style="color:${ART[m.art][1]}">●</span> ${ART[m.art][0]} · <span style="color:${FARBE[m.person]}">${PERS[m.person].name}</span> · <span class="mono">${tcOf(m.start)}</span></div>
+    <div class="warum">${eigen ? "Von dir gesetzt: hier fehlt ein Umschnitt." : warumB(m) + "\n" + warumA(m)}</div>
+    ${eigen ? `<div class="knoepfe"><button id="pers">Person: ${PERS[m.person].name} ⇄</button><button id="del">Löschen (Entf)</button></div>` :
+    `<div class="knoepfe"><button class="treffer ${s === "treffer" ? "on" : ""}" data-s="treffer">✓ Trifft (1)</button>
+      <button class="daneben ${s === "daneben" ? "on" : ""}" data-s="daneben">✗ Nicht (2)</button>
+      <button class="unklar ${s === "unklar" ? "on" : ""}" data-s="unklar">? Unklar (3)</button></div>`}
+    <textarea id="notiz" placeholder="Notiz (optional)">${(eigen ? m.notiz : lab.notiz) || ""}</textarea>`;
+  $("#detail").querySelectorAll("[data-s]").forEach(b => b.onclick = () => bewerte(b.dataset.s));
+  const del = $("#del"); if (del) del.onclick = loeschen;
+  const pers = $("#pers"); if (pers) pers.onclick = () => { const e = labels.eigene.find(x => x.id === m.id); e.person = 1 - e.person; e.name = PERS[e.person].name; speichern(); liste(); detail(); zeichnen(); };
+  $("#notiz").oninput = ev => {
+    if (eigen) labels.eigene.find(x => x.id === m.id).notiz = ev.target.value;
+    else labels.marker[m.id] = { ...(labels.marker[m.id] || { status: "offen", art: m.art, person: PERS[m.person].name, tc: tcOf(m.start) }), notiz: ev.target.value };
+    speichern();
+  };
+}
+
+// ── Ton ─────────────────────────────────────────────────────────────────────
+const audio = $("#audio");
+let ctx, gains;
+function tonGraph() {
+  if (ctx) return;
+  ctx = new AudioContext();
+  const src = ctx.createMediaElementSource(audio), sp = ctx.createChannelSplitter(2), mg = ctx.createChannelMerger(2);
+  src.connect(sp);
+  gains = [[0, 0], [0, 0]].map((_, ch) => [0, 1].map(out => { const g = ctx.createGain(); sp.connect(g, ch); g.connect(mg, 0, out); return g; }));
+  mg.connect(ctx.destination); solo(st.solo);
+}
+function solo(s) {
+  st.solo = s;
+  document.querySelectorAll("[data-solo]").forEach(b => b.classList.toggle("on", b.dataset.solo === s));
+  if (!gains) return;
+  const set = (ch, l, r) => { gains[ch][0].gain.value = l; gains[ch][1].gain.value = r; };
+  if (s === "beide") { set(0, 1, 0); set(1, 0, 1); }
+  else if (s === "0") { set(0, 1, 1); set(1, 0, 0); }
+  else { set(0, 0, 0); set(1, 1, 1); }
+}
+const aktFrame = () => Math.round(audio.currentTime * FPS);
+function seek(f) { audio.currentTime = Math.max(0, Math.min(N - 1, f)) / FPS; zeichnen(); }
+function spielen(an) {
+  tonGraph(); if (ctx.state === "suspended") ctx.resume();
+  if (an === undefined) an = audio.paused;
+  if (an) audio.play(); else audio.pause();
+}
+audio.onplay = () => { $("#play").textContent = "❚❚"; loop(); };
+audio.onpause = () => { $("#play").textContent = "▶"; zeichnen(); };
+function loop() {
+  if (audio.paused) return;
+  const f = aktFrame(), w = st.fpp * $("#main").clientWidth;
+  if (f > st.view0 + w * .85 && !st.drag) st.view0 = f - w * .15;
+  zeichnen(); requestAnimationFrame(loop);
+}
+function ton(art) {
+  const t = audio.currentTime, an = !audio.paused;
+  st.ton = art; audio.src = "/s/" + M.ton[art];
+  audio.addEventListener("loadedmetadata", () => { audio.currentTime = t; if (an) audio.play(); }, { once: true });
+  document.querySelectorAll("[data-ton]").forEach(b => b.classList.toggle("on", b.dataset.ton === art));
+}
+
+// ── Zeichnen ────────────────────────────────────────────────────────────────
+const cv = $("#main"), ov = $("#overview"); let g, go, W, H, DPR;
+function groesse() {
+  DPR = window.devicePixelRatio || 1;
+  for (const c of [cv, ov]) { c.width = c.clientWidth * DPR; c.height = c.clientHeight * DPR; }
+  g = cv.getContext("2d"); go = ov.getContext("2d"); g.setTransform(DPR, 0, 0, DPR, 0, 0); go.setTransform(DPR, 0, 0, DPR, 0, 0);
+  W = cv.clientWidth; H = cv.clientHeight; zeichnen();
+}
+window.addEventListener("resize", groesse);
+function spurenLayout() {
+  const L = [{ typ: "lineal", h: 22 }, { typ: "sprecher", h: 16, name: "Wer spricht" }];
+  if (st.spuren.schnitte) L.push({ typ: "schnitt", h: 20, key: "schnitt_a", name: "Schnitt A (heute)" }, { typ: "schnitt", h: 20, key: "schnitt_b", name: "Schnitt B (Analysespur)" });
+  const frei = H - L.reduce((a, b) => a + b.h + 4, 0) - 8;
+  const pp = (st.spuren.b ? 1 : 0) + (st.spuren.a ? 1 : 0);
+  const h = pp ? Math.max(60, Math.floor(frei / (2 * pp)) - 6) : 0;
+  for (let k = 0; k < 2; k++) {
+    if (st.spuren.b) L.push({ typ: "b", h, k, name: `${PERS[k].name} · B · Analysespur` });
+    if (st.spuren.a) L.push({ typ: "a", h, k, name: `${PERS[k].name} · A · Original (App heute)` });
+  }
+  let y = 0; for (const l of L) { l.y = y; y += l.h + 6; }
+  return L;
+}
+const xOf = f => (f - st.view0) / st.fpp, fOf = x => st.view0 + x * st.fpp;
+function spalten(fn) { // ruft fn(x, f0, f1) je Pixelspalte im sichtbaren Bereich
+  for (let x = 0; x < W; x++) { const f0 = Math.floor(fOf(x)), f1 = Math.max(f0 + 1, Math.floor(fOf(x + 1))); if (f1 <= 0 || f0 >= N) continue; fn(x, Math.max(0, f0), Math.min(N, f1)); }
+}
+function kurve(arr, y0, h, lo, hi, farbe, art) {
+  const Y = v => y0 + h - (Math.min(hi, Math.max(lo, v)) - lo) / (hi - lo) * h;
+  g.beginPath(); let pen = false;
+  if (art === "flaeche") {
+    g.fillStyle = farbe;
+    spalten((x, a, b) => { let m = -Infinity; for (let i = a; i < b; i++) if (arr[i] > m) m = arr[i]; if (m > -Infinity && !isNaN(m)) g.fillRect(x, Y(m), 1, y0 + h - Y(m)); });
+    return;
+  }
+  g.strokeStyle = farbe; g.lineWidth = art === "duenn" ? 1 : 1.5; g.setLineDash(art === "gestrichelt" ? [4, 3] : art === "punkte" ? [1, 3] : []);
+  spalten((x, a, b) => { let s = 0, c = 0; for (let i = a; i < b; i++) if (!isNaN(arr[i])) { s += arr[i]; c++; }
+    if (!c) { pen = false; return; } const y = Y(s / c); if (pen) g.lineTo(x, y); else { g.moveTo(x, y); pen = true; } });
+  g.stroke(); g.setLineDash([]);
+}
+function balken(liste, y, h, farbe) {
+  for (const it of liste) { const x0 = xOf(it[0]), x1 = xOf(it[1]); if (x1 < 0 || x0 > W) continue; g.fillStyle = typeof farbe === "function" ? farbe(it) : farbe; g.fillRect(x0, y, Math.max(2, x1 - x0), h); }
+}
+function zeichnen() {
+  if (!M || !g) return;
+  g.clearRect(0, 0, W, H);
+  const L = spurenLayout(); st.layout = L;
+  for (const l of L) {
+    if (l.typ !== "lineal") { g.fillStyle = "#1a1d24"; g.fillRect(0, l.y, W, l.h); }
+    if (l.typ === "lineal") {
+      const sek = st.fpp * 120 / FPS, schritt = [1, 2, 5, 10, 15, 30, 60, 120, 300, 600, 1200].find(s => s >= sek) || 1800;
+      g.fillStyle = "#8b91a1"; g.font = "11px ui-monospace, Menlo, monospace";
+      // Striche auf ganzen Timecode-Sekunden (wie in Resolve), nicht auf Echtzeit-Sekunden
+      const p2 = x => String(x).padStart(2, "0"), tcSek = f => { const q = tcOf(Math.max(0, Math.round(f))).split(/[:;]/).map(Number); return q[0] * 3600 + q[1] * 60 + q[2]; };
+      for (let t = Math.ceil(tcSek(st.view0) / schritt) * schritt; ; t += schritt) {
+        const f = framesOf(`${p2(Math.floor(t / 3600))}:${p2(Math.floor(t / 60) % 60)}:${p2(t % 60)}:00`);
+        if (f === null || f > fOf(W)) break;
+        const x = xOf(f); g.fillRect(x, l.y + 14, 1, 8); g.fillText(`${p2(Math.floor(t / 3600))}:${p2(Math.floor(t / 60) % 60)}:${p2(t % 60)}`, x + 3, l.y + 12);
+      }
+    } else if (l.typ === "sprecher") {
+      balken(M.sprecher, l.y, l.h, it => it[2] >= 0 ? FARBE[it[2]] : "#444");
+    } else if (l.typ === "schnitt") {
+      balken(M[l.key], l.y + 2, l.h - 4, it => it[2] < 0 ? "#555" : it[3] === "reaction_speaking_reaction" ? FARBE[it[2]] : FARBE[it[2]] + "55");
+      g.strokeStyle = "#15171c"; for (const it of M[l.key]) { const x = xOf(it[0]); if (x >= 0 && x <= W) { g.beginPath(); g.moveTo(x, l.y); g.lineTo(x, l.y + l.h); g.stroke(); } }
+    } else if (l.typ === "b") {
+      const P = PERS[l.k], lo = Math.max(-100, P.bereich_ana[0]), hi = P.bereich_ana[1], k = l.k;
+      kurve(K["ana" + k], l.y, l.h - 10, lo, hi, FARBE[k] + "cc", "flaeche");
+      kurve(K["b_umg" + k], l.y, l.h - 10, lo, hi, "#e6c35c99", "gestrichelt");
+      kurve(K["b_erw" + k], l.y, l.h - 10, lo, hi, "#5ad1d199", "punkte");
+      const thr = new Proxy({}, { get: (_, i) => Math.max(K["b_umg" + k][i], K["b_erw" + k][i], P.b_leise) });
+      kurve(thr, l.y, l.h - 10, lo, hi, "#ffffffcc", "duenn");
+      // Bereiche, in denen diese Person spricht (dort sucht B nicht): abdunkeln
+      balken(M.sprecher.filter(s => s[2] === k), l.y, l.h, "#0e1014b8");
+      // Puffer um Sprecherwechsel (dort sucht B nicht): schraffiert
+      g.fillStyle = "#ffffff14";
+      spalten((x, a, b) => { for (let i = a; i < b; i++) if (K.puffer[i] > 0) { if (x % 3 === 0) g.fillRect(x, l.y, 1, l.h - 10); break; } });
+      // roh: jedes Bild über der Schwelle (ohne Länge, Lückenfüllen, Puffer)
+      g.fillStyle = "#b8f5cf";
+      spalten((x, a, b) => { for (let i = a; i < b; i++) if (K["b_roh" + k][i] > 0) { g.fillRect(x, l.y + l.h - 11, 1, 2); break; } });
+      // grün voll = löst Schnitt aus, grün hohl = fällt in laufenden Cutaway derselben Person, rot = kein Schnitt
+      P.b_events.forEach(([a, b], i) => {
+        const x0 = xOf(a), x1 = xOf(b); if (x1 < 0 || x0 > W) return;
+        const w = Math.max(2, x1 - x0), y = l.y + l.h - 8, art = P.b_wirkung[i];
+        if (art === "schnitt") { g.fillStyle = "#3ecf7a"; g.fillRect(x0, y, w, 7); }
+        else { g.strokeStyle = art === "laeuft" ? "#3ecf7a" : art === "danach" ? "#f2c94c" : "#ff5c5c"; g.lineWidth = 1.5; g.strokeRect(x0 + .75, y + .75, Math.max(1, w - 1.5), 5.5); }
+      });
+      balken(P.b_verworfen, l.y + l.h - 8, 7, "#777");
+    } else if (l.typ === "a") {
+      const P = PERS[l.k], lo = P.bereich_a[0], hi = P.bereich_a[1], k = l.k;
+      // eingefroren: schraffieren
+      g.fillStyle = "#ffffff10";
+      spalten((x, a, b) => { for (let i = a; i < b; i++) if (K["a_freeze" + k][i] > 0) { if (x % 4 < 2) g.fillRect(x, l.y, 1, l.h - 10); break; } });
+      kurve(K["a_db" + k], l.y, l.h - 10, lo, hi, FARBE[k] + "99", "flaeche");
+      kurve(K["a_base" + k], l.y, l.h - 10, lo, hi, "#c792ea", "duenn");
+      kurve(K["a_thr" + k], l.y, l.h - 10, lo, hi, "#ffffffcc", "gestrichelt");
+      balken(P.a_events, l.y + l.h - 8, 7, it => it[2] === "erkannt" ? "#5a8dff" : it[2] === "regel_a" ? "#ff9b3d" : "#777");
+    }
+    if (l.name) { g.fillStyle = "#b9bfcc"; g.font = "11px -apple-system, sans-serif"; const tw = g.measureText(l.name).width; g.fillStyle = "#15171ccc"; g.fillRect(4, l.y + 2, tw + 8, 15); g.fillStyle = "#b9bfcc"; g.fillText(l.name, 8, l.y + 13); }
+  }
+  // Marker-Bänder
+  const top = L[1].y;
+  for (const m of alleMarker()) {
+    const x0 = xOf(m.start), x1 = xOf(m.end); if (x1 < 0 || x0 > W) continue;
+    const s = status(m), c = ART[m.art][1];
+    g.fillStyle = c + (st.sel === m.id ? "30" : "18"); g.fillRect(x0, top, Math.max(3, x1 - x0), H - top);
+    g.fillStyle = s in STATUS_FARBE ? STATUS_FARBE[s] : c; g.fillRect(x0, 0, Math.max(3, x1 - x0), 5);
+    if (st.sel === m.id) { g.strokeStyle = "#fff"; g.lineWidth = 1; g.strokeRect(x0 + .5, top + .5, Math.max(3, x1 - x0), H - top - 1); }
+  }
+  // Abspielkopf
+  const px = xOf(audio.currentTime * FPS); g.fillStyle = "#ff4d4d"; g.fillRect(px, 0, 1.5, H);
+  $("#tc").textContent = tcOf(aktFrame());
+  zeichneUebersicht();
+}
+function zeichneUebersicht() {
+  const w = ov.clientWidth, h = ov.clientHeight; go.clearRect(0, 0, w, h);
+  const sx = w / N;
+  for (const [s, e, p] of M.sprecher) { go.fillStyle = p >= 0 ? FARBE[p] + "88" : "#444"; go.fillRect(s * sx, 18, Math.max(1, (e - s) * sx), 10); }
+  for (const m of alleMarker()) { const s = status(m); go.fillStyle = s in STATUS_FARBE ? STATUS_FARBE[s] : ART[m.art][1] + (s === "offen" ? "aa" : ""); go.fillRect(m.start * sx, s === "offen" ? 4 : 2, 1.5, s === "offen" ? 10 : 14); }
+  go.strokeStyle = "#ffffffaa"; go.strokeRect(st.view0 * sx, 1, Math.max(2, st.fpp * W * sx), h - 2);
+  go.fillStyle = "#ff4d4d"; go.fillRect(audio.currentTime * FPS * sx, 0, 1.5, h);
+  go.fillStyle = "#8b91a1"; go.font = "10px -apple-system, sans-serif";
+  const offen = alleMarker().filter(m => status(m) === "offen").length;
+  go.fillText(`${offen} offen · ${alleMarker().length} Marker`, 6, h - 4);
+}
+
+// ── Maus ────────────────────────────────────────────────────────────────────
+cv.addEventListener("wheel", e => {
+  e.preventDefault();
+  if (Math.abs(e.deltaX) > Math.abs(e.deltaY)) { st.view0 = Math.max(0, st.view0 + e.deltaX * st.fpp); }
+  else { const f = fOf(e.offsetX), z = Math.exp(e.deltaY * 0.0025); st.fpp = Math.min(N / W, Math.max(0.05, st.fpp * z)); st.view0 = Math.max(0, f - e.offsetX * st.fpp); }
+  zeichnen();
+}, { passive: false });
+cv.addEventListener("mousedown", e => { st.drag = { x: e.offsetX, v: st.view0, moved: false }; });
+window.addEventListener("mouseup", e => {
+  if (st.drag && !st.drag.moved && e.target === cv) {
+    const f = Math.round(fOf(e.offsetX)), m = alleMarker().find(m => f >= m.start && f <= m.end);
+    if (m) { st.sel = m.id; liste(); detail(); }
+    seek(f);
+  }
+  st.drag = null;
+});
+cv.addEventListener("mousemove", e => {
+  if (st.drag) { const dx = e.offsetX - st.drag.x; if (Math.abs(dx) > 3) st.drag.moved = true; st.view0 = Math.max(0, st.drag.v - dx * st.fpp); zeichnen(); }
+  tooltip(e);
+});
+cv.addEventListener("mouseleave", () => $("#tip").style.display = "none");
+function tooltip(e) {
+  const f = Math.round(fOf(e.offsetX)), l = (st.layout || []).find(l => e.offsetY >= l.y && e.offsetY <= l.y + l.h), tip = $("#tip");
+  if (!l || f < 0 || f >= N) { tip.style.display = "none"; return; }
+  let t = tcOf(f);
+  const v = x => isNaN(x) ? "–" : x.toFixed(1) + " dB";
+  if (l.typ === "b") {
+    const k = l.k, P = PERS[k];
+    t += `\n${P.name} Analysespur: ${v(K["ana" + k][f])}\nSchwelle wirksam: ${v(Math.max(K["b_umg" + k][f], K["b_erw" + k][f], P.b_leise))}` +
+      `\n  Umgebung: ${v(K["b_umg" + k][f])}\n  erw. Übersprechen: ${v(K["b_erw" + k][f])}\n  nicht zu leise: ${v(P.b_leise)}`;
+    const WT = { schnitt: "erkannt → löst Umschnitt aus", laeuft: "erkannt → fällt in laufenden Cutaway (Person schon im Bild)", danach: "erkannt → direkt nach Ende ihres Cutaways (1,8 s fest) — Mindestabstand verhindert Rückschnitt", kein: "erkannt → KEIN Umschnitt" };
+    const ev = [...P.b_events.map((x, i) => [...x, WT[P.b_wirkung[i]]]), ...P.b_verworfen].find(x => f >= x[0] && f < x[1]);
+    if (ev) t += `\n→ ${ev[2]} (${((ev[1] - ev[0]) / FPS).toFixed(2)} s)`;
+    if (K["b_roh" + k][f] > 0) t += "\nroh: über der Schwelle" + (K.puffer[f] > 0 ? " (aber im Puffer um Sprecherwechsel)" : "");
+  } else if (l.typ === "a") {
+    const k = l.k;
+    t += `\nOriginal (App): ${v(K["a_db" + k][f])}\nGrundlinie: ${v(K["a_base" + k][f])}\nSchwelle: ${v(K["a_thr" + k][f])}` + (K["a_freeze" + k][f] > 0 ? "\nGrundlinie eingefroren" : "");
+    const ev = PERS[k].a_events.find(x => f >= x[0] && f < x[1]); if (ev) t += `\n→ ${ev[3]}`;
+  } else if (l.typ === "schnitt") {
+    const it = M[l.key].find(x => f >= x[0] && f < x[1]);
+    if (it) t += `\n${it[2] >= 0 ? PERS[it[2]].name : "?"} · ${{ speaker: "Sprecher", reaction_speaking_reaction: "Einwurf-Cutaway" }[it[3]] || it[3]}`;
+  } else if (l.typ === "sprecher") { const s = M.speaker[f]; t += `\nspricht: ${s >= 0 ? PERS[s].name : "–"}`; }
+  tip.textContent = t; tip.style.display = "block";
+  tip.style.left = Math.min(e.offsetX + 14, W - 220) + "px"; tip.style.top = (e.offsetY + 14) + "px";
+}
+function ovNav(e) { const f = e.offsetX / ov.clientWidth * N; st.view0 = Math.max(0, f - st.fpp * W / 2); seek(f); }
+ov.addEventListener("mousedown", e => { ovNav(e); const mv = ev => ovNav(ev); ov.addEventListener("mousemove", mv); window.addEventListener("mouseup", () => ov.removeEventListener("mousemove", mv), { once: true }); });
+
+// ── Bedienelemente ──────────────────────────────────────────────────────────
+$("#play").onclick = () => spielen();
+$("#zin").onclick = () => zoom(0.6); $("#zout").onclick = () => zoom(1 / 0.6);
+function zoom(z) { const mid = aktFrame(); st.fpp = Math.min(N / W, Math.max(0.05, st.fpp * z)); st.view0 = Math.max(0, mid - W * st.fpp / 2); zeichnen(); }
+$("#speed").onchange = e => audio.playbackRate = +e.target.value;
+$("#goto").onkeydown = e => { if (e.key === "Enter") { const f = framesOf(e.target.value); if (f !== null) { st.view0 = Math.max(0, f - W * st.fpp * .35); seek(f); e.target.blur(); } else e.target.style.borderColor = "var(--bad)"; } else e.target.style.borderColor = ""; };
+document.querySelectorAll("[data-ton]").forEach(b => b.onclick = () => ton(b.dataset.ton));
+document.querySelectorAll("[data-solo]").forEach(b => b.onclick = () => { tonGraph(); solo(b.dataset.solo); });
+document.querySelectorAll("[data-spur]").forEach(b => b.onclick = () => { st.spuren[b.dataset.spur] = !st.spuren[b.dataset.spur]; b.classList.toggle("on"); zeichnen(); });
+$("#weiter").onclick = e => { st.weiter = !st.weiter; e.target.classList.toggle("on", st.weiter); };
+$("#hilfeBtn").onclick = () => $("#hilfe").style.display = "flex";
+document.addEventListener("keydown", e => {
+  if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") { if (e.key === "Escape") e.target.blur(); return; }
+  const k = e.key;
+  if (k === " ") { e.preventDefault(); spielen(); }
+  else if (k === "ArrowRight" || k === "l") { e.preventDefault(); naechster(1); }
+  else if (k === "ArrowLeft" || k === "j") { e.preventDefault(); naechster(-1); }
+  else if (k === "1") bewerte("treffer"); else if (k === "2") bewerte("daneben"); else if (k === "3") bewerte("unklar");
+  else if (k === "f" || k === "F") fehltHier();
+  else if (k === "Delete" || k === "Backspace") loeschen();
+  else if (k === "r" || k === "R") { const m = st.sel && markerById(st.sel); if (m) { seek(Math.max(0, m.start - 2 * FPS)); spielen(true); } }
+  else if (k === "+" || k === "=") zoom(0.6); else if (k === "-") zoom(1 / 0.6);
+  else if (k === "Escape") $("#hilfe").style.display = "none";
+});
+audio.ontimeupdate = () => { if (audio.paused) zeichnen(); };
+laden().catch(e => { $("#laden").textContent = "Fehler beim Laden: " + e; });
+</script>
+</body>
+</html>
