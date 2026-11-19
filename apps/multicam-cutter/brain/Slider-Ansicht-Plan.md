@@ -191,7 +191,18 @@ Raster aus Kacheln, je Kategorie: **großes Piktogramm** oben, darunter die Slid
 Piktogramm schaltet die Kategorie an/aus (aus = Piktogramm abgedunkelt, Slider
 ausgegraut) — so brauchen die Slider keine Stufe „aus".
 
-## Stufen (Vorschlag 19.11., User tendiert zu 3)
+## Stufen (entschieden 19.11.: 3 Stufen, als Segment-Schalter)
+
+**(entschieden)** Statt Slidern **Segment-Schalter** mit drei ausgeschriebenen Stufen —
+wie „Schnittmodus" bei Pausen-Trimming (`WizSegmented`, Lime-Hintergrund für die aktive
+Stufe). Text steht direkt im Schalter, ein Klick genügt.
+
+**Engine-Bausteine dafür (gebaut, Standard aus, Schnitt ohne sie byte-identisch):**
+`nodding_cooldown_s` / `speaking_cooldown_s` (Schnittabstand je Typ und Person, PASS 2,
+decision_log `type_cooldown`) · `nodding_pattern_min_conf` ({muster: schwelle}, > 1 =
+Muster aus) · `speaking_umgebung_db` / `speaking_uebersprechen_db` / `speaking_deadband_s`
+(Strenge der Einwurf-Erkennung B).
+
 
 **3 Stufen** je Slider; Wording je Kategorie, Mitte immer „ausgewogen":
 

@@ -269,6 +269,12 @@ def build_events_with_cutaways(
                 continue
             if rtype != 'speaking_reaction' and confidence < min_confidence:
                 continue
+            # Konfidenz je Nick-Muster (Slider „Treffsicherheit", Sichtung 19.11.):
+            # {muster: schwelle}; > 1 = Muster aus. Fehlt das Muster → nur min_confidence.
+            if rtype == 'nodding':
+                _pc = (config.get('nodding_pattern_min_conf') or {}).get(reaction.get('pattern'))
+                if _pc is not None and confidence < float(_pc):
+                    continue
             if timeline_frame < 0:
                 continue
             if section_start <= timeline_frame < section_end:
@@ -364,6 +370,26 @@ def build_events_with_cutaways(
                 })
             continue
 
+        # Schnittabstand je Cutaway-Typ (Slider „Wie oft"): frühestens type_cd nach dem
+        # letzten Cutaway desselben Typs auf dieselbe Person. Gespeichert werden die
+        # Enden ALLER gesetzten Cutaways (PASS 2 läuft je Sprecher-Kamera, nicht
+        # chronologisch) — geprüft wird nur, ob eines kurz VOR diesem liegt.
+        _type_cd = int(float((config.get('type_cooldown_s') or {}).get(rtype, 0) or 0) * fps)
+        _tkey = (rtype, reaction['cam']['name'])
+        if _type_cd > 0:
+            _ends = config.setdefault('_type_cutaway_ends', {}).get(_tkey, [])
+            _block = next((e for e in _ends if cutaway_frame - _type_cd < e <= cutaway_frame), None)
+            if _block is not None:
+                if decision_log is not None:
+                    decision_log.append({
+                        "pass": "2", "action": "skip", "reason": "type_cooldown",
+                        "timecode": frames_to_timecode(cutaway_frame, fps),
+                        "on_clip": on_clip, "off_clip": reaction['cam']['name'],
+                        "reaction_type": rtype,
+                        "detail": f"letzter {rtype}-Cutaway endete {cutaway_frame - _block} Frames vorher (min {_type_cd})",
+                    })
+                continue
+
         # OFF-Cutaway: Multi-Person → kleinste Kamera, die ALLE Reagierenden zeigt
         # (Totale-Ersatz via smallest_containing); Single-Person → beste Close.
         # Binaer: smallest_containing liefert die Totale; hat sie keine Mics
@@ -436,6 +462,7 @@ def build_events_with_cutaways(
 
         last_cut_frame = cutaway_end
         current_pos    = cutaway_end
+        config.setdefault('_type_cutaway_ends', {}).setdefault(_tkey, []).append(cutaway_end)
 
     # Rest der Section
     if current_pos < section_end:
@@ -1599,6 +1626,12 @@ def main():
         'cutaway_randomness':     cutaway_randomness,
         'totale_mode':            str(params.get('totale_mode', 'round_robin')).lower(),
         'speaking_priority':      bool(params.get('speaking_priority', False)),
+        # Slider-Bausteine (19.11.): Schnittabstand je Typ (s) + Konfidenz je Nick-Muster
+        'type_cooldown_s': {
+            'nodding':           float(params.get('nodding_cooldown_s', 0) or 0),
+            'speaking_reaction': float(params.get('speaking_cooldown_s', 0) or 0),
+        },
+        'nodding_pattern_min_conf': params.get('nodding_pattern_min_conf') or {},
     }
 
     # Decision Log: nur im Dev-Modus aktiv

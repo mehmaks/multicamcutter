@@ -281,6 +281,12 @@ def add_analysespur_reactions(base_edl, cams, offsets, fps, params, work_dir):
     bp = {}
     if params.get("speaking_max_dur") is not None:
         bp["max_s"] = float(params["speaking_max_dur"])
+    # Slider „Treffsicherheit" Sprachreaktionen: Abstand über Umgebung bzw. erwartetem
+    # Übersprechen; Deadband um Sprecherwechsel. Ohne Angabe = gesichtete Werte.
+    for key, pk in (("umgebung_db", "speaking_umgebung_db"), ("uebersprechen_db", "speaking_uebersprechen_db"),
+                    ("deadband_s", "speaking_deadband_s")):
+        if params.get(pk) is not None:
+            bp[key] = float(params[pk])
     res, used = detect(pegel, engine, fps, bp)
 
     summary = {"analysespur": info}
