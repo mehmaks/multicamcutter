@@ -1250,6 +1250,8 @@ struct WizardSettings: View {
                         WizSlider("Rise", $engine.params.riseDb, 1...20, suffix: " dB", help: ParamHelp.riseDb)
                     }
                     WizSlider("Max. cutaway length", $engine.params.speakingMaxDur, 0.5...10, suffix: " s", help: ParamHelp.speakingMaxDur)
+                    WizToggle("Priority over head nods", $engine.params.speakingPriority, help: ParamHelp.speakingPriority)
+                        .disabled(!engine.params.speakingEnabled || !engine.params.noddingEnabled)
                     if FeatureFlags.mouthReactions {
                         WizToggle("Mouth movement (beta)", $engine.params.mouthReactionsEnabled, help: ParamHelp.mouthReactionsEnabled)
                             .disabled(!engine.params.speakingEnabled)

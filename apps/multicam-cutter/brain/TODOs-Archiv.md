@@ -4,6 +4,15 @@
 > die bei späteren Bugs den Ausschlag geben. Aktive offene Arbeit + 1.0-Roadmap:
 > `brain/TODOs.md`.
 
+### ~~Vorrang Einwürfe vor Nicken (Settings-Toggle)~~ — UMGESETZT (19.11.)
+User: Einwürfe sind wertvoller als Nicken; ein Nick-Cutaway darf nie verhindern, dass ein
+Einwurf geschnitten wird (Mindestabstand, chronologisches „wer zuerst kommt" in PASS 2).
+Lösung: Schalter `speaking_priority` („Vorrang vor Nicken", Experten → Einwürfe, nur aktiv
+wenn Nicken + Einwürfe an). In `build_events_with_cutaways` VOR der Sortierung: Nicken
+fällt weg, wenn sein Cutaway (Länge wie in PASS 2 geschätzt: max(Reaktionsdauer,
+Muster-Länge)) weniger als min_shot vor dem Cutaway eines späteren Einwurfs endet.
+Pass-Reihenfolge unverändert; Schalter aus = byte-identisch.
+
 ### ~~Fortschritt: aktuellen Pass im Cutaway-Schritt anzeigen~~ — UMGESETZT (21.07.)
 Geloest wie unten skizziert: neuer Protokoll-Typ `step_detail` (setzt nur den
 Text, **ohne** `stepNum` zu erhoehen), Pass-Banner werden in `protocol.py`

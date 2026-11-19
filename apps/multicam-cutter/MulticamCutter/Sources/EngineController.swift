@@ -140,6 +140,8 @@ struct PipelineParams: Equatable {
     var speakingMaxDur: Double = 2.5
     // Beta: Einwürfe auf der Analysespur erkennen (Mikro ohne Übersprechen/Rauschen)
     var speakingAnalysespurEnabled: Bool = false
+    // Einwürfe haben Vorrang vor Nicken (Nicken weicht, wenn es einen Einwurf blockieren würde)
+    var speakingPriority: Bool = false
     // Beta „Mund + Mikro": Einwürfe zusätzlich über Mundbewegung erkennen
     var mouthReactionsEnabled: Bool = false
     var mouthDeadband: Double = 1.0
@@ -208,6 +210,7 @@ struct PipelineParams: Equatable {
             "rise_db": riseDb,
             "speaking_max_dur": speakingMaxDur,
             "speaking_analysespur_enabled": speakingAnalysespurEnabled,
+            "speaking_priority": speakingPriority,
             "mouth_reactions_enabled": mouthReactionsEnabled,
             "mouth_deadband_s": mouthDeadband,
             "mouth_window_s": mouthWindow,
@@ -249,6 +252,7 @@ struct PipelineParams: Equatable {
             "pre_roll": preRoll, "randomness": randomness,
             "rise_db": riseDb, "speaking_max_dur": speakingMaxDur,
             "speaking_analysespur_enabled": speakingAnalysespurEnabled,
+            "speaking_priority": speakingPriority,
             "mouth_reactions_enabled": mouthReactionsEnabled,
             "mouth_deadband_s": mouthDeadband, "mouth_window_s": mouthWindow,
             "gate_floor": gateFloor, "gate_hysteresis": gateHysteresis,
@@ -290,6 +294,7 @@ struct PipelineParams: Equatable {
         if let v = dict["rise_db"] as? Double { riseDb = v }
         if let v = dict["speaking_max_dur"] as? Double { speakingMaxDur = v }
         if let v = dict["speaking_analysespur_enabled"] as? Bool { speakingAnalysespurEnabled = v }
+        if let v = dict["speaking_priority"] as? Bool { speakingPriority = v }
         if let v = dict["mouth_reactions_enabled"] as? Bool { mouthReactionsEnabled = v }
         if let v = dict["mouth_deadband_s"] as? Double { mouthDeadband = v }
         if let v = dict["mouth_window_s"] as? Double { mouthWindow = v }

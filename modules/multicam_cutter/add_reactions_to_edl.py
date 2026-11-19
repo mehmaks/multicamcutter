@@ -284,6 +284,36 @@ def build_events_with_cutaways(
                     'cam':            cam,
                 })
 
+    # Vorrang Einwürfe vor Nicken (User, 19.11.; Schalter `speaking_priority`):
+    # PASS 2 setzt chronologisch „wer zuerst kommt". Ein Nick-Cutaway kurz vor einem
+    # Einwurf blockiert diesen sonst über den Mindestabstand. Mit Vorrang fällt jedes
+    # Nicken weg, dessen Cutaway (geschätzte Länge wie unten) weniger als min_shot vor
+    # dem Cutaway eines späteren Einwurfs endet. Ohne Schalter byte-identisch.
+    if config.get('speaking_priority') and cutaway_enabled.get('speaking_reaction'):
+        sp_cut = sorted(r['timeline_frame'] - pre_roll_frames
+                        for r in valid_reactions if r['type'] == 'speaking_reaction')
+        if sp_cut:
+            import bisect
+            keep = []
+            for r in valid_reactions:
+                if r['type'] == 'nodding':
+                    n_cut = r['timeline_frame'] - pre_roll_frames
+                    n_end = n_cut + max(reaction_duration_frames,
+                                        max(0, r['peak_tl_frame'] - n_cut + r['tail_frames']))
+                    i = bisect.bisect_left(sp_cut, n_cut)
+                    if i < len(sp_cut) and sp_cut[i] < n_end + min_shot_frames:
+                        if decision_log is not None:
+                            decision_log.append({
+                                "pass": "2", "action": "skip", "reason": "speaking_priority",
+                                "timecode": frames_to_timecode(max(n_cut, section_start), fps),
+                                "on_clip": on_clip, "off_clip": r['cam']['name'],
+                                "reaction_type": "nodding",
+                                "detail": f"Einwurf bei {frames_to_timecode(sp_cut[i], fps)} hat Vorrang",
+                            })
+                        continue
+                keep.append(r)
+            valid_reactions = keep
+
     # Sortieren: erst nach Position, dann nach Confidence absteigend
     valid_reactions.sort(key=lambda x: (x['timeline_frame'], -x['confidence']))
 
@@ -1529,6 +1559,7 @@ def main():
         'pre_roll_frames':        pre_roll_frames,
         'cutaway_randomness':     cutaway_randomness,
         'totale_mode':            str(params.get('totale_mode', 'round_robin')).lower(),
+        'speaking_priority':      bool(params.get('speaking_priority', False)),
     }
 
     # Decision Log: nur im Dev-Modus aktiv

@@ -26,6 +26,7 @@ enum ParamHelp {
     static let riseDb = "How much the baseline has to rise to trigger an interjection cutaway."
     static let speakingMaxDur = "Maximum length of an interjection cutaway. Normally the cutaway ends organically when the baseline drops."
     static let speakingAnalysespurEnabled = "Beta: finds interjections on a cleaned-up copy of each microphone, with the other person's voice and the background noise removed. Short \"mhm\" and \"yes\" stand out clearly there, so far more interjections are found. Takes about a minute longer."
+    static let speakingPriority = "When a head-nod cutaway would block an interjection cutaway shortly after it (because of the minimum shot length), the nod gives way and the interjection is cut instead."
     static let mouthReactionsEnabled = "Beta: also recognises interjections from the listening person by their mouth movement. A cut is only added when the mouth moves AND their own microphone picks up sound — this finds many short interjections the sound alone misses. Takes no extra time if head-nod detection is on."
     static let mouthDeadband = "Right around a change of speaker, mouth movement is ignored — there the new speaker is already starting to talk, which isn't an interjection. Value per side, e.g. 1 s = 1 s before and 1 s after the change."
     static let mouthWindow = "How long the mouth movement is measured over. Shorter catches very short interjections like “yes”, longer is calmer and triggers less often."

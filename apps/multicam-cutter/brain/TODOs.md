@@ -360,14 +360,12 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
 
 ### 📦 Post-1.0 (geparkt)
 
-- [ ] **Vorrang Sprach-Cutaways vor Nicken (Settings-Toggle).** (User, 19.11.) Einwürfe
-  sind ihm wertvoller als Nicken. Ein Nick-Cutaway darf NIE verhindern, dass ein Sprach-
-  Cutaway gesetzt wird — heute passiert das über Mindest-Schnittdauer/Abstände, weil PASS 2
-  chronologisch „wer zuerst kommt" einsetzt. Gewünscht: Toggle „Einwürfe haben Vorrang vor
-  Nicken" (Experten/Einwürfe), bei Kollision gewinnt die Sprachreaktion, das Nicken weicht.
-  Umsetzung INNERHALB von PASS 2 (Auswahl), Pass-Reihenfolge bleibt unangetastet. Erst
-  angehen, wenn die Einwurf-Erkennung auf der Analysespur verlässlich ist (Sichtung Folge 61
-  im Analyse-Player läuft). Verwandt: offene Vorrang-Regel „Mund + Mikro" unten.
+- [ ] **Einwürfe aus der Analysespur + Vorrang vor Nicken — gebaut, Release offen.**
+  (19.11.) Beide Schalter in Experten → Einwürfe, Standard aus. Offen: kleine Sichtungs-
+  runde „App-Rechnung ↔ Sichtungsstand" (61: +32, 62: +11 Marker, Ursache: Mikros jetzt
+  samplegenau übereinander), dann Frozen-Rebuild + 1.1.0-beta.3. Ein echter Lauf MIT
+  Nicken + Vorrang steht noch aus (nur per Funktionstest an PASS 2 geprüft).
+  Details: `brain/TODOs-Archiv.md` → „Vorrang Einwürfe vor Nicken".
 
 - [ ] **Sprachreaktionen per Mundbewegung — als QUELLE eingebaut (1.1.0-beta.1, 18.11.).**
   **⏸ Seit 19.11. abgeschaltet, nicht verworfen** (User): Die Einwurf-Erkennung auf der

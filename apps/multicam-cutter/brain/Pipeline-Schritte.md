@@ -18,7 +18,20 @@
 
 Nodding ist ~80% der Gesamtzeit. Bei 2 Cams a 90 Min: ~20 Min total.
 
-**„Mund + Mikro" (Beta, `mouth_reactions_enabled`, nur binärer Pfad):** Die Nodding-
+**Einwürfe aus der Analysespur (Beta, `speaking_analysespur_enabled`, nur binärer Pfad,
+genau ein Mikro je Kamera):** Nach der Basis-EDL (vor `cutaways`) rechnet
+`einwurf_analysespur.add_analysespur_reactions` je Mikro die Analysespur (Übersprechen +
+Rauschen entfernt, in 60-s-Stücken, nur Pegel je Bild; ~50 s für 97 min) und ERSETZT die
+Einwürfe in `<cam>_speaking.json` (`source: "analysespur"`). Erkennung lokal wie das Auge:
+über Umgebung (ohne eigene Sprache) + über erwartetem Übersprechen, Deadband ±1 s um
+Sprecherwechsel. Fehler → bisherige Erkennung bleibt. Schalter aus = byte-identisch.
+
+**Vorrang Einwürfe vor Nicken (`speaking_priority`):** in PASS 2 vor der chronologischen
+Auswahl — Nicken fällt weg, wenn sein Cutaway weniger als min_shot vor dem Cutaway eines
+späteren Einwurfs endet (Decision-Log `speaking_priority`). Pass-Reihenfolge unverändert.
+
+**„Mund + Mikro" (Beta, `mouth_reactions_enabled`, nur binärer Pfad; seit 19.11.
+abgeschaltet über `MOUTH_REACTIONS_AVAILABLE` / `FeatureFlags.mouthReactions`):** Die Nodding-
 Analyse schreibt zusätzlich `<cam>_mouth.npz` (Lippenabstand je Bild der Off-Sektionen,
 `--mouth-out`). Ist Nicken für eine Kamera aus, läuft die Analyse trotzdem — dann mit
 `params_mouth_only.json` (nodding_enabled=false), also nur für die Mund-Daten.
