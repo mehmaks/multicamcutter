@@ -142,6 +142,14 @@ struct PipelineParams: Equatable {
     var speakingAnalysespurEnabled: Bool = false
     // Einwürfe haben Vorrang vor Nicken (Nicken weicht, wenn es einen Einwurf blockieren würde)
     var speakingPriority: Bool = false
+    // Slider-Bausteine (Stufen-Ansicht): Schnittabstand je Cutaway-Typ, Konfidenz je
+    // Nick-Muster (> 1 = Muster aus), Strenge der Einwurf-Erkennung auf der Analysespur.
+    // Standardwerte = bisheriges Verhalten.
+    var noddingCooldownS: Double = 0
+    var speakingCooldownS: Double = 0
+    var noddingPatternMinConf: [String: Double] = [:]
+    var speakingUmgebungDb: Double = 6
+    var speakingUebersprechenDb: Double = 12
     // Beta „Mund + Mikro": Einwürfe zusätzlich über Mundbewegung erkennen
     var mouthReactionsEnabled: Bool = false
     var mouthDeadband: Double = 1.0
@@ -211,6 +219,11 @@ struct PipelineParams: Equatable {
             "speaking_max_dur": speakingMaxDur,
             "speaking_analysespur_enabled": speakingAnalysespurEnabled,
             "speaking_priority": speakingPriority,
+            "nodding_cooldown_s": noddingCooldownS,
+            "speaking_cooldown_s": speakingCooldownS,
+            "nodding_pattern_min_conf": noddingPatternMinConf,
+            "speaking_umgebung_db": speakingUmgebungDb,
+            "speaking_uebersprechen_db": speakingUebersprechenDb,
             "mouth_reactions_enabled": mouthReactionsEnabled,
             "mouth_deadband_s": mouthDeadband,
             "mouth_window_s": mouthWindow,
@@ -253,6 +266,11 @@ struct PipelineParams: Equatable {
             "rise_db": riseDb, "speaking_max_dur": speakingMaxDur,
             "speaking_analysespur_enabled": speakingAnalysespurEnabled,
             "speaking_priority": speakingPriority,
+            "nodding_cooldown_s": noddingCooldownS,
+            "speaking_cooldown_s": speakingCooldownS,
+            "nodding_pattern_min_conf": noddingPatternMinConf,
+            "speaking_umgebung_db": speakingUmgebungDb,
+            "speaking_uebersprechen_db": speakingUebersprechenDb,
             "mouth_reactions_enabled": mouthReactionsEnabled,
             "mouth_deadband_s": mouthDeadband, "mouth_window_s": mouthWindow,
             "gate_floor": gateFloor, "gate_hysteresis": gateHysteresis,
@@ -295,6 +313,11 @@ struct PipelineParams: Equatable {
         if let v = dict["speaking_max_dur"] as? Double { speakingMaxDur = v }
         if let v = dict["speaking_analysespur_enabled"] as? Bool { speakingAnalysespurEnabled = v }
         if let v = dict["speaking_priority"] as? Bool { speakingPriority = v }
+        if let v = dict["nodding_cooldown_s"] as? Double { noddingCooldownS = v }
+        if let v = dict["speaking_cooldown_s"] as? Double { speakingCooldownS = v }
+        if let v = dict["nodding_pattern_min_conf"] as? [String: Double] { noddingPatternMinConf = v }
+        if let v = dict["speaking_umgebung_db"] as? Double { speakingUmgebungDb = v }
+        if let v = dict["speaking_uebersprechen_db"] as? Double { speakingUebersprechenDb = v }
         if let v = dict["mouth_reactions_enabled"] as? Bool { mouthReactionsEnabled = v }
         if let v = dict["mouth_deadband_s"] as? Double { mouthDeadband = v }
         if let v = dict["mouth_window_s"] as? Double { mouthWindow = v }

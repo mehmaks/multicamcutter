@@ -1132,7 +1132,7 @@ struct WizardSettings: View {
             Text("Settings").font(.headline).padding(.bottom, 10)
             Rectangle().fill(Color.wizBorder).frame(height: 1)
 
-            if expert { expertList } else { simpleList }
+            if expert { expertList } else { StufenAnsicht() }
 
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) { expert.toggle() }
