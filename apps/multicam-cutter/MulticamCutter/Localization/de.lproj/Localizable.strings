@@ -426,3 +426,33 @@
 "Click to turn on" = "Klicken zum Einschalten";
 "custom" = "angepasst";
 "Changed in the expert settings — pick a level to reset." = "In den Experteneinstellungen verändert – eine Stufe wählen setzt es zurück.";
+
+/* Stufen-Ansicht: Zusammenfassung in einfacher Sprache */
+"A calm cut with longer shots." = "Ein ruhiger Schnitt mit längeren Einstellungen.";
+"A balanced cut." = "Ein ausgewogener Schnitt.";
+"A lively cut with short shots – well suited for social clips." = "Ein lebendiger Schnitt mit kurzen Einstellungen – passend für Social Clips.";
+"A cut with your own shot lengths." = "Ein Schnitt mit eigenen Einstellungslängen.";
+"Only occasionally" = "Nur gelegentlich";
+"Now and then" = "Immer wieder";
+"Often" = "Oft";
+"nod, even if only slightly" = "nicken – auch wenn es nur angedeutet ist";
+"nod" = "nicken";
+"clearly nod" = "deutlich nicken";
+"%@ it cuts to listeners who %@." = "%@ wechselt er zu Zuhörenden, die %@.";
+"say something, even quietly" = "etwas sagen – auch leise";
+"briefly chime in" = "kurz etwas einwerfen";
+"clearly say something" = "hörbar etwas sagen";
+"%@ listeners come into view when they %@." = "%@ kommen Zuhörende ins Bild, wenn sie %@.";
+"It only follows the changes of speaker." = "Er folgt nur den Sprecherwechseln.";
+"Pauses are shortened slightly" = "Sprechpausen werden leicht gekürzt";
+"Pauses are shortened noticeably" = "Sprechpausen werden spürbar gekürzt";
+"Pauses are shortened a lot" = "Sprechpausen werden stark gekürzt";
+"Pauses are shortened" = "Sprechpausen werden gekürzt";
+" – without cutting to anyone else." = " – ohne dass auf jemand anderen geschnitten wird.";
+", and in long pauses it cuts to the listeners." = ", in langen Pausen kommt ein Blick auf die Zuhörenden.";
+", and pauses often cut to the listeners." = ", in Pausen wird oft auf die Zuhörenden geschnitten.";
+"Pauses stay as they are." = "Sprechpausen bleiben, wie sie sind.";
+"The wide shot is used rarely." = "Die Totale kommt selten.";
+"The wide shot appears now and then." = "Die Totale kommt ab und zu.";
+"The wide shot is used often." = "Die Totale kommt oft.";
+"What to expect" = "Was dich erwartet";

@@ -66,7 +66,17 @@ struct ContentView: View {
         .background(WindowAccessor { window in
             mainWindow = window
             configureWindowChrome(window)
+            // SwiftUI stellt `.resizable` nach dem ersten Aufbau gelegentlich wieder
+            // her — auf dem Startbildschirm griff die Sperre sonst nie (User 19.11.).
+            for delay in [0.4, 1.5] {
+                DispatchQueue.main.asyncAfter(deadline: .now() + delay) {
+                    enforceWizardWindowChrome(window)
+                }
+            }
         })
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
+            if let w = note.object as? NSWindow, w === mainWindow { enforceWizardWindowChrome(w) }
+        }
         .sheet(isPresented: $showFirstRunInfo, onDismiss: {
             // Nach dem Material-Hinweis ggf. die Telemetrie-Zustimmung erfragen —
             // nacheinander, damit nie zwei Sheets übereinander liegen.
@@ -111,6 +121,11 @@ struct ContentView: View {
         .onChange(of: engine.state) { oldState, newState in
             animateWindowWidth(for: newState)
             handleMacIntegrations(from: oldState, to: newState)
+            // Nach jedem Zustandswechsel (außer Analyse — die sperrt selbst) die
+            // Resize-Sperre nachziehen, auch zurück auf dem Startbildschirm.
+            if newState != .running, let w = mainWindow {
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { enforceWizardWindowChrome(w) }
+            }
         }
         .onChange(of: engine.stepNum) { _, _ in updateDockProgress() }
         .onChange(of: engine.stepPercent) { _, _ in updateDockProgress() }

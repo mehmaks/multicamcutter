@@ -188,3 +188,76 @@ enum Stufen {
         }
     }
 }
+
+// MARK: - Zusammenfassung in einfacher Sprache
+//
+// Kurzer Text, der aus den gewählten Stufen beschreibt, welche Art von Schnitt zu
+// erwarten ist (User-Wunsch 19.11.). Aus Satzbausteinen je Kategorie und Stufe —
+// „angepasst" (nil) bekommt eine neutrale Formulierung.
+
+extension Stufen {
+    private static func kategorie(_ id: String) -> StufenKategorie? { kategorien.first { $0.id == id } }
+
+    private static func stufe(_ kat: String, _ regler: String, _ p: PipelineParams) -> Int? {
+        guard let k = kategorie(kat), let r = k.regler.first(where: { $0.id == regler }) else { return nil }
+        return stufe(r, in: p)
+    }
+
+    static func zusammenfassung(_ p: PipelineParams, mitTotale: Bool) -> String {
+        var saetze: [String] = []
+
+        // Tempo
+        switch stufe("tempo", "tempo", p) {
+        case 0: saetze.append(loc("A calm cut with longer shots."))
+        case 1: saetze.append(loc("A balanced cut."))
+        case 2: saetze.append(loc("A lively cut with short shots – well suited for social clips."))
+        default: saetze.append(loc("A cut with your own shot lengths."))
+        }
+
+        let wieOft = ["Only occasionally", "Now and then", "Often"]
+        // Kopfnicken
+        let nicken = kategorie("kopfnicken").map { istAn($0, p) } ?? false
+        if nicken {
+            let adv = stufe("kopfnicken", "nicken_oft", p).map { wieOft[$0] } ?? "Now and then"
+            let wie = ["nod, even if only slightly", "nod", "clearly nod"]
+            let was = stufe("kopfnicken", "nicken_sicher", p).map { wie[$0] } ?? "nod"
+            saetze.append(String(format: loc("%@ it cuts to listeners who %@."), loc(adv), loc(was)))
+        }
+        // Sprachreaktionen
+        let einwurf = kategorie("sprachreaktionen").map { istAn($0, p) } ?? false
+        if einwurf {
+            let adv = stufe("sprachreaktionen", "einwurf_oft", p).map { wieOft[$0] } ?? "Now and then"
+            let wie = ["say something, even quietly", "briefly chime in", "clearly say something"]
+            let was = stufe("sprachreaktionen", "einwurf_sicher", p).map { wie[$0] } ?? "briefly chime in"
+            saetze.append(String(format: loc("%@ listeners come into view when they %@."), loc(adv), loc(was)))
+        }
+        if !nicken && !einwurf { saetze.append(loc("It only follows the changes of speaker.")) }
+
+        // Pausen
+        if let k = kategorie("pausen"), istAn(k, p) {
+            let kuerz = ["Pauses are shortened slightly", "Pauses are shortened noticeably",
+                         "Pauses are shortened a lot"]
+            var satz = stufe("pausen", "pausen_kuerzen", p).map { loc(kuerz[$0]) } ?? loc("Pauses are shortened")
+            switch stufe("pausen", "pausen_cutaways", p) {
+            case 0: satz += loc(" – without cutting to anyone else.")
+            case 1: satz += loc(", and in long pauses it cuts to the listeners.")
+            case 2: satz += loc(", and pauses often cut to the listeners.")
+            default: satz += "."
+            }
+            saetze.append(satz)
+        } else {
+            saetze.append(loc("Pauses stay as they are."))
+        }
+
+        // Totale
+        if mitTotale {
+            switch stufe("totale", "totale_oft", p) {
+            case 0: saetze.append(loc("The wide shot is used rarely."))
+            case 1: saetze.append(loc("The wide shot appears now and then."))
+            case 2: saetze.append(loc("The wide shot is used often."))
+            default: break
+            }
+        }
+        return saetze.joined(separator: " ")
+    }
+}

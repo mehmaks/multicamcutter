@@ -14,14 +14,57 @@ struct StufenAnsicht: View {
         Stufen.kategorien.filter { !$0.nurMitTotale || engine.hasWideCamera }
     }
 
-    private let columns = [GridItem(.flexible(), spacing: 14), GridItem(.flexible(), spacing: 14),
-                           GridItem(.flexible(), spacing: 14)]
+    private let spalten = 3
+
+    /// Kacheln in Reihen zu je drei; die Zusammenfassung füllt den Rest der letzten
+    /// Reihe (bei vier Kacheln zwei Spalten, mit Totale eine) bzw. eine eigene Reihe.
+    private var reihen: [[StufenKategorie]] {
+        stride(from: 0, to: kategorien.count, by: spalten).map {
+            Array(kategorien[$0..<min($0 + spalten, kategorien.count)])
+        }
+    }
 
     var body: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 14) {
-            ForEach(kategorien) { k in StufenKachel(kategorie: k) }
+        let rest = spalten - (reihen.last?.count ?? 0)
+        Grid(horizontalSpacing: 14, verticalSpacing: 14) {
+            ForEach(Array(reihen.enumerated()), id: \.offset) { i, reihe in
+                GridRow(alignment: .top) {
+                    ForEach(reihe) { k in StufenKachel(kategorie: k) }
+                    if i == reihen.count - 1 && rest > 0 {
+                        StufenZusammenfassung().gridCellColumns(rest)
+                    }
+                }
+            }
+            if rest == 0 {
+                GridRow { StufenZusammenfassung().gridCellColumns(spalten) }
+            }
         }
         .padding(.top, 16)
+    }
+}
+
+/// „Was dich erwartet" — die gewählten Stufen in einfacher Sprache, live.
+struct StufenZusammenfassung: View {
+    @EnvironmentObject var engine: EngineController
+
+    var body: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(loc("What to expect"))
+                .font(.caption2).fontWeight(.bold).foregroundStyle(.brandSecondary).tracking(0.8)
+                .textCase(.uppercase)
+            Text(Stufen.zusammenfassung(engine.params, mitTotale: engine.hasWideCamera))
+                .font(.system(size: 16))
+                .foregroundStyle(Color.wizText)
+                .lineSpacing(4)
+                .fixedSize(horizontal: false, vertical: true)
+                .animation(.easeInOut(duration: 0.15), value: Stufen.zusammenfassung(engine.params, mitTotale: engine.hasWideCamera))
+            Spacer(minLength: 0)
+        }
+        .padding(18)
+        .frame(maxWidth: .infinity, minHeight: 236, alignment: .topLeading)
+        .background(Color.wizSurface2.opacity(0.45), in: RoundedRectangle(cornerRadius: 12))
+        .overlay(RoundedRectangle(cornerRadius: 12)
+            .stroke(Color.wizBorder, style: StrokeStyle(lineWidth: 1, dash: [4, 4])))
     }
 }
 
