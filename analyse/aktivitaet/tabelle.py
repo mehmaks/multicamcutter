@@ -6,7 +6,7 @@ einzeln. Diese Stufe rechnet nur Rohwerte auf eine gemeinsame Zeitachse:
 
   lv_orig[k]  Pegel (dBFS, RMS je Bild) des Original-Mikros von Person k
   lv_ana[k]   Pegel der Analysespur (`sprachspur.py --roh`) von Person k
-  tempo[k]    Lippen-Tempo = gleitender Mittelwert |Δ innerer Lippenabstand|
+  tempo[k]    (optional) Lippen-Tempo = gleitender Mittelwert |Δ innerer Lippenabstand|
               (0,33 s) aus der Mundaufzeichnung der Kamera von Person k
               (`analyse/mund_aktivitaet/aufzeichnen.py`, ganzes Video)
   engine      wer laut heutiger Sprechererkennung (base.edl) dran ist: 0/1, −1 sonst
@@ -66,6 +66,8 @@ def main():
         out[f"lv_orig{k}"] = mic_levels(p["mic"], p["mic_key"])
         print(f"{p['name']}: Pegel Analysespur …", flush=True)
         out[f"lv_ana{k}"] = mic_levels(p["ana"], p["mic_key"])
+        if not p.get("mouth_npz") or not Path(p["mouth_npz"]).exists():
+            continue                      # Mundaufzeichnung optional (seit Runde 2 nicht mehr nötig)
         r = np.load(p["mouth_npz"], allow_pickle=True)
         gap = r["gap_inner"]
         ci = t + tzvf[n]
