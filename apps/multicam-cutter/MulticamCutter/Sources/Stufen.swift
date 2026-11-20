@@ -51,9 +51,9 @@ enum Stufen {
                     hilfe: "Calm: longer shots and cutaways. Lively: short shots and quick cutaways — e.g. for social clips.",
                     stufen: ["calm", "balanced", "lively"],
                     werte: [
-                        ["min_shot": 4.0, "max_shot": 20.0, "reaction_dur": 2.2, "cleanup_dur": 1.8, "randomness": 0.2],
-                        ["min_shot": 3.0, "max_shot": 14.0, "reaction_dur": 1.8, "cleanup_dur": 1.5, "randomness": 0.3],
-                        ["min_shot": 1.2, "max_shot": 6.5, "reaction_dur": 1.2, "cleanup_dur": 1.0, "randomness": 0.3],
+                        ["min_shot": 4.0, "max_shot": 20.0, "reaction_dur": 2.2, "cleanup_dur": 1.8, "randomness": 0.2, "min_edit": 1.6],
+                        ["min_shot": 3.0, "max_shot": 14.0, "reaction_dur": 1.8, "cleanup_dur": 1.5, "randomness": 0.3, "min_edit": 1.6],
+                        ["min_shot": 1.2, "max_shot": 6.5, "reaction_dur": 1.2, "cleanup_dur": 1.0, "randomness": 0.3, "min_edit": 1.6],
                     ]),
             ]),
         StufenKategorie(

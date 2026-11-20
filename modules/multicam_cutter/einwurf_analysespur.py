@@ -226,6 +226,61 @@ def detect(pegel, engine, fps, params=None):
     return res, p
 
 
+# ── 2b) Pausen auf der Analysespur ───────────────────────────────────────────
+
+def _laeufe(maske):
+    p = np.concatenate([[0], maske.astype(np.int8), [0]])
+    df = np.diff(p)
+    return list(zip(np.flatnonzero(df == 1), np.flatnonzero(df == -1)))
+
+
+def pausen_aus_analysespur(pegel, engine, fps, sprache_db, abstand_db=12.0,
+                           suchradius_s=3.0, min_pause_s=0.3, cutaway_min_pause_s=None):
+    """Pausen wie pause_trim_edl.detect_pauses / die Pausen-Cutaway-Kandidaten, aber auf
+    der Analysespur (Sichtung 19.11., Folge 62: im Original lag leise Sprache — v. a. das
+    leisere Mikro — unter der Stilleschwelle und wurde weggeschnitten).
+
+    Stille = BEIDE Spuren unter „eigene Sprache der Person − abstand_db" (12 dB = dieselbe
+    Grenze wie „nicht zu leise" bei den Einwürfen; an den gesichteten Fehlstellen in Folge 62
+    landet damit keine Sprache mehr in einer Pause, selbst bei 10 dB nicht).
+    Rückgabe: (grenz_pausen, cutaway_pausen) in Timeline-Bildern, Formate wie bisher:
+      grenz_pausen:   [{pause_start_frame, pause_end_frame, boundary_frame, pause_dur_s}]
+      cutaway_pausen: [{start_frame, end_frame, speaker: 'CAM1'|'CAM2'}]
+    """
+    x = [np.nan_to_num(np.maximum(np.asarray(v, float), -110), nan=-110) for v in pegel]
+    still = (x[0] < sprache_db[0] - abstand_db) & (x[1] < sprache_db[1] - abstand_db)
+    n = len(engine)
+    radius = int(round(suchradius_s * fps))
+    min_len = max(1, int(round(min_pause_s * fps)))
+
+    grenzen = [i for i in range(1, n) if engine[i] != engine[i - 1] and engine[i] >= 0 and engine[i - 1] >= 0]
+    grenz_pausen = []
+    for b in grenzen:
+        a0, a1 = max(0, b - radius), min(n, b + radius)
+        kand = [(a0 + s, a0 + e) for s, e in _laeufe(still[a0:a1]) if e - s >= min_len]
+        if not kand:
+            continue
+        s, e = min(kand, key=lambda r: abs((r[0] + r[1]) / 2 - b))
+        grenz_pausen.append({"pause_start_frame": int(s), "pause_end_frame": int(e),
+                             "boundary_frame": int(b), "pause_dur_s": round((e - s) / fps, 3)})
+    dedup = []
+    for p_ in grenz_pausen:
+        if dedup and p_["pause_start_frame"] < dedup[-1]["pause_end_frame"]:
+            continue
+        dedup.append(p_)
+
+    cutaway_pausen = []
+    if cutaway_min_pause_s:
+        cmin = int(round(cutaway_min_pause_s * fps))
+        for s, e in _laeufe(still):
+            if e - s < cmin or s == 0:
+                continue
+            spk = int(engine[s - 1])
+            if spk in (0, 1):
+                cutaway_pausen.append({"start_frame": int(s), "end_frame": int(e), "speaker": f"CAM{spk + 1}"})
+    return dedup, cutaway_pausen
+
+
 # ── 3) Engine-Schritt ────────────────────────────────────────────────────────
 
 def _start_versatz(mic0, mic1, off0, off1, fps):
@@ -290,6 +345,28 @@ def add_analysespur_reactions(base_edl, cams, offsets, fps, params, work_dir):
     res, used = detect(pegel, engine, fps, bp)
 
     summary = {"analysespur": info}
+
+    # Pausen auf der Analysespur neu erkennen (statt im Originalton) — Pausen kürzen
+    # und Pausen-Cutaways nutzen dann diese Listen. Alte Listen bleiben als *_original.json.
+    wd = Path(work_dir)
+    trims, pc = wd / "audio_trims.json", wd / "pause_cutaways.json"
+    if params.get("pause_trim_enabled") or params.get("pause_cutaway_enabled"):
+        grenz, cut = pausen_aus_analysespur(
+            pegel, engine, fps, [res[0]["sprache_db"], res[1]["sprache_db"]],
+            suchradius_s=float(params.get("pause_search_radius", 3.0)),
+            min_pause_s=float(params.get("pause_min_duration", 0.3)),
+            cutaway_min_pause_s=(float(params.get("pause_cutaway_min_pause", 2.0))
+                                 if params.get("pause_cutaway_enabled") else None))
+        if params.get("pause_trim_enabled") and trims.exists():
+            trims.replace(wd / "audio_trims_original.json")
+            trims.write_text(json.dumps(grenz, indent=1), encoding="utf-8")
+            print(f"  Pausen an Sprecherwechseln (Analysespur): {len(grenz)}", flush=True)
+        if params.get("pause_cutaway_enabled") and pc.exists():
+            pc.replace(wd / "pause_cutaways_original.json")
+            pc.write_text(json.dumps({"fps": fps, "pauses": cut, "quelle": "analysespur"}, indent=1),
+                          encoding="utf-8")
+            print(f"  Pausen-Cutaway-Kandidaten (Analysespur): {len(cut)}", flush=True)
+        summary["pausen"] = {"grenzen": len(grenz), "cutaway": len(cut)}
     for k, (c, n) in enumerate(zip(cams, names)):
         sp = Path(c["speaking_json"])
         alt = json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else {"fps": fps, "reactions": []}

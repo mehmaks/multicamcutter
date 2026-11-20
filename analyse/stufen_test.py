@@ -29,9 +29,9 @@ sys.path.insert(0, str(ROOT / "modules" / "multicam_cutter"))
 # Spiegel von Stufen.swift (Kennlinien). Index 0/1/2 = links/Mitte/rechts.
 STUFEN = {
     "tempo": [
-        {"min_shot": 4.0, "max_shot": 20.0, "reaction_dur": 2.2, "cleanup_dur": 1.8, "randomness": 0.2},
-        {"min_shot": 3.0, "max_shot": 14.0, "reaction_dur": 1.8, "cleanup_dur": 1.5, "randomness": 0.3},
-        {"min_shot": 1.2, "max_shot": 6.5, "reaction_dur": 1.2, "cleanup_dur": 1.0, "randomness": 0.3}],
+        {"min_shot": 4.0, "max_shot": 20.0, "reaction_dur": 2.2, "cleanup_dur": 1.8, "randomness": 0.2, "min_edit": 1.6},
+        {"min_shot": 3.0, "max_shot": 14.0, "reaction_dur": 1.8, "cleanup_dur": 1.5, "randomness": 0.3, "min_edit": 1.6},
+        {"min_shot": 1.2, "max_shot": 6.5, "reaction_dur": 1.2, "cleanup_dur": 1.0, "randomness": 0.3, "min_edit": 1.6}],
     "nicken_oft": [{"nodding_cooldown_s": 14.0}, {"nodding_cooldown_s": 8.0}, {"nodding_cooldown_s": 0.0}],
     "nicken_sicher": [
         {"min_conf": 0.6, "nodding_pattern_min_conf": {"slow_oscillation": 0.6, "strong_oscillation": 0.6}},

@@ -360,6 +360,15 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
 
 ### 📦 Post-1.0 (geparkt)
 
+- [ ] **Transkription je Analysespur (Whisper) — Sprecher-SRT + Prüfung von Sprecherwechseln.**
+  (User-Idee 20.11.) Whisper wurde früher verworfen, weil es Übersprechen als Sprache
+  erkennt. Auf der Analysespur könnte das anders sein. Test: beide Analysespuren einzeln
+  transkribieren — enthalten die Texte KEINE Dopplungen (derselbe Satz in beiden Spuren),
+  ist das Übersprechen schwach genug. Dann: (1) zusätzlicher Transkriptions-Pass, der SRT
+  oder JSON MIT Sprechernamen ausgibt; (2) Sprecherwechsel gegenprüfen — redet die Person
+  dort wirklich oder lacht sie nur (Realfall Folge 62, 12:06/12:12: Sebs Lachen wurde zum
+  Sprecherwechsel). Neue Dependency (Whisper-Modell) → vorher User-Freigabe.
+
 - [ ] **Einwürfe aus der Analysespur + Vorrang vor Nicken — gebaut, Release offen.**
   (19.11.) Beide Schalter in Experten → Einwürfe, Standard aus. Offen: kleine Sichtungs-
   runde „App-Rechnung ↔ Sichtungsstand" (61: +32, 62: +11 Marker, Ursache: Mikros jetzt

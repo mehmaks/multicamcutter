@@ -30,6 +30,13 @@ Sprecherwechsel. Fehler → bisherige Erkennung bleibt. Schalter aus = byte-iden
 Auswahl — Nicken fällt weg, wenn sein Cutaway weniger als min_shot vor dem Cutaway eines
 späteren Einwurfs endet (Decision-Log `speaking_priority`). Pass-Reihenfolge unverändert.
 
+**Pausen auf der Analysespur (20.11.):** Ist die Analysespur an, erkennt der Schritt 2a
+die Pausen neu (`pausen_aus_analysespur`): Stille = beide Spuren unter „eigene Sprache −
+12 dB". Überschreibt `audio_trims.json` und `pause_cutaways.json`, die Originalton-Listen
+bleiben als `*_original.json`. Grund (Sichtung Folge 62, „straff"): im Original lag leise
+Sprache — v. a. des leiseren Mikros — unter der Stilleschwelle (−60 dB) und wurde an
+Sprecherwechseln weggeschnitten (bis 1,8 s). Ohne Analysespur bleibt die alte Erkennung.
+
 **Pausen in Redebeiträgen kürzen (User-Idee 19.11.):** Nur wenn Pausen kürzen UND
 „Cutaways in Pausen" an sind. `pause_trim_edl.innere_pausen` macht aus jedem Pausen-Cutaway,
 der nach allen Pässen noch genau auf seiner Stille aus `pause_cutaways.json` liegt (CLIP
