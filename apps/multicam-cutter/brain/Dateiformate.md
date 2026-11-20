@@ -41,6 +41,13 @@ kaemen kuenftig an der **Person**, nicht an der Cam.
 Matching: Dateien werden ueber `id` + `filename` zugeordnet. Wenn sich
 Dateien im Ordner aendern, werden nur passende Eintraege geladen.
 
+## Zuletzt genutzte Einstellungen (UserDefaults)
+
+`UserDefaults`-Schlüssel `lastUsedParams` = `params.toDict()` als JSON, bei JEDER Änderung
+geschrieben (`EngineController.params` didSet). Startwert der App und damit der Wert für
+jede Folge ohne `.multicam` — auch nach Neustart (User 20.11.). Eine vorhandene
+`.multicam` überschreibt beim Laden; danach gilt deren Stand als zuletzt genutzt.
+
 ## Preset-Dateien (.json)
 
 Gespeichert in `~/Library/Application Support/MulticamCutter/presets/`.

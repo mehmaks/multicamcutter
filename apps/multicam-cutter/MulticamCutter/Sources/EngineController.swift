@@ -450,7 +450,29 @@ class EngineController: ObservableObject {
     @Published var cameraInfos: [CameraInfo] = []
     @Published var micInfos: [MicInfo] = []
     @Published var fps: Double = 25.0
-    @Published var params = PipelineParams()
+    /// Startet mit den zuletzt genutzten Einstellungen (app-weit, auch nach Neustart —
+    /// User 20.11.). Eine Folge mit eigener `.multicam` überschreibt sie beim Laden.
+    /// Jede Änderung wird sofort gemerkt; weg sind sie erst mit den App-Daten.
+    @Published var params = EngineController.letzteEinstellungen() {
+        didSet { if params != oldValue { Self.merkeEinstellungen(params) } }
+    }
+
+    private static let letzteEinstellungenKey = "lastUsedParams"
+
+    static func letzteEinstellungen() -> PipelineParams {
+        var p = PipelineParams()
+        if let data = UserDefaults.standard.data(forKey: letzteEinstellungenKey),
+           let dict = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            p.apply(dict)
+        }
+        return p
+    }
+
+    private static func merkeEinstellungen(_ p: PipelineParams) {
+        if let data = try? JSONSerialization.data(withJSONObject: p.toDict()) {
+            UserDefaults.standard.set(data, forKey: letzteEinstellungenKey)
+        }
+    }
 
     // Progress (Pipeline)
     @Published var stepLabel: String = ""
