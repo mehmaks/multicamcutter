@@ -2402,7 +2402,7 @@ class EngineController: ObservableObject {
         if FileManager.default.fileExists(atPath: fromSource.appendingPathComponent("venv").path) {
             return fromSource
         }
-        return URL(fileURLWithPath: "/Users/maxmenge/Developer/resolve-toolkit")
+        return URL(fileURLWithPath: NSHomeDirectory()).appendingPathComponent("Developer/resolve-toolkit")
     }
 
     /// Gibt (executablePath, arguments) zurück.

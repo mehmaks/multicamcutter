@@ -94,7 +94,7 @@ Ersetzt durch die kanalinterne Kennzahl unten (Abschnitt „Warum B kippt").
 
 ## Gemessene Baseline (Vergleichsmaßstab)
 
-Episode „45 - Mario Koch", 82,7 min, 2 Kameras.
+Folge 45 (ep01), 82,7 min, 2 Kameras.
 
 - **145 Detektionen** gesamt (CAM1 70 / CAM2 75); daraus wurden im echten Lauf
   **70 Cutaways** (`reaction_speaking_reaction` in `final.colors.json`).
@@ -213,7 +213,7 @@ Episode mit **zwei** Kameras. Die Trennungen sind sauber und jede Regel hat eine
 eigenständige physikalische Begründung — aber vor dem Scharfschalten braucht es
 einen zweiten markierten Ausschnitt, am besten aus einer anderen Episode.
 
-## 🔬 Validierung an Episode 2 (Sarah Jung) — Regel B ist durchgefallen
+## 🔬 Validierung an Episode 2 (Folge 47) — Regel B ist durchgefallen
 
 Zweite Episode, gleicher Raum, anderer Gast: **4,9 dB weniger Mic-Trennung**
 (11,0 statt 15,9 dB). 29 markierte Cutaways: 6 FP, 20 TP, 3 unsicher.
@@ -235,8 +235,8 @@ des Sprechers durchschlägt. Genau das unterscheidet die beiden Episoden:
 
 | | echte Reaktionen, die das andere Mic um ≥ 5 dB heben |
 |---|---|
-| ep01 Mario Koch | **0 von 6 (0 %)** |
-| ep02 Sarah Jung | **5 von 20 (25 %)** |
+| ep01 (Folge 45) | **0 von 6 (0 %)** |
+| ep02 (Folge 47) | **5 von 20 (25 %)** |
 
 In ep01 kann B jeden On-Mic-Anstieg gefahrlos als Übersprechen werten. In ep02
 trifft sie damit jede vierte echte Reaktion. Noch deutlicher: Dort haben die

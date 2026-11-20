@@ -20,7 +20,7 @@ kaemen kuenftig an der **Person**, nicht an der Cam.
 
 ```json
 {
-  "episode_name": "49 - Dr. Marion Runnebaum",
+  "episode_name": "49 - Vorname Nachname",
   "fps": 25.0,
   "cameras": [
     {"id": 0, "filename": "C9732.MP4", "display_name": "Cam Gast", "assigned_mics": [1], "included": true, "is_wide": false},

@@ -6,6 +6,7 @@ Analysiert nur die relevanten Bereiche um die GT-Frames herum
 und gibt detaillierte Diagnostik aus, warum kein Pattern matcht.
 """
 
+import os
 import sys
 import json
 import subprocess
@@ -20,7 +21,7 @@ from mediapipe.tasks import python as mp_tasks
 from mediapipe.tasks.python import vision as mp_vision
 
 # ── Konfig ──
-VIDEO = "/Volumes/Jardani/Projekte/2025 - Jena United/Aktueller Schnitt/33 - Sabrina Lytsch/C7754.MP4"
+VIDEO = os.environ.get("MCC_DEBUG_VIDEO") or (sys.argv[1] if len(sys.argv) > 1 else "")  # Pfad zum Testvideo
 FPS = 25.0
 
 # GT-Positionen in C7754-Source-Frames

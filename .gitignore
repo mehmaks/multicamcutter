@@ -82,3 +82,4 @@ apps/multicam-cutter/release/
 # wrangler-Cache (enthaelt Account-Daten)
 .wrangler/
 !analyse/player/player.html
+analyse/episoden.local.json

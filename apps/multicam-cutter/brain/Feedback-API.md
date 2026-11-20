@@ -36,7 +36,7 @@ Turnstile/hCaptcha-Token oder ein obfuskierter Client-Header als niedrige Hürde
   "app_version":   "0.1.0 (1)",
   "os_version":    "macOS 26.5.1",
   "device_model":  "Mac14,14",
-  "episode":       "49 - Dr. Marion Runnebaum",
+  "episode":       "49 - Vorname Nachname",
   "log":           "…stdout/JSONL der letzten Analyse, ggf. gekürzt…",
   "log_truncated": true                // true wenn App das Log gekappt hat
 }

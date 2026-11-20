@@ -222,7 +222,7 @@ Damit ist die App-Seite von Punkt 6 komplett.
      Lizenz/E-Mail verknüpfbar machen → dann ist es *pseudonym*, nicht anonym.
      → Eigene, zufällige `analytics_id` (UUID), nur lokal erzeugt, ohne Bezug zur Lizenz.
      Noch besser: gar keine ID (dann aber keine Wiederkehrer-Analyse).
-  2. **KEINE Namen/Pfade.** Episodenname („49 – Dr. Marion Runnebaum") und Pfade
+  2. **KEINE Namen/Pfade.** Episodenname („49 – Vorname Nachname") und Pfade
      („/Volumes/Jardani/Projekte/2025 – Jena United/…") enthalten **Kundennamen** —
      das wäre ein DSGVO-Verstoß. Nur **Zahlen** senden, nie Strings aus dem Projekt.
   3. **Widerruf muss möglich sein** (DSGVO): Toggle in den Settings, nicht nur der

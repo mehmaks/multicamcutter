@@ -17,19 +17,24 @@ Aufruf: venv/bin/python3 analyse/sprachspur/ground_truth.py PARAMS.json ARBEITSO
 import json
 import re
 import subprocess
+import os
 import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ENGINE = ROOT / "apps/multicam-cutter/engine/multicam_engine.py"
 PY = str(ROOT / "venv/bin/python3")
-BASE = Path("/Volumes/JENA UNITED")
+# Testmaterial liegt lokal; Ordnernamen der Folgen (mit Gastnamen) stehen NICHT im Repo,
+# sondern in analyse/episoden.local.json ({"ep01": "45 - …", …}, gitignored).
+BASE = Path(os.environ.get("MCC_TESTDATEN", "/Volumes/JENA UNITED"))
+_LOKAL = ROOT / "analyse/episoden.local.json"
+ORDNER = json.loads(_LOKAL.read_text(encoding="utf-8")) if _LOKAL.exists() else {}
 
 EPISODES = {
-    "ep01-mario-koch": ("45 - Mario Koch", ["C9320", "C7814"], ["MIC1.WAV", "MIC2.WAV"]),
-    "ep02-sarah-jung": ("47 - Sarah Jung", ["C9730", "jena_0002"], ["MIC1.WAV", "MIC2.WAV"]),
-    "ep03-danny-mueller": ("44 - Danny Müller", ["C7804", "C8789"], ["MIC1.WAV", "MIC2.WAV"]),
-    "ep04-robin-tutzschke": ("46 - Dr Robin Tutzschke", ["C9322", "C7816"], ["MIC1_Orig.WAV", "MIC2_Orig.WAV"]),
+    "ep01": (["C9320", "C7814"], ["MIC1.WAV", "MIC2.WAV"]),
+    "ep02": (["C9730", "jena_0002"], ["MIC1.WAV", "MIC2.WAV"]),
+    "ep03": (["C7804", "C8789"], ["MIC1.WAV", "MIC2.WAV"]),
+    "ep04": (["C9322", "C7816"], ["MIC1_Orig.WAV", "MIC2_Orig.WAV"]),
 }
 
 
@@ -74,7 +79,10 @@ def score(markers, out_dir, fps=25):
 def main():
     params, work = Path(sys.argv[1]), Path(sys.argv[2])
     total = {"TP": [0, 0, 0], "FP": [0, 0, 0]}          # [Anzahl, Original, Analysespur]
-    for ep, (folder_name, cam_names, mic_names) in EPISODES.items():
+    for ep, (cam_names, mic_names) in EPISODES.items():
+        if ep not in ORDNER:
+            sys.exit(f"Ordnername für {ep} fehlt in {_LOKAL}")
+        folder_name = ORDNER[ep]
         folder = BASE / folder_name
         out = folder / "_Sprachspur-Test"
         cams = [folder / f"{c}.MP4" for c in cam_names]

@@ -37,9 +37,9 @@ warum eine Regel in der einen Aufnahme funktioniert und in der anderen nicht.
 
 | Episode | Kopfnicken | Sprachreaktions-Cutaways | markiert | FP-Rate |
 |---|---|---|---|---|
-| ep01 Mario Koch | **AN** | 70 | 22 | **73 %** |
-| ep02 Sarah Jung | aus | — | 29 | 21 % |
-| ep03 Danny Müller | aus | 105 | 21 | 10 % |
+| ep01 (Folge 45) | **AN** | 70 | 22 | **73 %** |
+| ep02 (Folge 47) | aus | — | 29 | 21 % |
+| ep03 (Folge 44) | aus | 105 | 21 | 10 % |
 
 ⚠️ **Konfigurations-Confound, nicht übersehen.** ep01 lief mit **eingeschaltetem**
 Kopfnicken, ep02 und ep03 ohne. Das ist kein Detail: Ohne Nicken-Cutaways

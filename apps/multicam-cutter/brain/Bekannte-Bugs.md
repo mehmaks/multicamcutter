@@ -203,7 +203,7 @@
 - **Symptom**: Video UND Audio sind an einer Stelle geschnitten, an der beide
   Sprecher reden — ein Stück Gespräch fehlt. **Inhaltsverlust**, kein
   Schönheitsfehler. Selten (2 Audioschnitte in einer 100-min-Folge), dafür
-  eindeutig hörbar. Gefunden 20.07. in „44 - Danny Müller" bei TL 00:17:49:22
+  eindeutig hörbar. Gefunden 20.07. in Folge 44 bei TL 00:17:49:22
   (roter Marker des Users).
 - **Belegt**: Audioschnitt bei WAV-Sekunde 1077,80. Pegel dort MIC1 −33,6 dB
   (Schwelle −46), MIC2 −43,3 dB (Schwelle −52) — **beide über der Schwelle**,
