@@ -43,7 +43,7 @@ Sprecherwechsel der Basis-EDL in die nächste Stille (±3 s), wenn die Person, d
 (`wechsel_in_stille`). Quelle + Aufnahme verschieben sich gleich → synchron. Original
 bleibt als `base_original.edl`. Abschaltbar über `speaker_change_into_silence: false`.
 Grund: Kürzen geht nur AM Wechsel, und vorher lag er bei ~80 % der Pausen außerhalb.
-Sicherheitsabstand der Stille: 0,08 s nach Satzende, 0,15 s vor Satzanfang.
+Sicherheitsabstand der Stille: 0,08 s nach Satzende, 0,22 s vor Satzanfang (Sichtung v3: +2 Frames für sauberen Einstieg).
 
 **Pausen in Redebeiträgen kürzen (User-Idee 19.11.):** Nur wenn Pausen kürzen UND
 „Cutaways in Pausen" an sind. `pause_trim_edl.innere_pausen` macht aus jedem Pausen-Cutaway,

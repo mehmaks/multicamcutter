@@ -236,7 +236,7 @@ def _laeufe(maske):
 
 def pausen_aus_analysespur(pegel, engine, fps, sprache_db, abstand_db=12.0,
                            suchradius_s=3.0, min_pause_s=0.3, cutaway_min_pause_s=None,
-                           rand_nach_satz_s=0.08, rand_vor_satz_s=0.15):
+                           rand_nach_satz_s=0.08, rand_vor_satz_s=0.22):
     """Pausen wie pause_trim_edl.detect_pauses / die Pausen-Cutaway-Kandidaten, aber auf
     der Analysespur (Sichtung 19.11., Folge 62: im Original lag leise Sprache — v. a. das
     leisere Mikro — unter der Stilleschwelle und wurde weggeschnitten).
@@ -255,7 +255,7 @@ def pausen_aus_analysespur(pegel, engine, fps, sprache_db, abstand_db=12.0,
     return _pausen_aus_maske(still, engine, fps, radius, min_len, cutaway_min_pause_s)
 
 
-def stille_maske(pegel, sprache_db, fps, abstand_db=12.0, rand_nach_satz_s=0.08, rand_vor_satz_s=0.15):
+def stille_maske(pegel, sprache_db, fps, abstand_db=12.0, rand_nach_satz_s=0.08, rand_vor_satz_s=0.22):
     """Bilder, in denen BEIDE Spuren unter „eigene Sprache − abstand_db" liegen — mit
     Sicherheitsabstand zu Satzende/-anfang."""
     x = [np.nan_to_num(np.maximum(np.asarray(v, float), -110), nan=-110) for v in pegel]
