@@ -448,3 +448,6 @@
 "Debug" = "Debug";
 "Analysis overlays" = "Analyse-Einblendungen";
 "Shows the face mesh, the detected reactions and the file name in the preview image during the analysis. Only for checking the detection — it has no effect on the cut." = "Zeigt während der Analyse das Gesichtsgitter, die erkannten Reaktionen und den Dateinamen im Vorschaubild. Nur zum Prüfen der Erkennung – auf den Schnitt hat das keinen Einfluss.";
+
+/* Barrierefreiheit Fortschrittsbalken */
+"Progress" = "Fortschritt";

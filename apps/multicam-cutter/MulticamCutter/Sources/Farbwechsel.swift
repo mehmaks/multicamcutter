@@ -68,11 +68,28 @@ struct FarbwechselBalken: View {
     let start: Date
     let seed: UInt64
 
+    // Selbst gezeichnet statt SwiftUI.ProgressView + .tint: der native macOS-Balken
+    // nimmt die Farbe nur als Tönung und bearbeitet sie nach (Helligkeit, eigene
+    // Überblendung) — Blau→Lila lief dadurch sichtbar über dunkel/hell (User 20.11.).
+    // So kommt die berechnete Farbe 1:1 an, wie in der Web-Vorschau.
+    private var anteil: CGFloat { gesamt > 0 ? CGFloat(min(max(wert / gesamt, 0), 1)) : 0 }
+
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 20)) { ctx in
-            SwiftUI.ProgressView(value: wert, total: gesamt)
-                .progressViewStyle(.linear)
-                .tint(Farbwechsel.farbe(nach: max(0, ctx.date.timeIntervalSince(start)), seed: seed))
+        TimelineView(.animation(minimumInterval: 1.0 / 30)) { ctx in
+            let farbe = Farbwechsel.farbe(nach: max(0, ctx.date.timeIntervalSince(start)), seed: seed)
+            GeometryReader { geo in
+                ZStack(alignment: .leading) {
+                    Capsule().fill(Color.wizBorder)
+                    Capsule().fill(farbe)
+                        .frame(width: max(geo.size.height, geo.size.width * anteil))
+                        .animation(.easeOut(duration: 0.3), value: anteil)
+                }
+            }
+            .frame(height: 6)
+            .transaction { $0.animation = nil }   // Farbe nie zusätzlich animieren
         }
+        .accessibilityElement()
+        .accessibilityLabel(Text("Progress"))
+        .accessibilityValue(Text("\(Int(anteil * 100)) %"))
     }
 }
