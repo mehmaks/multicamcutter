@@ -235,7 +235,8 @@ def _laeufe(maske):
 
 
 def pausen_aus_analysespur(pegel, engine, fps, sprache_db, abstand_db=12.0,
-                           suchradius_s=3.0, min_pause_s=0.3, cutaway_min_pause_s=None):
+                           suchradius_s=3.0, min_pause_s=0.3, cutaway_min_pause_s=None,
+                           rand_nach_satz_s=0.08, rand_vor_satz_s=0.15):
     """Pausen wie pause_trim_edl.detect_pauses / die Pausen-Cutaway-Kandidaten, aber auf
     der Analysespur (Sichtung 19.11., Folge 62: im Original lag leise Sprache — v. a. das
     leisere Mikro — unter der Stilleschwelle und wurde weggeschnitten).
@@ -249,6 +250,16 @@ def pausen_aus_analysespur(pegel, engine, fps, sprache_db, abstand_db=12.0,
     """
     x = [np.nan_to_num(np.maximum(np.asarray(v, float), -110), nan=-110) for v in pegel]
     still = (x[0] < sprache_db[0] - abstand_db) & (x[1] < sprache_db[1] - abstand_db)
+    # Sicherheitsabstand (Sichtung 20.11., „straff"): Satzanfänge bauen sich leise auf und
+    # wurden angeschnitten → jede Stille-Strecke vorn um rand_nach_satz_s und hinten um
+    # rand_vor_satz_s verkürzen. Gekürzt wird so nie bis direkt an Sprache heran.
+    rv, rh = int(round(rand_nach_satz_s * fps)), int(round(rand_vor_satz_s * fps))
+    if rv or rh:
+        roh = still.copy()
+        still = np.zeros_like(roh)
+        for s_, e_ in _laeufe(roh):
+            if e_ - rh > s_ + rv:
+                still[s_ + rv:e_ - rh] = True
     n = len(engine)
     radius = int(round(suchradius_s * fps))
     min_len = max(1, int(round(min_pause_s * fps)))
