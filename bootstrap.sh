@@ -90,8 +90,7 @@ ok "$PY_VERSION aktiv"
 
 step "Schritt 3/3 — resolve-toolkit herunterladen"
 
-REPO_TOKEN="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"
-REPO_URL="https://${REPO_TOKEN}@github.com/mehmaks/resolve-toolkit.git"
+REPO_URL="https://github.com/mehmaks/resolve-toolkit.git"   # öffentlich, kein Token nötig
 TARGET="$HOME/resolve-toolkit"
 
 if [ -d "$TARGET/.git" ]; then
