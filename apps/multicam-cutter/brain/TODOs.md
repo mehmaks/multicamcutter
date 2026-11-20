@@ -358,6 +358,12 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
   (3) Engine-Rebuild fürs Release. Hintergrund/Validierung:
   `modules/multicam_cutter/CLAUDE.md` → Fixed Bugs → „Nachtrag (27.07.)".
 
+### 📝 Für das nächste Changelog (beta.7)
+
+- Behoben: Der Fortschrittsbalken lief bei manchen Farbwechseln (z. B. Blau → Flieder) über
+  dunkle und helle Zwischentöne; jetzt blendet er überall weich über (selbst gezeichnet statt
+  nativer macOS-Balken).
+
 ### 📦 Post-1.0 (geparkt)
 
 - [ ] **Pausen-Cutaways häufiger (geparkt 20.11., erst wenn es negativ auffällt).**
