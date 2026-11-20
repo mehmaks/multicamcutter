@@ -129,6 +129,11 @@ appcast.xml → `public/appcast.xml`. **Vollständige Schritt-für-Schritt-Check
 
 ## Beta-Kanal (ab 1.1.0-beta.1, 18.11.2026)
 
+**Beta-Download von der Website (20.11.):** Eine Beta-Version schaltet beim Start den
+Beta-Kanal selbst ein (`UpdateChannel.betaBuildSchaltetKanalEin`), solange der Schalter
+„Beta-Versionen erhalten" nie angefasst wurde (UserDefaults-Schlüssel fehlt). Wer die
+Beta von der Website lädt, bekommt so die nächsten Betas; ein bewusstes „aus" bleibt aus.
+
 **Ein Feed, zwei Kanäle.** Beta-Versionen stehen in derselben `appcast.xml` wie
 stabile, erkennbar an einem Kind-Element des `<item>`:
 

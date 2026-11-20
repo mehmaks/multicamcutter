@@ -31,6 +31,15 @@ enum UpdateChannel {
     static var betaEnabled: Bool { UserDefaults.standard.bool(forKey: defaultsKey) }
     /// Laeuft gerade eine Beta? Erkannt an der Anzeige-Version (`1.1.0-beta.1`).
     static var isBetaBuild: Bool { AppVersion.short.lowercased().contains("beta") }
+
+    /// Wer eine Beta installiert (z. B. per Download von der Website), will auch die
+    /// nächsten Betas bekommen. Deshalb schaltet eine Beta-Version den Kanal beim Start
+    /// selbst ein — aber nur, solange der Nutzer den Schalter nie angefasst hat
+    /// (Schlüssel fehlt). Ein bewusstes „aus" bleibt aus. (User 20.11.)
+    static func betaBuildSchaltetKanalEin() {
+        guard isBetaBuild, UserDefaults.standard.object(forKey: defaultsKey) == nil else { return }
+        UserDefaults.standard.set(true, forKey: defaultsKey)
+    }
 }
 
 /// Sparkle fragt vor jeder Pruefung, welche Kanaele erlaubt sind.
@@ -120,6 +129,8 @@ final class UpdaterController {
         // URL gesetzt und der Updater startet regulaer.
         let hasFeed = (Bundle.main.infoDictionary?["SUFeedURL"] as? String)?.isEmpty == false
         isActive = hasFeed
+        // Vor dem Start von Sparkle, damit schon die erste Prüfung den Beta-Kanal kennt.
+        UpdateChannel.betaBuildSchaltetKanalEin()
         controller = SPUStandardUpdaterController(
             startingUpdater: hasFeed,
             updaterDelegate: channelDelegate,
