@@ -30,6 +30,14 @@ Sprecherwechsel. Fehler → bisherige Erkennung bleibt. Schalter aus = byte-iden
 Auswahl — Nicken fällt weg, wenn sein Cutaway weniger als min_shot vor dem Cutaway eines
 späteren Einwurfs endet (Decision-Log `speaking_priority`). Pass-Reihenfolge unverändert.
 
+**Pausen in Redebeiträgen kürzen (User-Idee 19.11.):** Nur wenn Pausen kürzen UND
+„Cutaways in Pausen" an sind. `pause_trim_edl.innere_pausen` macht aus jedem Pausen-Cutaway,
+der nach allen Pässen noch genau auf seiner Stille aus `pause_cutaways.json` liegt (CLIP
+kann ihn verschieben → dann nicht), eine Pause mit `innen: true`; gekürzt wird immer am
+Schnitt Sprecher → Zuhörende (l-cut: der Cutaway beginnt später), der Zeitsprung liegt im
+Kamerawechsel. Der Cutaway bleibt ≥ Cleanup-Mindestlänge (bestehender Trim-Cap). Im
+AAF-Weg steht der Grund in `cut_reason`, nicht `reason` (bewusst, siehe build_aaf).
+
 **„Mund + Mikro" (Beta, `mouth_reactions_enabled`, nur binärer Pfad; seit 19.11.
 abgeschaltet über `MOUTH_REACTIONS_AVAILABLE` / `FeatureFlags.mouthReactions`):** Die Nodding-
 Analyse schreibt zusätzlich `<cam>_mouth.npz` (Lippenabstand je Bild der Off-Sektionen,

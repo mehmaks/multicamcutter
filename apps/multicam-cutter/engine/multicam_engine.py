@@ -1149,6 +1149,16 @@ def run_pipeline(folder, fps, params, output_path,
                     # wenigen Durchkommer an beliebiger Stelle schnitten — bis mitten
                     # in laufende Sprache. Siehe brain/Bekannte-Bugs.md.
 
+                    # Innere Pausen (in einem Redebeitrag) nur, wenn Pausen-Cutaways
+                    # an sind — der Cutaway verdeckt den Zeitsprung (User 19.11.).
+                    pc_json = work_dir / "pause_cutaways.json"
+                    if params.get("pause_cutaway_enabled") and pc_json.exists():
+                        from pause_trim_edl import innere_pausen
+                        pcj = json.loads(pc_json.read_text())
+                        inner = innere_pausen(trim_events, pcj.get("pauses", []), fps)
+                        if inner:
+                            pauses = list(pauses) + inner
+                            print(f"  + {len(inner)} Pausen in Redebeiträgen (von Pausen-Cutaways verdeckt)")
                     trim_events, audio_keeps = apply_pauses_to_cut_events(
                         trim_events, pauses, fps,
                         max_pause_s=float(params.get("max_pause", 1.0)),

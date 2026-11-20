@@ -297,7 +297,14 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         half = max_pause_frames // 2
         half2 = max_pause_frames - half
 
-        mode = random.choice(['middle', 'l-cut', 'j-cut']) if cut_mode == 'random' else cut_mode
+        # Innere Pause (Sprechpause innerhalb eines Redebeitrags, von einem Pausen-
+        # Cutaway verdeckt): immer am Schnitt Sprecher → Zuhörende kürzen — der
+        # Cutaway beginnt später in der Pause, der Zeitsprung liegt im Kamerawechsel.
+        innen = bool(p.get('innen'))
+        if innen:
+            mode = 'l-cut'
+        else:
+            mode = random.choice(['middle', 'l-cut', 'j-cut']) if cut_mode == 'random' else cut_mode
 
         if mode == 'l-cut':
             p1_end = ps                       # Clip 1 endet am Pausenanfang
@@ -312,6 +319,8 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         # 3. Cutaway-Schutz: Trim-Region = p1_end bis p2_start
         overlaps_cutaway = any(
             cs < p2_start and ce > p1_end for cs, ce in cutaway_spans
+            # Der eigene Pausen-Cutaway einer inneren Pause ist kein Hindernis
+            if not (innen and abs(cs - ps) <= boundary_tolerance and abs(ce - pe) <= boundary_tolerance)
         )
         if overlaps_cutaway:
             skipped_cutaway += 1
@@ -439,3 +448,28 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
     if not audio_keeps:
         return cut_events, None
     return cut_events, audio_keeps
+
+
+def innere_pausen(cut_events: list, cutaway_pausen: list, fps: float) -> list:
+    """Pausen INNERHALB eines Redebeitrags, die ein Pausen-Cutaway verdeckt (User-Idee
+    19.11.: Pausen kürzen + „Cutaways in Pausen" → auch Denkpausen straffen).
+
+    Nur Pausen-Cutaways, die nach allen Pässen noch genau auf ihrer erkannten Stille
+    liegen (CLIP kann Pausen-Cutaways verschieben → dann nicht kürzen, sonst ginge
+    Sprache verloren). Grenze = Schnitt Sprecher → Zuhörende (record_in des Cutaways).
+
+    cutaway_pausen: Liste aus pause_cutaways.json (start_frame, end_frame, speaker).
+    """
+    tol = int(0.2 * fps)
+    out = []
+    for ev in cut_events:
+        # AAF-Weg: Grund steht in 'cut_reason' ('reason' ist dort bewusst neutral,
+        # siehe build_aaf._parse_edl); Resolve-Weg: in 'reason'.
+        if 'pause_cutaway' not in (ev.get('cut_reason'), ev.get('reason')):
+            continue
+        rin, rout = ev['record_in'], ev['record_out']
+        if any(abs(p['start_frame'] - rin) <= tol and abs(p['end_frame'] - rout) <= tol
+               for p in cutaway_pausen):
+            out.append({'pause_start_frame': rin, 'pause_end_frame': rout,
+                        'boundary_frame': rin, 'pause_dur_s': (rout - rin) / fps, 'innen': True})
+    return out
