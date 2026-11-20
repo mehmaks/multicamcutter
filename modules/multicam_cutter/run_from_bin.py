@@ -1301,6 +1301,7 @@ def main():
                     max_pause_s=float(_params.get('max_pause', 1.0)),
                     cut_mode=_params.get('pause_cut_mode', 'middle'),
                     min_event_s=float(_params.get('cleanup_dur', 1.5)),
+                    cut_offset_s=float(_params.get('pause_cut_offset_s', 1.0)),
                 )
                 if audio_keeps:
                     # Audio-Keeps in separate Datei speichern (nicht audio_trims ueberschreiben!)

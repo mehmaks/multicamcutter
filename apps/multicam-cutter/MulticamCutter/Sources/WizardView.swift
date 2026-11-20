@@ -1194,6 +1194,10 @@ struct WizardSettings: View {
                                  options: [("middle", "Middle"), ("l-cut", "L-Cut"),
                                            ("j-cut", "J-Cut"), ("random", "Random")],
                                  help: ParamHelp.pauseCutMode)
+                    if engine.params.pauseCutMode != "middle" {
+                        WizSlider("Cut offset", $engine.params.pauseCutOffset, 0...10, suffix: " s",
+                                  help: ParamHelp.pauseCutOffset)
+                    }
                 }
                 group("Crossbleed filter") {
                     WizToggle("Crossbleed gate", $engine.params.crossbleedGateEnabled, help: ParamHelp.crossbleedGateEnabled)

@@ -202,7 +202,8 @@ def load_pauses(path: str) -> list:
 def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
                                 max_pause_s: float = 1.0,
                                 cut_mode: str = 'middle',
-                                min_event_s: float = 0.0):
+                                min_event_s: float = 0.0,
+                                cut_offset_s: float = 1.0):
     """
     Kürzt überlange Pausen in frame-basierten cut_events.
 
@@ -217,6 +218,10 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         fps: Framerate
         max_pause_s: Max. erlaubte Pausendauer
         cut_mode: Video-Schnittmodus (l-cut, middle, j-cut)
+        cut_offset_s: Versatz des Kamerawechsels gegenüber der Pausenmitte bei l-cut
+                      (nach vorn) bzw. j-cut (nach hinten). Gekappt durch die verbleibende
+                      Pause: höchstens bis Pausenbeginn/-ende (User 20.11.). Herausgenommen
+                      wird immer nur Stille, der Wechsel bleibt in der Pause.
 
     Returns:
         (modified_cut_events, audio_keeps)
@@ -306,15 +311,19 @@ def apply_pauses_to_cut_events(cut_events: list, pauses: list, fps: float,
         else:
             mode = random.choice(['middle', 'l-cut', 'j-cut']) if cut_mode == 'random' else cut_mode
 
-        if mode == 'l-cut':
-            p1_end = ps                       # Clip 1 endet am Pausenanfang
-            p2_start = pe - max_pause_frames  # Clip 2 startet so dass max_pause bleibt
+        # Stille VOR dem Kamerawechsel (k1) + danach = max_pause. Mitte: je die Hälfte;
+        # l-cut/j-cut verschieben den Wechsel um cut_offset_s, höchstens bis zum Rand.
+        off = int(round(max(0.0, cut_offset_s) * fps))
+        if innen:
+            k1 = 0                            # Pausen-Cutaway beginnt am Pausenanfang
+        elif mode == 'l-cut':
+            k1 = max(0, half - off)
         elif mode == 'j-cut':
-            p1_end = ps + max_pause_frames    # Clip 1 behält max_pause Stille
-            p2_start = pe                     # Clip 2 startet am Pausenende
+            k1 = min(max_pause_frames, half + off)
         else:  # middle
-            p1_end = ps + half                # Symmetrisch um Pausenmitte
-            p2_start = pe - half2
+            k1 = half
+        p1_end = ps + k1
+        p2_start = pe - (max_pause_frames - k1)
 
         # 3. Cutaway-Schutz: Trim-Region = p1_end bis p2_start
         overlaps_cutaway = any(

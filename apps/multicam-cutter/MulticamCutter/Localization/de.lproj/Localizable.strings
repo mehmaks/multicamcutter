@@ -456,3 +456,7 @@
 "The wide shot appears now and then." = "Die Totale kommt ab und zu.";
 "The wide shot is used often." = "Die Totale kommt oft.";
 "What to expect" = "Was dich erwartet";
+
+/* Pausen-Trimming: Versatz des Kamerawechsels (20.11.) */
+"Cut offset" = "Schnittversatz";
+"How far the camera change moves away from the middle of the remaining pause: earlier with L-Cut, later with J-Cut. It never leaves the pause — at most it reaches the end of the previous or the start of the next sentence, however high the value." = "Wie weit der Kamerawechsel von der Mitte der verbleibenden Pause abrückt: früher beim L-Cut, später beim J-Cut. Er verlässt die Pause nie – höchstens bis zum Ende des vorherigen bzw. Anfang des nächsten Satzes, egal wie hoch der Wert ist.";

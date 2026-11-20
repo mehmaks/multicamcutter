@@ -120,6 +120,9 @@ struct PipelineParams: Equatable {
     var minEdit: Double = 1.0
     var changeDelay: Double = 0.3
     var pauseCutMode: String = "middle"
+    /// Versatz des Kamerawechsels bei L-/J-Cut gegenüber der Pausenmitte (s), gekappt
+    /// durch die verbleibende Pause. 1,0 = bei üblichen Pausenwerten die volle Verschiebung.
+    var pauseCutOffset: Double = 1.0
     var pauseSilenceDb: Double = -40.0
 
     // Expert: Crossbleed-Gate
@@ -203,6 +206,7 @@ struct PipelineParams: Equatable {
             "pause_trim_enabled": pauseTrimEnabled,
             "max_pause": maxPause,
             "pause_cut_mode": pauseCutMode,
+            "pause_cut_offset_s": pauseCutOffset,
             "pause_silence_db": pauseSilenceDb,
             "min_conf": minConf,
             "min_edit": minEdit,
@@ -255,6 +259,7 @@ struct PipelineParams: Equatable {
             "min_shot": minShot, "max_shot": maxShot, "cleanup_dur": cleanupDur,
             "reaction_dur": reactionDur, "pause_trim_enabled": pauseTrimEnabled,
             "max_pause": maxPause, "pause_cut_mode": pauseCutMode,
+            "pause_cut_offset_s": pauseCutOffset,
             "pause_silence_db": pauseSilenceDb,
             "min_conf": minConf, "min_edit": minEdit, "change_delay": changeDelay,
             "nodding_enabled": noddingEnabled, "speaking_enabled": speakingEnabled,
@@ -297,6 +302,7 @@ struct PipelineParams: Equatable {
         if let v = dict["pause_trim_enabled"] as? Bool { pauseTrimEnabled = v }
         if let v = dict["max_pause"] as? Double { maxPause = v }
         if let v = dict["pause_cut_mode"] as? String { pauseCutMode = v }
+        if let v = dict["pause_cut_offset_s"] as? Double { pauseCutOffset = v }
         if let v = dict["pause_silence_db"] as? Double { pauseSilenceDb = v }
         if let v = dict["min_conf"] as? Double { minConf = v }
         if let v = dict["min_edit"] as? Double { minEdit = v }

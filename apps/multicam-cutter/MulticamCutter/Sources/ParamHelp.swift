@@ -41,6 +41,7 @@ enum ParamHelp {
     // Pausen-Trimming
     static let pauseTrimEnabled = "Automatically shorten overly long speech pauses at speaker changes."
     static let maxPause = "Maximum pause length that is kept. Longer pauses are trimmed to this value."
+    static let pauseCutOffset = "How far the camera change moves away from the middle of the remaining pause: earlier with L-Cut, later with J-Cut. It never leaves the pause — at most it reaches the end of the previous or the start of the next sentence, however high the value."
     static let pauseCutMode = "Sets where the video cut sits within a pause."
     static let totaleMode = "When several cameras are marked as wide shots: which one gets cut to? Round-robin steps through them in order, Random shuffles them (the same on every run), First only always takes the same one. No effect with just one wide shot."
     static let pauseSilenceDb = "dB threshold below which both microphones count as silent. Default: -40 dB."
