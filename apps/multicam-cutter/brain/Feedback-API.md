@@ -85,7 +85,7 @@ Fehler + Fallback „Details kopieren" (Tester kann den Report dann per Mail sch
 `POST /api/feedback` ist live auf `https://multicamcutter.pantake.com`.
 
 - **Issue-Repo:** `mehmaks/multicamcutter-feedback` (PRIVAT, seit 20.11.; vorher
-  `mehmaks/resolve-toolkit`, das öffentlich wird — Berichte enthalten Logs mit Pfaden/Folgennamen)
+  `mehmaks/resolve-toolkit` (heute `mehmaks/multicamcutter`), das öffentlich wird — Berichte enthalten Logs mit Pfaden/Folgennamen)
   (Env `FEEDBACK_GITHUB_REPO`). Labels:
   `bug`/`feedback` + `from-app` (werden bei Bedarf automatisch angelegt).
 - **Token:** Env `FEEDBACK_GITHUB_TOKEN` — Fine-Grained-PAT, nur `Issues: read/write`

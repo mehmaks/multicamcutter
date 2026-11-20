@@ -301,7 +301,7 @@ with st.sidebar:
     # ── Hilfsfunktionen ───────────────────────────────────────────────────────
 
     _REPO_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-    _GH_REPO   = "mehmaks/resolve-toolkit"
+    _GH_REPO   = "mehmaks/multicamcutter"
 
     def _git(*args):
         import subprocess as _sp2

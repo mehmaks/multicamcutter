@@ -165,7 +165,7 @@ Entscheidung: Abo-Modell (monatlich/jaehrlich), NICHT das Offline-Datei-Modell
 
 ## Open Source (GPL-3.0) und Branch-Modell (20.11.)
 
-Repo wird öffentlich (App kostenlos, Beiträge willkommen). **GPL-3.0** statt MIT: Wer
+Repo wird öffentlich (App kostenlos, Beiträge willkommen) und heißt seit 20.11. `mehmaks/multicamcutter` (vorher `resolve-toolkit`; GitHub leitet alte Links um, der lokale Ordner heißt weiter `resolve-toolkit`). **GPL-3.0** statt MIT: Wer
 die App verändert weitergibt, muss den Code offenlegen — niemand soll sie geschlossen
 weiterverkaufen. Vorbereitung: Gästenamen/Ordnernamen der Testfolgen raus
 (`analyse/episoden.local.json`, ignoriert), Commits künftig mit GitHub-noreply-Adresse

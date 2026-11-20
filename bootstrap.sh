@@ -90,7 +90,7 @@ ok "$PY_VERSION aktiv"
 
 step "Schritt 3/3 — resolve-toolkit herunterladen"
 
-REPO_URL="https://github.com/mehmaks/resolve-toolkit.git"   # öffentlich, kein Token nötig
+REPO_URL="https://github.com/mehmaks/multicamcutter.git"   # öffentlich, kein Token nötig
 TARGET="$HOME/resolve-toolkit"
 
 if [ -d "$TARGET/.git" ]; then
