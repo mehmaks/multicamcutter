@@ -72,7 +72,7 @@ struct FarbwechselBalken: View {
         TimelineView(.animation(minimumInterval: 1.0 / 20)) { ctx in
             SwiftUI.ProgressView(value: wert, total: gesamt)
                 .progressViewStyle(.linear)
-                .tint(Farbwechsel.farbe(nach: ctx.date.timeIntervalSince(start), seed: seed))
+                .tint(Farbwechsel.farbe(nach: max(0, ctx.date.timeIntervalSince(start)), seed: seed))
         }
     }
 }
