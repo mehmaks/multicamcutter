@@ -185,7 +185,7 @@ Icons selbst, eigene Bilder skalieren unzuverlässig.
 
 ## Fortschrittsbalken: Farbwechsel (20.11.)
 
-Der Balken im Lauf beginnt in Lime, hält jede Farbe 12 s und blendet über 5 s (weich, smoothstep)
+Der Balken im Lauf beginnt in Lime, hält jede Farbe 3 s und blendet über 1,25 s (weich, smoothstep)
 in eine zufällig gezogene nächste — nie zweimal dieselbe. Läuft über alle Schritte eines Laufs
 weiter. Pool (Pastell, Helligkeit wie Lime/Flieder): Lime #C6F24E · Flieder #CBA6F7 ·
 Mint #8EF0C4 · Himmelblau #8CCFF5 · Pfirsich #F7B98B · Rosé #F5A6C8 · Butter #F2E27A ·

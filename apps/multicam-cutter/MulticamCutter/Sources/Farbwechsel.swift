@@ -2,7 +2,7 @@ import SwiftUI
 
 // MARK: - Farbwechsel des Fortschrittsbalkens (User-Idee 20.11.)
 //
-// Der Balken beginnt im CI-Lime, hält jede Farbe ~12 s und blendet dann über 5 s in
+// Der Balken beginnt im CI-Lime, hält jede Farbe 3 s und blendet dann über 1,25 s in
 // die nächste. Die nächste Farbe wird zufällig aus dem Pool gezogen (nie zweimal
 // dieselbe hintereinander). Alle Farben leben wie Lime und Flieder in der hellen
 // Pastellwelt, damit sie auf dem dunklen Grund gleich stark wirken.
@@ -23,8 +23,8 @@ enum Farbwechsel {
         (242, 226, 122),  // Butter
         (126, 230, 224),  // Aqua
     ]
-    static let halten: Double = 12
-    static let blenden: Double = 5
+    static let halten: Double = 3
+    static let blenden: Double = 1.25
 
     /// Farbindex des Abschnitts k (k = 0 → Lime).
     static func index(_ k: Int, seed: UInt64) -> Int {
