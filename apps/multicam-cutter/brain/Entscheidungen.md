@@ -162,3 +162,15 @@ Entscheidung: Abo-Modell (monatlich/jaehrlich), NICHT das Offline-Datei-Modell
   lokalisiert per `loc()`/`locStepLabel()`. Voll dokumentiert: `brain/TODOs.md` → „Multilanguage".
 - **Preis**: `swift run` (Dev) zeigt Englisch (kein `.lproj` in Bundle.main) — Deutsch nur
   im gebauten `.app`. Web-Schema bleibt vorerst DE-only (App ist ab jetzt die Text-Wahrheit).
+
+## Open Source (GPL-3.0) und Branch-Modell (20.11.)
+
+Repo wird öffentlich (App kostenlos, Beiträge willkommen). **GPL-3.0** statt MIT: Wer
+die App verändert weitergibt, muss den Code offenlegen — niemand soll sie geschlossen
+weiterverkaufen. Vorbereitung: Gästenamen/Ordnernamen der Testfolgen raus
+(`analyse/episoden.local.json`, ignoriert), Commits künftig mit GitHub-noreply-Adresse
+(alte Historie enthält die echte Adresse — bewusst nicht umgeschrieben).
+
+**Branches:** `main` = zuletzt veröffentlichte stabile Version · `beta` = aktuelle Beta
+und Arbeitsstand. Fremde Beiträge als Pull Request gegen `beta`. Bei einem stabilen
+Release `beta` → `main` übernehmen. (`en-screenshots` war Altlast vom August, aufgelöst.)
