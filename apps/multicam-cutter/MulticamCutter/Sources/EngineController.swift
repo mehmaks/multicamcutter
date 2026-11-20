@@ -130,10 +130,7 @@ struct PipelineParams: Equatable {
     var preRoll: Int = 15
     var randomness: Double = 0.2
     var minConf: Double = 0.60
-    var riseDb: Double = 6.0
     var speakingMaxDur: Double = 2.5
-    // Beta: Einwürfe auf der Analysespur erkennen (Mikro ohne Übersprechen/Rauschen)
-    var speakingAnalysespurEnabled: Bool = false
     // Einwürfe haben Vorrang vor Nicken (Nicken weicht, wenn es einen Einwurf blockieren würde)
     var speakingPriority: Bool = false
     // Slider-Bausteine (Stufen-Ansicht): Schnittabstand je Cutaway-Typ, Konfidenz je
@@ -209,9 +206,7 @@ struct PipelineParams: Equatable {
             "clip_filter_enabled": clipFilterEnabled,
             "pre_roll": preRoll,
             "randomness": randomness,
-            "rise_db": riseDb,
             "speaking_max_dur": speakingMaxDur,
-            "speaking_analysespur_enabled": speakingAnalysespurEnabled,
             "speaking_priority": speakingPriority,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
@@ -250,8 +245,7 @@ struct PipelineParams: Equatable {
             "pause_cutaway_min_pause": pauseCutawayMinPause,
             "clip_filter_enabled": clipFilterEnabled,
             "pre_roll": preRoll, "randomness": randomness,
-            "rise_db": riseDb, "speaking_max_dur": speakingMaxDur,
-            "speaking_analysespur_enabled": speakingAnalysespurEnabled,
+            "speaking_max_dur": speakingMaxDur,
             "speaking_priority": speakingPriority,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
@@ -292,9 +286,7 @@ struct PipelineParams: Equatable {
         if let v = dict["clip_filter_enabled"] as? Bool { clipFilterEnabled = v }
         if let v = dict["pre_roll"] as? Int { preRoll = v }
         if let v = dict["randomness"] as? Double { randomness = v }
-        if let v = dict["rise_db"] as? Double { riseDb = v }
         if let v = dict["speaking_max_dur"] as? Double { speakingMaxDur = v }
-        if let v = dict["speaking_analysespur_enabled"] as? Bool { speakingAnalysespurEnabled = v }
         if let v = dict["speaking_priority"] as? Bool { speakingPriority = v }
         if let v = dict["nodding_cooldown_s"] as? Double { noddingCooldownS = v }
         if let v = dict["speaking_cooldown_s"] as? Double { speakingCooldownS = v }

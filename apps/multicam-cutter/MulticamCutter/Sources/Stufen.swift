@@ -82,8 +82,8 @@ enum Stufen {
             hilfe: "Cut to the listening person for short interjections such as “mhm” or “yes”.",
             piktogramm: "piktogramm-sprachreaktionen",
             anSchluessel: ["speaking_enabled"], ausWerte: ["speaking_enabled": false],
-            // Feste Entscheidungen: Erkennung auf der Analysespur, Einwürfe vor Nicken.
-            fest: ["speaking_analysespur_enabled": true, "speaking_priority": true],
+            // Feste Entscheidung: Einwürfe vor Nicken.
+            fest: ["speaking_priority": true],
             regler: [
                 StufenRegler(
                     id: "einwurf_oft", titel: "How often",

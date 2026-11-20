@@ -463,10 +463,8 @@ def add_analysespur_reactions(base_edl, cams, offsets, fps, params, work_dir):
                           encoding="utf-8")
             print(f"  Pausen-Cutaway-Kandidaten (Analysespur): {len(cut)}", flush=True)
         summary["pausen"] = {"grenzen": len(grenz), "cutaway": len(cut)}
-    for k, (c, n) in enumerate(zip(cams, names)):
+    for k, (c, n) in enumerate(zip(cams, names) if params.get("speaking_enabled", True) else ()):
         sp = Path(c["speaking_json"])
-        alt = json.loads(sp.read_text(encoding="utf-8")) if sp.exists() else {"fps": fps, "reactions": []}
-        n_alt = len([r for r in alt.get("reactions", []) if r.get("type") == "speaking_reaction"])
         rs = []
         for s, e in res[k]["events"]:
             vf = int(s + tzvf[n])
@@ -474,6 +472,6 @@ def add_analysespur_reactions(base_edl, cams, offsets, fps, params, work_dir):
                        "confidence": 1.0, "dur_s": round((e - s) / fps, 2), "source": "analysespur"})
         sp.write_text(json.dumps({"fps": fps, "reactions": rs, "quelle": "analysespur"},
                                  indent=2, ensure_ascii=False), encoding="utf-8")
-        summary[n] = {"einwuerfe": len(rs), "vorher": n_alt}
-        print(f"  Einwürfe aus der Analysespur {n}: {len(rs)} (bisherige Erkennung: {n_alt})", flush=True)
+        summary[n] = {"einwuerfe": len(rs)}
+        print(f"  Einwürfe {n}: {len(rs)}", flush=True)
     return summary

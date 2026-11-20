@@ -149,7 +149,6 @@
 "How many seconds have to pass before the same wider shot is used again. Used when “Cooldown (cuts)” isn't reached first." = "Wie viele Sekunden vergehen müssen, bevor dieselbe größere Einstellung erneut genutzt wird. Wenn „Cooldown (Schnitte)“ nicht vorher erreicht wird.";
 "How much longer than the min. cut length the next cut has to be for the transition via a wider shot to be used." = "Wie viel länger als Min. Schnittlänge der nächste Schnitt sein muss, damit der Übergang über eine größere Einstellung genutzt wird.";
 "How much louder someone has to be than the active speaker for a speaker change to be detected." = "Wie deutlich lauter jemand sein muss als die aktiv sprechende Person, damit ein Sprecherwechsel erkannt wird.";
-"How much the baseline has to rise to trigger an interjection cutaway." = "Wie stark die Baseline ansteigen muss, um einen Sprach-Cutaway auszulösen.";
 "How much the length of the reaction shots may vary. Higher values make the edit feel less mechanical." = "Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell.";
 "IGNORE" = "IGNORIEREN";
 "If a camera stays on longer than this without a cut, the app automatically switches to a reaction." = "Bleibt eine Kamera länger als dieser Wert ohne Schnitt, wird automatisch zu einer Reaktion gewechselt.";
@@ -163,7 +162,6 @@
 "JSON needs the fields 'global' and 'patterns'." = "JSON braucht die Felder 'global' und 'patterns'.";
 "Lifts flat Log footage in the camera previews (also while scrubbing). Purely cosmetic — analysis and export stay untouched." = "Hebt flaches Log-Material in den Kamera-Vorschauen an (auch beim Scrubbing). Rein kosmetisch — Analyse und Export bleiben unberührt.";
 "Manual offset" = "Manueller Offset";
-"Rise" = "Anstieg";
 "Max. interjection length" = "Max. Länge eines Einwurfs";
 "Max. pause" = "Max. Pause";
 "Max. shot length" = "Max. Schnittlänge";
@@ -360,8 +358,6 @@
 "The update feed could not be loaded. You will receive the next stable version automatically, or you can download it from the website." = "Der Update-Feed konnte nicht geladen werden. Die nächste stabile Version bekommst du automatisch, oder du lädst sie auf der Website herunter.";
 
 /* Beta: Einwürfe aus der Analysespur (Experten → Einwürfe) */
-"From analysis track (beta)" = "Aus der Analysespur (Beta)";
-"Beta: finds interjections on a cleaned-up copy of each microphone, with the other person's voice and the background noise removed. Short \"mhm\" and \"yes\" stand out clearly there, so far more interjections are found. Takes about a minute longer." = "Beta: Sucht Einwürfe auf einer bereinigten Kopie jedes Mikrofons — ohne die Stimme der anderen Person und ohne Grundrauschen. Kurze „Mhm“ und „Ja“ heben sich dort deutlich ab, deshalb werden viel mehr Einwürfe gefunden. Dauert etwa eine Minute länger.";
 
 /* Einwürfe haben Vorrang vor Nicken (Experten → Einwürfe) */
 "Priority over head nods" = "Vorrang vor Nicken";

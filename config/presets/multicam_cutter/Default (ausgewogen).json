@@ -13,7 +13,6 @@
   "nodding_enabled": true,
   "pre_roll": 15,
   "speaking_enabled": true,
-  "rise_db": 6.0,
   "speaking_max_dur": 2.5,
   "totale_simul_dur": 3.0,
   "pause_trim_enabled": false,

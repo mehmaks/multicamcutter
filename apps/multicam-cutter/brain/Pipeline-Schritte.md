@@ -18,24 +18,29 @@
 
 Nodding ist ~80% der Gesamtzeit. Bei 2 Cams a 90 Min: ~20 Min total.
 
-**Einwürfe aus der Analysespur (Beta, `speaking_analysespur_enabled`, nur binärer Pfad,
-genau ein Mikro je Kamera):** Nach der Basis-EDL (vor `cutaways`) rechnet
+**Analysespur (Schritt 2a; nur binärer Pfad, genau ein Mikro je Kamera; läuft, sobald
+Sprachreaktionen, Pausen kürzen ODER Pausen-Cutaways an sind):** Nach der Basis-EDL (vor `cutaways`) rechnet
 `einwurf_analysespur.add_analysespur_reactions` je Mikro die Analysespur (Übersprechen +
 Rauschen entfernt, in 60-s-Stücken, nur Pegel je Bild; ~50 s für 97 min) und ERSETZT die
-Einwürfe in `<cam>_speaking.json` (`source: "analysespur"`). Erkennung lokal wie das Auge:
+Einwürfe in `<cam>_speaking.json` (`source: "analysespur"`) — seit 20.11. die EINZIGE
+Einwurf-Erkennung (die alte auf der wandernden Grundlinie + Regel A ist entfernt und lebt
+nur im Sequencer-Modul `speaking_reactions.py` weiter). Erkennung lokal wie das Auge:
 über Umgebung (ohne eigene Sprache) + über erwartetem Übersprechen, Deadband ±1 s um
-Sprecherwechsel. Fehler → bisherige Erkennung bleibt. Schalter aus = byte-identisch.
+Sprecherwechsel. Alte `*_speaking.json` werden vorher gelöscht. Geht die Analysespur
+nicht (Mikro-Zuordnung, Fehler) → Lauf ohne Sprachreaktionen, mit Hinweis im Log (nur
+dann — über eine Funktion, die nicht angeboten wird, redet die App nicht).
 
 **Vorrang Einwürfe vor Nicken (`speaking_priority`):** in PASS 2 vor der chronologischen
 Auswahl — Nicken fällt weg, wenn sein Cutaway weniger als min_shot vor dem Cutaway eines
 späteren Einwurfs endet (Decision-Log `speaking_priority`). Pass-Reihenfolge unverändert.
 
-**Pausen auf der Analysespur (20.11.):** Ist die Analysespur an, erkennt der Schritt 2a
+**Pausen auf der Analysespur (20.11.):** Läuft die Analysespur, erkennt der Schritt 2a
 die Pausen neu (`pausen_aus_analysespur`): Stille = beide Spuren unter „eigene Sprache −
 12 dB". Überschreibt `audio_trims.json` und `pause_cutaways.json`, die Originalton-Listen
 bleiben als `*_original.json`. Grund (Sichtung Folge 62, „straff"): im Original lag leise
 Sprache — v. a. des leiseren Mikros — unter der Stilleschwelle (−60 dB) und wurde an
-Sprecherwechseln weggeschnitten (bis 1,8 s). Ohne Analysespur bleibt die alte Erkennung.
+Sprecherwechseln weggeschnitten (bis 1,8 s). Ohne Analysespur (z. B. ein Mikro für beide)
+bleibt die alte Erkennung im Originalton.
 
 **Sprecherwechsel in die Stille (20.11.):** Vor der Pausenerkennung rückt Schritt 2a
 Sprecherwechsel der Basis-EDL in die nächste Stille (±3 s), wenn die Person, die im

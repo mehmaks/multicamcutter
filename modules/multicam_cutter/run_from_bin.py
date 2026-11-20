@@ -671,8 +671,12 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                      and bool(params.get('mouth_reactions_enabled', False)) and speaking_enabled)
     # Einwürfe aus der Analysespur (Beta): braucht keine Gesichtsanalyse, aber wie
     # die Sprachreaktionen nur den binären Pfad.
-    analysespur_enabled = (bool(params.get('speaking_analysespur_enabled', False))
-                           and speaking_enabled and not use_n_path)
+    # Seit 20.11. die EINZIGE Einwurf-Erkennung (die alte auf der wandernden
+    # Grundlinie ist entfernt) — läuft immer, wenn Sprachreaktionen an sind.
+    # Auch ohne Sprachreaktionen nötig, wenn Pausen gekürzt / Pausen-Cutaways gesetzt
+    # werden: Pausen und Sprecherwechsel-Feinlage kommen ebenfalls aus der Analysespur.
+    analysespur_enabled = ((speaking_enabled or bool(params.get('pause_trim_enabled', False))
+                            or pause_cutaway_enabled) and not use_n_path)
     if mouth_enabled and (use_n_path or skip_analysis):
         mouth_enabled = False
 
@@ -743,35 +747,6 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--cam1-off-sections-out', str(cam1_off_sections),
             '--cam2-off-sections-out', str(cam2_off_sections),
         ]
-        if speaking_enabled:
-            builder_args += [
-                '--speaking-reactions-cam1-out', str(cam1_speaking_json),
-                '--speaking-reactions-cam2-out', str(cam2_speaking_json),
-                '--speaking-rise-db',        str(params.get('rise_db', 6.0)),
-                '--speaking-min-duration',   str(params.get('speaking_min_duration', 0.20)),
-                '--speaking-max-duration',   str(params.get('speaking_max_dur', 2.5)),
-                '--speaking-attack-window',  str(params.get('speaking_attack_window', 0.2)),
-                '--speaking-release-window', str(params.get('speaking_release_window', 20.0)),
-                '--speaking-warmup',         str(params.get('speaking_warmup', 3.0)),
-                '--speaking-hold',           str(params.get('speaking_hold', 0.0)),
-                '--speaking-mode',           'peak',
-                '--speaking-mask-min-pause', str(params.get('speaking_mask_min_pause', 0.3)),
-                '--speaking-mask-padding',   str(params.get('speaking_mask_padding', 0.15)),
-            ]
-            # FP-Nachfilter (Huellkurven-Korrelation). Validiert an 4 Episoden /
-            # 85 markierten Cutaways: entfernt 80 % der Fehlschnitte und kostet
-            # 2 von 55 echten Reaktionen (siehe brain/Sprachreaktionen-Parameter.md).
-            # Standardverhalten, nicht in der UI — aber ueber params abschaltbar,
-            # falls fremdes Material anders reagiert.
-            # Versuch Mischform (nicht in der UI): Kandidatensuche auf Analysespuren
-            if params.get('speaking_detect_mic_cam1') and params.get('speaking_detect_mic_cam2'):
-                builder_args += ['--speaking-detect-mic-cam1', *params['speaking_detect_mic_cam1'],
-                                 '--speaking-detect-mic-cam2', *params['speaking_detect_mic_cam2']]
-            if params.get('speaking_fp_filter', True):
-                builder_args += [
-                    '--speaking-fp-filter',
-                    '--speaking-fp-corr', str(params.get('speaking_fp_corr', 0.75)),
-                ]
         # Totale-Cam: erste Kamera mit type='wide' (falls vorhanden)
         totale_idx = next(
             (i for i, t in enumerate(cam_types) if t == 'wide'), None
@@ -893,15 +868,19 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     cam2_speaking_json = work_dir / (Path(cam2_path).stem + '_speaking.json')
     speaking_jsons = {cam1_path: cam1_speaking_json, cam2_path: cam2_speaking_json}
 
-    # ── Schritt 2a: Einwürfe aus der Analysespur (Beta) ──────────────────────
-    # ERSETZT die Einwurf-Erkennung der Basis-EDL (wandernde Grundlinie + Regel A)
-    # durch die Erkennung auf der Analysespur (Mikro ohne Übersprechen/Rauschen).
-    # Nur binärer Pfad, genau ein Mikro je Kamera. Fehler → bisherige Erkennung bleibt.
+    # ── Schritt 2a: Einwürfe aus der Analysespur ─────────────────────────────
+    # Erkennung auf der Analysespur (Mikro ohne Übersprechen/Rauschen). Nur binärer
+    # Pfad, genau ein Mikro je Kamera. Geht das nicht → Lauf ohne Sprachreaktionen.
+    # Einwurf-Listen eines früheren Laufs im (wiederverwendeten) Arbeitsordner nie
+    # übernehmen: scheitert die Erkennung, läuft dieser Lauf ohne Sprachreaktionen.
+    for _sp in speaking_jsons.values():
+        _sp.unlink(missing_ok=True)
     if analysespur_enabled:
         if (len(mic_cam1_paths) != 1 or len(mic_cam2_paths) != 1
                 or mic_cam1_paths[0] == mic_cam2_paths[0]):
-            print("\n  ⚠️  Einwürfe aus der Analysespur brauchen genau ein eigenes Mikro je "
-                  "Kamera — bisherige Erkennung bleibt.")
+            if speaking_enabled:
+                print("\n  ⚠️  Sprachreaktionen brauchen je Kamera ein eigenes Mikro — "
+                      "dieser Lauf ist ohne Sprachreaktionen.")
         else:
             try:
                 from einwurf_analysespur import add_analysespur_reactions
@@ -909,11 +888,12 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
                         'mic': m[0], 'mic_key': f'MIC{mic_paths.index(m[0]) + 1}',
                         'speaking_json': str(speaking_jsons[cp])}
                        for cp, m in ((cam1_path, mic_cam1_paths), (cam2_path, mic_cam2_paths))]
-                print("\n  Einwürfe aus der Analysespur suchen...")
+                print("\n  Analysespur: Einwürfe, Pausen, Sprecherwechsel...")
                 add_analysespur_reactions(base_edl, _ac, offsets, fps, params, work_dir)
             except Exception as e:
-                # Beta-Funktion darf den Lauf nie kaputt machen → bisherige Erkennung bleibt
-                print(f"  ⚠️  Einwürfe aus der Analysespur übersprungen: {e}")
+                # Darf den Lauf nie kaputt machen → dann eben ohne Sprachreaktionen
+                print(f"  ⚠️  Analysespur übersprungen: {e}"
+                      + (" — dieser Lauf ist ohne Sprachreaktionen." if speaking_enabled else ""))
 
     # ── Schritt 2b: „Mund + Mikro" — Einwuerfe in die Sprachreaktionen eintragen ─
     if mouth_enabled:

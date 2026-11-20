@@ -47,7 +47,7 @@ STUFEN = {
                         {"pause_cutaway_enabled": True, "pause_cutaway_min_pause": 3.0},
                         {"pause_cutaway_enabled": True, "pause_cutaway_min_pause": 1.5}],
 }
-FEST = {"nodding_enabled": True, "speaking_enabled": True, "speaking_analysespur_enabled": True,
+FEST = {"nodding_enabled": True, "speaking_enabled": True, 
         "speaking_priority": True, "pause_trim_enabled": True, "mouth_reactions_enabled": False}
 
 # (Dateiname, {regler: stufe}, Marker-Gründe oder None)

@@ -22,6 +22,10 @@ Stand mit allen Einzelparametern bleibt als **Expertenmodus**.
   Beleg aus der Sichtung 61/62: eine Mindestlänge als Filter (≙ „strenger") hätte bei
   0,2 s 170 echte Einwürfe gekostet und nur 24 Geräusche entfernt.
 
+- **(erledigt 20.11.)** Alte Einwurf-Erkennung A (Grundlinie, `rise_db`, Regel A,
+  CLI-Versuche), Mischform, `speaking_min_confidence` und der Beta-Schalter
+  `speaking_analysespur_enabled` entfernt — B ist die einzige Erkennung. Hinweis im Log
+  nur, wenn B nicht laufen kann.
 - **(erledigt 20.11.)** Crossbleed-Filter entfernt (Engine, Schema, App; `rms_gate` lebt im
   Sequencer-Modul weiter). Eingebaute Presets entfernt — die Stufen sind die neue
   „Preset-Liste", Presets nur noch eigene. Telemetrie `preset` = Stufen-Stellung.

@@ -239,7 +239,6 @@ def build_events_with_cutaways(
     reaction_duration_frames = int(config['reaction_min_duration'] * fps)
     max_shot_frames          = int(config['max_shot_duration'] * fps)
     min_confidence           = config['min_confidence']
-    speaking_min_confidence  = config.get('speaking_min_confidence', min_confidence)
     cluster_max_gap          = int(config.get('cluster_max_gap_frames', 75))
     pre_roll_frames          = int(config.get('pre_roll_frames', 0))
     cutaway_enabled          = config['cutaway_enabled']
@@ -1577,7 +1576,6 @@ def main():
     reaction_min_duration   = float(params.get('reaction_dur', 3.0))
     max_shot_duration       = float(params.get('max_shot', 30.0))
     min_confidence          = float(params.get('min_conf', 0.86))
-    speaking_min_confidence = float(params.get('speaking_min_confidence', min_confidence))
     cleanup_min_duration    = float(params.get('cleanup_dur', 1.5))
     cutaway_randomness      = float(params.get('randomness', 0.0))
     cluster_max_gap_frames  = int(params.get('cluster_max_gap_frames', 75))
@@ -1623,7 +1621,6 @@ def main():
         'reaction_min_duration':  reaction_min_duration,
         'max_shot_duration':      max_shot_duration,
         'min_confidence':         min_confidence,
-        'speaking_min_confidence': speaking_min_confidence,
         'cutaway_enabled':        cutaway_enabled,
         'cluster_max_gap_frames': cluster_max_gap_frames,
         'pre_roll_frames':        pre_roll_frames,
