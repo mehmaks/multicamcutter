@@ -24,6 +24,7 @@ enum ParamHelp {
     static let minConf = "How confident the detection has to be before a head nod is used as a cut."
     static let speakingEnabled = "Detects brief interjections or sounds from a person who isn't the active speaker and cuts to them at that moment."
     static let speakingMaxDur = "Longest sound that still counts as an interjection — anything longer is treated as speaking. How long the cutaway itself lasts is set under Cutaway rules → Cutaway length."
+    static let speakingIgnoreMinShot = "Lets an interjection cutaway in even if the speaker's shot before it gets shorter than the minimum shot length. Useful with “often”, so that every interjection is used. The shot never gets shorter than the minimum clean-up length."
     static let speakingPriority = "When a head-nod cutaway would block an interjection cutaway shortly after it (because of the minimum shot length), the nod gives way and the interjection is cut instead."
     static let mouthReactionsEnabled = "Beta: also recognises interjections from the listening person by their mouth movement. A cut is only added when the mouth moves AND their own microphone picks up sound — this finds many short interjections the sound alone misses. Takes no extra time if head-nod detection is on."
     static let mouthDeadband = "Right around a change of speaker, mouth movement is ignored — there the new speaker is already starting to talk, which isn't an interjection. Value per side, e.g. 1 s = 1 s before and 1 s after the change."

@@ -389,8 +389,7 @@
 "generous" = "großzügig";
 "strict" = "streng";
 "Cut to the listening person for short interjections such as “mhm” or “yes”." = "Schneidet auf die zuhörende Person bei kurzen Einwürfen wie „Mhm“ oder „Ja“.";
-"Minimum gap between two interjection cutaways on the same person." = "Mindestabstand zwischen zwei Einwurf-Cutaways auf dieselbe Person.";
-"Strict: only clearly audible interjections. Generous: also very quiet ones, but sometimes a breath or a knock." = "Streng: nur deutlich hörbare Einwürfe. Großzügig: auch sehr leise, dafür manchmal ein Atemzug oder ein Klopfen.";
+"How many of the detected interjections are used: rarely (at least 12 s apart on the same person), balanced (4 s) or often (every one)." = "Wie viele der erkannten Einwürfe genutzt werden: selten (mindestens 12 s Abstand auf dieselbe Person), ausgewogen (4 s) oder oft (jeder).";
 "Pauses" = "Pausen";
 "Shorten long pauses at speaker changes and optionally cut away during them." = "Kürzt lange Pausen an Sprecherwechseln und schneidet auf Wunsch in Pausen auf die zuhörende Person.";
 "Shorten pauses" = "Pausen kürzen";
@@ -421,9 +420,7 @@
 "nod" = "nicken";
 "clearly nod" = "deutlich nicken";
 "%@ it cuts to listeners who %@." = "%@ wechselt er zu Zuhörenden, die %@.";
-"say something, even quietly" = "etwas sagen – auch leise";
 "briefly chime in" = "kurz etwas einwerfen";
-"clearly say something" = "hörbar etwas sagen";
 "%@ listeners come into view when they %@." = "%@ kommen Zuhörende ins Bild, wenn sie %@.";
 "It only follows the changes of speaker." = "Er folgt nur den Sprecherwechseln.";
 "Pauses are shortened slightly" = "Sprechpausen werden leicht gekürzt";
@@ -442,3 +439,7 @@
 /* Pausen-Trimming: Versatz des Kamerawechsels (20.11.) */
 "Cut offset" = "Schnittversatz";
 "How far the camera change moves away from the middle of the remaining pause: earlier with L-Cut, later with J-Cut. It never leaves the pause — at most it reaches the end of the previous or the start of the next sentence, however high the value." = "Wie weit der Kamerawechsel von der Mitte der verbleibenden Pause abrückt: früher beim L-Cut, später beim J-Cut. Er verlässt die Pause nie – höchstens bis zum Ende des vorherigen bzw. Anfang des nächsten Satzes, egal wie hoch der Wert ist.";
+
+/* Einwürfe dürfen Einstellungen verkürzen (20.11.) */
+"Interjections may shorten shots" = "Einwürfe dürfen Einstellungen verkürzen";
+"Lets an interjection cutaway in even if the speaker's shot before it gets shorter than the minimum shot length. Useful with “often”, so that every interjection is used. The shot never gets shorter than the minimum clean-up length." = "Setzt einen Einwurf-Cutaway auch dann, wenn die Einstellung des Sprechers davor dadurch kürzer als die Mindest-Einstellungslänge wird. Sinnvoll bei „oft“, damit wirklich jeder Einwurf genutzt wird. Kürzer als die Min. Aufräumlänge wird die Einstellung nie.";

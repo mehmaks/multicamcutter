@@ -38,10 +38,6 @@ STUFEN = {
         {"min_conf": 0.6, "nodding_pattern_min_conf": {"slow_oscillation": 0.7, "strong_oscillation": 1.01}},
         {"min_conf": 0.6, "nodding_pattern_min_conf": {"slow_oscillation": 1.01, "strong_oscillation": 1.01}}],
     "einwurf_oft": [{"speaking_cooldown_s": 12.0}, {"speaking_cooldown_s": 4.0}, {"speaking_cooldown_s": 0.0}],
-    "einwurf_sicher": [
-        {"speaking_uebersprechen_db": 9.0, "speaking_umgebung_db": 4.5},
-        {"speaking_uebersprechen_db": 12.0, "speaking_umgebung_db": 6.0},
-        {"speaking_uebersprechen_db": 15.0, "speaking_umgebung_db": 8.0}],
     "pausen_kuerzen": [{"max_pause": 1.5}, {"max_pause": 1.0}, {"max_pause": 0.6}],
     "pausen_cutaways": [{"pause_cutaway_enabled": False},
                         {"pause_cutaway_enabled": True, "pause_cutaway_min_pause": 3.0},
@@ -60,14 +56,12 @@ VARIANTEN = [
     ("04 Nicken oft", {"nicken_oft": 2}, NICKEN_EINWURF),
     ("05 Einwuerfe selten", {"einwurf_oft": 0}, NICKEN_EINWURF),
     ("06 Einwuerfe oft", {"einwurf_oft": 2}, NICKEN_EINWURF),
-    ("07 Einwuerfe grosszuegig", {"einwurf_sicher": 0}, NICKEN_EINWURF),
-    ("08 Einwuerfe streng", {"einwurf_sicher": 2}, NICKEN_EINWURF),
     ("09 Pausen sanft", {"pausen_kuerzen": 0}, None),
     ("10 Pausen straff", {"pausen_kuerzen": 2}, None),
     ("11 Pausen-Cutaways keine", {"pausen_cutaways": 0}, "pause_cutaway"),
     ("12 Pausen-Cutaways oft", {"pausen_cutaways": 2}, "pause_cutaway"),
     ("13 Kombi ruhiges Gespraech", {"tempo": 0, "nicken_oft": 0, "nicken_sicher": 2, "einwurf_oft": 0,
-                                    "einwurf_sicher": 2, "pausen_kuerzen": 0, "pausen_cutaways": 0}, None),
+                                    "pausen_kuerzen": 0, "pausen_cutaways": 0}, None),
     ("14 Kombi lebendiger Clip", {"tempo": 2, "nicken_oft": 2, "einwurf_oft": 2, "pausen_kuerzen": 2,
                                   "pausen_cutaways": 0}, None),
 ]
@@ -136,42 +130,7 @@ def main():
                             "--label-a", "nur in ausgewogen", "--label-b", f"nur in {name[3:]}"],
                            capture_output=True, text=True)
         print(f"  Marker {name}: {r.stdout.strip() or r.stderr[-300:]}", flush=True)
-
-    # Player-Runde Treffsicherheit Einwürfe (großzügig / streng gegen ausgewogen)
-    import numpy as np
-    from einwurf_analysespur import detect
-    d = np.load(cfg["tabelle_prod"], allow_pickle=True)
-    fps = float(d["fps"])
-    ev = {i: detect([d["lv_ana0"], d["lv_ana1"]], d["engine"], fps,
-                    {"uebersprechen_db": s["speaking_uebersprechen_db"], "umgebung_db": s["speaking_umgebung_db"]})[0]
-          for i, s in enumerate(STUFEN["einwurf_sicher"])}
-
-    def neu(a, b):   # Ereignisse in a, die in b nicht vorkommen
-        return [(s, e) for s, e in a if not any(s2 < e + 15 and e2 > s - 15 for s2, e2 in b)]
-    marker = []
-    for k in (0, 1):
-        for s, e in neu(ev[0][k]["events"], ev[1][k]["events"]):
-            marker.append({"id": f"g{s}_{k}", "start": max(0, s - 15), "end": e, "person": k, "art": "grosszuegig",
-                           "notiz": "Kommt nur bei „großzügig“ dazu — echter Einwurf?"})
-        for s, e in neu(ev[1][k]["events"], ev[2][k]["events"]):
-            marker.append({"id": f"s{s}_{k}", "start": max(0, s - 15), "end": e, "person": k, "art": "streng",
-                           "notiz": "Fällt bei „streng“ weg — war das ein echter Einwurf?"})
-    mj = {"marker": marker, "warum": True,
-          "arten": {"grosszuegig": ["Nur bei großzügig", "#3ecf7a"], "streng": ["Fällt bei streng weg", "#ff9b3d"]}}
-    pd = T / "player_einwurf_sicher"
-    pd.mkdir(exist_ok=True)
-    (pd / "marker_runde.json").write_text(json.dumps(mj, ensure_ascii=False), encoding="utf-8")
-    pc = json.loads(Path(cfg["player_json"]).read_text(encoding="utf-8"))
-    pc.update({"tabelle": cfg["tabelle_prod"], "titel": pc.get("titel", "") + " · Treffsicherheit Einwürfe"})
-    (T / "player_einwurf_sicher.json").write_text(json.dumps(pc, indent=1, ensure_ascii=False), encoding="utf-8")
-    r = subprocess.run([PY, str(ROOT / "analyse/player/bauen.py"), str(T / "player_einwurf_sicher.json"), str(pd),
-                        "--marker-json", str(pd / "marker_runde.json"), "--ton-von", cfg["player_ton"],
-                        "--hinweis", "Treffsicherheit Einwürfe: grün = kommt nur bei „großzügig“ dazu, "
-                                     "orange = fällt bei „streng“ weg."], capture_output=True, text=True)
-    print("Player:", (r.stdout.strip().splitlines() or [r.stderr[-300:]])[-1], flush=True)
-    print(f"  großzügig +{sum(1 for m in marker if m['art'] == 'grosszuegig')}, "
-          f"streng −{sum(1 for m in marker if m['art'] == 'streng')}")
-
+    # Player-Runde Treffsicherheit Einwürfe: erledigt 20.11. (Regler gestrichen, fest 6/12 dB).
 
 if __name__ == "__main__":
     main()

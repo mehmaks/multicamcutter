@@ -82,23 +82,16 @@ enum Stufen {
             hilfe: "Cut to the listening person for short interjections such as “mhm” or “yes”.",
             piktogramm: "piktogramm-sprachreaktionen",
             anSchluessel: ["speaking_enabled"], ausWerte: ["speaking_enabled": false],
-            // Feste Entscheidung: Einwürfe vor Nicken.
-            fest: ["speaking_priority": true],
+            // Feste Entscheidungen: Einwürfe vor Nicken; Erkennungsschwellen fest (Sichtung
+            // 20.11.: „großzügig" brachte 72 % Fehlschnitte, „streng" strich ~64 % echte
+            // Einwürfe → kein Treffsicherheits-Regler, immer 6 dB / 12 dB).
+            fest: ["speaking_priority": true, "speaking_umgebung_db": 6.0, "speaking_uebersprechen_db": 12.0],
             regler: [
                 StufenRegler(
                     id: "einwurf_oft", titel: "How often",
-                    hilfe: "Minimum gap between two interjection cutaways on the same person.",
+                    hilfe: "How many of the detected interjections are used: rarely (at least 12 s apart on the same person), balanced (4 s) or often (every one).",
                     stufen: ["rarely", "balanced", "often"],
                     werte: [["speaking_cooldown_s": 12.0], ["speaking_cooldown_s": 4.0], ["speaking_cooldown_s": 0.0]]),
-                StufenRegler(
-                    id: "einwurf_sicher", titel: "Accuracy",
-                    hilfe: "Strict: only clearly audible interjections. Generous: also very quiet ones, but sometimes a breath or a knock.",
-                    stufen: ["generous", "balanced", "strict"],
-                    werte: [
-                        ["speaking_uebersprechen_db": 9.0, "speaking_umgebung_db": 4.5],
-                        ["speaking_uebersprechen_db": 12.0, "speaking_umgebung_db": 6.0],
-                        ["speaking_uebersprechen_db": 15.0, "speaking_umgebung_db": 8.0],
-                    ]),
             ]),
         StufenKategorie(
             id: "pausen", titel: "Pauses",
@@ -244,9 +237,7 @@ extension Stufen {
         let einwurf = kategorie("sprachreaktionen").map { istAn($0, p) } ?? false
         if einwurf {
             let adv = stufe("sprachreaktionen", "einwurf_oft", p).map { wieOft[$0] } ?? "Now and then"
-            let wie = ["say something, even quietly", "briefly chime in", "clearly say something"]
-            let was = stufe("sprachreaktionen", "einwurf_sicher", p).map { wie[$0] } ?? "briefly chime in"
-            saetze.append(String(format: loc("%@ listeners come into view when they %@."), loc(adv), loc(was)))
+            saetze.append(String(format: loc("%@ listeners come into view when they %@."), loc(adv), loc("briefly chime in")))
         }
         if !nicken && !einwurf { saetze.append(loc("It only follows the changes of speaker.")) }
 

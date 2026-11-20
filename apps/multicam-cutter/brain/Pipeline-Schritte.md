@@ -30,6 +30,10 @@ Sprecherwechsel. Alte `*_speaking.json` werden vorher gelöscht. Geht die Analys
 nicht (Mikro-Zuordnung, Fehler) → Lauf ohne Sprachreaktionen, mit Hinweis im Log (nur
 dann — über eine Funktion, die nicht angeboten wird, redet die App nicht).
 
+**Einwürfe dürfen Einstellungen verkürzen (`speaking_ignore_min_shot`, 20.11.):** In PASS 2
+braucht ein Einwurf-Cutaway zum letzten Schnitt nur `cleanup_dur` statt `min_shot` (auch im
+Vorrang-Filter unten). Andere Cutaway-Typen unverändert. Aus = byte-identisch.
+
 **Vorrang Einwürfe vor Nicken (`speaking_priority`):** in PASS 2 vor der chronologischen
 Auswahl — Nicken fällt weg, wenn sein Cutaway weniger als min_shot vor dem Cutaway eines
 späteren Einwurfs endet (Decision-Log `speaking_priority`). Pass-Reihenfolge unverändert.

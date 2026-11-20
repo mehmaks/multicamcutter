@@ -133,6 +133,9 @@ struct PipelineParams: Equatable {
     var speakingMaxDur: Double = 2.5
     // Einwürfe haben Vorrang vor Nicken (Nicken weicht, wenn es einen Einwurf blockieren würde)
     var speakingPriority: Bool = false
+    /// Einwurf-Cutaways dürfen die Einstellung davor kürzer als min_shot machen
+    /// (Untergrenze bleibt cleanup_dur).
+    var speakingIgnoreMinShot: Bool = false
     // Slider-Bausteine (Stufen-Ansicht): Schnittabstand je Cutaway-Typ, Konfidenz je
     // Nick-Muster (> 1 = Muster aus), Strenge der Einwurf-Erkennung auf der Analysespur.
     // Standardwerte = bisheriges Verhalten.
@@ -208,6 +211,7 @@ struct PipelineParams: Equatable {
             "randomness": randomness,
             "speaking_max_dur": speakingMaxDur,
             "speaking_priority": speakingPriority,
+            "speaking_ignore_min_shot": speakingIgnoreMinShot,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
             "nodding_pattern_min_conf": noddingPatternMinConf,
@@ -247,6 +251,7 @@ struct PipelineParams: Equatable {
             "pre_roll": preRoll, "randomness": randomness,
             "speaking_max_dur": speakingMaxDur,
             "speaking_priority": speakingPriority,
+            "speaking_ignore_min_shot": speakingIgnoreMinShot,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
             "nodding_pattern_min_conf": noddingPatternMinConf,
@@ -288,6 +293,7 @@ struct PipelineParams: Equatable {
         if let v = dict["randomness"] as? Double { randomness = v }
         if let v = dict["speaking_max_dur"] as? Double { speakingMaxDur = v }
         if let v = dict["speaking_priority"] as? Bool { speakingPriority = v }
+        if let v = dict["speaking_ignore_min_shot"] as? Bool { speakingIgnoreMinShot = v }
         if let v = dict["nodding_cooldown_s"] as? Double { noddingCooldownS = v }
         if let v = dict["speaking_cooldown_s"] as? Double { speakingCooldownS = v }
         if let v = dict["nodding_pattern_min_conf"] as? [String: Double] { noddingPatternMinConf = v }

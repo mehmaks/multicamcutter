@@ -1239,6 +1239,9 @@ struct WizardSettings: View {
                     WizSlider("Max. interjection length", $engine.params.speakingMaxDur, 0.5...10, suffix: " s", help: ParamHelp.speakingMaxDur)
                     WizToggle("Priority over head nods", $engine.params.speakingPriority, help: ParamHelp.speakingPriority)
                         .disabled(!engine.params.speakingEnabled || !engine.params.noddingEnabled)
+                    WizToggle("Interjections may shorten shots", $engine.params.speakingIgnoreMinShot,
+                              help: ParamHelp.speakingIgnoreMinShot)
+                        .disabled(!engine.params.speakingEnabled)
                     if FeatureFlags.mouthReactions {
                         WizToggle("Mouth movement (beta)", $engine.params.mouthReactionsEnabled, help: ParamHelp.mouthReactionsEnabled)
                             .disabled(!engine.params.speakingEnabled)

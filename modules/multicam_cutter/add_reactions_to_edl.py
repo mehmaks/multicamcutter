@@ -242,6 +242,12 @@ def build_events_with_cutaways(
     cluster_max_gap          = int(config.get('cluster_max_gap_frames', 75))
     pre_roll_frames          = int(config.get('pre_roll_frames', 0))
     cutaway_enabled          = config['cutaway_enabled']
+    # Schalter „Einwürfe dürfen Einstellungen verkürzen" (User 20.11.): Einwurf-Cutaways
+    # brauchen zum letzten Schnitt nur die Min. Aufräumlänge statt der Mindest-
+    # Einstellungslänge — sonst bliebe „oft" (Cooldown 0) durch min_shot gebremst.
+    # Untergrenze bleibt cleanup_dur, damit PASS 3 kein Reststück verschluckt.
+    speaking_gap_frames = (int(float(config.get('speaking_min_gap_s') or 0) * fps)
+                           if config.get('speaking_ignore_min_shot') else min_shot_frames)
 
     # Close-up vs. Wide-Kameras trennen
     close_cams = [c for c in cutaway_cams if c.get('type', 'close') != 'wide']
@@ -306,7 +312,7 @@ def build_events_with_cutaways(
                     n_end = n_cut + max(reaction_duration_frames,
                                         max(0, r['peak_tl_frame'] - n_cut + r['tail_frames']))
                     i = bisect.bisect_left(sp_cut, n_cut)
-                    if i < len(sp_cut) and sp_cut[i] < n_end + min_shot_frames:
+                    if i < len(sp_cut) and sp_cut[i] < n_end + speaking_gap_frames:
                         if decision_log is not None:
                             decision_log.append({
                                 "pass": "2", "action": "skip", "reason": "speaking_priority",
@@ -356,7 +362,8 @@ def build_events_with_cutaways(
 
         cutaway_frame = max(cluster_start - pre_roll_frames, section_start)
 
-        if cutaway_frame - last_cut_frame < min_shot_frames:
+        _gap = speaking_gap_frames if rtype == 'speaking_reaction' else min_shot_frames
+        if cutaway_frame - last_cut_frame < _gap:
             if decision_log is not None:
                 decision_log.append({
                     "pass": "2", "action": "skip", "reason": "min_shot_spacing",
@@ -364,8 +371,8 @@ def build_events_with_cutaways(
                     "on_clip": on_clip, "off_clip": reaction['cam']['name'],
                     "reaction_type": rtype,
                     "gap_frames": cutaway_frame - last_cut_frame,
-                    "min_shot_frames": min_shot_frames,
-                    "detail": f"Abstand zum letzten Cut nur {cutaway_frame - last_cut_frame} Frames (min {min_shot_frames})",
+                    "min_shot_frames": _gap,
+                    "detail": f"Abstand zum letzten Cut nur {cutaway_frame - last_cut_frame} Frames (min {_gap})",
                 })
             continue
 
@@ -1627,6 +1634,8 @@ def main():
         'cutaway_randomness':     cutaway_randomness,
         'totale_mode':            str(params.get('totale_mode', 'round_robin')).lower(),
         'speaking_priority':      bool(params.get('speaking_priority', False)),
+        'speaking_ignore_min_shot': bool(params.get('speaking_ignore_min_shot', False)),
+        'speaking_min_gap_s':     cleanup_min_duration,
         # Slider-Bausteine (19.11.): Schnittabstand je Typ (s) + Konfidenz je Nick-Muster
         'type_cooldown_s': {
             'nodding':           float(params.get('nodding_cooldown_s', 0) or 0),

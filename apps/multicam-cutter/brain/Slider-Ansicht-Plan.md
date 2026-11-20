@@ -22,6 +22,12 @@ Stand mit allen Einzelparametern bleibt als **Expertenmodus**.
   Beleg aus der Sichtung 61/62: eine Mindestlänge als Filter (≙ „strenger") hätte bei
   0,2 s 170 echte Einwürfe gekostet und nur 24 Geräusche entfernt.
 
+- **(erledigt 20.11.)** Sprachreaktionen ohne Regler „Treffsicherheit": Sichtung Folge 62 —
+  was nur „großzügig" (4,5/9 dB) dazubringt, war zu 72 % daneben (meist leichte Atmer);
+  was „streng" (8/15 dB) streicht, war zu ~64 % echt. Fest 6/12 dB (`fest` der Kategorie).
+  Kachel behält nur „Wie oft" (Cooldown 12/4/0 s; „oft" = jeder Einwurf). Neuer
+  Expertenschalter `speaking_ignore_min_shot` („Einwürfe dürfen Einstellungen verkürzen"):
+  Abstand zum letzten Schnitt nur cleanup_dur statt min_shot → Folge 62 „oft": 294 → 337.
 - **(erledigt 20.11.)** Alte Einwurf-Erkennung A (Grundlinie, `rise_db`, Regel A,
   CLI-Versuche), Mischform, `speaking_min_confidence` und der Beta-Schalter
   `speaking_analysespur_enabled` entfernt — B ist die einzige Erkennung. Hinweis im Log
