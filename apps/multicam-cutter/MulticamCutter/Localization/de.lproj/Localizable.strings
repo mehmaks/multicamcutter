@@ -443,3 +443,8 @@
 /* Einwürfe dürfen Einstellungen verkürzen (20.11.) */
 "Interjections may shorten shots" = "Einwürfe dürfen Einstellungen verkürzen";
 "Lets an interjection cutaway in even if the speaker's shot before it gets shorter than the minimum shot length. Useful with “often”, so that every interjection is used. The shot never gets shorter than the minimum clean-up length." = "Setzt einen Einwurf-Cutaway auch dann, wenn die Einstellung des Sprechers davor dadurch kürzer als die Mindest-Einstellungslänge wird. Sinnvoll bei „oft“, damit wirklich jeder Einwurf genutzt wird. Kürzer als die Min. Aufräumlänge wird die Einstellung nie.";
+
+/* Debug: Einblendungen im Vorschaubild (20.11.) */
+"Debug" = "Debug";
+"Analysis overlays" = "Analyse-Einblendungen";
+"Shows the face mesh, the detected reactions and the file name in the preview image during the analysis. Only for checking the detection — it has no effect on the cut." = "Zeigt während der Analyse das Gesichtsgitter, die erkannten Reaktionen und den Dateinamen im Vorschaubild. Nur zum Prüfen der Erkennung – auf den Schnitt hat das keinen Einfluss.";

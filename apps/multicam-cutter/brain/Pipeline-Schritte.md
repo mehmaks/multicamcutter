@@ -18,6 +18,10 @@
 
 Nodding ist ~80% der Gesamtzeit. Bei 2 Cams a 90 Min: ~20 Min total.
 
+**Vorschaubild der Reaktionsanalyse (20.11.):** alle 5 s ein JPEG für die App. Standard =
+nacktes Kamerabild; Gesichtsgitter, erkannte Reaktionen und Dateiname nur mit dem
+Debug-Schalter `preview_overlay` (Experteneinstellungen → Debug).
+
 **Analysespur (Schritt 2a; nur binärer Pfad, genau ein Mikro je Kamera; läuft, sobald
 Sprachreaktionen, Pausen kürzen ODER Pausen-Cutaways an sind):** Nach der Basis-EDL (vor `cutaways`) rechnet
 `einwurf_analysespur.add_analysespur_reactions` je Mikro die Analysespur (Übersprechen +

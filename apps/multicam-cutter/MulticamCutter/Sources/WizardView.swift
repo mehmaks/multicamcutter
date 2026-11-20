@@ -1285,6 +1285,9 @@ struct WizardSettings: View {
                                   help: ParamHelp.transitionCutawayCooldownS)
                     }
                 }
+                group("Debug") {
+                    WizToggle("Analysis overlays", $engine.params.previewOverlay, help: ParamHelp.previewOverlay)
+                }
             }
         }
         .frame(maxHeight: 300)

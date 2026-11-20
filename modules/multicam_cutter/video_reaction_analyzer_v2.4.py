@@ -718,9 +718,15 @@ class AdvancedReactionDetector:
         return reactions
 
 
-def _write_preview_frame(frame, detector, reactions, cam_label: str, preview_path: str) -> None:
-    """Zeichnet Face-Landmarks und Reaktions-Labels auf einen Frame und speichert als JPEG."""
+def _write_preview_frame(frame, detector, reactions, cam_label: str, preview_path: str,
+                         overlay: bool = False) -> None:
+    """Speichert das Vorschaubild für die App als JPEG. Mit overlay (Debug-Schalter
+    `preview_overlay`, Standard aus — User 20.11.) zusätzlich Gesichtsgitter,
+    erkannte Reaktionen (oben links) und Dateiname (oben rechts)."""
     try:
+        if not overlay:
+            cv2.imwrite(preview_path, frame, [cv2.IMWRITE_JPEG_QUALITY, 75])
+            return
         preview = frame.copy()
         h, w = preview.shape[:2]
 
@@ -982,7 +988,8 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                 analyzed += 1
                 if preview_path and local % max(1, int(fps * 5)) == 0:
                     _write_preview_frame(frame, detector, reactions,
-                                         Path(video_path).stem, preview_path)
+                                         Path(video_path).stem, preview_path,
+                                         overlay=bool((params or {}).get('preview_overlay', False)))
                 if analyzed % 25 == 0 or analyzed == total_off_frames:
                     _progress(analyzed, total_off_frames)
                     _by = {}
@@ -1031,7 +1038,8 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
 
             if preview_path and frame_number % max(1, int(fps * 5)) == 0:
                 _write_preview_frame(frame, detector, reactions,
-                                     Path(video_path).stem, preview_path)
+                                     Path(video_path).stem, preview_path,
+                                     overlay=bool((params or {}).get('preview_overlay', False)))
 
             frame_number += 1
             if frame_number % 25 == 0 or frame_number == total_frames:
