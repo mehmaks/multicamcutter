@@ -5,6 +5,24 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0-beta.6
+
+**Neu: Die App merkt sich deine Einstellungen**
+
+Öffnest du eine Folge, für die es noch keine gespeicherten Einstellungen gibt, startet die App jetzt mit den Einstellungen, die du zuletzt genutzt hast – auch nach einem Neustart. Bisher begann sie dann wieder bei den Standardwerten. Folgen, die du schon einmal geöffnet hast, behalten wie bisher ihre eigenen Einstellungen.
+
+**Neu: Beta-Updates nach Download von der Website**
+
+Wer eine Beta-Version installiert, bekommt ab jetzt automatisch auch die nächsten Betas angeboten. Hast du „Beta-Versionen erhalten“ bewusst ausgeschaltet, bleibt es aus. Hinweis: Das wirkt erst ab dieser Version – wer beta.5 von der Website geladen hat, schaltet den Schalter dort einmal selbst ein.
+
+**Verbessert: Ruhigeres Bild während der Analyse**
+
+Das Vorschaubild zeigt während der Reaktionsanalyse jetzt nur noch das Kamerabild – ohne Gesichtsgitter, Reaktions-Beschriftungen und Dateinamen. Wer die Einblendungen zum Prüfen der Erkennung sehen will, schaltet sie unter Experteneinstellungen → Debug → „Analyse-Einblendungen“ ein.
+
+**Verbessert: Fortschrittsbalken in wechselnden Farben**
+
+Der Fortschrittsbalken wechselt während des Laufs langsam zwischen sanften Farben, beginnend mit unserem Grün.
+
 ## 1.1.0-beta.5
 
 **Neu: Einfache Ansicht mit Kacheln**

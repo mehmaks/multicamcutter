@@ -4,6 +4,24 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0-beta.6
+
+**New: The app remembers your settings**
+
+When you open an episode that has no saved settings yet, the app now starts with the settings you used last – even after a restart. Previously it went back to the defaults. Episodes you have opened before keep their own settings as before.
+
+**New: Beta updates after downloading from the website**
+
+If you install a beta version, you are now automatically offered the next betas too. If you deliberately turned “Receive beta versions” off, it stays off. Note: this only works from this version on – if you downloaded beta.5 from the website, turn the switch on once yourself.
+
+**Improved: A calmer picture during the analysis**
+
+During the reaction analysis, the preview now shows just the camera image – without face mesh, reaction labels or file name. To see these overlays for checking the detection, turn on Expert settings → Debug → “Analysis overlays”.
+
+**Improved: Progress bar in changing colours**
+
+During a run, the progress bar slowly cycles through soft colours, starting with our green.
+
 ## 1.1.0-beta.5
 
 **New: Simple view with tiles**
