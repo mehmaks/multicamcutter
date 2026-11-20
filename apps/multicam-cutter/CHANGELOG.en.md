@@ -4,6 +4,42 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0-beta.5
+
+**New: Simple view with tiles**
+
+The simple view has been rebuilt. Tempo, head nods, interjections, pauses and – when there is a wide shot – the wide shot each get a tile with a switch and three levels, for example “calm · balanced · lively”. The levels have been checked on real episodes. Below them, “What to expect” describes in plain words what the cut will look like with your choice. All values are still available in the expert settings.
+
+The built-in presets “Podcast 2-Cam”, “Interview (schnell)” and “Talk (entspannt)” are gone, because the levels take over their role. The preset list now only shows your own presets.
+
+**Fixed: Pause trimming cut away quiet speech**
+
+When trimming pauses at speaker changes, the app mistook quietly spoken sentence endings and beginnings – especially on the quieter microphone – for silence and removed them, sometimes almost two seconds. Pauses are now detected on the cleaned-up analysis track, and a little silence always remains before every sentence start and after every sentence end. If you cut with “Trim pauses”, run affected episodes again.
+
+**Improved: Speaker changes in the silence**
+
+If the camera change came just after the new person's first word or before the previous person's last word, it now moves into the silence in between – as long as the analysis track confirms that nobody is speaking there. The new person is on screen from their first word, and the pause can be shortened in the right place.
+
+**Improved: Interjections always from the analysis track**
+
+The analysis-track detection from beta.3 is now the only interjection detection. The “From analysis track (beta)” switch and the “Rise” slider are gone, as is the older crossbleed filter. The analysis track needs one microphone per person. Without it, the cut is made without interjections and the app tells you so.
+
+**New: Trim pauses within a person's turn**
+
+When “Trim pauses” and “Cutaways in pauses” are both on, the app also shortens long pauses in the middle of a person's turn – at the point where it cuts to the listener anyway. Pauses within a turn without a cutaway stay untouched.
+
+**New: Cut offset for L- and J-cuts**
+
+Under pause trimming, the new “Cut offset” slider sets how far the camera change moves away from the middle of the pause with an L- or J-cut. It always stays within the pause, however high the value.
+
+**New: Interjections may shorten shots**
+
+With this switch under interjections, an interjection cutaway is placed even if the shot before it becomes shorter than the minimum shot length. Together with the “often” level, every detected interjection is used.
+
+**Improved: Laughter no longer triggers a speaker change**
+
+The simple view now uses a minimum length of 1.6 s for speaker changes. A short laugh or sound from the other person no longer causes a change; short interjections become cutaways instead.
+
 ## 1.1.0-beta.4
 
 **Fixed: Many cutaways were removed again during clean-up**

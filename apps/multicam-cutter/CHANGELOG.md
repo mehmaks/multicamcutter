@@ -5,6 +5,42 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0-beta.5
+
+**Neu: Einfache Ansicht mit Kacheln**
+
+Die einfache Ansicht ist neu aufgebaut. Für Tempo, Kopfnicken, Sprachreaktionen, Pausen und – wenn eine Totale da ist – die Totale gibt es je eine Kachel mit einem Schalter und drei Stufen, zum Beispiel „ruhig · ausgewogen · lebendig“. Die Stufen sind an echten Folgen geprüft. Darunter beschreibt „Was dich erwartet“ in einfachen Worten, wie der Schnitt mit deiner Auswahl aussieht. Wer mehr einstellen will, findet alle Werte weiterhin in den Experteneinstellungen.
+
+Die mitgelieferten Presets „Podcast 2-Cam“, „Interview (schnell)“ und „Talk (entspannt)“ entfallen, weil die Stufen ihre Rolle übernehmen. Die Preset-Liste zeigt nur noch deine eigenen Presets.
+
+**Behoben: Pausen kürzen schnitt leise Sprache weg**
+
+Beim Kürzen von Pausen an Sprecherwechseln hielt die App leise gesprochene Satzenden und Satzanfänge – vor allem auf dem leiseren Mikrofon – für Stille und schnitt sie heraus, teils bis zu knapp zwei Sekunden. Pausen werden jetzt auf der bereinigten Analysespur erkannt, und vor jedem Satzanfang und nach jedem Satzende bleibt ein kleiner Rest Stille stehen. Wer mit „Pausen kürzen“ geschnitten hat, sollte betroffene Folgen neu durchlaufen lassen.
+
+**Verbessert: Sprecherwechsel in der Stille**
+
+Lag der Kamerawechsel knapp hinter dem ersten Wort der neuen Person oder vor dem letzten Wort der vorherigen, rückt er jetzt in die Stille dazwischen – sofern die Analysespur bestätigt, dass dort niemand mehr spricht. Die neue Person ist so ab ihrem ersten Wort im Bild, und die Pause kann an der richtigen Stelle gekürzt werden.
+
+**Verbessert: Einwürfe immer aus der Analysespur**
+
+Die Erkennung auf der Analysespur aus beta.3 ist jetzt die einzige Einwurf-Erkennung. Der Schalter „Aus der Analysespur (Beta)“ und der Regler „Anstieg“ entfallen, ebenso der ältere Crossbleed-Filter. Die Analysespur braucht ein eigenes Mikrofon je Person. Fehlt es, läuft der Schnitt ohne Sprachreaktionen, und die App weist darauf hin.
+
+**Neu: Pausen in Redebeiträgen kürzen**
+
+Sind „Pausen kürzen“ und „Cutaways in Pausen“ beide an, kürzt die App auch lange Pausen mitten im Redebeitrag einer Person – an der Stelle, an der ohnehin auf die zuhörende Person geschnitten wird. Pausen innerhalb eines Redebeitrags ohne Cutaway bleiben unangetastet.
+
+**Neu: Schnittversatz bei L- und J-Cut**
+
+Unter Pausen-Trimming legt der neue Regler „Schnittversatz“ fest, wie weit der Kamerawechsel beim L- oder J-Cut von der Mitte der Pause abrückt. Er bleibt immer innerhalb der Pause, egal wie hoch der Wert ist.
+
+**Neu: Einwürfe dürfen Einstellungen verkürzen**
+
+Mit diesem Schalter unter Sprachreaktionen wird ein Einwurf-Cutaway auch dann gesetzt, wenn die Einstellung davor dadurch kürzer als die Mindest-Einstellungslänge wird. Zusammen mit der Stufe „oft“ werden so wirklich alle erkannten Einwürfe genutzt.
+
+**Verbessert: Lachen löst keinen Sprecherwechsel mehr aus**
+
+In der einfachen Ansicht gilt jetzt eine Mindestlänge von 1,6 s für Sprecherwechsel. Kurzes Lachen oder ein kurzer Laut der anderen Person führt damit nicht mehr zu einem Wechsel; kurze Einwürfe werden stattdessen als Cutaway gesetzt.
+
 ## 1.1.0-beta.4
 
 **Behoben: Viele Cutaways wurden beim Aufräumen wieder gelöscht**
