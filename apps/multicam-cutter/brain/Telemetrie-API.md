@@ -56,7 +56,7 @@ Wie lange dauert ein Durchlauf bei X Quellen à Y Länge — auf welcher Hardwar
     }
   },
 
-  "preset": "Talk (entspannt)",          // NUR Built-in-Name; eigene Presets → "custom"
+  "preset": "tempo1 kopfnicken11 sprachreaktionen11 pausen1 totale1", // Stufen-Stellung, sonst "custom"
   "settings": {                          // KOMPLETTES Settings-Abbild = PipelineParams
     "min_shot": 2.3, "reaction_dur": 1.7, "max_shot": 14.0, "threshold_db": 6.0,
     "nodding_enabled": true, "speaking_enabled": true,
@@ -78,7 +78,7 @@ Wie lange dauert ein Durchlauf bei X Quellen à Y Länge — auf welcher Hardwar
 
 ⚠️ **Kontext ist Pflicht, sonst ist der Benchmark wertlos:** ohne `device` +
 `settings` sind die `runtime`-Zahlen Rauschen (20 min auf M1 Air ≠ auf M3 Max; CLIP/
-Nodding ändern die Laufzeit massiv). `preset` nur bei Built-ins (eigene → `"custom"`),
+Nodding ändern die Laufzeit massiv). `preset` = Stufen-Stellung der einfachen Ansicht (0/1/2 je Regler, `<kategorie>-aus`; passt ein Regler zu keiner Stufe → `"custom"`; seit 20.11., vorher Built-in-Preset-Name),
 damit kein selbstvergebener Preset-Name (potenziell PII) durchrutscht.
 
 ## Feld-Regeln (Backend-Validierung — beantwortet App-Fragen, 26.07., E2E verifiziert)

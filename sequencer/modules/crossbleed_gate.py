@@ -13,7 +13,107 @@ from sequencer.module import Module
 from sequencer.types import AudioData
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[2] / "modules" / "multicam_cutter"))
-from build_base_edl_from_audio import rms_gate, compute_rms_db
+from build_base_edl_from_audio import compute_rms_db
+
+
+# Aus build_base_edl_from_audio.py hierher verschoben (20.11.): der MultiCamCutter
+# nutzt das Gate nicht mehr (ersetzt durch die Analysespur), nur noch der Sequencer.
+def rms_gate(audio1: np.ndarray, audio2: np.ndarray, sr: int,
+             window_ms: float = 80, attack_ms: float = 15, release_ms: float = 80,
+             floor_db: float = -25, hysteresis_db: float = 2.0,
+             both_threshold_db: float = 3.0):
+    """
+    RMS-gesteuerter Crossbleed-Gate: Pro Fenster wird das lautere Mic
+    als aktiv betrachtet, das leisere wird stark gedaempft.
+    Bei gleichzeitigem Sprechen (|diff| < both_threshold) werden beide
+    Mics durchgelassen.
+
+    Gibt (audio1_gated, audio2_gated) zurueck — nur fuer Analyse,
+    nicht fuer die finale Timeline.
+    """
+    win_samples = int(sr * window_ms / 1000)
+    hop = win_samples // 2  # 50% Overlap
+    n_frames = (len(audio1) - win_samples) // hop + 1
+
+    # RMS pro Fenster
+    rms1 = np.zeros(n_frames)
+    rms2 = np.zeros(n_frames)
+    for i in range(n_frames):
+        s = i * hop
+        e = s + win_samples
+        rms1[i] = np.sqrt(np.mean(audio1[s:e] ** 2) + 1e-12)
+        rms2[i] = np.sqrt(np.mean(audio2[s:e] ** 2) + 1e-12)
+
+    rms1_db = 20 * np.log10(rms1)
+    rms2_db = 20 * np.log10(rms2)
+    diff_db = rms1_db - rms2_db  # positiv = MIC1 lauter
+
+    # Gate-Entscheidung mit Hysterese und BOTH-Zustand
+    # Zustaende: 0=MIC1_ACTIVE, 1=MIC2_ACTIVE, 2=BOTH
+    STATE_MIC1, STATE_MIC2, STATE_BOTH = 0, 1, 2
+    states = np.zeros(n_frames, dtype=int)
+    current = STATE_MIC1 if diff_db[0] > 0 else STATE_MIC2
+
+    for i in range(n_frames):
+        d = diff_db[i]
+        if current == STATE_MIC1:
+            if d < -hysteresis_db:
+                current = STATE_MIC2
+            elif abs(d) < both_threshold_db:
+                current = STATE_BOTH
+        elif current == STATE_MIC2:
+            if d > hysteresis_db:
+                current = STATE_MIC1
+            elif abs(d) < both_threshold_db:
+                current = STATE_BOTH
+        else:  # STATE_BOTH
+            if d > both_threshold_db:
+                current = STATE_MIC1
+            elif d < -both_threshold_db:
+                current = STATE_MIC2
+        states[i] = current
+
+    # Gain-Kurven
+    floor_linear = 10 ** (floor_db / 20)
+    gain1_frames = np.where(states == STATE_MIC2, floor_linear, 1.0)
+    gain2_frames = np.where(states == STATE_MIC1, floor_linear, 1.0)
+
+    # Attack/Release Smoothing
+    attack_f = max(1, int((attack_ms / 1000) * sr / hop))
+    release_f = max(1, int((release_ms / 1000) * sr / hop))
+    alpha_attack = 1.0 - np.exp(-2.2 / attack_f) if attack_f > 0 else 1.0
+    alpha_release = 1.0 - np.exp(-2.2 / release_f) if release_f > 0 else 1.0
+
+    def smooth_gain(gain_raw):
+        smoothed = np.zeros_like(gain_raw)
+        smoothed[0] = gain_raw[0]
+        for i in range(1, len(gain_raw)):
+            if gain_raw[i] > smoothed[i - 1]:
+                smoothed[i] = smoothed[i - 1] + alpha_attack * (gain_raw[i] - smoothed[i - 1])
+            else:
+                smoothed[i] = smoothed[i - 1] + alpha_release * (gain_raw[i] - smoothed[i - 1])
+        return smoothed
+
+    gain1_smooth = smooth_gain(gain1_frames)
+    gain2_smooth = smooth_gain(gain2_frames)
+
+    # Frame-Gains auf Sample-Ebene interpolieren
+    frame_times = np.arange(n_frames) * hop + win_samples // 2
+    sample_times = np.arange(len(audio1))
+    gain1_samples = np.interp(sample_times, frame_times, gain1_smooth)
+    gain2_samples = np.interp(sample_times, frame_times, gain2_smooth)
+
+    # Statistiken
+    mic1_pct = np.sum(states == STATE_MIC1) / n_frames * 100
+    mic2_pct = np.sum(states == STATE_MIC2) / n_frames * 100
+    both_pct = np.sum(states == STATE_BOTH) / n_frames * 100
+    switches = np.sum(np.diff(states) != 0)
+    print(f"  MIC1 aktiv: {mic1_pct:.1f}%, MIC2 aktiv: {mic2_pct:.1f}%, "
+          f"Beide: {both_pct:.1f}%")
+    print(f"  Wechsel: {switches}")
+
+    return audio1 * gain1_samples, audio2 * gain2_samples
+
 
 
 class CrossbleedGateModule(Module):

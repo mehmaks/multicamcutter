@@ -1199,15 +1199,6 @@ struct WizardSettings: View {
                                   help: ParamHelp.pauseCutOffset)
                     }
                 }
-                group("Crossbleed filter") {
-                    WizToggle("Crossbleed gate", $engine.params.crossbleedGateEnabled, help: ParamHelp.crossbleedGateEnabled)
-                    WizSlider("Attenuation", $engine.params.gateFloor, -60...(-5), suffix: " dB", format: "%.0f", help: ParamHelp.gateFloor)
-                    WizSlider("Hysteresis", $engine.params.gateHysteresis, 0.5...10, suffix: " dB", help: ParamHelp.gateHysteresis)
-                    WizSlider("Window", $engine.params.gateWindow, 20...500, suffix: " ms", format: "%.0f", help: ParamHelp.gateWindow)
-                    WizSlider("Attack", $engine.params.gateAttack, 1...200, suffix: " ms", format: "%.0f", help: ParamHelp.gateAttack)
-                    WizSlider("Release", $engine.params.gateRelease, 10...500, suffix: " ms", format: "%.0f", help: ParamHelp.gateRelease)
-                    WizSlider("Simultaneous threshold", $engine.params.gateBothThreshold, 0.5...10, suffix: " dB", help: ParamHelp.gateBothThreshold)
-                }
                 // Allgemeine Cutaway-Regeln (gelten für ALLE Cutaway-Typen)
                 group("Cutaway rules") {
                     WizSlider("Cutaway length", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)

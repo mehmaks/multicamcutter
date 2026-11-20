@@ -55,7 +55,8 @@ Exportierbar/importierbar ueber Finder-Dialoge.
 }
 ```
 
-Built-in Presets (hardcoded): Podcast 2-Cam, Interview (schnell), Talk (entspannt).
+Eingebaute Presets gibt es seit 20.11. nicht mehr — die einfache Ansicht (Stufen) übernimmt
+diese Rolle. Die Preset-Liste zeigt nur eigene Presets des Nutzers.
 
 ## clip_prompts.json (user-editierte CLIP-Prompts)
 

@@ -155,6 +155,23 @@ enum Stufen {
         if istAn(k, params) { params.apply(k.fest) }
     }
 
+    /// Für die Telemetrie (Feld `preset`): Stufen-Stellung, z. B.
+    /// „tempo1 kopfnicken11 sprachreaktionen11 pausen1 totale1" (0 = links, 2 = rechts,
+    /// „aus" = Kategorie aus). Passt ein Regler zu keiner Stufe → "custom".
+    static func telemetrieLabel(_ params: PipelineParams) -> String {
+        var teile: [String] = []
+        for k in kategorien {
+            if !istAn(k, params) { teile.append("\(k.id)-aus"); continue }
+            var s = ""
+            for r in k.regler {
+                guard let i = stufe(r, in: params) else { return "custom" }
+                s += String(i)
+            }
+            teile.append(k.id + s)
+        }
+        return String(teile.joined(separator: " ").prefix(64))
+    }
+
     static func istAn(_ k: StufenKategorie, _ params: PipelineParams) -> Bool {
         let d = params.toDict()
         return k.anSchluessel.allSatisfy { (d[$0] as? Bool) == true }

@@ -46,15 +46,6 @@ enum ParamHelp {
     static let totaleMode = "When several cameras are marked as wide shots: which one gets cut to? Round-robin steps through them in order, Random shuffles them (the same on every run), First only always takes the same one. No effect with just one wide shot."
     static let pauseSilenceDb = "dB threshold below which both microphones count as silent. Default: -40 dB."
 
-    // Crossbleed-Filter
-    static let crossbleedGateEnabled = "Suppresses crosstalk between microphones before speaker detection. Useful when both mics are in the same room."
-    static let gateFloor = "How much the inactive microphone is attenuated. -25 dB suppresses crossbleed strongly but lets a little room tone through."
-    static let gateHysteresis = "Avoids “fluttering” at the boundaries. A switch only happens once the other microphone gets louder by this amount."
-    static let gateWindow = "Analysis window for the level comparison. Larger for room reverb, smaller for fast switches."
-    static let gateAttack = "How fast the gate opens. Shorter so the starts of syllables aren't lost."
-    static let gateRelease = "How slowly the gate closes. Longer values prevent pumping."
-    static let gateBothThreshold = "When the level difference is smaller than this, all microphones pass through (people speaking at once)."
-    static let gateUseFiltered = "Debug: uses the filtered WAVs instead of the originals in the final timeline. For testing only."
 
     // Totale
     static let totaleSimulDur = "How long both have to speak at once before the cut goes to the wide shot."

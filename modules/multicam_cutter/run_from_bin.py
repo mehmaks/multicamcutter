@@ -649,7 +649,6 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
     speaking_enabled = bool(params.get('speaking_enabled', False))
     pause_cutaway_enabled = bool(params.get('pause_cutaway_enabled', False))
     clip_filter_enabled = bool(params.get('clip_filter_enabled', False))
-    crossbleed_gate_enabled = bool(params.get('crossbleed_gate_enabled', False))
 
     # Sprech-/Pausen-Reaktionen (beide opt-in) sind fuer >2 Personen noch nicht
     # verfuegbar — die Rolling-Baseline-Detektoren sind bisher rein binaer. Bewusst
@@ -744,23 +743,6 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             '--cam1-off-sections-out', str(cam1_off_sections),
             '--cam2-off-sections-out', str(cam2_off_sections),
         ]
-        gate_use_filtered = bool(params.get('gate_use_filtered', False))
-        gate_wav_json = work_dir / 'gate_wavs.json'
-        if crossbleed_gate_enabled:
-            builder_args += [
-                '--crossbleed-gate',
-                '--gate-window',         str(params.get('gate_window', 80)),
-                '--gate-attack',         str(params.get('gate_attack', 15)),
-                '--gate-release',        str(params.get('gate_release', 80)),
-                '--gate-floor',          str(params.get('gate_floor', -25)),
-                '--gate-hysteresis',     str(params.get('gate_hysteresis', 2.0)),
-                '--gate-both-threshold', str(params.get('gate_both_threshold', 3.0)),
-            ]
-            if gate_use_filtered:
-                builder_args += [
-                    '--gate-use-filtered',
-                    '--gate-wav-out', str(gate_wav_json),
-                ]
         if speaking_enabled:
             builder_args += [
                 '--speaking-reactions-cam1-out', str(cam1_speaking_json),
@@ -1310,34 +1292,6 @@ def main():
         except Exception as e:
             print(f"  ⚠️  Pause-Trim Fehler: {e}")
             audio_keeps_path.unlink(missing_ok=True)
-
-    # ── Gate-WAVs in Media Pool importieren (Debug: gefilterte Audio in Timeline) ──
-    _gate_enabled = bool(_params.get('crossbleed_gate_enabled', False))
-    _gate_use_filtered = bool(_params.get('gate_use_filtered', False))
-    _gate_wav_json = work_dir / 'gate_wavs.json'
-
-    if _gate_enabled and _gate_use_filtered and _gate_wav_json.exists():
-        try:
-            _gw = json.loads(_gate_wav_json.read_text())
-            _gated_paths = [_gw['mic1'], _gw['mic2']]
-            for _gp in _gated_paths:
-                if not Path(_gp).exists():
-                    raise FileNotFoundError(f"Gate-WAV nicht gefunden: {_gp}")
-            print(f"\n  🔇 Gate-Debug: Importiere gefilterte WAVs in Media Pool...")
-            print(f"    {[Path(p).name for p in _gated_paths]}")
-            mp.SetCurrentFolder(bin_folder)
-            _imported = mp.ImportMedia(_gated_paths)
-            print(f"    ImportMedia returned: {_imported} (type={type(_imported).__name__})")
-            if _imported and isinstance(_imported, list) and len(_imported) >= 2:
-                mics = list(_imported[:2])
-                print(f"    Gate-MICs ersetzt: {[m.GetName() for m in mics]}")
-            else:
-                print(f"  ⚠️  Gate-WAV Import fehlgeschlagen (result={_imported}), nutze Original-MICs")
-        except Exception as e:
-            import traceback
-            print(f"  ⚠️  Gate-WAV Fehler: {e}")
-            traceback.print_exc()
-            print(f"  Nutze Original-MICs")
 
     cut_tl = build_cut_timeline(
         mp, args.output, cut_events, mics,

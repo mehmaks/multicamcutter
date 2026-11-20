@@ -27,18 +27,15 @@
 "Analysis canceled" = "Analyse abgebrochen";
 "Analysis complete" = "Analyse abgeschlossen";
 "Analysis failed" = "Analyse fehlgeschlagen";
-"Analysis window for the level comparison. Larger for room reverb, smaller for fast switches." = "Analyse-Fenster für den Pegelvergleich. Größer für Raumhall, kleiner für schnelle Wechsel.";
 "Appearance" = "Darstellung";
 "Applies on the next analysis run." = "Gilt beim nächsten Analyse-Lauf.";
 "At least 2 cameras need a person" = "Mindestens 2 Kameras brauchen eine Person";
 "At least 2 cameras needed" = "Mindestens 2 Kameras nötig";
 "At least one person needed" = "Mindestens eine Person nötig";
 "Attach analysis log" = "Analyse-Log anhängen";
-"Attenuation" = "Dämpfung";
 "Automatic multicam editing for podcasts" = "Automatischer Multicam-Schnitt für Podcasts";
 "Automatically detected: " = "Automatisch erkannt: ";
 "Automatically shorten overly long speech pauses at speaker changes." = "Überlange Sprechpausen bei Sprecherwechseln automatisch kürzen.";
-"Avoids “fluttering” at the boundaries. A switch only happens once the other microphone gets louder by this amount." = "Vermeidet „Flattern“ an Grenzen. Ein Wechsel findet erst statt, wenn das andere Mikrofon um diesen Betrag lauter wird.";
 "Back" = "Zurück";
 "Back to project" = "Zurück zum Projekt";
 "Before you start" = "Bevor du startest";
@@ -76,8 +73,6 @@
 "Could not start the download: %@" = "Download konnte nicht gestartet werden: %@";
 "Could not start the engine: %@" = "Engine konnte nicht gestartet werden: %@";
 "Creates copies next to the originals (practically lossless, timecode is preserved). Takes a while depending on file size — roughly 10 minutes per GB." = "Erzeugt Kopien neben den Originalen (praktisch verlustfrei, Timecode bleibt erhalten). Dauert je nach Dateigröße — grob im 10-Minuten-Bereich pro GB.";
-"Crossbleed filter" = "Crossbleed-Filter";
-"Crossbleed gate" = "Crossbleed-Gate";
 "Custom" = "Angepasst";
 "Customized" = "Angepasst";
 "Cut mode" = "Schnittmodus";
@@ -87,7 +82,6 @@
 "Cutaway rules" = "Cutaway Regeln";
 "Cuts shorter than this are removed automatically." = "Schnitte kürzer als dieser Wert werden automatisch entfernt.";
 "Cuts to another camera during a speech pause of the active speaker." = "Schneidet während einer Sprechpause der aktiv sprechenden Person auf eine andere Kamera.";
-"Debug: uses the filtered WAVs instead of the originals in the final timeline. For testing only." = "Debug: Verwendet die gefilterten WAVs statt der Originale in der finalen Timeline. Nur zu Testzwecken.";
 "Default" = "Standard";
 "Deletes the saved assignments (.multicam) and starts over" = "Löscht die gespeicherten Zuordnungen (.multicam) und beginnt von vorn";
 "Description" = "Beschreibung";
@@ -146,7 +140,6 @@
 "Hidden tracks" = "Ausgeblendete Spuren";
 "Higher = closer to the original, but larger files. 72 matches the previous quality (practically lossless)." = "Höher = näher am Original, aber größere Dateien. 72 entspricht der bisherigen Qualität (praktisch verlustfrei).";
 "How confident the detection has to be before a head nod is used as a cut." = "Wie sicher die Erkennung sein muss, bevor ein Nicken als Schnitt verwendet wird.";
-"How fast the gate opens. Shorter so the starts of syllables aren't lost." = "Wie schnell das Gate öffnet. Kürzer, damit Silbenanfänge nicht verloren gehen.";
 "How long a camera stays on screen at minimum before a cut to a reaction is allowed." = "Wie lange eine Kamera mindestens zu sehen ist, bevor zu einer Reaktion geschnitten werden darf.";
 "How long a person has to stay louder without a break before the cut goes to them. Prevents cuts on brief overlaps." = "Wie lange eine Person durchgehend lauter sein muss, bevor auf diese geschnitten wird. Verhindert Schnitte bei kurzen Überschneidungen.";
 "How long a reaction is shown at minimum." = "Wie lange eine Reaktion mindestens gezeigt wird.";
@@ -157,10 +150,7 @@
 "How much longer than the min. cut length the next cut has to be for the transition via a wider shot to be used." = "Wie viel länger als Min. Schnittlänge der nächste Schnitt sein muss, damit der Übergang über eine größere Einstellung genutzt wird.";
 "How much louder someone has to be than the active speaker for a speaker change to be detected." = "Wie deutlich lauter jemand sein muss als die aktiv sprechende Person, damit ein Sprecherwechsel erkannt wird.";
 "How much the baseline has to rise to trigger an interjection cutaway." = "Wie stark die Baseline ansteigen muss, um einen Sprach-Cutaway auszulösen.";
-"How much the inactive microphone is attenuated. -25 dB suppresses crossbleed strongly but lets a little room tone through." = "Wie stark das inaktive Mikrofon gedämpft wird. -25 dB unterdrückt Crossbleed stark, lässt aber minimale Raumakustik durch.";
 "How much the length of the reaction shots may vary. Higher values make the edit feel less mechanical." = "Wie stark die Länge der Reaktionsaufnahmen variieren darf. Höhere Werte machen den Schnitt weniger maschinell.";
-"How slowly the gate closes. Longer values prevent pumping." = "Wie langsam das Gate schließt. Längere Werte verhindern Pumping-Effekte.";
-"Hysteresis" = "Hysterese";
 "IGNORE" = "IGNORIEREN";
 "If a camera stays on longer than this without a cut, the app automatically switches to a reaction." = "Bleibt eine Kamera länger als dieser Wert ohne Schnitt, wird automatisch zu einer Reaktion gewechselt.";
 "Image recognition (CLIP)" = "Bilderkennung (CLIP)";
@@ -261,7 +251,6 @@
 "Silence" = "Stille";
 "Silence threshold" = "Stille-Schwelle";
 "Simple view" = "Einfache Ansicht";
-"Simultaneous threshold" = "Gleichzeitig-Schwelle";
 "Some sources couldn't be synced automatically" = "Einige Quellen ließen sich nicht automatisch synchronisieren";
 "Something here has changed." = "Hier hat sich etwas geändert.";
 "Speaker" = "Sprecher";
@@ -276,7 +265,6 @@
 "Step %lld/%lld: %@" = "Schritt %lld/%lld: %@";
 "Stored anonymously on a server in the EU. This shows me how big real projects are and how fast the app runs on which hardware — and lets me make it better." = "Anonym gespeichert auf einem Server in der EU. So sehe ich, wie groß echte Projekte sind und wie schnell die App auf welcher Hardware läuft — und mache sie besser.";
 "Subject" = "Betreff";
-"Suppresses crosstalk between microphones before speaker detection. Useful when both mics are in the same room." = "Unterdrückt Übersprechen zwischen Mikrofonen vor der Sprechererkennung. Nützlich wenn beide Mics im selben Raum stehen.";
 "Sync again" = "Erneut synchronisieren";
 "Sync compares the cameras' audio tracks with each other. A camera without usable audio can't be placed — not even by hand." = "Die Synchronisierung vergleicht die Tonspuren der Kameras miteinander. Eine Kamera ohne brauchbaren Ton lässt sich nicht einordnen — auch nicht von Hand.";
 "The analysis was stopped." = "Die Analyse wurde gestoppt.";
@@ -315,11 +303,9 @@
 "When a video file is converted to the timeline frame rate, the app picks the codec to match the source format — HEVC 10-bit for 4:2:0 (action cams, drones), ProRes for 4:2:2/4:4:4 (pro cameras). The defaults are calibrated for a source-faithful, gradable copy. Only change these if you know exactly what you're doing." = "Wird eine Videodatei auf die Timeline-Bildrate umgewandelt, wählt die App den Codec passend zum Quellformat — HEVC 10-bit für 4:2:0 (Action-Cams, Drohnen), ProRes für 4:2:2/4:4:4 (Profikameras). Die Voreinstellungen sind auf eine quellgetreue, gradebare Kopie kalibriert. Nur ändern, wenn du genau weißt, was du tust.";
 "When several cameras are marked as wide shots: which one gets cut to? Round-robin steps through them in order, Random shuffles them (the same on every run), First only always takes the same one. No effect with just one wide shot." = "Bei mehreren als Totale markierten Kameras: welche wird geschnitten? Reihum wechselt der Reihe nach durch, Zufällig mischt sie (bei jedem Lauf gleich), Nur die erste nimmt immer dieselbe. Bei nur einer Totale ohne Wirkung.";
 "When switching between two speaking people, briefly cut to a wider shot showing both, instead of cutting over directly." = "Beim Wechsel zwischen zwei sprechenden Personen kurz auf eine größere Einstellung schneiden, die beide zeigt, statt direkt umzuschneiden.";
-"When the level difference is smaller than this, all microphones pass through (people speaking at once)." = "Wenn der Pegelunterschied kleiner als dieser Wert ist, werden alle Mikrofone durchgelassen (gleichzeitiges Sprechen).";
 "Who's on which camera?" = "Wer ist auf welcher Kamera zu sehen?";
 "Who's speaking is determined from the volume of each microphone. A shared microphone for several people can't be split apart." = "Wer spricht, wird über die Lautstärke der einzelnen Mikrofone bestimmt. Ein gemeinsames Mikrofon für mehrere Personen lässt sich nicht auftrennen.";
 "Wide" = "Totale";
-"Window" = "Fenster";
 "Without a shared time span, sync has no reference point. A lead-in at the start is fine." = "Ohne gemeinsamen Zeitraum findet die Synchronisierung keinen Bezugspunkt. Ein Vorlauf am Anfang ist unproblematisch.";
 "Wrong frame rate" = "Falsche Bildrate";
 "Yes, help anonymously" = "Ja, anonym helfen";

@@ -22,6 +22,9 @@ Stand mit allen Einzelparametern bleibt als **Expertenmodus**.
   Beleg aus der Sichtung 61/62: eine Mindestlänge als Filter (≙ „strenger") hätte bei
   0,2 s 170 echte Einwürfe gekostet und nur 24 Geräusche entfernt.
 
+- **(erledigt 20.11.)** Crossbleed-Filter entfernt (Engine, Schema, App; `rms_gate` lebt im
+  Sequencer-Modul weiter). Eingebaute Presets entfernt — die Stufen sind die neue
+  „Preset-Liste", Presets nur noch eigene. Telemetrie `preset` = Stufen-Stellung.
 - **(entschieden)** Alle Kandidaten zum Entfernen (🗑) fliegen raus: Crossbleed-Filter
   (8 Parameter, Code + UI), Erkennung A samt Regel A sobald B Standard ist, Mischform,
   toter Schlüssel `speaking_min_confidence`, CLI-Altversuche.

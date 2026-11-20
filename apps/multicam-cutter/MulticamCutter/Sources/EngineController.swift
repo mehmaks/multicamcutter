@@ -125,15 +125,6 @@ struct PipelineParams: Equatable {
     var pauseCutOffset: Double = 1.0
     var pauseSilenceDb: Double = -40.0
 
-    // Expert: Crossbleed-Gate
-    var crossbleedGateEnabled: Bool = false
-    var gateFloor: Double = -25.0
-    var gateHysteresis: Double = 2.0
-    var gateWindow: Double = 80.0
-    var gateAttack: Double = 15.0
-    var gateRelease: Double = 80.0
-    var gateBothThreshold: Double = 3.0
-    var gateUseFiltered: Bool = false
 
     // Expert: Cutaway-Regeln
     var preRoll: Int = 15
@@ -213,7 +204,6 @@ struct PipelineParams: Equatable {
             "change_delay": changeDelay,
             "nodding_enabled": noddingEnabled,
             "speaking_enabled": speakingEnabled,
-            "crossbleed_gate_enabled": crossbleedGateEnabled,
             "pause_cutaway_enabled": pauseCutawayEnabled,
             "pause_cutaway_min_pause": pauseCutawayMinPause,
             "clip_filter_enabled": clipFilterEnabled,
@@ -231,13 +221,6 @@ struct PipelineParams: Equatable {
             "mouth_reactions_enabled": mouthReactionsEnabled,
             "mouth_deadband_s": mouthDeadband,
             "mouth_window_s": mouthWindow,
-            "gate_floor": gateFloor,
-            "gate_hysteresis": gateHysteresis,
-            "gate_window": gateWindow,
-            "gate_attack": gateAttack,
-            "gate_release": gateRelease,
-            "gate_both_threshold": gateBothThreshold,
-            "gate_use_filtered": gateUseFiltered,
             "threshold_db": thresholdDb,
             "totale_simul_dur": totaleSimulDur,
             "totale_mode": totaleMode,
@@ -263,7 +246,6 @@ struct PipelineParams: Equatable {
             "pause_silence_db": pauseSilenceDb,
             "min_conf": minConf, "min_edit": minEdit, "change_delay": changeDelay,
             "nodding_enabled": noddingEnabled, "speaking_enabled": speakingEnabled,
-            "crossbleed_gate_enabled": crossbleedGateEnabled,
             "pause_cutaway_enabled": pauseCutawayEnabled,
             "pause_cutaway_min_pause": pauseCutawayMinPause,
             "clip_filter_enabled": clipFilterEnabled,
@@ -278,10 +260,6 @@ struct PipelineParams: Equatable {
             "speaking_uebersprechen_db": speakingUebersprechenDb,
             "mouth_reactions_enabled": mouthReactionsEnabled,
             "mouth_deadband_s": mouthDeadband, "mouth_window_s": mouthWindow,
-            "gate_floor": gateFloor, "gate_hysteresis": gateHysteresis,
-            "gate_window": gateWindow, "gate_attack": gateAttack,
-            "gate_release": gateRelease, "gate_both_threshold": gateBothThreshold,
-            "gate_use_filtered": gateUseFiltered,
             "threshold_db": thresholdDb, "totale_simul_dur": totaleSimulDur,
             "totale_mode": totaleMode,
             "nodding_patterns": noddingPatterns,
@@ -309,7 +287,6 @@ struct PipelineParams: Equatable {
         if let v = dict["change_delay"] as? Double { changeDelay = v }
         if let v = dict["nodding_enabled"] as? Bool { noddingEnabled = v }
         if let v = dict["speaking_enabled"] as? Bool { speakingEnabled = v }
-        if let v = dict["crossbleed_gate_enabled"] as? Bool { crossbleedGateEnabled = v }
         if let v = dict["pause_cutaway_enabled"] as? Bool { pauseCutawayEnabled = v }
         if let v = dict["pause_cutaway_min_pause"] as? Double { pauseCutawayMinPause = v }
         if let v = dict["clip_filter_enabled"] as? Bool { clipFilterEnabled = v }
@@ -327,13 +304,6 @@ struct PipelineParams: Equatable {
         if let v = dict["mouth_reactions_enabled"] as? Bool { mouthReactionsEnabled = v }
         if let v = dict["mouth_deadband_s"] as? Double { mouthDeadband = v }
         if let v = dict["mouth_window_s"] as? Double { mouthWindow = v }
-        if let v = dict["gate_floor"] as? Double { gateFloor = v }
-        if let v = dict["gate_hysteresis"] as? Double { gateHysteresis = v }
-        if let v = dict["gate_window"] as? Double { gateWindow = v }
-        if let v = dict["gate_attack"] as? Double { gateAttack = v }
-        if let v = dict["gate_release"] as? Double { gateRelease = v }
-        if let v = dict["gate_both_threshold"] as? Double { gateBothThreshold = v }
-        if let v = dict["gate_use_filtered"] as? Bool { gateUseFiltered = v }
         if let v = dict["threshold_db"] as? Double { thresholdDb = v }
         if let v = dict["totale_simul_dur"] as? Double { totaleSimulDur = v }
         if let v = dict["totale_mode"] as? String { totaleMode = v }
@@ -389,44 +359,11 @@ final class PresetManager: Sendable {
         return dir
     }
 
-    /// Eingebaute Standard-Presets
-    private let builtInPresets: [(String, String, PipelineParams)] = [
-        ("podcast_2cam", "Podcast 2-Cam", PipelineParams()),
-        ("interview_fast", "Interview (schnell)", {
-            var p = PipelineParams()
-            p.maxShot = 10.0
-            p.cleanupDur = 1.2
-            p.reactionDur = 1.5
-            return p
-        }()),
-        // Werte aus dem bewährten Web-Preset „Jena United" übernommen
-        // (~/.resolve-toolkit/multicam_presets/). Beim Portieren umgerechnet:
-        // min_conf 69 % → 0.69, pause_cut_mode „Middle" → „middle".
-        // Nicht gesetzte Parameter entsprechen den PipelineParams-Defaults.
-        ("talk_relaxed", "Talk (entspannt)", {
-            var p = PipelineParams()
-            p.minShot = 2.3
-            p.cleanupDur = 1.6
-            p.reactionDur = 1.7
-            p.pauseTrimEnabled = true
-            p.crossbleedGateEnabled = true
-            p.preRoll = 5
-            p.minConf = 0.69
-            p.pauseCutawayEnabled = true
-            // CLIP bewusst AUS in allen Built-ins: Der Filter braucht ein 577-MB-Modell,
-            // das erst geladen werden muss. Ein Extra — niemand soll beim ersten Lauf
-            // ungefragt damit konfrontiert werden. Wer's will, aktiviert es im
-            // Expertenmodus (dann kommt der Download-Prompt) und speichert sein Preset.
-            p.clipFilterEnabled = false
-            return p
-        }()),
-    ]
+    // Eingebaute Presets gibt es seit 20.11. nicht mehr: die einfache Ansicht (Stufen)
+    // übernimmt ihre Rolle. Die Preset-Liste enthält nur noch eigene Presets.
 
     func listPresets() -> [Preset] {
-        // User-Dateien zuerst einlesen (id → Name). Eine User-Datei ÜBERSCHREIBT ein
-        // Built-in gleicher id — sonst blieb ein „über ein Built-in gespeichertes"
-        // Preset unsichtbar (Built-in verdeckte es) und Überschreiben tat scheinbar nichts.
-        var userNames: [String: String] = [:]
+        var result: [Preset] = []
         if let files = try? FileManager.default.contentsOfDirectory(
             at: presetsDir, includingPropertiesForKeys: nil
         ) {
@@ -435,32 +372,14 @@ final class PresetManager: Sendable {
                 if let data = try? Data(contentsOf: file),
                    let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
                    let name = json["name"] as? String {
-                    userNames[id] = name
+                    result.append(Preset(id: id, name: name, builtIn: false))
                 }
             }
         }
-        var result: [Preset] = []
-        var seen = Set<String>()
-        // Built-ins in fester Reihenfolge — vom User überschriebene tragen den User-Namen
-        // und gelten als nicht-built-in (bearbeitbar/löschbar).
-        for b in builtInPresets {
-            if let userName = userNames[b.0] {
-                result.append(Preset(id: b.0, name: userName, builtIn: false))
-            } else {
-                result.append(Preset(id: b.0, name: b.1, builtIn: true))
-            }
-            seen.insert(b.0)
-        }
-        // Reine User-Presets (keine Built-in-id), stabil nach Name sortiert.
-        for (id, name) in userNames.sorted(by: { $0.value.localizedCaseInsensitiveCompare($1.value) == .orderedAscending })
-        where !seen.contains(id) {
-            result.append(Preset(id: id, name: name, builtIn: false))
-        }
-        return result
+        return result.sorted { $0.name.localizedCaseInsensitiveCompare($1.name) == .orderedAscending }
     }
 
     func loadPreset(_ id: String) -> PipelineParams? {
-        // User-Datei hat VORRANG (überschreibt ein Built-in gleicher id).
         let file = presetsDir.appendingPathComponent("\(id).json")
         if let data = try? Data(contentsOf: file),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -469,17 +388,7 @@ final class PresetManager: Sendable {
             params.apply(paramsDict)
             return params
         }
-        // Sonst das Built-in.
-        if let builtIn = builtInPresets.first(where: { $0.0 == id }) {
-            return builtIn.2
-        }
         return nil
-    }
-
-    /// Name des Built-in-Presets, dessen Parameter EXAKT den uebergebenen entsprechen
-    /// — sonst nil. Fuer Telemetrie: nur Built-in-Namen senden, eigene/getweakte → "custom".
-    func matchingBuiltIn(_ params: PipelineParams) -> String? {
-        builtInPresets.first(where: { $0.2 == params })?.1
     }
 
     func savePreset(name: String, params: PipelineParams) -> Preset {
@@ -1220,7 +1129,7 @@ class EngineController: ObservableObject {
                 "duration_max_s": Int(durs.last ?? 0),
             ],
             "runtime": runtime,
-            "preset": PresetManager.shared.matchingBuiltIn(params) ?? "custom",
+            "preset": Stufen.telemetrieLabel(params),
             "settings": params.toDict(),
             "device": TelemetryDevice.payload,
         ]

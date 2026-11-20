@@ -180,7 +180,7 @@ Python-Runtime dazubekommt.
 Zahlen/Enums; die 3 DSGVO-Regeln). `Telemetry.swift` (anonyme `analytics_id`, fire-and-
 forget POST an `/api/telemetry`, nur bei Zustimmung). `EngineController.sendTelemetryIfEnabled`
 baut den Payload (n_cams/n_mics/n_speakers, Dauern, elapsed_s, komplettes Settings-Abbild
-via `params.toDict()`, Built-in-Preset via `PresetManager.matchingBuiltIn` sonst „custom",
+via `params.toDict()`, Stufen-Stellung via `Stufen.telemetrieLabel` sonst „custom" (bis 20.11. Built-in-Preset-Name),
 Gerät) und feuert im `result`-Dispatch. Settings → Datenschutz: Opt-in-Toggle (**Default AUS**,
 Key `analyticsConsent`: 0 ungefragt/1 an/2 aus). Alles **inert**, bis Backend steht.
 
@@ -359,6 +359,12 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
   `modules/multicam_cutter/CLAUDE.md` → Fixed Bugs → „Nachtrag (27.07.)".
 
 ### 📦 Post-1.0 (geparkt)
+
+- [ ] **Pausen-Cutaways häufiger (geparkt 20.11., erst wenn es negativ auffällt).**
+  Sie verlangen Mindest-Einstellungslänge Abstand zu beiden Seiten (gewollt: sonst
+  unschönes Schnitttempo). Folge 62 hat kaum lange Pausen — kein Fehler der Funktion.
+  Ideen: (a) Abstand = Mindestlänge statt Mindest-Einstellung, (b) innere Pausen stärker
+  kürzen bei Cutaway ≥ 1 s.
 
 - [ ] **Transkription je Analysespur (Whisper) — Sprecher-SRT + Prüfung von Sprecherwechseln.**
   (User-Idee 20.11.) Whisper wurde früher verworfen, weil es Übersprechen als Sprache
