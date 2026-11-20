@@ -37,6 +37,14 @@ bleiben als `*_original.json`. Grund (Sichtung Folge 62, „straff"): im Origina
 Sprache — v. a. des leiseren Mikros — unter der Stilleschwelle (−60 dB) und wurde an
 Sprecherwechseln weggeschnitten (bis 1,8 s). Ohne Analysespur bleibt die alte Erkennung.
 
+**Sprecherwechsel in die Stille (20.11.):** Vor der Pausenerkennung rückt Schritt 2a
+Sprecherwechsel der Basis-EDL in die nächste Stille (±3 s), wenn die Person, die im
+übersprungenen Stück noch im Bild war, dort laut Analysespur ≥ 90 % still ist
+(`wechsel_in_stille`). Quelle + Aufnahme verschieben sich gleich → synchron. Original
+bleibt als `base_original.edl`. Abschaltbar über `speaker_change_into_silence: false`.
+Grund: Kürzen geht nur AM Wechsel, und vorher lag er bei ~80 % der Pausen außerhalb.
+Sicherheitsabstand der Stille: 0,08 s nach Satzende, 0,15 s vor Satzanfang.
+
 **Pausen in Redebeiträgen kürzen (User-Idee 19.11.):** Nur wenn Pausen kürzen UND
 „Cutaways in Pausen" an sind. `pause_trim_edl.innere_pausen` macht aus jedem Pausen-Cutaway,
 der nach allen Pässen noch genau auf seiner Stille aus `pause_cutaways.json` liegt (CLIP
