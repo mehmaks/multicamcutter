@@ -663,6 +663,9 @@ struct FlowLayout: Layout {
 
 struct ProgressView_: View {
     @EnvironmentObject var engine: EngineController
+    // Farbwechsel des Balkens: einmal je Lauf, nicht je Schritt
+    @State private var farbStart = Date()
+    @State private var farbSeed = UInt64.random(in: 1...UInt64.max)
 
     var body: some View {
         VStack(spacing: 16) {
@@ -682,8 +685,7 @@ struct ProgressView_: View {
 
             if engine.stepPercent > 0 {
                 // Determinate: Prozent bekannt
-                SwiftUI.ProgressView(value: engine.stepPercent, total: 100)
-                    .progressViewStyle(.linear)
+                FarbwechselBalken(wert: engine.stepPercent, gesamt: 100, start: farbStart, seed: farbSeed)
                     .frame(width: 400)
 
                 HStack(spacing: 16) {

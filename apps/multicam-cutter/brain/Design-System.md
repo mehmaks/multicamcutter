@@ -182,3 +182,11 @@ wirkten mittlere Icons (Play 19 pt) fetter als kleine (Pencil 12 pt).
 **Ausnahmen (bleiben SF Symbols):** Settings-Tab-Icons (gearshape, sparkles,
 chevron.up.chevron.down, key) und Menüeinträge — dort rendert das System die
 Icons selbst, eigene Bilder skalieren unzuverlässig.
+
+## Fortschrittsbalken: Farbwechsel (20.11.)
+
+Der Balken im Lauf beginnt in Lime, hält jede Farbe 15 s und blendet über 5 s (weich, smoothstep)
+in eine zufällig gezogene nächste — nie zweimal dieselbe. Läuft über alle Schritte eines Laufs
+weiter. Pool (Pastell, Helligkeit wie Lime/Flieder): Lime #C6F24E · Flieder #CBA6F7 ·
+Mint #8EF0C4 · Himmelblau #8CCFF5 · Pfirsich #F7B98B · Rosé #F5A6C8 · Butter #F2E27A ·
+Aqua #7EE6E0. Code: `Sources/Farbwechsel.swift` (Pool, Zeiten).
