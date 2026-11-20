@@ -248,6 +248,16 @@ def pausen_aus_analysespur(pegel, engine, fps, sprache_db, abstand_db=12.0,
       grenz_pausen:   [{pause_start_frame, pause_end_frame, boundary_frame, pause_dur_s}]
       cutaway_pausen: [{start_frame, end_frame, speaker: 'CAM1'|'CAM2'}]
     """
+    still = stille_maske(pegel, sprache_db, fps, abstand_db, rand_nach_satz_s, rand_vor_satz_s)
+    n = len(engine)
+    radius = int(round(suchradius_s * fps))
+    min_len = max(1, int(round(min_pause_s * fps)))
+    return _pausen_aus_maske(still, engine, fps, radius, min_len, cutaway_min_pause_s)
+
+
+def stille_maske(pegel, sprache_db, fps, abstand_db=12.0, rand_nach_satz_s=0.08, rand_vor_satz_s=0.15):
+    """Bilder, in denen BEIDE Spuren unter „eigene Sprache − abstand_db" liegen — mit
+    Sicherheitsabstand zu Satzende/-anfang."""
     x = [np.nan_to_num(np.maximum(np.asarray(v, float), -110), nan=-110) for v in pegel]
     still = (x[0] < sprache_db[0] - abstand_db) & (x[1] < sprache_db[1] - abstand_db)
     # Sicherheitsabstand (Sichtung 20.11., „straff"): Satzanfänge bauen sich leise auf und
@@ -260,9 +270,11 @@ def pausen_aus_analysespur(pegel, engine, fps, sprache_db, abstand_db=12.0,
         for s_, e_ in _laeufe(roh):
             if e_ - rh > s_ + rv:
                 still[s_ + rv:e_ - rh] = True
+    return still
+
+
+def _pausen_aus_maske(still, engine, fps, radius, min_len, cutaway_min_pause_s):
     n = len(engine)
-    radius = int(round(suchradius_s * fps))
-    min_len = max(1, int(round(min_pause_s * fps)))
 
     grenzen = [i for i in range(1, n) if engine[i] != engine[i - 1] and engine[i] >= 0 and engine[i - 1] >= 0]
     grenz_pausen = []
@@ -290,6 +302,58 @@ def pausen_aus_analysespur(pegel, engine, fps, sprache_db, abstand_db=12.0,
             if spk in (0, 1):
                 cutaway_pausen.append({"start_frame": int(s), "end_frame": int(e), "speaker": f"CAM{spk + 1}"})
     return dedup, cutaway_pausen
+
+
+def wechsel_in_stille(events, names, pegel, sprache_db, fps, abstand_db=12.0,
+                      suchradius_s=3.0, min_pause_s=0.3, min_einstellung_s=0.5, anteil=0.9):
+    """Rückt Sprecherwechsel der Basis-EDL in die nächstgelegene Stille (User 20.11.).
+
+    Die Sprechererkennung setzt den Wechsel oft etwas hinter den Satzanfang der neuen
+    Person (sie wartet auf klare Dominanz) oder vor das Satzende der alten. Dann sieht man
+    die falsche Person, und die Pause darf nicht gekürzt werden (Kürzen nur AM Wechsel).
+    Verschoben wird nur, wenn im übersprungenen Stück die Person, deren Kamera es bisher
+    zeigte, laut Analysespur still ist (≥ anteil der Bilder). Quelle und Aufnahme werden
+    gleich weit verschoben → bleibt synchron. Gibt die Anzahl verschobener Wechsel zurück.
+    """
+    from frame_utils import frames_to_timecode
+    still = stille_maske(pegel, sprache_db, fps, abstand_db)
+    x = [np.nan_to_num(np.maximum(np.asarray(v, float), -110), nan=-110) for v in pegel]
+    leise = [x[k] < sprache_db[k] - abstand_db for k in (0, 1)]
+    r, min_len = int(round(suchradius_s * fps)), max(1, int(round(min_pause_s * fps)))
+    min_ev = int(round(min_einstellung_s * fps))
+    n = len(still)
+    moved = 0
+    for i in range(len(events) - 1):
+        a, b_ = events[i], events[i + 1]
+        if a.clip_name == b_.clip_name or a.clip_name not in names or b_.clip_name not in names:
+            continue
+        b = a.record_out_frame
+        if b != b_.record_in_frame or not (0 < b < n):
+            continue
+        a0, a1 = max(0, b - r), min(n, b + r)
+        kand = [(a0 + s, a0 + e) for s, e in _laeufe(still[a0:a1]) if e - s >= min_len]
+        if not kand:
+            continue
+        s, e = min(kand, key=lambda q: abs((q[0] + q[1]) / 2 - b))
+        if s <= b <= e:
+            continue
+        ziel = (s + e) // 2
+        if b > e:   # Wechsel kam zu spät: alte Kamera (a) zeigte schon die neue Person
+            stueck, k = (e, b), names.index(a.clip_name)
+        else:       # Wechsel kam zu früh: neue Kamera (b_) zeigte noch die alte Person
+            stueck, k = (b, s), names.index(b_.clip_name)
+        if np.mean(leise[k][stueck[0]:stueck[1]]) < anteil:
+            continue
+        if ziel - a.record_in_frame < min_ev or b_.record_out_frame - ziel < min_ev:
+            continue
+        d = ziel - b
+        for ev, feld in ((a, "out"), (b_, "in")):
+            setattr(ev, f"record_{feld}_frame", getattr(ev, f"record_{feld}_frame") + d)
+            setattr(ev, f"source_{feld}_frame", getattr(ev, f"source_{feld}_frame") + d)
+            setattr(ev, f"record_{feld}", frames_to_timecode(getattr(ev, f"record_{feld}_frame"), fps))
+            setattr(ev, f"source_{feld}", frames_to_timecode(getattr(ev, f"source_{feld}_frame"), fps))
+        moved += 1
+    return moved
 
 
 # ── 3) Engine-Schritt ────────────────────────────────────────────────────────
@@ -343,6 +407,27 @@ def add_analysespur_reactions(base_edl, cams, offsets, fps, params, work_dir):
         a = np.full(T, -110.0, np.float32)
         a[ok] = p[mi[ok]]
         pegel.append(a)
+
+    # Sprecherwechsel in die Stille rücken (Basis-EDL wird angepasst, Original bleibt
+    # als base_original.edl). Danach Sprecher-Zuordnung je Bild neu aufbauen.
+    sprache = [float(np.median(np.maximum(pegel[k][engine == k], -110))) if (engine == k).any() else -60.0
+               for k in (0, 1)]
+    if params.get("speaker_change_into_silence", True):
+        moved = wechsel_in_stille(events, names, pegel, sprache, fps)
+        if moved:
+            from add_reactions_to_edl import write_edl
+            be = Path(base_edl)
+            orig = be.with_name("base_original.edl")
+            if not orig.exists():
+                be.replace(orig)
+            write_edl(events, str(be), title="Audio Base Timeline")
+            with open(be, "a") as f:
+                f.write("\n")
+            engine = np.full(T, -1, np.int8)
+            for e in events:
+                if e.clip_name in names:
+                    engine[e.record_in_frame:e.record_out_frame] = names.index(e.clip_name)
+            print(f"  Sprecherwechsel in die Stille verschoben: {moved}", flush=True)
 
     bp = {}
     if params.get("speaking_max_dur") is not None:
