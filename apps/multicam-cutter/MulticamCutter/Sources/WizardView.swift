@@ -1163,6 +1163,7 @@ struct WizSlider: View {
     }
 
     @Environment(\.wizKompakt) private var kompakt
+    @Environment(\.wizAngepasst) private var angepasst
 
     private var wertText: some View {
         Text(String(format: format, value).replacingOccurrences(of: ".", with: ",") + suffix)
@@ -1176,6 +1177,7 @@ struct WizSlider: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
                         Text(loc(label)).font(.system(size: 13)).lineLimit(1).minimumScaleFactor(0.85)
+                            .foregroundStyle(angepasst ? Color.brandSecondary : Color.wizText)
                         if !help.isEmpty { WizHelpBadge(help) }
                         Spacer(minLength: 6)
                         wertText
@@ -1205,6 +1207,7 @@ struct WizToggle: View {
     var help: String = ""
 
     @Environment(\.wizKompakt) private var kompakt
+    @Environment(\.wizAngepasst) private var angepasst
 
     init(_ label: String, _ isOn: Binding<Bool>, help: String = "") {
         self.label = label; self._isOn = isOn; self.help = help
@@ -1213,6 +1216,7 @@ struct WizToggle: View {
     var body: some View {
         HStack {
             Text(loc(label)).font(.system(size: kompakt ? 13 : 14)).lineLimit(1).minimumScaleFactor(0.85)
+                .foregroundStyle(angepasst ? Color.brandSecondary : Color.wizText)
             if !help.isEmpty { WizHelpBadge(help) }
             Spacer()
             WizSwitch(isOn: $isOn)
@@ -1240,6 +1244,8 @@ struct WizSegmented: View {
     }
 
     @Environment(\.wizKompakt) private var kompakt
+    @Environment(\.wizAkzent) private var akzent
+    @Environment(\.wizAngepasst) private var angepasst
 
     private var segmente: some View {
         HStack(spacing: 2) {
@@ -1251,7 +1257,7 @@ struct WizSegmented: View {
                     .foregroundStyle(active ? Color.black : Color.wizMuted)
                     .padding(.horizontal, kompakt ? 4 : 8).padding(.vertical, 4)
                     .frame(maxWidth: kompakt ? .infinity : nil)
-                    .background(active ? Color.brandAccent : Color.clear,
+                    .background(active ? akzent : Color.clear,
                                 in: RoundedRectangle(cornerRadius: 6))
                     .contentShape(Rectangle())
                     .onTapGesture { selection = opt.value }
@@ -1268,6 +1274,7 @@ struct WizSegmented: View {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
                         Text(loc(label)).font(.system(size: 13)).lineLimit(1)
+                            .foregroundStyle(angepasst ? Color.brandSecondary : Color.wizText)
                         if !help.isEmpty { WizHelpBadge(help) }
                     }
                     segmente
@@ -1291,10 +1298,11 @@ struct WizSegmented: View {
 /// Toggle im Dummy-Look: Capsule + Knopf, Lime an / graue Spur aus. Native
 /// `Toggle(.switch)` sah zu system-grau/blau aus.
 struct WizSwitch: View {
+    @Environment(\.wizAkzent) private var akzent
     @Binding var isOn: Bool
     var body: some View {
         Capsule()
-            .fill(isOn ? Color.brandAccent : Color.wizSurface2)
+            .fill(isOn ? akzent : Color.wizSurface2)
             .frame(width: 38, height: 22)
             .overlay {
                 if !isOn { Capsule().stroke(Color.wizBorder2, lineWidth: 1) }
@@ -1343,6 +1351,7 @@ struct WizSliderControl: View {
     let range: ClosedRange<Double>
     /// Feste Breite (Standard) oder nil = volle verfügbare Breite (kompakte Kacheln).
     var breite: CGFloat? = 108
+    @Environment(\.wizAkzent) private var akzent
 
     var body: some View {
         GeometryReader { geo in
@@ -1352,8 +1361,8 @@ struct WizSliderControl: View {
             let knobX = 6.5 + CGFloat(frac) * (w - 13)
             ZStack(alignment: .leading) {
                 Capsule().fill(Color.wizSurface2).frame(height: 4)
-                Capsule().fill(Color.brandAccent).frame(width: knobX, height: 4)
-                Circle().fill(Color.brandAccent).frame(width: 13, height: 13)
+                Capsule().fill(akzent).frame(width: knobX, height: 4)
+                Circle().fill(akzent).frame(width: 13, height: 13)
                     .offset(x: knobX - 6.5)
             }
             .frame(height: 14)
@@ -1371,11 +1380,27 @@ struct WizSliderControl: View {
 
 /// Kompakte Darstellung der Wiz-Zeilen in schmalen Kacheln (Experteneinstellungen).
 private struct WizKompaktKey: EnvironmentKey { static let defaultValue = false }
+/// Wert weicht vom Standard ab → Name und Regler in Flieder statt Lime (wie „angepasst").
+private struct WizAngepasstKey: EnvironmentKey { static let defaultValue = false }
 extension EnvironmentValues {
     var wizKompakt: Bool {
         get { self[WizKompaktKey.self] }
         set { self[WizKompaktKey.self] = newValue }
     }
+    var wizAngepasst: Bool {
+        get { self[WizAngepasstKey.self] }
+        set { self[WizAngepasstKey.self] = newValue }
+    }
+}
+
+extension View {
+    /// Markiert eine Wiz-Zeile als „angepasst" (Flieder).
+    func angepasst(_ an: Bool) -> some View { environment(\.wizAngepasst, an) }
+}
+
+extension EnvironmentValues {
+    /// Akzentfarbe der Wiz-Bedienelemente: Lime, bei angepassten Werten Flieder.
+    var wizAkzent: Color { wizAngepasst ? .brandSecondary : .brandAccent }
 }
 
 // ── Wiederherstellen-Chips für ausgeblendete (getrashte) Quellen ──

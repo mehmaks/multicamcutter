@@ -180,8 +180,49 @@ enum Stufen {
         for r in k.regler where stufe(r, in: params) == nil { params.apply(r.werte[1]) }
     }
 
+    /// Wogegen ein Einzelwert als „angepasst" gilt (User 21.11.): Gehört er zu einem
+    /// Stufen-Regler, gegen die aktive Stufe — ist der Regler selbst „angepasst", gegen
+    /// die Stufe, die den übrigen Werten am nächsten liegt (bei Gleichstand die Mitte).
+    /// Feste Werte einer Kategorie gegen diese, alles andere gegen den App-Standard.
+    static func referenz(_ key: String, _ p: PipelineParams) -> Any? {
+        let ist = p.toDict()
+        for k in kategorien {
+            for r in k.regler where r.werte.contains(where: { $0[key] != nil }) {
+                let i = stufe(r, in: p) ?? [1, 0, 2].max { x, y in
+                    treffer(r.werte[x], ist) < treffer(r.werte[y], ist)
+                } ?? 1
+                return r.werte[i][key]
+            }
+            if let v = k.fest[key] { return v }
+        }
+        return PipelineParams().toDict()[key]
+    }
+
+    private static func treffer(_ soll: [String: Any], _ ist: [String: Any]) -> Int {
+        soll.filter { gleich(ist[$0.key], $0.value) }.count
+    }
+
+    /// Weicht der Wert vom Standard (siehe `referenz`) ab? → Flieder statt Lime.
+    static func istAngepasst(_ key: String, _ p: PipelineParams) -> Bool {
+        guard let ref = referenz(key, p) else { return false }
+        return !gleich(p.toDict()[key], ref)
+    }
+
+    /// Ein Anlass in `transition_cutaway_back` (Rückweg nach Cutaway) gegen den Standard.
+    static func rueckwegAngepasst(_ anlass: String, _ p: PipelineParams) -> Bool {
+        let ref = Set((referenz("transition_cutaway_back", p) as? [String]) ?? [])
+        let ist = Set((p.toDict()["transition_cutaway_back"] as? [String]) ?? [])
+        return ref.contains(anlass) != ist.contains(anlass)
+    }
+
     private static func gleich(_ a: Any?, _ b: Any) -> Bool {
         switch b {
+        case let bv as Int:
+            if let av = a as? Int { return av == bv }
+            if let av = a as? Double { return abs(av - Double(bv)) < 1e-6 }
+            return false
+        case let bv as String:
+            return (a as? String) == bv
         case let bv as Double:
             if let av = a as? Double { return abs(av - bv) < 1e-6 }
             if let av = a as? Int { return abs(Double(av) - bv) < 1e-6 }
