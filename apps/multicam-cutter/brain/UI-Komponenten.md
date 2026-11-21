@@ -368,3 +368,13 @@ zeigt. `WizSlider`/`WizToggle`/`WizSegmented` haben dafür einen optionalen
 Web-Schema). Rubriken mit einem `group(..., description:)` zeigen zusätzlich
 einen Einleitungssatz unter der Überschrift (z.B. „Bildsprache"). Textstil:
 siehe Memory feedback_ui_texte — einfach, menschlich, kein Fachjargon.
+
+## Einstellungen: Kacheln mit eingeblendeten Expertenwerten (21.11.)
+
+Keine eigene Expertenliste mehr. „Einstellungen" ist eine Abschnitts-Überschrift (wie
+„Bildgrößen je Person"), die Kacheln stehen ohne Container im Fenster. „Experteneinstellungen"
+blendet in jeder Kachel unter den Stufen-Schaltern die Einzelwerte ein (`ExpertenInhalt`,
+`Sources/ExpertenKacheln.swift`), dazu die Kachel „Weitere" (Sprecherschwelle, Wechsel-
+verzögerung, Vorlauf, Cutaway-Filter, Analyse-Einblendungen). Zeilen in Kacheln laufen im
+kompakten Modus (`\.wizKompakt`: Name + Wert oben, Regler volle Breite darunter).
+Verstellte Werte → „angepasst" an der Stufe (wie bisher).

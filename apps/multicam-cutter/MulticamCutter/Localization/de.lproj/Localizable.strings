@@ -451,3 +451,14 @@
 
 /* Barrierefreiheit Fortschrittsbalken */
 "Progress" = "Fortschritt";
+
+/* Experteneinstellungen in den Kacheln (21.11.) */
+"Hide expert settings" = "Experteneinstellungen ausblenden";
+"Gap between nod cutaways" = "Abstand Nick-Cutaways";
+"Gap between interjection cutaways" = "Abstand Einwurf-Cutaways";
+"Crosstalk until wide shot" = "Durcheinander bis Totale";
+"More" = "Weitere";
+"Settings that don't belong to one of the other tiles." = "Einstellungen, die zu keiner der anderen Kacheln gehören.";
+"Speaker threshold" = "Schwelle Sprecherwechsel";
+"At least this much time lies between two head-nod cutaways on the same person. 0 = every detected nod can be used." = "So viel Zeit liegt mindestens zwischen zwei Nick-Cutaways auf dieselbe Person. 0 = jedes erkannte Nicken kann genutzt werden.";
+"At least this much time lies between two interjection cutaways on the same person. 0 = every detected interjection can be used." = "So viel Zeit liegt mindestens zwischen zwei Einwurf-Cutaways auf dieselbe Person. 0 = jeder erkannte Einwurf kann genutzt werden.";

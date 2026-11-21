@@ -1100,47 +1100,33 @@ struct WizardFooter: View {
     }
 }
 
-// MARK: - Einstellungen (Variante C)
+// MARK: - Einstellungen
 //
-// Kuratierte Einfach-Ansicht (immer sichtbar). Der Textlink „Experteneinstellungen"
-// TAUSCHT den ganzen Inhalt gegen die volle Liste in ihren Rubriken (kein Anhängen,
-// kein Experten-Toggle). Beide Ansichten schreiben in denselben `engine.params`.
+// Immer die Kachel-Ansicht (Stufen). „Experteneinstellungen" klappt in jeder Kachel
+// unter den Stufen-Schaltern die zugehörigen Einzelwerte auf; was zu keiner Kachel
+// gehört, sammelt die Kachel „Weitere". Stufen und Einzelwerte schreiben in denselben
+// `engine.params` — wer einen Wert verstellt, sieht an der Stufe „angepasst". (User 21.11.)
 
 struct WizardSettings: View {
     @EnvironmentObject var engine: EngineController
     @State private var expert = false
-    /// Nicken-Muster (Name + Default-enabled) aus nodding_patterns.json — für die
-    /// Pattern-Toggles in „Cutaway Regeln". Die tatsächlichen Werte liegen PRO PRESET
-    /// in engine.params.noddingPatterns.
-    @State private var noddingPatternDefs: [(name: String, enabled: Bool)] = []
 
-    private var columns: [GridItem] {
-        [GridItem(.flexible(), spacing: 40), GridItem(.flexible(), spacing: 40)]
-    }
-
-    private func loadPatternDefs() async {
-        guard let np = await engine.getNoddingPatterns(),
-              let data = np.content.data(using: .utf8),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let pats = obj["patterns"] as? [[String: Any]] else { return }
-        noddingPatternDefs = pats.map { (name: $0["name"] as? String ?? "?",
-                                         enabled: $0["enabled"] as? Bool ?? true) }
-    }
-
+    // Kein eigener Container (User 21.11.): „Einstellungen" ist eine Abschnitts-
+    // Überschrift wie „Bildgrößen je Person", die Kacheln stehen frei im Fenster.
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text("Settings").font(.headline).padding(.bottom, 10)
-            Rectangle().fill(Color.wizBorder).frame(height: 1)
+            Text(loc("Settings").uppercased()).font(.caption2).fontWeight(.bold)
+                .foregroundStyle(.wizFaint).tracking(1)
+                .padding(.top, 8)
 
-            if expert { expertList } else { StufenAnsicht() }
+            StufenAnsicht(experte: expert)
 
             Button {
                 withAnimation(.easeInOut(duration: 0.15)) { expert.toggle() }
             } label: {
                 HStack(spacing: 6) {
-                    if expert { LucideIcon("chevron-up", size: 9) }
-                    Text(expert ? "Simple view" : "Expert settings")
-                    if !expert { LucideIcon("chevron-down", size: 9) }
+                    LucideIcon(expert ? "chevron-up" : "chevron-down", size: 9)
+                    Text(expert ? "Hide expert settings" : "Expert settings")
                 }
                 .font(.system(size: 13.5, weight: .medium))
                 .foregroundStyle(.brandSecondary)
@@ -1148,178 +1134,6 @@ struct WizardSettings: View {
             .buttonStyle(.plain)
             .padding(.top, 12)
         }
-        .padding(.horizontal, 18)
-        .padding(.vertical, 14)
-        .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 14))
-        .overlay(RoundedRectangle(cornerRadius: 14).stroke(Color.wizBorder, lineWidth: 1))
-        .task { await loadPatternDefs() }
-    }
-
-    // Kuratierte 8 Essentials
-    private var simpleList: some View {
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-            WizSlider("Min. shot length", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
-            WizSlider("Cutaway length", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)
-            WizToggle("Speech detection", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
-            WizToggle("Detect head nods", $engine.params.noddingEnabled, help: ParamHelp.noddingEnabled)
-            WizToggle("Trim pauses", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
-            WizToggle("Pause cutaways", $engine.params.pauseCutawayEnabled, help: ParamHelp.pauseCutawayEnabled)
-            WizSlider("Threshold", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
-            WizSlider("Max. shot length", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
-        }
-    }
-
-    // Volle Liste — Rubriken/Benennung/Reihenfolge 1:1 wie die Web-UI im Expertmode
-    // (config/schemas/multicam_params.json). Ausnahme: LUT ist „auf Halde" (Brain).
-    private var expertList: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 0) {
-                group("General cut rules", first: true) {
-                    WizSlider("Min. shot length", $engine.params.minShot, 0.5...10, suffix: " s", help: ParamHelp.minShot)
-                    WizSlider("Min. cleanup length", $engine.params.cleanupDur, 0.1...5, suffix: " s", help: ParamHelp.cleanupDur)
-                    WizSlider("Max. shot length", $engine.params.maxShot, 1...60, suffix: " s", help: ParamHelp.maxShot)
-                }
-                group("Speaker detection") {
-                    WizSlider("Threshold", $engine.params.thresholdDb, 0.5...20, suffix: " dB", help: ParamHelp.thresholdDb)
-                    WizSlider("Min. segment length", $engine.params.minEdit, 0.1...5, suffix: " s", help: ParamHelp.minEdit)
-                    WizSlider("Change delay", $engine.params.changeDelay, 0...2, suffix: " s", help: ParamHelp.changeDelay)
-                }
-                group("Pause trimming") {
-                    WizToggle("Trim pauses", $engine.params.pauseTrimEnabled, help: ParamHelp.pauseTrimEnabled)
-                    WizSlider("Max. pause", $engine.params.maxPause, 0.1...3, suffix: " s", help: ParamHelp.maxPause)
-                    WizSlider("Silence threshold", $engine.params.pauseSilenceDb, -80...(-10), suffix: " dB", format: "%.0f", help: ParamHelp.pauseSilenceDb)
-                    // Werte 1:1 aus dem Schema/der Pipeline (pause_trim_edl.py):
-                    // middle | l-cut | j-cut | random — NICHT none/end.
-                    WizSegmented("Cut mode", $engine.params.pauseCutMode,
-                                 options: [("middle", "Middle"), ("l-cut", "L-Cut"),
-                                           ("j-cut", "J-Cut"), ("random", "Random")],
-                                 help: ParamHelp.pauseCutMode)
-                    if engine.params.pauseCutMode != "middle" {
-                        WizSlider("Cut offset", $engine.params.pauseCutOffset, 0...10, suffix: " s",
-                                  help: ParamHelp.pauseCutOffset)
-                    }
-                }
-                // Allgemeine Cutaway-Regeln (gelten für ALLE Cutaway-Typen)
-                group("Cutaway rules") {
-                    WizSlider("Cutaway length", $engine.params.reactionDur, 0.5...5, suffix: " s", help: ParamHelp.reactionDur)
-                    WizSlider("Pre-roll", Binding(
-                        get: { Double(engine.params.preRoll) },
-                        set: { engine.params.preRoll = Int($0) }), 0...50, suffix: " f", format: "%.0f",
-                                  help: ParamHelp.preRoll)
-                    WizSlider("Randomness", $engine.params.randomness, 0...0.5, format: "%.2f", help: ParamHelp.randomness)
-                    WizToggle("Move unsuitable cutaways", $engine.params.clipFilterEnabled, help: ParamHelp.clipFilterEnabled)
-                    WizSegmented("Multiple wide shots", $engine.params.totaleMode,
-                                 options: [("round_robin", "Round-robin"), ("random", "Random"),
-                                           ("first", "First only")],
-                                 help: ParamHelp.totaleMode)
-                }
-                // Je Cutaway-Typ eine eigene Rubrik: Master-Toggle + NUR die Parameter,
-                // die wirklich dazugehören.
-                group("Head nods") {
-                    WizToggle("Enabled", $engine.params.noddingEnabled, help: ParamHelp.noddingEnabled)
-                    WizSlider("Min. confidence", Binding(
-                        get: { engine.params.minConf * 100 },
-                        set: { engine.params.minConf = $0 / 100 }), 0...100, suffix: " %", format: "%.0f",
-                                  help: ParamHelp.minConf)
-                }
-                // Muster-Toggles — PRO PRESET (engine.params.noddingPatterns), dynamisch
-                // aus nodding_patterns.json. Gehören zu „Kopfnicken".
-                if !noddingPatternDefs.isEmpty {
-                    subLabel("Patterns")
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-                        ForEach(noddingPatternDefs, id: \.name) { pat in
-                            WizToggle(pat.name.replacingOccurrences(of: "_", with: " ").capitalized,
-                                      Binding(get: { engine.params.noddingPatterns[pat.name] ?? pat.enabled },
-                                              set: { engine.params.noddingPatterns[pat.name] = $0 }))
-                        }
-                    }
-                }
-                group("Interjections") {
-                    WizToggle("Enabled", $engine.params.speakingEnabled, help: ParamHelp.speakingEnabled)
-                    WizSlider("Max. interjection length", $engine.params.speakingMaxDur, 0.5...10, suffix: " s", help: ParamHelp.speakingMaxDur)
-                    WizToggle("Priority over head nods", $engine.params.speakingPriority, help: ParamHelp.speakingPriority)
-                        .disabled(!engine.params.speakingEnabled || !engine.params.noddingEnabled)
-                    WizToggle("Interjections may shorten shots", $engine.params.speakingIgnoreMinShot,
-                              help: ParamHelp.speakingIgnoreMinShot)
-                        .disabled(!engine.params.speakingEnabled)
-                    if FeatureFlags.mouthReactions {
-                        WizToggle("Mouth movement (beta)", $engine.params.mouthReactionsEnabled, help: ParamHelp.mouthReactionsEnabled)
-                            .disabled(!engine.params.speakingEnabled)
-                        if engine.params.mouthReactionsEnabled && engine.params.speakingEnabled {
-                            WizSlider("Ignore at speaker change", $engine.params.mouthDeadband, 0...3, suffix: " s", help: ParamHelp.mouthDeadband)
-                            WizSlider("Measuring window", $engine.params.mouthWindow, 0.2...1.0, suffix: " s", format: "%.2f", help: ParamHelp.mouthWindow)
-                        }
-                    }
-                }
-                group("Silence") {
-                    WizToggle("Enabled", $engine.params.pauseCutawayEnabled, help: ParamHelp.pauseCutawayEnabled)
-                    WizSlider("Min. pause length", $engine.params.pauseCutawayMinPause, 0.5...10, suffix: " s", help: ParamHelp.pauseCutawayMinPause)
-                }
-                // Bildsprache: nur wenn es eine größere Einstellung gibt — sonst
-                // haben die Übergänge keine gemeinsame Kamera und wären wirkungslos.
-                if engine.hasWideCamera {
-                    group("Visual language", description: ParamHelp.bildspracheIntro) {
-                        WizToggle("Transition on speaker change", $engine.params.transitionSpeakerChange,
-                                  help: ParamHelp.transitionSpeakerChange)
-                        WizSlider("Transition threshold", $engine.params.transitionReturnFactor,
-                                  1.5...4.0, suffix: "×", format: "%.1f",
-                                  help: ParamHelp.transitionReturnFactor)
-                    }
-                    subLabel("Return after cutaway via a wider shot")
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-                        WizToggle("After head nod", $engine.params.transitionCutawayNodding,
-                                  help: ParamHelp.transitionCutawayNodding)
-                        WizToggle("After interjection", $engine.params.transitionCutawaySpeaking,
-                                  help: ParamHelp.transitionCutawaySpeaking)
-                        WizToggle("After pause", $engine.params.transitionCutawayPause,
-                                  help: ParamHelp.transitionCutawayPause)
-                    }
-                    LazyVGrid(columns: columns, alignment: .leading, spacing: 0) {
-                        WizSlider("Cooldown (cuts)", Binding(
-                            get: { Double(engine.params.transitionCutawayCooldown) },
-                            set: { engine.params.transitionCutawayCooldown = Int($0) }),
-                                  0...20, suffix: "", format: "%.0f",
-                                  help: ParamHelp.transitionCutawayCooldown)
-                        WizSlider("Cooldown (time)", $engine.params.transitionCutawayCooldownS,
-                                  0...30, suffix: " s", format: "%.0f",
-                                  help: ParamHelp.transitionCutawayCooldownS)
-                    }
-                }
-                group("Debug") {
-                    WizToggle("Analysis overlays", $engine.params.previewOverlay, help: ParamHelp.previewOverlay)
-                }
-            }
-        }
-        .frame(maxHeight: 300)
-    }
-
-    @ViewBuilder
-    private func group<C: View>(_ title: String, first: Bool = false, description: String = "",
-                                @ViewBuilder _ content: () -> C) -> some View {
-        // Trennlinie über jeder Rubrik (wie unter „Einstellungen") — außer der ersten,
-        // die direkt unter der Einstellungen-Trennlinie sitzt.
-        if !first {
-            Rectangle().fill(Color.wizBorder).frame(height: 1).padding(.top, 16)
-        }
-        Text(loc(title).uppercased())
-            .font(.caption2).fontWeight(.bold).foregroundStyle(.brandSecondary).tracking(0.8)
-            .padding(.top, first ? 16 : 12).padding(.bottom, 2)
-        // Optionaler Einleitungstext für Rubriken, deren Sinn sich nicht aus den
-        // Parameternamen erschließt (z.B. Bildsprache).
-        if !description.isEmpty {
-            Text(loc(description))
-                .font(.caption2).foregroundStyle(.wizMuted)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.bottom, 6)
-        }
-        LazyVGrid(columns: columns, alignment: .leading, spacing: 0) { content() }
-    }
-
-    @ViewBuilder
-    private func subLabel(_ title: String) -> some View {
-        Text(loc(title).uppercased())
-            .font(.caption2).fontWeight(.semibold).foregroundStyle(.wizMuted).tracking(0.8)
-            .padding(.top, 12).padding(.bottom, 2)
     }
 }
 
@@ -1351,17 +1165,37 @@ struct WizSlider: View {
         self.suffix = suffix; self.format = format; self.help = help
     }
 
+    @Environment(\.wizKompakt) private var kompakt
+
+    private var wertText: some View {
+        Text(String(format: format, value).replacingOccurrences(of: ".", with: ",") + suffix)
+            .font(.system(.caption, design: .monospaced)).foregroundStyle(.wizMuted)
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            Text(loc(label)).font(.system(size: 14)).lineLimit(1)
-            if !help.isEmpty { WizHelpBadge(help) }
-            Spacer(minLength: 8)
-            WizSliderControl(value: $value, range: range)
-            Text(String(format: format, value).replacingOccurrences(of: ".", with: ",") + suffix)
-                .font(.system(.caption, design: .monospaced)).foregroundStyle(.wizMuted)
-                .frame(width: 54, alignment: .trailing)
+        Group {
+            if kompakt {
+                // In schmalen Kacheln: Name + Wert oben, Regler über die volle Breite darunter
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(loc(label)).font(.system(size: 13)).lineLimit(1).minimumScaleFactor(0.85)
+                        if !help.isEmpty { WizHelpBadge(help) }
+                        Spacer(minLength: 6)
+                        wertText
+                    }
+                    WizSliderControl(value: $value, range: range, breite: nil)
+                }
+            } else {
+                HStack(spacing: 12) {
+                    Text(loc(label)).font(.system(size: 14)).lineLimit(1)
+                    if !help.isEmpty { WizHelpBadge(help) }
+                    Spacer(minLength: 8)
+                    WizSliderControl(value: $value, range: range)
+                    wertText.frame(width: 54, alignment: .trailing)
+                }
+            }
         }
-        .padding(.vertical, 9)
+        .padding(.vertical, kompakt ? 7 : 9)
         .overlay(alignment: .bottom) {
             Rectangle().fill(Color.wizBorder.opacity(0.5)).frame(height: 0.5)
         }
@@ -1373,13 +1207,15 @@ struct WizToggle: View {
     @Binding var isOn: Bool
     var help: String = ""
 
+    @Environment(\.wizKompakt) private var kompakt
+
     init(_ label: String, _ isOn: Binding<Bool>, help: String = "") {
         self.label = label; self._isOn = isOn; self.help = help
     }
 
     var body: some View {
         HStack {
-            Text(loc(label)).font(.system(size: 14)).lineLimit(1)
+            Text(loc(label)).font(.system(size: kompakt ? 13 : 14)).lineLimit(1).minimumScaleFactor(0.85)
             if !help.isEmpty { WizHelpBadge(help) }
             Spacer()
             WizSwitch(isOn: $isOn)
@@ -1406,27 +1242,47 @@ struct WizSegmented: View {
         self.help = help
     }
 
+    @Environment(\.wizKompakt) private var kompakt
+
+    private var segmente: some View {
+        HStack(spacing: 2) {
+            ForEach(options, id: \.value) { opt in
+                let active = selection == opt.value
+                Text(loc(opt.display))
+                    .font(.system(size: 11.5, weight: active ? .semibold : .regular))
+                    .lineLimit(1).minimumScaleFactor(0.8)
+                    .foregroundStyle(active ? Color.black : Color.wizMuted)
+                    .padding(.horizontal, kompakt ? 4 : 8).padding(.vertical, 4)
+                    .frame(maxWidth: kompakt ? .infinity : nil)
+                    .background(active ? Color.brandAccent : Color.clear,
+                                in: RoundedRectangle(cornerRadius: 6))
+                    .contentShape(Rectangle())
+                    .onTapGesture { selection = opt.value }
+            }
+        }
+        .padding(2)
+        .background(Color.wizSurface2, in: RoundedRectangle(cornerRadius: 8))
+        .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.wizBorder2, lineWidth: 1))
+    }
+
     var body: some View {
-        HStack(spacing: 12) {
-            Text(loc(label)).font(.system(size: 14)).lineLimit(1)
-            if !help.isEmpty { WizHelpBadge(help) }
-            Spacer(minLength: 8)
-            HStack(spacing: 2) {
-                ForEach(options, id: \.value) { opt in
-                    let active = selection == opt.value
-                    Text(loc(opt.display))
-                        .font(.system(size: 11.5, weight: active ? .semibold : .regular))
-                        .foregroundStyle(active ? Color.black : Color.wizMuted)
-                        .padding(.horizontal, 8).padding(.vertical, 4)
-                        .background(active ? Color.brandAccent : Color.clear,
-                                    in: RoundedRectangle(cornerRadius: 6))
-                        .contentShape(Rectangle())
-                        .onTapGesture { selection = opt.value }
+        Group {
+            if kompakt {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 6) {
+                        Text(loc(label)).font(.system(size: 13)).lineLimit(1)
+                        if !help.isEmpty { WizHelpBadge(help) }
+                    }
+                    segmente
+                }
+            } else {
+                HStack(spacing: 12) {
+                    Text(loc(label)).font(.system(size: 14)).lineLimit(1)
+                    if !help.isEmpty { WizHelpBadge(help) }
+                    Spacer(minLength: 8)
+                    segmente
                 }
             }
-            .padding(2)
-            .background(Color.wizSurface2, in: RoundedRectangle(cornerRadius: 8))
-            .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.wizBorder2, lineWidth: 1))
         }
         .padding(.vertical, 7)
         .overlay(alignment: .bottom) {
@@ -1488,6 +1344,8 @@ struct WizSecondaryButton: ButtonStyle {
 struct WizSliderControl: View {
     @Binding var value: Double
     let range: ClosedRange<Double>
+    /// Feste Breite (Standard) oder nil = volle verfügbare Breite (kompakte Kacheln).
+    var breite: CGFloat? = 108
 
     var body: some View {
         GeometryReader { geo in
@@ -1509,7 +1367,17 @@ struct WizSliderControl: View {
                 value = range.lowerBound + Double(f) * span
             })
         }
-        .frame(width: 108, height: 14)
+        .frame(width: breite, height: 14)
+        .frame(maxWidth: breite == nil ? .infinity : nil)
+    }
+}
+
+/// Kompakte Darstellung der Wiz-Zeilen in schmalen Kacheln (Experteneinstellungen).
+private struct WizKompaktKey: EnvironmentKey { static let defaultValue = false }
+extension EnvironmentValues {
+    var wizKompakt: Bool {
+        get { self[WizKompaktKey.self] }
+        set { self[WizKompaktKey.self] = newValue }
     }
 }
 

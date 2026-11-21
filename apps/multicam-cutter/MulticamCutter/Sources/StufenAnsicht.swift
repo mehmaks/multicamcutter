@@ -9,6 +9,13 @@ import SwiftUI
 
 struct StufenAnsicht: View {
     @EnvironmentObject var engine: EngineController
+    /// Experteneinstellungen: Einzelwerte in den Kacheln + Kachel „Weitere".
+    var experte: Bool = false
+
+    /// Kacheln der Ansicht: Stufen-Kategorien, im Expertenmodus plus „Weitere" (nil).
+    private var kacheln: [StufenKategorie?] {
+        kategorien.map { Optional($0) } + (experte ? [nil] : [])
+    }
 
     private var kategorien: [StufenKategorie] {
         Stufen.kategorien.filter { !$0.nurMitTotale || engine.hasWideCamera }
@@ -18,9 +25,9 @@ struct StufenAnsicht: View {
 
     /// Kacheln in Reihen zu je drei; die Zusammenfassung füllt den Rest der letzten
     /// Reihe (bei vier Kacheln zwei Spalten, mit Totale eine) bzw. eine eigene Reihe.
-    private var reihen: [[StufenKategorie]] {
-        stride(from: 0, to: kategorien.count, by: spalten).map {
-            Array(kategorien[$0..<min($0 + spalten, kategorien.count)])
+    private var reihen: [[StufenKategorie?]] {
+        stride(from: 0, to: kacheln.count, by: spalten).map {
+            Array(kacheln[$0..<min($0 + spalten, kacheln.count)])
         }
     }
 
@@ -29,7 +36,9 @@ struct StufenAnsicht: View {
         Grid(horizontalSpacing: 14, verticalSpacing: 14) {
             ForEach(Array(reihen.enumerated()), id: \.offset) { i, reihe in
                 GridRow(alignment: .top) {
-                    ForEach(reihe) { k in StufenKachel(kategorie: k) }
+                    ForEach(Array(reihe.enumerated()), id: \.offset) { _, k in
+                        if let k { StufenKachel(kategorie: k, experte: experte) } else { WeitereKachel() }
+                    }
                     if i == reihen.count - 1 && rest > 0 {
                         StufenZusammenfassung().gridCellColumns(rest)
                     }
@@ -67,6 +76,7 @@ struct StufenZusammenfassung: View {
 struct StufenKachel: View {
     @EnvironmentObject var engine: EngineController
     let kategorie: StufenKategorie
+    var experte: Bool = false
 
     private var schaltbar: Bool { !kategorie.anSchluessel.isEmpty }
     /// Nur ein Regler mit demselben Namen wie die Kachel (z. B. Tempo) → keine
@@ -112,6 +122,11 @@ struct StufenKachel: View {
             }
             ForEach(kategorie.regler) { r in
                 StufenSchalter(regler: r, kategorie: kategorie, ohneTitel: einRegler)
+                    .disabled(!an)
+                    .opacity(an ? 1 : 0.4)
+            }
+            if experte {
+                ExpertenInhalt(kategorieId: kategorie.id)
                     .disabled(!an)
                     .opacity(an ? 1 : 0.4)
             }
