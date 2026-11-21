@@ -71,6 +71,14 @@ struct ExpertenInhalt: View {
                           Binding(get: { engine.params.noddingPatterns[pat.name] ?? pat.enabled },
                                   set: { engine.params.noddingPatterns[pat.name] = $0 }))
                 .angepasst((engine.params.noddingPatterns[pat.name] ?? pat.enabled) != pat.enabled)
+                // Konfidenz je Muster (Teil der Stufe „Treffsicherheit"); über 100 % = aus.
+                WizSlider("Confidence", Binding(
+                    get: { Stufen.musterKonfidenz(pat.name, engine.params) * 100 },
+                    set: { engine.params.noddingPatternMinConf[pat.name] = $0 > 100.5 ? 1.01 : $0 / 100 }),
+                          50...101, help: ParamHelp.noddingPatternMinConf,
+                          anzeige: { $0 > 100.5 ? loc("off") : String(format: "%.0f %%", $0) })
+                    .angepasst(Stufen.musterKonfidenzAngepasst(pat.name, engine.params))
+                    .disabled(!(engine.params.noddingPatterns[pat.name] ?? pat.enabled))
             }
         }
     }

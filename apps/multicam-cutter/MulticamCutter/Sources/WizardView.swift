@@ -1155,18 +1155,21 @@ struct WizSlider: View {
     var suffix: String = ""
     var format: String = "%.1f"
     var help: String = ""
+    /// Eigene Wertanzeige (z. B. „aus" ab einer Grenze); sonst format + suffix.
+    var anzeige: ((Double) -> String)? = nil
 
     init(_ label: String, _ value: Binding<Double>, _ range: ClosedRange<Double>,
-         suffix: String = "", format: String = "%.1f", help: String = "") {
+         suffix: String = "", format: String = "%.1f", help: String = "",
+         anzeige: ((Double) -> String)? = nil) {
         self.label = label; self._value = value; self.range = range
-        self.suffix = suffix; self.format = format; self.help = help
+        self.suffix = suffix; self.format = format; self.help = help; self.anzeige = anzeige
     }
 
     @Environment(\.wizKompakt) private var kompakt
     @Environment(\.wizAngepasst) private var angepasst
 
     private var wertText: some View {
-        Text(String(format: format, value).replacingOccurrences(of: ".", with: ",") + suffix)
+        Text(anzeige?(value) ?? (String(format: format, value).replacingOccurrences(of: ".", with: ",") + suffix))
             .font(.system(.caption, design: .monospaced)).foregroundStyle(.wizMuted)
     }
 

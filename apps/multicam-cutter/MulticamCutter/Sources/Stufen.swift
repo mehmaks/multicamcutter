@@ -208,6 +208,16 @@ enum Stufen {
         return !gleich(p.toDict()[key], ref)
     }
 
+    /// Konfidenz eines Nick-Musters (fehlt sie, gilt min_conf) gegen den Standard.
+    static func musterKonfidenz(_ muster: String, _ p: PipelineParams) -> Double {
+        p.noddingPatternMinConf[muster] ?? p.minConf
+    }
+    static func musterKonfidenzAngepasst(_ muster: String, _ p: PipelineParams) -> Bool {
+        let refDict = (referenz("nodding_pattern_min_conf", p) as? [String: Double]) ?? [:]
+        let refMin = (referenz("min_conf", p) as? Double) ?? p.minConf
+        return abs((refDict[muster] ?? refMin) - musterKonfidenz(muster, p)) > 1e-6
+    }
+
     /// Ein Anlass in `transition_cutaway_back` (Rückweg nach Cutaway) gegen den Standard.
     static func rueckwegAngepasst(_ anlass: String, _ p: PipelineParams) -> Bool {
         let ref = Set((referenz("transition_cutaway_back", p) as? [String]) ?? [])

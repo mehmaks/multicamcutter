@@ -461,3 +461,8 @@
 "Speaker threshold" = "Schwelle Sprecherwechsel";
 "At least this much time lies between two head-nod cutaways on the same person. 0 = every detected nod can be used." = "So viel Zeit liegt mindestens zwischen zwei Nick-Cutaways auf dieselbe Person. 0 = jedes erkannte Nicken kann genutzt werden.";
 "At least this much time lies between two interjection cutaways on the same person. 0 = every detected interjection can be used." = "So viel Zeit liegt mindestens zwischen zwei Einwurf-Cutaways auf dieselbe Person. 0 = jeder erkannte Einwurf kann genutzt werden.";
+
+/* Konfidenz je Nick-Muster (21.11.) */
+"Confidence" = "Konfidenz";
+"off" = "aus";
+"How sure the detection has to be for this kind of head movement before it becomes a cutaway. Above 100 % the pattern is not used at all." = "Wie sicher die Erkennung bei dieser Art Kopfbewegung sein muss, damit ein Cutaway entsteht. Über 100 % wird das Muster gar nicht genutzt.";
