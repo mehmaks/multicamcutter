@@ -31,6 +31,8 @@ struct StufenAnsicht: View {
         }
     }
 
+    // Im Expertenmodus keine Zusammenfassung „Was dich erwartet": sie beschreibt nur
+    // die Stufen und kann frei verstellte Einzelwerte nicht abbilden (User 21.11.).
     var body: some View {
         let rest = spalten - (reihen.last?.count ?? 0)
         Grid(horizontalSpacing: 14, verticalSpacing: 14) {
@@ -40,11 +42,12 @@ struct StufenAnsicht: View {
                         if let k { StufenKachel(kategorie: k, experte: experte) } else { WeitereKachel() }
                     }
                     if i == reihen.count - 1 && rest > 0 {
-                        StufenZusammenfassung().gridCellColumns(rest)
+                        if experte { Color.clear.gridCellColumns(rest) }
+                        else { StufenZusammenfassung().gridCellColumns(rest) }
                     }
                 }
             }
-            if rest == 0 {
+            if rest == 0 && !experte {
                 GridRow { StufenZusammenfassung().gridCellColumns(spalten) }
             }
         }

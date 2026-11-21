@@ -453,7 +453,6 @@
 "Progress" = "Fortschritt";
 
 /* Experteneinstellungen in den Kacheln (21.11.) */
-"Hide expert settings" = "Experteneinstellungen ausblenden";
 "Gap between nod cutaways" = "Abstand Nick-Cutaways";
 "Gap between interjection cutaways" = "Abstand Einwurf-Cutaways";
 "Crosstalk until wide shot" = "Durcheinander bis Totale";

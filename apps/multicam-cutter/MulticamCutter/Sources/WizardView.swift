@@ -1109,30 +1109,27 @@ struct WizardFooter: View {
 
 struct WizardSettings: View {
     @EnvironmentObject var engine: EngineController
-    @State private var expert = false
+    /// Experteneinstellungen an/aus — gemerkt über Neustarts hinweg.
+    @AppStorage("settings.expertMode") private var expert = false
 
     // Kein eigener Container (User 21.11.): „Einstellungen" ist eine Abschnitts-
     // Überschrift wie „Bildgrößen je Person", die Kacheln stehen frei im Fenster.
+    // Experteneinstellungen sind ein Schalter (kein Aufklapp-Link) neben der Überschrift.
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
-            Text(loc("Settings").uppercased()).font(.caption2).fontWeight(.bold)
-                .foregroundStyle(.wizFaint).tracking(1)
-                .padding(.top, 8)
+            HStack(spacing: 10) {
+                Text(loc("Settings").uppercased()).font(.caption2).fontWeight(.bold)
+                    .foregroundStyle(.wizFaint).tracking(1)
+                Spacer()
+                WizSwitch(isOn: Binding(get: { expert },
+                                        set: { neu in withAnimation(.easeInOut(duration: 0.15)) { expert = neu } }))
+                Text(loc("Expert settings")).font(.system(size: 13, weight: .medium))
+                    .foregroundStyle(expert ? Color.wizText : Color.wizMuted)
+                    .onTapGesture { withAnimation(.easeInOut(duration: 0.15)) { expert.toggle() } }
+            }
+            .padding(.top, 8)
 
             StufenAnsicht(experte: expert)
-
-            Button {
-                withAnimation(.easeInOut(duration: 0.15)) { expert.toggle() }
-            } label: {
-                HStack(spacing: 6) {
-                    LucideIcon(expert ? "chevron-up" : "chevron-down", size: 9)
-                    Text(expert ? "Hide expert settings" : "Expert settings")
-                }
-                .font(.system(size: 13.5, weight: .medium))
-                .foregroundStyle(.brandSecondary)
-            }
-            .buttonStyle(.plain)
-            .padding(.top, 12)
         }
     }
 }
