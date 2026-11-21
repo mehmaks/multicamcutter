@@ -1477,8 +1477,18 @@ struct WizPresetDropdown: View {
     /// „JENA UNITED 2/3") zeigte der Picker dann das ERSTE Treffer-Preset statt des
     /// gewählten. Jetzt merkt er sich die Auswahl explizit.
     @State private var selectedId: String?
+    /// Zuletzt geladenes Preset — bleibt löschbar, auch wenn man danach Werte verstellt
+    /// (dann zeigt der Picker „Angepasst", selectedId ist nil).
+    @State private var geladenId: String?
+    @State private var loeschenFragen = false
 
     private func reloadPresets() { presets = PresetManager.shared.listPresets() }
+
+    /// Preset, das „Preset löschen" betrifft: das gewählte, sonst das zuletzt geladene.
+    private var loeschbares: Preset? {
+        let id = selectedId ?? geladenId
+        return presets.first { $0.id == id }
+    }
 
     /// ID des ersten Presets, das exakt den aktuellen Parametern entspricht (sonst nil
     /// → „Custom"). Nur für den Abgleich bei EXTERNEN Parameter-Änderungen.
@@ -1498,6 +1508,7 @@ struct WizPresetDropdown: View {
                     if let id = newId, let p = PresetManager.shared.loadPreset(id) {
                         engine.params = p
                         engine.presetReferenz = p
+                        geladenId = id
                     }
                 }
             )) {
@@ -1529,11 +1540,18 @@ struct WizPresetDropdown: View {
                         engine.params = p
                         engine.presetReferenz = p
                         reloadPresets()   // Import legt eine Datei an → Liste neu einlesen
+                        geladenId = matchingPresetId
                     }
                 }
                 Button("Export preset …") {
                     _ = PresetManager.shared.exportPreset(engine.params, name: "My Preset")
                 }
+                Divider()
+                Button(loeschbares.map { String(format: loc("Delete preset “%@” …"), $0.name) }
+                       ?? loc("Delete preset …"), role: .destructive) {
+                    loeschenFragen = true
+                }
+                .disabled(loeschbares == nil)
             } label: {
                 LucideIcon("circle-ellipsis", size: 15).foregroundStyle(.wizMuted)
             }
@@ -1544,7 +1562,7 @@ struct WizPresetDropdown: View {
         .onAppear {
             reloadPresets()   // falls anderswo Presets dazugekommen sind
             selectedId = matchingPresetId   // Start: passt der aktuelle Stand zu einem Preset?
-            if selectedId != nil { engine.presetReferenz = engine.params }
+            if selectedId != nil { engine.presetReferenz = engine.params; geladenId = selectedId }
         }
         .onChange(of: engine.params) { _, _ in
             // Externe Parameter-Änderung (Slider/Toggle): Auswahl abgleichen. Steht der
@@ -1552,6 +1570,21 @@ struct WizPresetDropdown: View {
             // parameter-gleichen Duplikaten). Sonst passendes Preset oder „Custom".
             if let id = selectedId, PresetManager.shared.loadPreset(id) == engine.params { return }
             selectedId = matchingPresetId
+        }
+        .alert(Text(loeschbares.map { String(format: loc("Delete preset “%@”?"), $0.name) } ?? ""),
+               isPresented: $loeschenFragen) {
+            Button("Delete", role: .destructive) {
+                guard let p = loeschbares else { return }
+                PresetManager.shared.deletePreset(p.id)
+                reloadPresets()
+                if selectedId == p.id { selectedId = nil }
+                geladenId = nil
+                engine.presetReferenz = nil   // kein Preset-Bezug mehr für „angepasst"
+                selectedId = matchingPresetId
+            }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("The current settings stay as they are. This can't be undone.")
         }
         .sheet(isPresented: $showSaveSheet) {
             VStack(spacing: 16) {
@@ -1565,6 +1598,7 @@ struct WizPresetDropdown: View {
                         reloadPresets()   // ohne das erscheint das neue Preset nicht im Menü
                         selectedId = saved.id   // frisch gespeichertes Preset direkt anzeigen
                         engine.presetReferenz = engine.params
+                        geladenId = saved.id
                         showSaveSheet = false
                     }
                     .buttonStyle(.borderedProminent).disabled(newName.isEmpty)

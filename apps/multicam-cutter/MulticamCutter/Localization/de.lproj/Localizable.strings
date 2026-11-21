@@ -469,3 +469,10 @@
 
 "Differs from the loaded preset." = "Weicht vom geladenen Preset ab.";
 "Double-click to reset" = "Doppelklick setzt zurück";
+
+/* Preset löschen (21.11.) */
+"Delete preset “%@” …" = "Preset „%@“ löschen …";
+"Delete preset …" = "Preset löschen …";
+"Delete preset “%@”?" = "Preset „%@“ löschen?";
+"The current settings stay as they are. This can't be undone." = "Die aktuellen Einstellungen bleiben, wie sie sind. Das lässt sich nicht rückgängig machen.";
+"Delete" = "Löschen";
