@@ -1471,7 +1471,10 @@ struct WizPresetDropdown: View {
                 get: { selectedId },
                 set: { newId in
                     selectedId = newId
-                    if let id = newId, let p = PresetManager.shared.loadPreset(id) { engine.params = p }
+                    if let id = newId, let p = PresetManager.shared.loadPreset(id) {
+                        engine.params = p
+                        engine.presetReferenz = p
+                    }
                 }
             )) {
                 if selectedId == nil {
@@ -1500,6 +1503,7 @@ struct WizPresetDropdown: View {
                 Button("Import preset …") {
                     if let (_, p) = PresetManager.shared.importPreset() {
                         engine.params = p
+                        engine.presetReferenz = p
                         reloadPresets()   // Import legt eine Datei an → Liste neu einlesen
                     }
                 }
@@ -1516,6 +1520,7 @@ struct WizPresetDropdown: View {
         .onAppear {
             reloadPresets()   // falls anderswo Presets dazugekommen sind
             selectedId = matchingPresetId   // Start: passt der aktuelle Stand zu einem Preset?
+            if selectedId != nil { engine.presetReferenz = engine.params }
         }
         .onChange(of: engine.params) { _, _ in
             // Externe Parameter-Änderung (Slider/Toggle): Auswahl abgleichen. Steht der
@@ -1535,6 +1540,7 @@ struct WizPresetDropdown: View {
                         let saved = PresetManager.shared.savePreset(name: newName, params: engine.params)
                         reloadPresets()   // ohne das erscheint das neue Preset nicht im Menü
                         selectedId = saved.id   // frisch gespeichertes Preset direkt anzeigen
+                        engine.presetReferenz = engine.params
                         showSaveSheet = false
                     }
                     .buttonStyle(.borderedProminent).disabled(newName.isEmpty)

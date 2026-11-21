@@ -464,6 +464,11 @@ class EngineController: ObservableObject {
 
     private static let letzteEinstellungenKey = "lastUsedParams"
 
+    /// Zuletzt geladenes/gespeichertes Preset — Bezug für „angepasst" in den
+    /// Experteneinstellungen (User 21.11.). Bleibt stehen, während man Werte verstellt;
+    /// ein anderes Preset ersetzt es, eine andere Folge setzt es zurück.
+    @Published var presetReferenz: PipelineParams? = nil
+
     static func letzteEinstellungen() -> PipelineParams {
         var p = PipelineParams()
         if let data = UserDefaults.standard.data(forKey: letzteEinstellungenKey),
@@ -1914,6 +1919,7 @@ class EngineController: ObservableObject {
     // MARK: - Scan (Engine --scan)
 
     private func runScan(folder: URL, decideWizardStep: Bool = true) async {
+        presetReferenz = nil   // neue Folge: kein Preset-Bezug für „angepasst"
         loadAudioJoinSettings()
         var scanArgs = ["--folder", folder.path, "--scan"]
         if !audioJoinGroups.isEmpty,

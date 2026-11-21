@@ -378,3 +378,9 @@ blendet in jeder Kachel unter den Stufen-Schaltern die Einzelwerte ein (`Experte
 verzögerung, Vorlauf, Cutaway-Filter, Analyse-Einblendungen). Zeilen in Kacheln laufen im
 kompakten Modus (`\.wizKompakt`: Name + Wert oben, Regler volle Breite darunter).
 Verstellte Werte → „angepasst" an der Stufe (wie bisher).
+
+**„angepasst" — Bezug je Modus (21.11.):** Einfache Ansicht = Abweichung von der gewählten
+Stufe. Experteneinstellungen mit geladenem Preset = Abweichung vom Preset
+(`engine.presetReferenz`, gesetzt beim Laden/Importieren/Speichern eines Presets, beim
+Öffnen einer anderen Folge zurückgesetzt). Ohne Preset auch im Expertenmodus gegen die
+Stufen bzw. den App-Standard. Gilt für den Hinweis an den Stufen und für Flieder-Werte.

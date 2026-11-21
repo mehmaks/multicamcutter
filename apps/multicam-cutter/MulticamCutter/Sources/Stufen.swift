@@ -202,8 +202,21 @@ enum Stufen {
         soll.filter { gleich(ist[$0.key], $0.value) }.count
     }
 
+    /// „angepasst"-Hinweis an einem Stufen-Regler: einfach = keine Stufe passt;
+    /// Expertenmodus mit Preset = einer seiner Werte weicht vom Preset ab.
+    static func reglerAngepasst(_ r: StufenRegler, _ p: PipelineParams, preset: PipelineParams?) -> Bool {
+        guard let preset else { return stufe(r, in: p) == nil }
+        let keys = Set(r.werte.flatMap { $0.keys })
+        return keys.contains { istAngepasst($0, p, preset: preset) }
+    }
+
     /// Weicht der Wert vom Standard (siehe `referenz`) ab? → Flieder statt Lime.
-    static func istAngepasst(_ key: String, _ p: PipelineParams) -> Bool {
+    /// Mit `preset` (Expertenmodus + geladenes Preset): Abweichung vom Preset statt von der Stufe.
+    static func istAngepasst(_ key: String, _ p: PipelineParams, preset: PipelineParams? = nil) -> Bool {
+        if let preset {
+            guard let ref = preset.toDict()[key] else { return false }
+            return !gleich(p.toDict()[key], ref)
+        }
         guard let ref = referenz(key, p) else { return false }
         return !gleich(p.toDict()[key], ref)
     }
@@ -212,15 +225,17 @@ enum Stufen {
     static func musterKonfidenz(_ muster: String, _ p: PipelineParams) -> Double {
         p.noddingPatternMinConf[muster] ?? p.minConf
     }
-    static func musterKonfidenzAngepasst(_ muster: String, _ p: PipelineParams) -> Bool {
+    static func musterKonfidenzAngepasst(_ muster: String, _ p: PipelineParams, preset: PipelineParams? = nil) -> Bool {
+        if let preset { return abs(musterKonfidenz(muster, preset) - musterKonfidenz(muster, p)) > 1e-6 }
         let refDict = (referenz("nodding_pattern_min_conf", p) as? [String: Double]) ?? [:]
         let refMin = (referenz("min_conf", p) as? Double) ?? p.minConf
         return abs((refDict[muster] ?? refMin) - musterKonfidenz(muster, p)) > 1e-6
     }
 
     /// Ein Anlass in `transition_cutaway_back` (Rückweg nach Cutaway) gegen den Standard.
-    static func rueckwegAngepasst(_ anlass: String, _ p: PipelineParams) -> Bool {
-        let ref = Set((referenz("transition_cutaway_back", p) as? [String]) ?? [])
+    static func rueckwegAngepasst(_ anlass: String, _ p: PipelineParams, preset: PipelineParams? = nil) -> Bool {
+        let refQuelle = preset.map { $0.toDict()["transition_cutaway_back"] } ?? referenz("transition_cutaway_back", p)
+        let ref = Set((refQuelle as? [String]) ?? [])
         let ist = Set((p.toDict()["transition_cutaway_back"] as? [String]) ?? [])
         return ref.contains(anlass) != ist.contains(anlass)
     }

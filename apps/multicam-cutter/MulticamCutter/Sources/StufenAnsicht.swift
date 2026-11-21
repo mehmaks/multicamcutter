@@ -88,6 +88,8 @@ struct StufenKachel: View {
         kategorie.regler.count == 1 && kategorie.regler[0].titel == kategorie.titel
     }
     private var an: Bool { !schaltbar || Stufen.istAn(kategorie, engine.params) }
+    /// Bezug für „angepasst": im Expertenmodus das geladene Preset, sonst die Stufen.
+    private var bezug: PipelineParams? { experte ? engine.presetReferenz : nil }
 
     private func umschalten() {
         guard schaltbar else { return }
@@ -115,16 +117,15 @@ struct StufenKachel: View {
                     .foregroundStyle(an ? Color.wizText : Color.wizMuted)
                 WizHelpBadge(kategorie.hilfe)
                 Spacer()
-                if einRegler, Stufen.stufe(kategorie.regler[0], in: engine.params) == nil {
-                    Text(loc("custom")).font(.caption2).foregroundStyle(.brandSecondary)
-                        .help(loc("Changed in the expert settings — pick a level to reset."))
+                if einRegler, Stufen.reglerAngepasst(kategorie.regler[0], engine.params, preset: bezug) {
+                    AngepasstHinweis(gegenPreset: bezug != nil)
                 }
                 if schaltbar {
                     WizSwitch(isOn: Binding(get: { an }, set: { neu in if neu != an { umschalten() } }))
                 }
             }
             ForEach(kategorie.regler) { r in
-                StufenSchalter(regler: r, kategorie: kategorie, ohneTitel: einRegler)
+                StufenSchalter(regler: r, kategorie: kategorie, ohneTitel: einRegler, bezug: bezug)
                     .disabled(!an)
                     .opacity(an ? 1 : 0.4)
             }
@@ -148,6 +149,7 @@ struct StufenSchalter: View {
     let regler: StufenRegler
     let kategorie: StufenKategorie
     var ohneTitel: Bool = false
+    var bezug: PipelineParams? = nil
 
     var body: some View {
         let aktiv = Stufen.stufe(regler, in: engine.params)
@@ -156,9 +158,8 @@ struct StufenSchalter: View {
                 Text(loc(regler.titel)).font(.system(size: 13))
                 WizHelpBadge(regler.hilfe)
                 Spacer()
-                if aktiv == nil {
-                    Text(loc("custom")).font(.caption2).foregroundStyle(.brandSecondary)
-                        .help(loc("Changed in the expert settings — pick a level to reset."))
+                if Stufen.reglerAngepasst(regler, engine.params, preset: bezug) {
+                    AngepasstHinweis(gegenPreset: bezug != nil)
                 }
             } }
             HStack(spacing: 2) {
@@ -183,5 +184,16 @@ struct StufenSchalter: View {
             .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 8))
             .overlay(RoundedRectangle(cornerRadius: 8).stroke(Color.wizBorder2, lineWidth: 1))
         }
+    }
+}
+
+/// „angepasst" in Flieder. Einfache Ansicht: weicht von der Stufe ab; Experten-
+/// einstellungen mit geladenem Preset: weicht vom Preset ab (User 21.11.).
+struct AngepasstHinweis: View {
+    let gegenPreset: Bool
+    var body: some View {
+        Text(loc("custom")).font(.caption2).foregroundStyle(.brandSecondary)
+            .help(loc(gegenPreset ? "Differs from the loaded preset."
+                                  : "Changed in the expert settings — pick a level to reset."))
     }
 }
