@@ -363,6 +363,10 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
 - Behoben: Der Fortschrittsbalken lief bei manchen Farbwechseln (z. B. Blau → Flieder) über
   dunkle und helle Zwischentöne; jetzt blendet er überall weich über (selbst gezeichnet statt
   nativer macOS-Balken).
+- Neu: App-Icon „MCC-Schere" auf Lime.
+- Neu: Experteneinstellungen direkt in den Kacheln (Schalter neben „Einstellungen", gemerkt),
+  Kachel „Weitere"; „Was dich erwartet" im Expertenmodus aus; Einstellungen ohne Rahmen.
+- Neu: Vom Standard abweichende Werte in Flieder; Konfidenz je Nick-Muster einstellbar.
 
 ### 📦 Post-1.0 (geparkt)
 
