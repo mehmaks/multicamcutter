@@ -468,3 +468,4 @@
 "How sure the detection has to be for this kind of head movement before it becomes a cutaway. Above 100 % the pattern is not used at all." = "Wie sicher die Erkennung bei dieser Art Kopfbewegung sein muss, damit ein Cutaway entsteht. Über 100 % wird das Muster gar nicht genutzt.";
 
 "Differs from the loaded preset." = "Weicht vom geladenen Preset ab.";
+"Double-click to reset" = "Doppelklick setzt zurück";

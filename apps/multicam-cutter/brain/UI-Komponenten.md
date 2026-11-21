@@ -384,3 +384,6 @@ Stufe. Experteneinstellungen mit geladenem Preset = Abweichung vom Preset
 (`engine.presetReferenz`, gesetzt beim Laden/Importieren/Speichern eines Presets, beim
 Öffnen einer anderen Folge zurückgesetzt). Ohne Preset auch im Expertenmodus gegen die
 Stufen bzw. den App-Standard. Gilt für den Hinweis an den Stufen und für Flieder-Werte.
+
+**Zurücksetzen (21.11.):** Doppelklick auf den Namen eines Flieder-Werts setzt ihn auf seinen
+Vergleichswert zurück (Preset bzw. Stufe/App-Standard, wie bei „angepasst“). Tooltip „Doppelklick setzt zurück“.

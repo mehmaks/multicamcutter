@@ -210,6 +210,29 @@ enum Stufen {
         return keys.contains { istAngepasst($0, p, preset: preset) }
     }
 
+    /// Setzt einen Wert auf seinen Vergleichswert zurück (Doppelklick auf den Namen):
+    /// geladenes Preset, sonst Stufe bzw. App-Standard — dasselbe wie bei „angepasst".
+    static func zuruecksetzen(_ key: String, _ p: inout PipelineParams, preset: PipelineParams?) {
+        let ref = preset.map { $0.toDict()[key] } ?? referenz(key, p)
+        if let ref { p.apply([key: ref]) }
+    }
+    static func rueckwegZuruecksetzen(_ anlass: String, _ p: inout PipelineParams, preset: PipelineParams?) {
+        let refQuelle = preset.map { $0.toDict()["transition_cutaway_back"] } ?? referenz("transition_cutaway_back", p)
+        let soll = Set((refQuelle as? [String]) ?? []).contains(anlass)
+        var liste = Set((p.toDict()["transition_cutaway_back"] as? [String]) ?? [])
+        if soll { liste.insert(anlass) } else { liste.remove(anlass) }
+        p.apply(["transition_cutaway_back": Array(liste)])
+    }
+    static func musterKonfidenzZuruecksetzen(_ muster: String, _ p: inout PipelineParams, preset: PipelineParams?) {
+        if let preset {
+            p.noddingPatternMinConf[muster] = preset.noddingPatternMinConf[muster]
+        } else {
+            let refDict = (referenz("nodding_pattern_min_conf", p) as? [String: Double]) ?? [:]
+            p.noddingPatternMinConf[muster] = refDict[muster]
+            // fehlt das Muster im Bezug, gilt wieder min_conf (eigene Zeile, eigenes Zurücksetzen)
+        }
+    }
+
     /// Weicht der Wert vom Standard (siehe `referenz`) ab? → Flieder statt Lime.
     /// Mit `preset` (Expertenmodus + geladenes Preset): Abweichung vom Preset statt von der Stufe.
     static func istAngepasst(_ key: String, _ p: PipelineParams, preset: PipelineParams? = nil) -> Bool {

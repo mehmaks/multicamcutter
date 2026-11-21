@@ -1179,8 +1179,7 @@ struct WizSlider: View {
                 // In schmalen Kacheln: Name + Wert oben, Regler über die volle Breite darunter
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
-                        Text(loc(label)).font(.system(size: 13)).lineLimit(1).minimumScaleFactor(0.85)
-                            .foregroundStyle(angepasst ? Color.brandSecondary : Color.wizText)
+                        WizZeilenName(text: label)
                         if !help.isEmpty { WizHelpBadge(help) }
                         Spacer(minLength: 6)
                         wertText
@@ -1218,8 +1217,7 @@ struct WizToggle: View {
 
     var body: some View {
         HStack {
-            Text(loc(label)).font(.system(size: kompakt ? 13 : 14)).lineLimit(1).minimumScaleFactor(0.85)
-                .foregroundStyle(angepasst ? Color.brandSecondary : Color.wizText)
+            WizZeilenName(text: label, groesse: kompakt ? 13 : 14)
             if !help.isEmpty { WizHelpBadge(help) }
             Spacer()
             WizSwitch(isOn: $isOn)
@@ -1276,8 +1274,7 @@ struct WizSegmented: View {
             if kompakt {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 6) {
-                        Text(loc(label)).font(.system(size: 13)).lineLimit(1)
-                            .foregroundStyle(angepasst ? Color.brandSecondary : Color.wizText)
+                        WizZeilenName(text: label)
                         if !help.isEmpty { WizHelpBadge(help) }
                     }
                     segmente
@@ -1385,6 +1382,10 @@ struct WizSliderControl: View {
 private struct WizKompaktKey: EnvironmentKey { static let defaultValue = false }
 /// Wert weicht vom Standard ab → Name und Regler in Flieder statt Lime (wie „angepasst").
 private struct WizAngepasstKey: EnvironmentKey { static let defaultValue = false }
+/// Doppelklick auf den Namen eines angepassten Werts setzt ihn zurück (User 21.11.).
+private struct WizZuruecksetzenKey: EnvironmentKey {
+    nonisolated(unsafe) static let defaultValue: (() -> Void)? = nil
+}
 extension EnvironmentValues {
     var wizKompakt: Bool {
         get { self[WizKompaktKey.self] }
@@ -1394,11 +1395,34 @@ extension EnvironmentValues {
         get { self[WizAngepasstKey.self] }
         set { self[WizAngepasstKey.self] = newValue }
     }
+    var wizZuruecksetzen: (() -> Void)? {
+        get { self[WizZuruecksetzenKey.self] }
+        set { self[WizZuruecksetzenKey.self] = newValue }
+    }
+}
+
+/// Name einer Wiz-Zeile: Flieder, wenn angepasst; dann setzt ein Doppelklick zurück.
+struct WizZeilenName: View {
+    let text: String
+    var groesse: CGFloat = 13
+    @Environment(\.wizAngepasst) private var angepasst
+    @Environment(\.wizZuruecksetzen) private var zuruecksetzen
+
+    var body: some View {
+        Text(loc(text)).font(.system(size: groesse)).lineLimit(1).minimumScaleFactor(0.85)
+            .foregroundStyle(angepasst ? Color.brandSecondary : Color.wizText)
+            .contentShape(Rectangle())
+            .onTapGesture(count: 2) { if angepasst { zuruecksetzen?() } }
+            .help(angepasst && zuruecksetzen != nil ? loc("Double-click to reset") : "")
+    }
 }
 
 extension View {
-    /// Markiert eine Wiz-Zeile als „angepasst" (Flieder).
-    func angepasst(_ an: Bool) -> some View { environment(\.wizAngepasst, an) }
+    /// Markiert eine Wiz-Zeile als „angepasst" (Flieder); optional mit Zurücksetzen per
+    /// Doppelklick auf den Namen.
+    func angepasst(_ an: Bool, zuruecksetzen: (() -> Void)? = nil) -> some View {
+        environment(\.wizAngepasst, an).environment(\.wizZuruecksetzen, zuruecksetzen)
+    }
 }
 
 extension EnvironmentValues {
