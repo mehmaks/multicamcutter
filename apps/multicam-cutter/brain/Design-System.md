@@ -33,12 +33,15 @@ separates Warn-Amber, alles Orange → Lila.)
 
 ## App-Icon
 
-Offizielles Icon (grüner Glow-Orb mit Multicam-Frames + Waveform, „magic core").
-Quelle: `multicamcutter-web/assets/AppIcon.icns` (Build-Pipeline dort:
-`assets/build-icon.js`, sharp). Ins Toolkit kopiert als `scripts/AppIcon.icns`,
-von build_app.sh eingebettet. **Ersetzt** den früheren blauen Pillow-Entwurf
-(`scripts/make_icon.py`, obsolet). Bei Icon-Änderung: neue `.icns` aus dem
-Web-Repo kopieren.
+**Seit 21.11.: „MCC-Schere"** — Lime-Fläche (#C6F24E) mit dunklem Zeichen (#0e100c):
+Schere nach oben, die beiden Griffe sind die Buchstaben **C C**, über den Klingen ein
+kräftiges **M**. Entwurf per Higgsfield (GPT Image 2.6, Variante 20), dann neu aufgebaut:
+Fläche nach Apples Raster (824/1024, Rand 100, Radius ~185), Zeichen mit weichen Kanten aus
+dem Entwurf übernommen. Dateien: `design/app-icon-mcc/` (`AppIcon-1024.png`, `AppIcon.icns`,
+Quelle `entwurf-20-quelle.png`; übrige Entwürfe lokal in `entwuerfe/`, ignoriert).
+Eingebaut als `scripts/AppIcon.icns` (build_app.sh). Vorgänger (grüner Glow-Orb aus dem
+Website-Repo) liegt als `design/app-icon-mcc/AppIcon-alt-orb.icns`. **Website** (Header,
+Downloadseite, `multicamcutter-web/assets/`) muss das neue Icon ebenfalls übernehmen.
 
 ## Typografie
 
