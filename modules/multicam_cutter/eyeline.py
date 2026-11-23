@@ -1,14 +1,14 @@
 """Eyeline-Abgleich für den XML-Export: alle Sprecher teilen sich eine Augenlinie.
 
 Ablauf (User 23.11., an Folge 58 erprobt):
-1. **Messen** — Augenhöhe je Kamera etwa einmal je Sekunde. Die Reaktionsanalyse liefert
-   Proben für ihre Off-Sektionen kostenlos mit (`--eyeline-out`); den Rest misst
-   `messe_luecken` per Einzelbild-Sprung (alle `schritt_s` Sekunden).
+1. **Messen** — nur in den aktiven Clips (User 23.11.: beim Zuhören setzen sich Leute
+   anders hin, greifen zum Glas — das verfälscht die Eyeline), ab Clipstart alle 0,4 s,
+   mind. 3 Bilder je Clip. `messe_clips` liest die Clips am Stück (Cache im Arbeitsordner).
 2. **Ziel-Linie T** — einmal je Folge, fest: so gewählt, dass die mittlere nötige
    Vergrößerung über alle aktiven Clips minimal ist. Alle Kameras dürfen wandern (auch
    die mit dem größten Gesicht). Jeder Clip wird gegen T gerechnet, nie gegen den
    Nachbar-Clip — Anpassungen können sich dadurch nicht aufschaukeln.
-3. **Je Clip** — Augenhöhe = Median der Proben im Clip (mind. 3-s-Fenster). Skalierung nur
+3. **Je Clip** — Augenhöhe = Median der Proben im Clip (= wo die Person überwiegend ist). Skalierung nur
    so weit, wie die Verschiebung ohne Rand braucht, gedeckelt (`max_scale`). Mehrere
    Personen auf einer Kamera: Mittel ihrer Augenhöhen. Würde ein Gesicht angeschnitten
    → dieser Clip bleibt unangepasst.
@@ -49,78 +49,71 @@ def augen(face_landmarks, w, h):
     return out
 
 
-def lade_proben(pfad) -> dict:
-    """Analyzer-Proben {video_frame: [gesichter]} (leer, wenn nicht vorhanden)."""
-    try:
-        d = json.loads(Path(pfad).read_text(encoding="utf-8"))
-        return {int(f): g for f, g in d.get("samples", [])}
-    except Exception:
-        return {}
+def ziel_bilder(bereiche, fps: float, abstand_s: float = 0.4, mindestens: int = 3) -> list:
+    """Messbilder in den Bereichen [(von, bis)]: ab Clipstart alle `abstand_s`; kurze
+    Clips bekommen trotzdem `mindestens` Bilder, gleichmäßig verteilt."""
+    schritt = max(1, int(round(abstand_s * fps)))
+    out = set()
+    for a, b in bereiche:
+        a, b = int(a), int(b)
+        if b <= a:
+            continue
+        regel = range(a, b, schritt)
+        if len(regel) >= mindestens:
+            out.update(regel)
+        else:
+            out.update(int(a + (b - a) * (k + 0.5) / mindestens) for k in range(mindestens))
+    return sorted(out)
 
 
-def messe_luecken(video, vorhanden: dict, fps: float, bereiche=None, schritt_s: float = 4.0,
-                  max_faces: int = 1, breite: int = 960, modell=None, fortschritt=None) -> dict:
-    """Misst Augen in `bereiche` ([(von, bis)] Video-Frames; None = ganze Datei) alle
-    `schritt_s` (kurze Bereiche: einmal in der Mitte), wo keine Probe näher als
-    `schritt_s/2` liegt. Einzelbild-Sprünge statt Durchdekodieren: bei 4K-Material ist
-    Dekodieren/Lesen der ganzen Datei der Engpass (Folge 58: 107 GB, ~0,4 s je Sprung).
-    Gemessen an Folge 58: ganze Datei alle 3 s ≈ 21 min — deshalb nur die Bereiche, in
-    denen die Kamera im Schnitt zu sehen ist."""
+def messe_clips(video, bereiche, fps: float, vorhanden=None, abstand_s: float = 0.4,
+                max_faces: int = 1, breite: int = 960, modell=None, fortschritt=None) -> dict:
+    """Misst die Augen in den Bereichen (= aktive Clips, Video-Frames) alle `abstand_s`.
+    Liest am Stück statt Einzelbilder anzuspringen: ein Sprung kostet bei 4K-Material
+    0,4–0,6 s, Durchdekodieren ~140–190 Bilder/s (Folge 63, 23.11.). Gesprungen wird nur
+    über Lücken > 3 s. Bilder aus `vorhanden` (Cache) werden übersprungen."""
     import cv2
     import mediapipe as mp
     from mediapipe.tasks import python as mp_python
     from mediapipe.tasks.python import vision as mp_vision
 
-    modell = modell or (Path(__file__).parent / "face_landmarker.task")
+    vorhanden = vorhanden or {}
     cap = cv2.VideoCapture(str(video))
     n = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
     w0, h0 = cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
-    schritt = max(1, int(round(schritt_s * fps)))
-    halb = schritt // 2
-    belegt = np.array(sorted(vorhanden), dtype=np.int64)
-
-    def frei(f):
-        if not len(belegt):
-            return True
-        i = np.searchsorted(belegt, f)
-        nah = min(abs(int(belegt[j]) - f) for j in (i - 1, i) if 0 <= j < len(belegt))
-        return nah > halb
-
-    if bereiche is None:
-        bereiche = [(0, n)]
-    kandidaten = set()
-    for a, b in bereiche:
-        a, b = max(0, int(a)), min(n - 1, int(b))
-        if b <= a:
-            continue
-        if b - a <= schritt:
-            kandidaten.add((a + b) // 2)
-        else:
-            kandidaten.update(range(a + halb, b, schritt))
-    ziele = sorted(f for f in kandidaten if frei(f))
+    ziele = [f for f in ziel_bilder(bereiche, fps, abstand_s) if f not in vorhanden and 0 <= f < n]
     if not ziele:
         cap.release()
         return {}
+    modell = modell or (Path(__file__).parent / "face_landmarker.task")
     lm = mp_vision.FaceLandmarker.create_from_options(mp_vision.FaceLandmarkerOptions(
         base_options=mp_python.BaseOptions(model_asset_path=str(modell)),
         running_mode=mp_vision.RunningMode.IMAGE, num_faces=max(1, max_faces)))
     hb = int(round(breite * h0 / w0)) if w0 else breite * 9 // 16
+    sprung_ab = int(3 * fps)
+    pos = None                      # nächstes Bild, das der Decoder liefert
     out = {}
     for k, f in enumerate(ziele):
-        cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+        if pos is None or f < pos or f - pos > sprung_ab:
+            cap.set(cv2.CAP_PROP_POS_FRAMES, f)
+            pos = f
+        while pos < f:
+            cap.grab()
+            pos += 1
         ok, img = cap.read()
+        pos += 1
         if ok:
             klein = cv2.cvtColor(cv2.resize(img, (breite, hb)), cv2.COLOR_BGR2RGB)
             res = lm.detect(mp.Image(image_format=mp.ImageFormat.SRGB, data=klein))
             out[f] = augen(res.face_landmarks, breite, hb)
-        if fortschritt and k % 20 == 0:
+        if fortschritt and k % 50 == 0:
             fortschritt(k / len(ziele))
     cap.release()
     lm.close()
     return out
 
 
-def messe_alle(kameras: list, fps: float, schritt_s: float = 4.0, fortschritt=None) -> dict:
+def messe_alle(kameras: list, fps: float, abstand_s: float = 0.4, fortschritt=None) -> dict:
     """kameras: [{"idx", "video", "proben" (dict), "max_faces", "bereiche"}] → {idx: neue Proben}.
     Kameras parallel (OpenCV/MediaPipe geben den GIL frei)."""
     anteile = {k["idx"]: 0.0 for k in kameras}
@@ -133,8 +126,8 @@ def messe_alle(kameras: list, fps: float, schritt_s: float = 4.0, fortschritt=No
                 anteile[k["idx"]] = a
                 if fortschritt:
                     fortschritt(sum(anteile.values()) / len(anteile))
-        erg[k["idx"]] = messe_luecken(k["video"], k["proben"], fps, k.get("bereiche"), schritt_s,
-                                      k.get("max_faces", 1), fortschritt=fb)
+        erg[k["idx"]] = messe_clips(k["video"], k.get("bereiche") or [], fps, k["proben"],
+                                    abstand_s, k.get("max_faces", 1), fortschritt=fb)
 
     threads = [threading.Thread(target=lauf, args=(k,)) for k in kameras]
     for t in threads:
@@ -192,13 +185,14 @@ class EyelinePlan:
 
     # ── Messwerte je Clip ────────────────────────────────────────────────────
     def _fenster(self, cam, a, b):
-        """Proben im Clip (mind. 3 s um die Mitte); ohne Treffer schrittweise breiter."""
+        """Proben im Clip selbst; nur wenn dort keine Augen erkannt wurden, schrittweise
+        ein breiteres Fenster um die Clipmitte (3/8/20 s)."""
         r = self.reihen.get(cam)
         if not r:
             return []
         frames = [z[0] for z in r]
         m = (a + b) // 2
-        for min_s in (3, 8, 20):
+        for min_s in (0, 3, 8, 20):
             min_len = int(min_s * self.fps)
             aa, bb = (a, b) if b - a >= min_len else (m - min_len // 2, m + min_len // 2)
             i0, i1 = np.searchsorted(frames, aa), np.searchsorted(frames, bb, side="right")

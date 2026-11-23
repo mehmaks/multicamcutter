@@ -967,11 +967,10 @@ class SyncUnresolved(Exception):
 
 def _eyeline_plan(cam_paths, cam_types, cam_eyeline, cam_mic_map, wide_zoom, fps, work_dir,
                   params, cam_person_names):
-    """Baut den EyelinePlan für die XML (eyeline.py). Proben der Reaktionsanalyse
-    (<stem>_eyeline.json) und früherer Läufe (<stem>_eyeline_luecken.json) werden
-    übernommen; was in den aktiven Clips noch fehlt, misst der Plan beim ersten
-    build_xml nach (Einzelbilder alle 4 s, Kameras parallel) und legt es im Cache ab."""
-    from modules.multicam_cutter.eyeline import lade_proben, messe_alle, EyelinePlan
+    """Baut den EyelinePlan für die XML (eyeline.py). Gemessen wird nur in den aktiven
+    Clips (beim ersten build_xml, alle 0,4 s, Kameras parallel); Ergebnisse liegen als
+    <stem>_eyeline_clips.json im Arbeitsordner und werden beim nächsten Export wiederverwendet."""
+    from modules.multicam_cutter.eyeline import messe_alle, EyelinePlan
     import cv2
 
     kameras = {}
@@ -979,14 +978,11 @@ def _eyeline_plan(cam_paths, cam_types, cam_eyeline, cam_mic_map, wide_zoom, fps
     for i, cp in enumerate(cam_paths):
         if not cam_eyeline[i]:
             continue
-        stem = Path(cp).stem
-        d = lade_proben(work_dir / f"{stem}_eyeline.json")
-        cache = work_dir / f"{stem}_eyeline_luecken.json"
+        cache = work_dir / f"{Path(cp).stem}_eyeline_clips.json"
         try:
-            d.update({int(f): g for f, g in json.loads(cache.read_text(encoding="utf-8"))})
+            proben[i] = {int(f): g for f, g in json.loads(cache.read_text(encoding="utf-8"))}
         except Exception:
-            pass
-        proben[i] = d
+            proben[i] = {}
         kameras[i] = {"idx": i, "video": cp, "cache": cache,
                       "max_faces": max(1, len(cam_mic_map[i]) if i < len(cam_mic_map) else 1)}
     if not kameras:
@@ -996,8 +992,8 @@ def _eyeline_plan(cam_paths, cam_types, cam_eyeline, cam_mic_map, wide_zoom, fps
         auftrag = [{**kameras[c], "proben": proben[c], "bereiche": b} for c, b in bereiche.items()]
         if not auftrag:
             return {}
-        print(f"  Eyeline: Augenhöhe in den Clips messen ({len(auftrag)} Kamera(s))...")
-        neu = messe_alle(auftrag, fps, schritt_s=4.0,
+        print(f"  Eyeline: Augen in den aktiven Clips messen ({len(auftrag)} Kamera(s))...")
+        neu = messe_alle(auftrag, fps, abstand_s=0.4,
                          fortschritt=lambda a: emit("step_progress", percent=round(a * 100), eta=""))
         for c, d in neu.items():
             if not d:
@@ -1011,7 +1007,7 @@ def _eyeline_plan(cam_paths, cam_types, cam_eyeline, cam_mic_map, wide_zoom, fps
                 cache.write_text(json.dumps(sorted(bisher.items())), encoding="utf-8")
             except Exception:
                 pass
-            print(f"  Eyeline {Path(kameras[c]['video']).name}: {len(d)} Bilder nachgemessen")
+            print(f"  Eyeline {Path(kameras[c]['video']).name}: {len(d)} Bilder gemessen")
         return neu
 
     cap = cv2.VideoCapture(str(cam_paths[next(iter(kameras))]))
@@ -1112,7 +1108,7 @@ def run_pipeline(folder, fps, params, output_path,
                      + [10.0] * len(cams)            # Nodding je Kamera (dominant)
                      + [8.0 if _clip_on else 1.0]    # Cutaways (CLIP-Pass wenn an)
                      + [1.0, 1.0]                    # Pause-Trim, AAF
-                     + ([3.0] if eyeline_on else []))  # Eyeline (Messung je Kamera parallel)
+                     + ([8.0] if eyeline_on else []))  # Eyeline (aktive Clips am Stück, ~¼ der Bildzeit)
     emit("step_weights", weights=_step_weights)
 
     cam_paths = [str(c) for c in cams]

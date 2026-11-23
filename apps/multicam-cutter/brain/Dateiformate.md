@@ -291,7 +291,7 @@ Gesicht angeschnitten zu werden, bleibt der Clip unverändert. **Place on Third*
 zusätzlich waagerecht auf x = 1/3 bzw. 2/3 — Seite nach der Bildhälfte der Person (Median je
 Kamera, nicht je Clip), Deckel gilt weiter. Kamera abwählbar
 (`.multicam` → `cameras[].eyeline`, Engine `--cam-eyeline`). Proben: Reaktionsanalyse
-(`<stem>_eyeline.json`, ~1/s in Off-Sektionen) + Nachmessung in den aktiven Clips
-(`<stem>_eyeline_luecken.json`, alle 4 s, Cache im Arbeitsordner). Ergebnis-Feld `eyeline`
+nur aus den aktiven Clips, ab Clipstart alle 0,4 s, mind. 3 je Clip, am Stück dekodiert
+(`<stem>_eyeline_clips.json`, Cache im Arbeitsordner); Augenposition je Clip = Median. Ergebnis-Feld `eyeline`
 (`kameras: [{name, datei, median, max, gedeckelt, angeschnitten, clips}]`). Die AAF bleibt
 unangepasst.
