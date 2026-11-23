@@ -2,6 +2,14 @@
 
 ## OFFEN
 
+### Fenster während der Analyse wieder skalierbar — FIX EINGEBAUT (23.11.), Abnahme offen
+- **Symptom:** Im Lauf ließ sich das Fenster wieder aufziehen (seit dem Farbwechsel-Balken).
+- **Vermutete Ursache:** Der Balken zeichnet per `TimelineView` ~30×/s neu; SwiftUI setzt
+  dabei `.resizable`/Größen-Grenzen zurück. Der Sperr-Timer lief im Default-RunLoop-Modus
+  und feuerte während des Randziehens nicht.
+- **Fix (`ContentView.swift`):** Timer in `.common`-Modus; zusätzlich setzt
+  `didResizeNotification` im Lauf jede Größenänderung sofort auf 760×552 zurück.
+
 ### Aufräum-Pass löscht Cutaways, wenn Cutaway-Länge < Cleanup-Mindestlänge — GEFIXT (19.11., beta.4)
 - **Symptom** (User, Folge 62, beta.3): Von 280 Einwurf-Cutaways blieben 164 im Schnitt;
   PASS 3 entfernte 217 Events. Auch Nick-Cutaways betroffen (98 statt 133).

@@ -77,6 +77,25 @@ struct ContentView: View {
         .onReceive(NotificationCenter.default.publisher(for: NSWindow.didBecomeKeyNotification)) { note in
             if let w = note.object as? NSWindow, w === mainWindow { enforceWizardWindowChrome(w) }
         }
+        // Analyse-Sperre hart durchsetzen (User 23.11.: Fenster war im Lauf wieder
+        // skalierbar). Der Farbwechsel-Balken zeichnet per TimelineView ~30×/s neu; bei
+        // jedem Layout setzt SwiftUI `.resizable` und die Größen-Grenzen zurück, und
+        // während des Ziehens am Rand feuert der Sperr-Timer (Default-RunLoop-Modus)
+        // nicht. Deshalb: jede Größenänderung im Lauf sofort zurück auf die feste Größe.
+        .onReceive(NotificationCenter.default.publisher(for: NSWindow.didResizeNotification)) { note in
+            guard let w = note.object as? NSWindow, w === mainWindow,
+                  engine.state == .running, frameBeforeRun != nil,
+                  !w.styleMask.contains(.fullScreen) else { return }
+            applyRunWindowLock(w)
+            let soll = NSSize(width: Self.runWidth, height: Self.runHeight)
+            if abs(w.frame.width - soll.width) > 1 || abs(w.frame.height - soll.height) > 1 {
+                var f = w.frame
+                let top = f.maxY, midX = f.midX
+                f.size = soll
+                f.origin = NSPoint(x: midX - soll.width / 2, y: top - soll.height)
+                w.setFrame(f, display: true, animate: false)
+            }
+        }
         .sheet(isPresented: $showFirstRunInfo, onDismiss: {
             // Nach dem Material-Hinweis ggf. die Telemetrie-Zustimmung erfragen —
             // nacheinander, damit nie zwei Sheets übereinander liegen.
@@ -293,10 +312,13 @@ struct ContentView: View {
             // Timer statt nur Event-Heartbeat: waehrend des Syncs kommen kaum
             // stepPercent-Updates, in denen SwiftUI die Sperre sonst wiederherstellt.
             runLockTimer?.invalidate()
-            runLockTimer = Timer.scheduledTimer(withTimeInterval: 0.15, repeats: true) { [weak window] _ in
+            let t = Timer(timeInterval: 0.15, repeats: true) { [weak window] _ in
                 guard let window else { return }
                 applyRunWindowLock(window)
             }
+            // .common: feuert auch, während am Fensterrand gezogen wird (Event-Tracking)
+            RunLoop.main.add(t, forMode: .common)
+            runLockTimer = t
             return
         }
 
