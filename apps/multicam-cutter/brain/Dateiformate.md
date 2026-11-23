@@ -286,7 +286,10 @@ nach unten (`horiz` analog Breite, nach rechts). Ziel-Linie T einmal je Folge fe
 die mittlere Vergrößerung über die aktiven Clips, alle Kameras dürfen wandern); jeder Clip
 wird gegen T gerechnet (Median seiner Augenhöhe), nie gegen den Nachbarn. Deckel
 `eyeline_max_scale` (Standard 1,15), Unterschiede < 1 % bleiben unangetastet, droht ein
-Gesicht angeschnitten zu werden, bleibt der Clip unverändert. Kamera abwählbar
+Gesicht angeschnitten zu werden, bleibt der Clip unverändert. **Place on Third**
+(`eyeline_third`, Standard aus): T = 1/3; Kameras mit einer Person (ein Mikro, keine Totale)
+zusätzlich waagerecht auf x = 1/3 bzw. 2/3 — Seite nach der Bildhälfte der Person (Median je
+Kamera, nicht je Clip), Deckel gilt weiter. Kamera abwählbar
 (`.multicam` → `cameras[].eyeline`, Engine `--cam-eyeline`). Proben: Reaktionsanalyse
 (`<stem>_eyeline.json`, ~1/s in Off-Sektionen) + Nachmessung in den aktiven Clips
 (`<stem>_eyeline_luecken.json`, alle 4 s, Cache im Arbeitsordner). Ergebnis-Feld `eyeline`

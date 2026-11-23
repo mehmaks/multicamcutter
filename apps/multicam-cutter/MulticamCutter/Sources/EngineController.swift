@@ -154,6 +154,9 @@ struct PipelineParams: Equatable {
     /// einer Augenlinie liegen. Obergrenze der Vergrößerung als Faktor.
     var eyelineEnabled: Bool = false
     var eyelineMaxScale: Double = 1.15
+    /// Place on Third: Augen aufs obere Drittel, Einzelpersonen zusätzlich auf die
+    /// linke/rechte Drittel-Linie (je nach Bildhälfte, in der sie sitzen).
+    var eyelineThird: Bool = false
     // Slider-Bausteine (Stufen-Ansicht): Schnittabstand je Cutaway-Typ, Konfidenz je
     // Nick-Muster (> 1 = Muster aus), Strenge der Einwurf-Erkennung auf der Analysespur.
     // Standardwerte = bisheriges Verhalten.
@@ -233,6 +236,7 @@ struct PipelineParams: Equatable {
             "preview_overlay": previewOverlay,
             "eyeline_enabled": eyelineEnabled,
             "eyeline_max_scale": eyelineMaxScale,
+            "eyeline_third": eyelineThird,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
             "nodding_pattern_min_conf": noddingPatternMinConf,
@@ -276,6 +280,7 @@ struct PipelineParams: Equatable {
             "preview_overlay": previewOverlay,
             "eyeline_enabled": eyelineEnabled,
             "eyeline_max_scale": eyelineMaxScale,
+            "eyeline_third": eyelineThird,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
             "nodding_pattern_min_conf": noddingPatternMinConf,
@@ -321,6 +326,7 @@ struct PipelineParams: Equatable {
         if let v = dict["preview_overlay"] as? Bool { previewOverlay = v }
         if let v = dict["eyeline_enabled"] as? Bool { eyelineEnabled = v }
         if let v = dict["eyeline_max_scale"] as? Double { eyelineMaxScale = v }
+        if let v = dict["eyeline_third"] as? Bool { eyelineThird = v }
         if let v = dict["nodding_cooldown_s"] as? Double { noddingCooldownS = v }
         if let v = dict["speaking_cooldown_s"] as? Double { speakingCooldownS = v }
         if let v = dict["nodding_pattern_min_conf"] as? [String: Double] { noddingPatternMinConf = v }

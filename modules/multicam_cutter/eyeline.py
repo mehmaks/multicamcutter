@@ -13,6 +13,13 @@ Ablauf (User 23.11., an Folge 58 erprobt):
    Personen auf einer Kamera: Mittel ihrer Augenhöhen. Würde ein Gesicht angeschnitten
    → dieser Clip bleibt unangepasst.
 
+**Place on Third** (optional, `drittel=True`, User 23.11.): Ziel-Linie T = oberes Drittel
+(1/3). Kameras mit genau einer Person (`einzel`) werden zusätzlich waagerecht verschoben:
+Augenmitte auf den Schnittpunkt der oberen mit der linken bzw. rechten Drittel-Linie —
+links, wenn die Person (Median über die ganze Folge) in der linken Bildhälfte sitzt,
+sonst rechts. Die Seite gilt je Kamera, nicht je Clip (kein Springen). Die maximale
+Vergrößerung gilt weiter; reicht sie nicht, geht es so weit Richtung Drittel wie möglich.
+
 Koordinaten relativ zum Bild (0 = oben/links, 1 = unten/rechts). XML-Einheiten
 (kalibriert 23.11. in Premiere UND Resolve): Basic Motion `center` vert 0.1 = 10 % der
 Bildhöhe nach unten, horiz 0.1 = 10 % der Breite nach rechts; Skalierung um die Mitte.
@@ -149,11 +156,13 @@ class EyelinePlan:
 
     def __init__(self, proben: dict, fps: float, max_scale: float = 1.15,
                  zooms: dict = None, min_abweichung: float = 0.01, hoehe_zu_breite: float = 9 / 16,
-                 messer=None):
+                 messer=None, drittel: bool = False, einzel=None):
         """`messer`: optional f({cam: [(von, bis)]}) → {cam: {frame: gesichter}} — misst
         beim ersten `festlegen` die Augen in den aktiven Clips nach, wo Proben fehlen."""
         self.fps = fps
         self.messer = messer
+        self.drittel = bool(drittel)
+        self.einzel = set(einzel or [])
         self.proben = {c: dict(d) for c, d in proben.items()}
         self.hzb = hoehe_zu_breite
         self.max_scale = max(1.0, max_scale)
@@ -173,6 +182,13 @@ class EyelinePlan:
                     zeilen.append((f, float(np.mean([g[1] for g in gs])), gs))
             if zeilen:
                 self.reihen[c] = zeilen
+        # Place on Third: Ziel-x je Einzel-Kamera (Seite aus der Bildhälfte der Person)
+        self.ziel_x = {}
+        if self.drittel:
+            for c in self.einzel:
+                xs = [g[0] for _, _, gs in self.reihen.get(c, []) for g in gs]
+                if xs:
+                    self.ziel_x[c] = 1 / 3 if float(np.median(xs)) < 0.5 else 2 / 3
 
     # ── Messwerte je Clip ────────────────────────────────────────────────────
     def _fenster(self, cam, a, b):
@@ -217,6 +233,9 @@ class EyelinePlan:
         if not ys:
             self.T = None
             return None
+        if self.drittel:
+            self.T = 1 / 3
+            return self.T
         lo = min(y for _, y in ys) - 0.02
         hi = max(y for _, y in ys) + 0.02
 
@@ -228,7 +247,7 @@ class EyelinePlan:
 
     # ── Bewegung je Clip ─────────────────────────────────────────────────────
     def bewegung(self, cam, a, b, aktiv=True):
-        """(skalierung, vert) oder None (= wie bisher: nur der Totalen-Zoom)."""
+        """(skalierung, vert, horiz) oder None (= wie bisher: nur der Totalen-Zoom)."""
         if self.T is None or cam not in self.reihen:
             return None
         z = self.zooms.get(cam, 1.0)
@@ -236,18 +255,24 @@ class EyelinePlan:
         if not w:
             return None
         y = float(np.median([s[1] for s in w]))
+        Tx = self.ziel_x.get(cam)
+        if Tx is not None:
+            x = float(np.median([g[0] for s in w for g in s[2]]))
         st = self.stat.setdefault(cam, {"skal": [], "gedeckelt": 0, "angeschnitten": 0})
-        if abs(0.5 + z * (y - 0.5) - self.T) < self.min_abw:
+        passt_y = abs(0.5 + z * (y - 0.5) - self.T) < self.min_abw
+        passt_x = Tx is None or abs(0.5 + z * (x - 0.5) - Tx) < self.min_abw
+        if passt_y and passt_x:
             if aktiv:
                 st["skal"].append(z)
             return None
-        roh = max(z, skal(self.T, y))
+        roh = max(z, skal(self.T, y), skal(Tx, x) if Tx is not None else 1.0)
         S = min(roh, z * self.max_scale)
         lim = (S - 1) / 2
         t = max(-lim, min(lim, self.T - 0.5 - S * (y - 0.5)))
+        h = max(-lim, min(lim, Tx - 0.5 - S * (x - 0.5))) if Tx is not None else 0.0
         # Anschnitt-Schutz: sichtbarer Quellbereich nach Skalierung/Verschiebung
         y0, y1 = 0.5 + (0 - 0.5 - t) / S, 0.5 + (1 - 0.5 - t) / S
-        x0, x1 = 0.5 - 0.5 / S, 0.5 + 0.5 / S
+        x0, x1 = 0.5 + (0 - 0.5 - h) / S, 0.5 + (1 - 0.5 - h) / S
         gesichter = [g for s in w for g in s[2]]
         if gesichter:
             # 10-%-Perzentil der Ränder: einzelne Ausreißer-Proben kippen den Clip nicht
@@ -266,7 +291,7 @@ class EyelinePlan:
             st["skal"].append(S)
             if roh > S + 1e-6:
                 st["gedeckelt"] += 1
-        return S, t
+        return S, t, h
 
     def zusammenfassung(self):
         """{cam: {median, max, gedeckelt, angeschnitten, clips}} (Skalierung in %)."""

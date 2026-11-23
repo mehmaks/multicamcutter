@@ -54,7 +54,7 @@ def _url(path) -> str:
     return "file://localhost" + quote(str(Path(path).resolve()))
 
 
-def _motion_filter(skalierung: float, vert: float) -> str:
+def _motion_filter(skalierung: float, vert: float, horiz: float = 0.0) -> str:
     """Basic Motion mit Skalierung (Faktor) und vertikaler Verschiebung (Bildhöhen-Anteil,
     + = nach unten; in Premiere und Resolve gleich gedeutet, kalibriert 23.11.)."""
     return ("<filter><effect><name>Basic Motion</name><effectid>basic</effectid>"
@@ -62,7 +62,7 @@ def _motion_filter(skalierung: float, vert: float) -> str:
             "<mediatype>video</mediatype><parameter><parameterid>scale</parameterid>"
             f"<name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax>"
             f"<value>{skalierung * 100:.2f}</value></parameter><parameter><parameterid>center"
-            f"</parameterid><name>Center</name><value><horiz>0</horiz><vert>{vert:.5f}</vert>"
+            f"</parameterid><name>Center</name><value><horiz>{horiz:.5f}</horiz><vert>{vert:.5f}</vert>"
             "</value></parameter></effect></filter>")
 
 
@@ -193,7 +193,7 @@ def build_xml(cam_paths: list, mic_paths: list, offsets: dict, edl_path: Path, f
         if eyeline is not None:
             bw = eyeline.bewegung(j, a, b, aktiv=akt)
             if bw is not None:
-                return _motion_filter(bw[0], bw[1])
+                return _motion_filter(*bw)
         return zoom_filter if zoom and j in wide else ""
 
     v_spuren = [[kopf + bewegungs_filter(j, a, b, akt) + "</clipitem>" for kopf, j, a, b, akt in sp]

@@ -494,3 +494,7 @@
 "Export as AAF" = "Als AAF exportieren";
 "The multitrack export failed — the AAF is available." = "Der Mehrspur-Export ist fehlgeschlagen – die AAF steht zur Verfügung.";
 "Export failed: %@" = "Export fehlgeschlagen: %@";
+"on" = "an";
+"Place on Third" = "Place on Third";
+"Eyes go onto the upper third line. A person alone in the frame is also moved onto the left or right third line — towards the side of the frame they sit on. The maximum enlargement still applies." = "Die Augen kommen auf die obere Drittel-Linie. Ist eine Person allein im Bild, rückt sie zusätzlich auf die linke oder rechte Drittel-Linie – auf die Seite, auf der sie im Bild sitzt. Die maximale Vergrößerung gilt weiter.";
+"In the XML export, all speakers share one eyeline on the upper third." = "Im XML-Export teilen sich alle Sprecher eine Eyeline auf dem oberen Drittel.";

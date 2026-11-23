@@ -15,7 +15,7 @@ struct StufenRegler: Identifiable {
     let id: String
     let titel: String
     let hilfe: String
-    /// Genau drei Stufen-Namen (links · Mitte · rechts).
+    /// Stufen-Namen von links nach rechts (meist drei; zwei = Aus/An).
     let stufen: [String]
     /// Je Stufe die Parameter, die sie setzt (Schlüssel wie in `PipelineParams.toDict`).
     let werte: [[String: Any]]
@@ -138,7 +138,13 @@ enum Stufen {
             hilfe: "In the XML export, every clip is enlarged and shifted slightly so that all speakers' eyes sit at the same height. The AAF stays unchanged.",
             piktogramm: "piktogramm-augenlinie",
             anSchluessel: ["eyeline_enabled"], ausWerte: ["eyeline_enabled": false], fest: [:],
-            regler: []),
+            regler: [
+                StufenRegler(
+                    id: "drittel", titel: "Place on Third",
+                    hilfe: "Eyes go onto the upper third line. A person alone in the frame is also moved onto the left or right third line — towards the side of the frame they sit on. The maximum enlargement still applies.",
+                    stufen: ["off", "on"],
+                    werte: [["eyeline_third": false], ["eyeline_third": true]]),
+            ]),
     ]
 
     // MARK: Logik
@@ -364,7 +370,9 @@ extension Stufen {
             }
         }
         if p.eyelineEnabled {
-            saetze.append(loc("In the XML export, all speakers share one eyeline."))
+            saetze.append(loc(p.eyelineThird
+                ? "In the XML export, all speakers share one eyeline on the upper third."
+                : "In the XML export, all speakers share one eyeline."))
         }
         return saetze.joined(separator: " ")
     }
