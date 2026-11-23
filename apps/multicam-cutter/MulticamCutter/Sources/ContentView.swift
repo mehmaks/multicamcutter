@@ -751,15 +751,37 @@ struct ResultView: View {
             Text("Done!")
                 .font(.title)
 
-            if let aaf = engine.resultAAF {
-                Text(aaf)
-                    .font(.system(.body, design: .monospaced))
+            // Export erst auf Wunsch (User 23.11.): Resolve/Premiere bekommen die
+            // Mehrspur-XML (jede Kamera eine Spur, inaktive Clips deaktiviert), AAF bleibt
+            // als dritte Option. Erst der Klick legt die Datei im Folgenordner ab.
+            if engine.resultAAF != nil {
+                Text("Export the cut for your editing software:")
                     .foregroundStyle(.secondary)
-
-                Button("Show in Finder") {
-                    NSWorkspace.shared.selectFile(aaf, inFileViewerRootedAtPath: "")
+                HStack(spacing: 12) {
+                    Button { engine.exportieren(.resolve) } label: {
+                        Text("Export for DaVinci Resolve").padding(.horizontal, 6)
+                    }
+                    .disabled(engine.resultXML == nil)
+                    Button { engine.exportieren(.premiere) } label: {
+                        Text("Export for Premiere Pro").padding(.horizontal, 6)
+                    }
+                    .disabled(engine.resultXML == nil)
+                    Button { engine.exportieren(.aaf) } label: {
+                        Text("Export as AAF").padding(.horizontal, 6)
+                    }
                 }
                 .buttonStyle(.borderedProminent)
+                .controlSize(.large)
+                if engine.resultXML == nil {
+                    Text("The multitrack export failed — the AAF is available.")
+                        .font(.caption).foregroundStyle(.secondary)
+                }
+                if let pfad = engine.exportiertePfad {
+                    Text(pfad)
+                        .font(.system(.callout, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .textSelection(.enabled)
+                }
             }
 
             if let stats = engine.resultStats {

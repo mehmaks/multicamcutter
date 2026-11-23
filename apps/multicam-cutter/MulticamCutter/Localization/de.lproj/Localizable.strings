@@ -476,3 +476,11 @@
 "Delete preset “%@”?" = "Preset „%@“ löschen?";
 "The current settings stay as they are. This can't be undone." = "Die aktuellen Einstellungen bleiben, wie sie sind. Das lässt sich nicht rückgängig machen.";
 "Delete" = "Löschen";
+
+/* Export-Auswahl (23.11.) */
+"Export the cut for your editing software:" = "Schnitt für dein Schnittprogramm exportieren:";
+"Export for DaVinci Resolve" = "Für DaVinci Resolve exportieren";
+"Export for Premiere Pro" = "Für Premiere Pro exportieren";
+"Export as AAF" = "Als AAF exportieren";
+"The multitrack export failed — the AAF is available." = "Der Mehrspur-Export ist fehlgeschlagen – die AAF steht zur Verfügung.";
+"Export failed: %@" = "Export fehlgeschlagen: %@";

@@ -367,6 +367,9 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
 - Neu: Experteneinstellungen direkt in den Kacheln (Schalter neben „Einstellungen", gemerkt),
   Kachel „Weitere"; „Was dich erwartet" im Expertenmodus aus; Einstellungen ohne Rahmen.
 - Neu: Vom Standard abweichende Werte in Flieder; Konfidenz je Nick-Muster einstellbar.
+- Neu: Export-Auswahl am Ende (Resolve / Premiere / AAF); Resolve und Premiere bekommen eine
+  Mehrspur-Timeline: jede Kamera eine Spur, nicht aktive Clips deaktiviert → umentscheidbar.
+  Achtung: die Datei landet erst nach Klick im Folgenordner.
 
 ### 📦 Post-1.0 (geparkt)
 
@@ -528,7 +531,7 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
     abwärtskompatibel), Datenschutzerklärung um „verwendetes Aufnahmegerät" ergänzen.
   - Auswertung: Liste „Originator ohne eigenes Profil" = Kandidaten für neue Profile.
 
-- [ ] **Mehrspur-Export per FCP7-XML: eine Videospur je Kamera, inaktive Clips deaktiviert.**
+- [x] **Mehrspur-Export per FCP7-XML: eine Videospur je Kamera, inaktive Clips deaktiviert.** (eingebaut 23.11., `build_xml.py`; Ergebnis-Seite mit drei Export-Knöpfen — Sichtung mit Ton/Pausen-Kürzung offen)
   ✅ **Test 23.11. bestanden** (Folge 62, 10 min, 2 Kameras, `analyse/xml_mehrspur_test.py`):
   Premiere UND Resolve übernehmen `<enabled>FALSE</enabled>` je Clip — Spuren deckungsgleich,
   abwechselnd aktiv/deaktiviert, per Klick umschaltbar. **Resolve-Fallstrick:** verknüpft

@@ -262,3 +262,19 @@ Zwei bewusste Entscheidungen:
 - **Längen-Guard.** Passt `final.colors.json` nicht zur Event-Zahl der EDL,
   wird die Benennung komplett abgeschaltet statt verschoben zuzuordnen.
   Ein falsches Label im Schnitt ist schlimmer als keines.
+
+
+## Mehrspur-XML (FCP7 `xmeml`, seit 23.11.)
+
+`modules/multicam_cutter/build_xml.py`, von der Engine direkt nach der AAF aus denselben
+Schnitt-Events geschrieben (`<name>.xml` neben `<name>.aaf`, Ergebnis-Feld `xml`). Je Kamera
+eine Videospur, an jedem Schnitt auf allen Spuren geschnitten, nur die aktive Kamera
+`<enabled>TRUE`. Ton je Mikro aus den Video-Events abgeleitet (zusammenhängende Bereiche =
+ein Clip, Split-Teile aufgelöst). Jede `<file>` trägt Start-TC + `<reel>` (sonst verknüpft
+Resolve nicht). Zoom der Totale als „Basic Motion"-Filter. Fehler → Warnung, AAF bleibt.
+
+**Ablauf seit 23.11.:** Die App lässt die Engine in einen temporären Export-Ordner schreiben
+(`$TMPDIR/MultiCamCutter-Export/<uuid>/`). Die Ergebnis-Seite bietet „Für DaVinci Resolve
+exportieren" / „Für Premiere Pro exportieren" (dieselbe XML, Namenszusatz „(Resolve)" bzw.
+„(Premiere)") und „Als AAF exportieren"; erst der Klick kopiert in den Folgenordner
+(gleichnamige Datei wird ersetzt) und zeigt sie im Finder.

@@ -1194,6 +1194,21 @@ def run_pipeline(folder, fps, params, output_path,
         clip_name_pattern=clip_name_pattern,
     )
 
+    # ── Mehrspur-XML (Premiere/Resolve) aus denselben Schnitt-Events ──────────
+    # Jede Kamera eine Spur, inaktive Clips deaktiviert (User 23.11.). Darf den Lauf
+    # nie kaputt machen — die AAF steht bereits.
+    xml_path = None
+    try:
+        from modules.multicam_cutter.build_xml import build_xml
+        xml_path = build_xml(
+            cam_paths=cam_paths, mic_paths=mic_paths, offsets=offsets, edl_path=final_edl,
+            fps=fps, output=output_path.with_suffix(".xml"), cam_types=cam_types,
+            wide_zoom=wide_zoom, trimmed_events=trimmed_events,
+            cam_person_names=cam_person_names, titel=output_path.stem,
+        )
+    except Exception as e:
+        warning(message=f"XML-Export fehlgeschlagen (AAF ist da): {e}")
+
     emit("step_progress", percent=100, eta="")
 
     # ── Statistiken sammeln ──────────────────────────────────────────────────
@@ -1201,6 +1216,7 @@ def run_pipeline(folder, fps, params, output_path,
         "cameras": len(cams),
         "mics": len(mics),
         "aaf": str(aaf_path),
+        "xml": str(xml_path) if xml_path else "",
         "edl": str(final_edl),
         "work_dir": str(work_dir),
     }

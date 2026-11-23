@@ -550,6 +550,11 @@ class EngineController: ObservableObject {
 
     // Result
     @Published var resultAAF: String?
+    /// Mehrspur-XML (Premiere/Resolve) neben der AAF — beide liegen nach dem Lauf in einem
+    /// temporären Export-Ordner; erst der Export-Knopf kopiert in den Folgenordner (User 23.11.).
+    @Published var resultXML: String?
+    /// Zuletzt exportierte Datei (für „Im Finder zeigen").
+    @Published var exportiertePfad: String?
     @Published var resultStats: [String: String]?
     @Published var errorMessage: String = ""
 
@@ -875,6 +880,35 @@ class EngineController: ObservableObject {
     /// Sauberer Reset (Fremd-Feedback-Wunsch): .multicam loeschen und den Ordner
     /// frisch scannen — die App verhaelt sich dann wie beim allerersten Oeffnen
     /// (Wizard ab Schritt 1, Zuordnungen aus den Datei-Defaults).
+    enum ExportZiel { case resolve, premiere, aaf }
+
+    /// Kopiert die gewählte Fassung in den Folgenordner (vorhandene Datei gleichen Namens
+    /// wird ersetzt) und zeigt sie im Finder. Resolve/Premiere bekommen dieselbe XML,
+    /// nur mit eigenem Namenszusatz.
+    func exportieren(_ ziel: ExportZiel) {
+        guard let folder = folderURL else { return }
+        let quelle: String?
+        let name: String
+        let basis = episodeName.isEmpty ? "final" : episodeName
+        switch ziel {
+        case .resolve:  quelle = resultXML; name = "\(basis) (Resolve).xml"
+        case .premiere: quelle = resultXML; name = "\(basis) (Premiere).xml"
+        case .aaf:      quelle = resultAAF; name = "\(basis).aaf"
+        }
+        guard let quelle else { return }
+        let ziel = folder.appendingPathComponent(name)
+        do {
+            if FileManager.default.fileExists(atPath: ziel.path) {
+                try FileManager.default.removeItem(at: ziel)
+            }
+            try FileManager.default.copyItem(at: URL(fileURLWithPath: quelle), to: ziel)
+            exportiertePfad = ziel.path
+            NSWorkspace.shared.activateFileViewerSelecting([ziel])
+        } catch {
+            errorMessage = "Export failed: \(error.localizedDescription)"
+        }
+    }
+
     func resetSession() {
         if let url = sessionFileURL {
             try? FileManager.default.removeItem(at: url)
@@ -1083,6 +1117,8 @@ class EngineController: ObservableObject {
         stepTimingStart = nil
         logMessages = []
         resultAAF = nil
+        resultXML = nil
+        exportiertePfad = nil
         resultStats = nil
 
         Task {
@@ -2095,7 +2131,13 @@ class EngineController: ObservableObject {
 
     private func runEngine(folder: URL) async {
         let aafFilename = episodeName.isEmpty ? "final" : episodeName
-        let outputPath = folder.appendingPathComponent("\(aafFilename).aaf").path
+        // Erst in einen temporären Export-Ordner; die Ergebnis-Seite kopiert die gewählte
+        // Fassung (Resolve/Premiere-XML oder AAF) in den Folgenordner.
+        let exportDir = FileManager.default.temporaryDirectory
+            .appendingPathComponent("MultiCamCutter-Export", isDirectory: true)
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try? FileManager.default.createDirectory(at: exportDir, withIntermediateDirectories: true)
+        let outputPath = exportDir.appendingPathComponent("\(aafFilename).aaf").path
 
         var extraArgs = [
             "--folder", folder.path,
@@ -2304,6 +2346,9 @@ class EngineController: ObservableObject {
         case "result":
             if let aaf = json["aaf"] as? String {
                 resultAAF = aaf
+            }
+            if let xml = json["xml"] as? String, !xml.isEmpty {
+                resultXML = xml
             }
             var stats: [String: String] = [:]
             if let total = json["events_total"] as? Int {
