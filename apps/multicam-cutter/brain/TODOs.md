@@ -528,6 +528,15 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
     abwärtskompatibel), Datenschutzerklärung um „verwendetes Aufnahmegerät" ergänzen.
   - Auswertung: Liste „Originator ohne eigenes Profil" = Kandidaten für neue Profile.
 
+- [ ] **Mehrspur-Export per FCP7-XML: eine Videospur je Kamera, inaktive Clips deaktiviert.**
+  ✅ **Test 23.11. bestanden** (Folge 62, 10 min, 2 Kameras, `analyse/xml_mehrspur_test.py`):
+  Premiere UND Resolve übernehmen `<enabled>FALSE</enabled>` je Clip — Spuren deckungsgleich,
+  abwechselnd aktiv/deaktiviert, per Klick umschaltbar. **Resolve-Fallstrick:** verknüpft
+  nur, wenn jede `<file>` ihren **Start-Timecode** (`<timecode>` mit string/frame/
+  displayformat + `<reel>`) trägt — ohne sucht es ab 00:00:00:00 und findet die Medien
+  nicht (auch nicht per Ordnerwahl). Offen für den Einbau: Tonspuren (Mikros, synchron),
+  Pausen-Trimming (Audio-Keeps), Totale/Zoom, Dateiname/Option in der App.
+
 - [ ] **Multitrack-AAF: eine Videospur je Kamera, Umschnitte per Clip-Aktivierung.**
   (Externes Feedback, 26.07. — im Workflow des Users nie relevant, für andere Cutter
   aber wichtig; stand bisher NICHT im TODO.) Statt alle Umschnitte auf EINE Videospur zu
