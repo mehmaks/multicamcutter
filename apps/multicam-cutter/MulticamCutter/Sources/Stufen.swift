@@ -140,10 +140,10 @@ enum Stufen {
             anSchluessel: ["eyeline_enabled"], ausWerte: ["eyeline_enabled": false], fest: [:],
             regler: [
                 StufenRegler(
-                    id: "drittel", titel: "Place on Third",
-                    hilfe: "Eyes go onto the upper third line. A person alone in the frame is also moved onto the left or right third line — towards the side of the frame they sit on. The maximum enlargement still applies.",
+                    id: "goldener_schnitt", titel: "Golden ratio",
+                    hilfe: "Eyes go onto the upper golden-ratio line. A person alone in the frame is also moved onto the left or right golden-ratio line — towards the side of the frame they sit on. The maximum enlargement still applies.",
                     stufen: ["off", "on"],
-                    werte: [["eyeline_third": false], ["eyeline_third": true]]),
+                    werte: [["eyeline_golden": false], ["eyeline_golden": true]]),
             ]),
     ]
 
@@ -370,8 +370,8 @@ extension Stufen {
             }
         }
         if p.eyelineEnabled {
-            saetze.append(loc(p.eyelineThird
-                ? "In the XML export, all speakers share one eyeline on the upper third."
+            saetze.append(loc(p.eyelineGolden
+                ? "In the XML export, all speakers share one eyeline on the golden ratio."
                 : "In the XML export, all speakers share one eyeline."))
         }
         return saetze.joined(separator: " ")

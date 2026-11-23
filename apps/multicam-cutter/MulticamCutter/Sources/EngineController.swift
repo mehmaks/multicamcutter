@@ -154,9 +154,12 @@ struct PipelineParams: Equatable {
     /// einer Augenlinie liegen. Obergrenze der Vergrößerung als Faktor.
     var eyelineEnabled: Bool = false
     var eyelineMaxScale: Double = 1.15
-    /// Place on Third: Augen aufs obere Drittel, Einzelpersonen zusätzlich auf die
-    /// linke/rechte Drittel-Linie (je nach Bildhälfte, in der sie sitzen).
-    var eyelineThird: Bool = false
+    /// Goldener Schnitt: Augen auf die waagerechte Linie (Abstand von oben), Einzelpersonen
+    /// zusätzlich auf die senkrechte Linie (Abstand von der linken bzw. rechten Kante, je
+    /// nach Bildhälfte, in der sie sitzen). Linien in % (Standard 38,2 = goldener Schnitt).
+    var eyelineGolden: Bool = false
+    var eyelineGoldenH: Double = 38.2
+    var eyelineGoldenV: Double = 38.2
     // Slider-Bausteine (Stufen-Ansicht): Schnittabstand je Cutaway-Typ, Konfidenz je
     // Nick-Muster (> 1 = Muster aus), Strenge der Einwurf-Erkennung auf der Analysespur.
     // Standardwerte = bisheriges Verhalten.
@@ -236,7 +239,9 @@ struct PipelineParams: Equatable {
             "preview_overlay": previewOverlay,
             "eyeline_enabled": eyelineEnabled,
             "eyeline_max_scale": eyelineMaxScale,
-            "eyeline_third": eyelineThird,
+            "eyeline_golden": eyelineGolden,
+            "eyeline_golden_h": eyelineGoldenH,
+            "eyeline_golden_v": eyelineGoldenV,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
             "nodding_pattern_min_conf": noddingPatternMinConf,
@@ -280,7 +285,9 @@ struct PipelineParams: Equatable {
             "preview_overlay": previewOverlay,
             "eyeline_enabled": eyelineEnabled,
             "eyeline_max_scale": eyelineMaxScale,
-            "eyeline_third": eyelineThird,
+            "eyeline_golden": eyelineGolden,
+            "eyeline_golden_h": eyelineGoldenH,
+            "eyeline_golden_v": eyelineGoldenV,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
             "nodding_pattern_min_conf": noddingPatternMinConf,
@@ -326,7 +333,9 @@ struct PipelineParams: Equatable {
         if let v = dict["preview_overlay"] as? Bool { previewOverlay = v }
         if let v = dict["eyeline_enabled"] as? Bool { eyelineEnabled = v }
         if let v = dict["eyeline_max_scale"] as? Double { eyelineMaxScale = v }
-        if let v = dict["eyeline_third"] as? Bool { eyelineThird = v }
+        if let v = dict["eyeline_golden"] as? Bool { eyelineGolden = v }
+        if let v = dict["eyeline_golden_h"] as? Double { eyelineGoldenH = v }
+        if let v = dict["eyeline_golden_v"] as? Double { eyelineGoldenV = v }
         if let v = dict["nodding_cooldown_s"] as? Double { noddingCooldownS = v }
         if let v = dict["speaking_cooldown_s"] as? Double { speakingCooldownS = v }
         if let v = dict["nodding_pattern_min_conf"] as? [String: Double] { noddingPatternMinConf = v }

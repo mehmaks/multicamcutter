@@ -286,11 +286,12 @@ nach unten (`horiz` analog Breite, nach rechts). Ziel-Linie T einmal je Folge fe
 die mittlere Vergrößerung über die aktiven Clips, alle Kameras dürfen wandern); jeder Clip
 wird gegen T gerechnet (Median seiner Augenhöhe), nie gegen den Nachbarn. Deckel
 `eyeline_max_scale` (Standard 1,15), Unterschiede < 1 % bleiben unangetastet, droht ein
-Gesicht angeschnitten zu werden, bleibt der Clip unverändert. **Place on Third**
-(`eyeline_third`, Standard aus): T = 1/3; Kameras mit einer Person (ein Mikro, keine Totale)
-zusätzlich waagerecht auf x = 1/3 bzw. 2/3 — Seite nach der Bildhälfte der Person (Median je
-Kamera, nicht je Clip), Deckel gilt weiter. Kamera abwählbar
-(`.multicam` → `cameras[].eyeline`, Engine `--cam-eyeline`). Proben: Reaktionsanalyse
+Gesicht angeschnitten zu werden, bleibt der Clip unverändert. **Goldener Schnitt**
+(`eyeline_golden`, Standard aus): T = `eyeline_golden_v` % von oben; Kameras mit einer Person
+(ein Mikro, keine Totale) zusätzlich waagerecht auf `eyeline_golden_h` % von der linken bzw.
+rechten Kante (beide Standard 38,2) — Seite nach der Bildhälfte der Person (Median je
+Kamera, nicht je Clip), Deckel gilt weiter. Drittel (33,3 %) war zu extrem. Kamera abwählbar
+(`.multicam` → `cameras[].eyeline`, Engine `--cam-eyeline`). Proben:
 nur aus den aktiven Clips, ab Clipstart alle 0,4 s, mind. 3 je Clip, am Stück dekodiert
 (`<stem>_eyeline_clips.json`, Cache im Arbeitsordner); Augenposition je Clip = Median. Ergebnis-Feld `eyeline`
 (`kameras: [{name, datei, median, max, gedeckelt, angeschnitten, clips}]`). Die AAF bleibt

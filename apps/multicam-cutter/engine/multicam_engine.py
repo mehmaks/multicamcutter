@@ -1015,12 +1015,14 @@ def _eyeline_plan(cam_paths, cam_types, cam_eyeline, cam_mic_map, wide_zoom, fps
     cap.release()
     zooms = {i: (wide_zoom if i < len(cam_types) and cam_types[i] == "wide" else 1.0)
              for i in range(len(cam_paths))}
-    # Place on Third nur für Kameras mit einer Person (ein Mikro, keine Totale)
+    # Goldener Schnitt (seitlich) nur für Kameras mit einer Person (ein Mikro, keine Totale)
     einzel = [i for i in kameras if kameras[i]["max_faces"] == 1
               and not (i < len(cam_types) and cam_types[i] == "wide")]
     plan = EyelinePlan(proben, fps, max_scale=float(params.get("eyeline_max_scale", 1.15)),
                        zooms=zooms, hoehe_zu_breite=(h / w) if w and h else 9 / 16, messer=messer,
-                       drittel=bool(params.get("eyeline_third", False)), einzel=einzel)
+                       drittel=bool(params.get("eyeline_golden", False)), einzel=einzel,
+                       linie_x=float(params.get("eyeline_golden_h", 38.2)) / 100,
+                       linie_y=float(params.get("eyeline_golden_v", 38.2)) / 100)
     namen = {}
     for i in kameras:
         person = (cam_person_names[i] if cam_person_names and i < len(cam_person_names) else "") or ""

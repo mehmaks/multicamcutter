@@ -13,12 +13,13 @@ Ablauf (User 23.11., an Folge 58 erprobt):
    Personen auf einer Kamera: Mittel ihrer Augenhöhen. Würde ein Gesicht angeschnitten
    → dieser Clip bleibt unangepasst.
 
-**Place on Third** (optional, `drittel=True`, User 23.11.): Ziel-Linie T = oberes Drittel
-(1/3). Kameras mit genau einer Person (`einzel`) werden zusätzlich waagerecht verschoben:
-Augenmitte auf den Schnittpunkt der oberen mit der linken bzw. rechten Drittel-Linie —
-links, wenn die Person (Median über die ganze Folge) in der linken Bildhälfte sitzt,
-sonst rechts. Die Seite gilt je Kamera, nicht je Clip (kein Springen). Die maximale
-Vergrößerung gilt weiter; reicht sie nicht, geht es so weit Richtung Drittel wie möglich.
+**Goldener Schnitt** (optional, `drittel=True`, User 23.11.): Ziel-Linie T = `linie_y` (von
+oben, Standard 0,382). Kameras mit genau einer Person (`einzel`) werden zusätzlich waagerecht
+verschoben: Augenmitte auf `linie_x` von der linken bzw. rechten Kante — links, wenn die
+Person (Median über ihre Clips) in der linken Bildhälfte sitzt, sonst rechts. Die Seite gilt
+je Kamera, nicht je Clip (kein Springen). Die maximale Vergrößerung gilt weiter; reicht sie
+nicht, geht es so weit Richtung Linie wie möglich. (Erst als Drittel erprobt — 1/3 war dem
+User zu extrem und lief fast immer in den Deckel.)
 
 Koordinaten relativ zum Bild (0 = oben/links, 1 = unten/rechts). XML-Einheiten
 (kalibriert 23.11. in Premiere UND Resolve): Basic Motion `center` vert 0.1 = 10 % der
@@ -149,12 +150,15 @@ class EyelinePlan:
 
     def __init__(self, proben: dict, fps: float, max_scale: float = 1.15,
                  zooms: dict = None, min_abweichung: float = 0.01, hoehe_zu_breite: float = 9 / 16,
-                 messer=None, drittel: bool = False, einzel=None):
+                 messer=None, drittel: bool = False, einzel=None,
+                 linie_x: float = 0.382, linie_y: float = 0.382):
         """`messer`: optional f({cam: [(von, bis)]}) → {cam: {frame: gesichter}} — misst
         beim ersten `festlegen` die Augen in den aktiven Clips nach, wo Proben fehlen."""
         self.fps = fps
         self.messer = messer
         self.drittel = bool(drittel)
+        # Linien als Anteil: y von oben, x von der linken bzw. rechten Kante (0.382 = gold. Schnitt)
+        self.linie_x, self.linie_y = float(linie_x), float(linie_y)
         self.einzel = set(einzel or [])
         self.proben = {c: dict(d) for c, d in proben.items()}
         self.hzb = hoehe_zu_breite
@@ -175,13 +179,13 @@ class EyelinePlan:
                     zeilen.append((f, float(np.mean([g[1] for g in gs])), gs))
             if zeilen:
                 self.reihen[c] = zeilen
-        # Place on Third: Ziel-x je Einzel-Kamera (Seite aus der Bildhälfte der Person)
+        # Goldener Schnitt: Ziel-x je Einzel-Kamera (Seite aus der Bildhälfte der Person)
         self.ziel_x = {}
         if self.drittel:
             for c in self.einzel:
                 xs = [g[0] for _, _, gs in self.reihen.get(c, []) for g in gs]
                 if xs:
-                    self.ziel_x[c] = 1 / 3 if float(np.median(xs)) < 0.5 else 2 / 3
+                    self.ziel_x[c] = self.linie_x if float(np.median(xs)) < 0.5 else 1 - self.linie_x
 
     # ── Messwerte je Clip ────────────────────────────────────────────────────
     def _fenster(self, cam, a, b):
@@ -228,7 +232,7 @@ class EyelinePlan:
             self.T = None
             return None
         if self.drittel:
-            self.T = 1 / 3
+            self.T = self.linie_y
             return self.T
         lo = min(y for _, y in ys) - 0.02
         hi = max(y for _, y in ys) + 0.02

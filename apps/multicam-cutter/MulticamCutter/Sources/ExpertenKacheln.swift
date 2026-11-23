@@ -37,6 +37,20 @@ struct ExpertenInhalt: View {
             set: { engine.params.eyelineMaxScale = $0.rounded() / 100 }),
                   100...140, suffix: " %", format: "%.0f", help: ParamHelp.eyelineMaxScale)
             .wert("eyeline_max_scale", engine)
+        Group {
+            WizSlider("Golden ratio, vertical", Binding(
+                get: { engine.params.eyelineGoldenV },
+                set: { engine.params.eyelineGoldenV = ($0 * 10).rounded() / 10 }),
+                      20...50, suffix: " %", format: "%.1f", help: ParamHelp.eyelineGoldenV)
+                .wert("eyeline_golden_v", engine)
+            WizSlider("Golden ratio, horizontal", Binding(
+                get: { engine.params.eyelineGoldenH },
+                set: { engine.params.eyelineGoldenH = ($0 * 10).rounded() / 10 }),
+                      20...50, suffix: " %", format: "%.1f", help: ParamHelp.eyelineGoldenH)
+                .wert("eyeline_golden_h", engine)
+        }
+        .disabled(!engine.params.eyelineGolden)
+        .opacity(engine.params.eyelineGolden ? 1 : 0.4)
     }
 
     private func musterLaden() async {

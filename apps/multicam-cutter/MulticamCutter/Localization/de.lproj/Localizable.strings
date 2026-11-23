@@ -495,6 +495,10 @@
 "The multitrack export failed — the AAF is available." = "Der Mehrspur-Export ist fehlgeschlagen – die AAF steht zur Verfügung.";
 "Export failed: %@" = "Export fehlgeschlagen: %@";
 "on" = "an";
-"Place on Third" = "Place on Third";
-"Eyes go onto the upper third line. A person alone in the frame is also moved onto the left or right third line — towards the side of the frame they sit on. The maximum enlargement still applies." = "Die Augen kommen auf die obere Drittel-Linie. Ist eine Person allein im Bild, rückt sie zusätzlich auf die linke oder rechte Drittel-Linie – auf die Seite, auf der sie im Bild sitzt. Die maximale Vergrößerung gilt weiter.";
-"In the XML export, all speakers share one eyeline on the upper third." = "Im XML-Export teilen sich alle Sprecher eine Eyeline auf dem oberen Drittel.";
+"Golden ratio" = "Goldener Schnitt";
+"Eyes go onto the upper golden-ratio line. A person alone in the frame is also moved onto the left or right golden-ratio line — towards the side of the frame they sit on. The maximum enlargement still applies." = "Die Augen kommen auf die obere Linie des goldenen Schnitts. Ist eine Person allein im Bild, rückt sie zusätzlich auf die linke oder rechte Linie – auf die Seite, auf der sie im Bild sitzt. Die maximale Vergrößerung gilt weiter.";
+"In the XML export, all speakers share one eyeline on the golden ratio." = "Im XML-Export teilen sich alle Sprecher eine Eyeline auf dem goldenen Schnitt.";
+"Golden ratio, vertical" = "Goldener Schnitt, vertikal";
+"Golden ratio, horizontal" = "Goldener Schnitt, horizontal";
+"Only with the golden ratio on: height of the eyeline, measured from the top edge of the frame. 38.2 % is the golden ratio, 33.3 % the rule of thirds." = "Nur mit eingeschaltetem goldenem Schnitt: Höhe der Eyeline, gemessen von der oberen Bildkante. 38,2 % ist der goldene Schnitt, 33,3 % die Drittel-Regel.";
+"Only with the golden ratio on: where a person alone in the frame is placed, measured from the left or right edge — whichever side they sit on. 38.2 % is the golden ratio, 33.3 % the rule of thirds." = "Nur mit eingeschaltetem goldenem Schnitt: wohin eine Person, die allein im Bild ist, rückt – gemessen von der linken oder rechten Bildkante, je nachdem, auf welcher Seite sie sitzt. 38,2 % ist der goldene Schnitt, 33,3 % die Drittel-Regel.";

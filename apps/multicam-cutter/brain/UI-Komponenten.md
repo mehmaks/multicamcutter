@@ -380,9 +380,11 @@ kompakten Modus (`\.wizKompakt`: Name + Wert oben, Regler volle Breite darunter)
 Verstellte Werte → „angepasst" an der Stufe (wie bisher).
 
 **Kachel „Eyeline“ (23.11.):** eigene Stufen-Kategorie, An/Aus (`eyeline_enabled`,
-Piktogramm `piktogramm-augenlinie`), darin Zwei-Stufen-Schalter „Place on Third“ aus/an
-(`eyeline_third`). Im Expertenmodus darin
-„Max. Vergrößerung“ (`eyeline_max_scale`, 100–140 %). Ist sie an, zeigt die Übersicht unter
+Piktogramm `piktogramm-augenlinie`), darin Zwei-Stufen-Schalter „Goldener Schnitt“ aus/an
+(`eyeline_golden`). Im Expertenmodus darin „Max. Vergrößerung“ (`eyeline_max_scale`,
+100–140 %) und, nur bei eingeschaltetem goldenem Schnitt bedienbar, „Goldener Schnitt,
+vertikal/horizontal“ (`eyeline_golden_v`/`_h`, 20–50 %, Standard 38,2; horizontal = Abstand
+zur jeweiligen Kante, links wie rechts). Ist sie an, zeigt die Übersicht unter
 „Kameras“ je Kamera eine Pille „Eyeline“ (Auge/Auge durchgestrichen) zum Abwählen
 (`CameraInfo.eyeline`, in der `.multicam`). Die Ergebnis-Seite listet je Kamera „meist X %,
 höchstens Y %“.
