@@ -553,6 +553,8 @@ class EngineController: ObservableObject {
     /// Mehrspur-XML (Premiere/Resolve) neben der AAF — beide liegen nach dem Lauf in einem
     /// temporären Export-Ordner; erst der Export-Knopf kopiert in den Folgenordner (User 23.11.).
     @Published var resultXML: String?
+    /// Resolve-Fassung der XML (eigene Quelle je Kamera+Clipname, damit Resolve die Namen zeigt).
+    @Published var resultXMLResolve: String?
     /// Zuletzt exportierte Datei (für „Im Finder zeigen").
     @Published var exportiertePfad: String?
     @Published var resultStats: [String: String]?
@@ -914,7 +916,7 @@ class EngineController: ObservableObject {
         let name: String
         let basis = episodeName.isEmpty ? "final" : episodeName
         switch ziel {
-        case .resolve:  quelle = resultXML; name = "\(basis) (Resolve).xml"
+        case .resolve:  quelle = resultXMLResolve ?? resultXML; name = "\(basis) (Resolve).xml"
         case .premiere: quelle = resultXML; name = "\(basis) (Premiere).xml"
         case .aaf:      quelle = resultAAF; name = "\(basis).aaf"
         }
@@ -1141,6 +1143,7 @@ class EngineController: ObservableObject {
         logMessages = []
         resultAAF = nil
         resultXML = nil
+        resultXMLResolve = nil
         exportiertePfad = nil
         resultStats = nil
 
@@ -2372,6 +2375,9 @@ class EngineController: ObservableObject {
             }
             if let xml = json["xml"] as? String, !xml.isEmpty {
                 resultXML = xml
+            }
+            if let xml = json["xml_resolve"] as? String, !xml.isEmpty {
+                resultXMLResolve = xml
             }
             var stats: [String: String] = [:]
             if let total = json["events_total"] as? Int {

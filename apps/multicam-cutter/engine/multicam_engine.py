@@ -1197,15 +1197,19 @@ def run_pipeline(folder, fps, params, output_path,
     # ── Mehrspur-XML (Premiere/Resolve) aus denselben Schnitt-Events ──────────
     # Jede Kamera eine Spur, inaktive Clips deaktiviert (User 23.11.). Darf den Lauf
     # nie kaputt machen — die AAF steht bereits.
-    xml_path = None
+    # Zwei Fassungen: Premiere (Clipnamen am Clip, eine Quelle je Kamera) und Resolve
+    # (zeigt den Quellnamen → eine Quelle je Kamera+Clipname, wie der AAF-Resolve-Modus).
+    xml_paths = {}
     try:
         from modules.multicam_cutter.build_xml import build_xml
-        xml_path = build_xml(
-            cam_paths=cam_paths, mic_paths=mic_paths, offsets=offsets, edl_path=final_edl,
-            fps=fps, output=output_path.with_suffix(".xml"), cam_types=cam_types,
-            wide_zoom=wide_zoom, trimmed_events=trimmed_events,
-            cam_person_names=cam_person_names, titel=output_path.stem,
-        )
+        for ziel in ("premiere", "resolve"):
+            xml_paths[ziel] = build_xml(
+                cam_paths=cam_paths, mic_paths=mic_paths, offsets=offsets, edl_path=final_edl,
+                fps=fps, output=output_path.with_name(f"{output_path.stem}.{ziel}.xml"),
+                cam_types=cam_types, wide_zoom=wide_zoom, trimmed_events=trimmed_events,
+                cam_person_names=cam_person_names, titel=output_path.stem,
+                clip_name_pattern=clip_name_pattern, ziel=ziel,
+            )
     except Exception as e:
         warning(message=f"XML-Export fehlgeschlagen (AAF ist da): {e}")
 
@@ -1216,7 +1220,8 @@ def run_pipeline(folder, fps, params, output_path,
         "cameras": len(cams),
         "mics": len(mics),
         "aaf": str(aaf_path),
-        "xml": str(xml_path) if xml_path else "",
+        "xml": str(xml_paths.get("premiere", "")),
+        "xml_resolve": str(xml_paths.get("resolve", "")),
         "edl": str(final_edl),
         "work_dir": str(work_dir),
     }

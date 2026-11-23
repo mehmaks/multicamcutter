@@ -57,7 +57,11 @@ def _url(path) -> str:
 def build_xml(cam_paths: list, mic_paths: list, offsets: dict, edl_path: Path, fps: float,
               output: Path, cam_types: list = None, wide_zoom: float = 1.0,
               trimmed_events: list = None, cam_person_names: list = None,
-              titel: str = None) -> Path:
+              titel: str = None, clip_name_pattern: str = None, ziel: str = "premiere") -> Path:
+    """ziel="premiere": eine <file> je Kamera, Clipnamen am <clipitem> (Premiere zeigt sie,
+    ohne zusätzliche Bin-Einträge). ziel="resolve": Resolve zeigt am Timeline-Clip den Namen
+    der Quelle, nicht den des <clipitem> → bei aktivem Muster eine <file> je (Kamera,
+    Clipname), wie die grund-benannten MasterMobs im AAF-Resolve-Modus."""
     events = trimmed_events if trimmed_events is not None else _parse_edl(Path(edl_path), cam_paths, fps)
     if not events:
         raise RuntimeError("Keine Cut-Events — XML-Export abgebrochen")
@@ -88,16 +92,17 @@ def build_xml(cam_paths: list, mic_paths: list, offsets: dict, edl_path: Path, f
     # ── <file>-Definitionen (je Datei einmal voll, danach nur Verweis) ──────────
     dateien = {}
 
-    def datei(path, art):
-        """(file_id, volle Definition beim ersten Mal sonst Verweis, Dauer in Bildern)."""
+    def datei(path, art, anzeige=None):
+        """(file_id, volle Definition beim ersten Mal sonst Verweis, Dauer in Bildern).
+        `anzeige`: eigener Name der Quelle (nur Resolve-Fassung) → eigene <file>."""
         key = str(path)
-        if key in dateien:
-            fid, dur = dateien[key]
+        if (key, anzeige) in dateien:
+            fid, dur = dateien[(key, anzeige)]
             return fid, f'<file id="{fid}"/>', dur
         fid = f"file-{len(dateien) + 1}"
         dur = _probe_duration_frames(key, fps)
         tc = _probe_embedded_tc_frames(key, fps, dropframe=df)
-        name = Path(key).name
+        name = anzeige or Path(key).name
         try:
             ch, sr, bits = _probe_audio_info(key)
         except Exception:
@@ -114,14 +119,15 @@ def build_xml(cam_paths: list, mic_paths: list, offsets: dict, edl_path: Path, f
                 f"<frame>{tc}</frame><displayformat>{'DF' if df else 'NDF'}</displayformat>"
                 f"<reel><name>{escape(Path(key).stem)}</name></reel></timecode>"
                 f"<media>{bild}{ton}</media></file>")
-        dateien[key] = (fid, dur)
+        dateien[(key, anzeige)] = (fid, dur)
         return fid, voll, dur
 
-    def kamera_name(j):
-        stem = Path(cam_paths[j]).stem
-        person = ((cam_person_names or [None] * len(cam_paths))[j] or "").strip() \
-            if cam_person_names and j < len(cam_person_names) else ""
-        return f"{person} – {stem}" if person else stem
+    try:
+        from .clipnamen import ClipNamen
+    except ImportError:
+        from clipnamen import ClipNamen
+    namen = ClipNamen(cam_paths, cam_person_names, clip_name_pattern)
+    je_grund_eigene_quelle = ziel == "resolve" and bool(clip_name_pattern)
 
     zoom_filter = ("<filter><effect><name>Basic Motion</name><effectid>basic</effectid>"
                    "<effectcategory>motion</effectcategory><effecttype>motion</effecttype>"
@@ -143,9 +149,12 @@ def build_xml(cam_paths: list, mic_paths: list, offsets: dict, edl_path: Path, f
             s = a - cam_offs[j]
             if s < 0 or s + dur > cam_durs[j]:
                 continue          # Kamera nimmt hier nicht auf → Lücke auf ihrer Spur
-            _, fdef, fdur = datei(cp, "video")
+            # Aktiver Clip: Name mit Schnittgrund; deaktivierte: wie ein Sprecher-Schnitt
+            # dieser Kamera (ohne Grund-Wort).
+            cname = namen.name(j, ev.get("cut_reason") or "speaker") if j == c else namen.name(j, "speaker")
+            _, fdef, fdur = datei(cp, "video", cname if je_grund_eigene_quelle else None)
             v_spuren[j].append(
-                f'<clipitem id="{neue_id("clip")}"><name>{escape(kamera_name(j))}</name>'
+                f'<clipitem id="{neue_id("clip")}"><name>{escape(cname)}</name>'
                 f'<enabled>{"TRUE" if j == c else "FALSE"}</enabled><duration>{fdur}</duration>{rate}'
                 f"<start>{rec}</start><end>{rec + dur}</end><in>{s}</in><out>{s + dur}</out>{fdef}"
                 + (zoom_filter if zoom and j in wide else "") + "</clipitem>")
