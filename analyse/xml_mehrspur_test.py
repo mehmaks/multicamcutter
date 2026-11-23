@@ -22,6 +22,7 @@ from xml.sax.saxutils import escape
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT / "modules/multicam_cutter"))
 from add_reactions_to_edl import parse_resolve_edl, calculate_reference_frames  # noqa: E402
+from add_reactions_to_edl import get_video_timecode_with_ffprobe  # noqa: E402
 
 
 def probe(path):
@@ -48,7 +49,7 @@ def main():
     with contextlib.redirect_stdout(io.StringIO()):
         events = parse_resolve_edl(x.edl, fps)
         cams = [{"name": Path(v).name, "video": v} for v in x.videos]
-        _, tzvf = calculate_reference_frames(events, cams, fps)
+        ref, tzvf = calculate_reference_frames(events, cams, fps)
 
     ende = max(e.record_out_frame for e in events)
     if x.max_min:
@@ -72,9 +73,18 @@ def main():
         file_dur = int(nb) if nb else int(dur * fps)
         url = "file://localhost" + quote(str(Path(cam["video"]).resolve()))
         file_id = f"file-{ci + 1}"
+        # Start-Timecode der Datei: Resolve verknüpft XML-Clips über Dateiname + Timecode.
+        # Fehlt er, nimmt Resolve 00:00:00:00 an und findet die Quellbilder nicht (Test 23.11.).
+        tc = get_video_timecode_with_ffprobe(cam["video"]) or "00:00:00:00"
+        df = "DF" if ";" in tc else "NDF"
         datei_voll = (f'<file id="{file_id}"><name>{escape(name)}</name><pathurl>{url}</pathurl>{rate}'
-                      f'<duration>{file_dur}</duration><media><video><samplecharacteristics>{rate}'
-                      f'<width>{w}</width><height>{h}</height></samplecharacteristics></video></media></file>')
+                      f'<duration>{file_dur}</duration>'
+                      f'<timecode>{rate}<string>{tc}</string><frame>{ref.get(name, 0)}</frame>'
+                      f'<displayformat>{df}</displayformat><reel><name>{escape(Path(name).stem)}</name></reel></timecode>'
+                      f'<media><video><samplecharacteristics>{rate}'
+                      f'<width>{w}</width><height>{h}</height></samplecharacteristics></video>'
+                      f'<audio><samplecharacteristics><depth>16</depth><samplerate>48000</samplerate></samplecharacteristics>'
+                      f'<channelcount>2</channelcount></audio></media></file>')
         items = []
         erste = True
         for s, t, aktiv in abschnitte:
