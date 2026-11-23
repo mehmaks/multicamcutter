@@ -4,6 +4,24 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0-beta.8
+
+**New: Eyeline in the export for Resolve and Premiere**
+
+A new “Eyeline” tile adjusts the cameras in the export for Resolve and Premiere so that every speaker’s eyes sit at the same height. Each clip is enlarged and shifted slightly, without ever showing a border. Only the parts where a camera is visible in the cut are measured, every 0.4 seconds from the start of each clip. The eye height is where the person is for most of the clip, so brief movements don’t count. How far a clip may be enlarged at most is set in the expert settings (default 115 %). If a face would be cut off, the clip stays unchanged. In the camera overview you can exclude single cameras from the eyeline, e.g. a wide shot. The measurement makes the run longer: expect roughly a quarter of the time the most-shown camera is on screen. The result page shows how much each camera was enlarged. The AAF stays unchanged.
+
+**New: Golden ratio**
+
+In the Eyeline tile you can also turn on the golden ratio. The eyeline then sits on the upper golden-ratio line. A person alone in the frame is also moved onto the left or right line, depending on which side of the frame they sit on. If the allowed enlargement isn’t quite enough, they move as far in that direction as possible. In the expert settings both lines can be moved, e.g. to 33.3 % for the rule of thirds.
+
+**Changed: No preview image during the analysis**
+
+During a run the window now only shows the step, the progress and the percentage. The “Analysis overlays” switch in the expert settings is gone as a result.
+
+**Fixed: Window size during the analysis**
+
+Since the new progress bar, the window could be resized again during a run. It stays fixed again now.
+
 ## 1.1.0-beta.7
 
 **New: Export for Resolve, Premiere or as AAF**

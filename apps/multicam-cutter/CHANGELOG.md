@@ -5,6 +5,24 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0-beta.8
+
+**Neu: Eyeline im Export für Resolve und Premiere**
+
+Eine neue Kachel „Eyeline“ gleicht beim Export für Resolve und Premiere die Kameras so an, dass die Augen aller Sprecher auf derselben Höhe liegen. Dafür wird jeder Clip leicht vergrößert und verschoben, ohne dass ein Rand entsteht. Gemessen wird nur in den Abschnitten, in denen eine Kamera im Schnitt zu sehen ist, ab Clipbeginn alle 0,4 Sekunden. Als Augenhöhe zählt, wo die Person den größten Teil des Clips ist, kurze Bewegungen fallen also nicht ins Gewicht. Wie weit ein Clip höchstens vergrößert werden darf, stellst du in den Experteneinstellungen ein (Standard 115 %). Würde ein Gesicht angeschnitten, bleibt der Clip unverändert. In der Kamera-Übersicht lässt sich jede Kamera einzeln von der Eyeline ausnehmen, etwa eine Totale. Die Messung verlängert den Lauf: Rechne grob mit einem Viertel der Zeit, in der die meistgezeigte Kamera im Bild ist. Die Ergebnisseite zeigt je Kamera, wie stark vergrößert wurde. Die AAF bleibt unverändert.
+
+**Neu: Goldener Schnitt**
+
+In der Eyeline-Kachel kannst du zusätzlich den goldenen Schnitt einschalten. Dann liegt die Eyeline auf der oberen Linie des goldenen Schnitts. Ist eine Person allein im Bild, rückt sie außerdem auf die linke oder rechte Linie, je nachdem, auf welcher Bildseite sie sitzt. Reicht die erlaubte Vergrößerung nicht ganz, geht es so weit wie möglich in diese Richtung. In den Experteneinstellungen lassen sich beide Linien verschieben, z. B. auf 33,3 % für die Drittel-Regel.
+
+**Geändert: Kein Vorschaubild mehr während der Analyse**
+
+Während eines Laufs zeigt das Fenster nur noch Schritt, Fortschritt und Prozent. Der Schalter „Analyse-Einblendungen“ in den Experteneinstellungen entfällt damit.
+
+**Behoben: Fenstergröße während der Analyse**
+
+Seit dem neuen Fortschrittsbalken ließ sich das Fenster während eines Laufs wieder aufziehen. Es bleibt jetzt wieder fest.
+
 ## 1.1.0-beta.7
 
 **Neu: Export für Resolve, Premiere oder als AAF**
