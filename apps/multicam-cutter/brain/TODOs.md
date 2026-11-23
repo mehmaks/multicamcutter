@@ -537,7 +537,7 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
   Ideen zum Testen: Clipfarben je Grund (`<labels><label2>`), Marker je aktivem Clip, oder
   später die Live-Anbindung über die Resolve-API.
 
-- [ ] **Augenlinie: an einem echten Lauf abnehmen** (eingebaut 23.11., Kachel „Augenlinie",
+- [ ] **Eyeline: an einem echten Lauf abnehmen** (eingebaut 23.11., Kachel „Eyeline",
   `eyeline.py`). Erprobt an Folge 58 (Test-XMLs je Kamera/Abschnitt/Clip; Clip-Variante
   „stört nicht", User 23.11.). Offen: Laufzeit der Nachmessung bei 4K (Einzelbild-Sprung
   ~0,4 s), Verhalten bei Totalen mit mehreren Personen (Mittel der Augenhöhen +

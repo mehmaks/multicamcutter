@@ -15,7 +15,7 @@
 | N+1 | cutaways | PASS 2-5 (Cutaway-Einfuegung, CLIP-Filter) | 30-120s |
 | N+2 | pause_trim | Pause-Trimming | <1s |
 | N+3 | aaf_export | AAF-Generierung | 1-3s |
-| (N+4) | eyeline | nur mit Kachel „Augenlinie“: Augenhöhe in den aktiven Clips nachmessen + Plan je Clip für die XML (siehe Dateiformate.md → Mehrspur-XML) | wenige min |
+| (N+4) | eyeline | nur mit Kachel „Eyeline“: Augenhöhe in den aktiven Clips nachmessen + Plan je Clip für die XML (siehe Dateiformate.md → Mehrspur-XML) | wenige min |
 
 Nodding ist ~80% der Gesamtzeit. Bei 2 Cams a 90 Min: ~20 Min total.
 

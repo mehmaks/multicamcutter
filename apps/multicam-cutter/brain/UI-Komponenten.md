@@ -379,10 +379,10 @@ verzögerung, Vorlauf, Cutaway-Filter, Analyse-Einblendungen). Zeilen in Kacheln
 kompakten Modus (`\.wizKompakt`: Name + Wert oben, Regler volle Breite darunter).
 Verstellte Werte → „angepasst" an der Stufe (wie bisher).
 
-**Kachel „Augenlinie“ (23.11.):** eigene Stufen-Kategorie ohne Stufen-Schalter, nur An/Aus
+**Kachel „Eyeline“ (23.11.):** eigene Stufen-Kategorie ohne Stufen-Schalter, nur An/Aus
 (`eyeline_enabled`, Piktogramm `piktogramm-augenlinie`). Im Expertenmodus darin
 „Max. Vergrößerung“ (`eyeline_max_scale`, 100–140 %). Ist sie an, zeigt die Übersicht unter
-„Kameras“ je Kamera eine Pille „Augenlinie“ (Auge/Auge durchgestrichen) zum Abwählen
+„Kameras“ je Kamera eine Pille „Eyeline“ (Auge/Auge durchgestrichen) zum Abwählen
 (`CameraInfo.eyeline`, in der `.multicam`). Die Ergebnis-Seite listet je Kamera „meist X %,
 höchstens Y %“.
 

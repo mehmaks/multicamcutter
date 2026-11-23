@@ -279,7 +279,7 @@ exportieren" / „Für Premiere Pro exportieren" (dieselbe XML, Namenszusatz „
 „(Premiere)") und „Als AAF exportieren"; erst der Klick kopiert in den Folgenordner
 (gleichnamige Datei wird ersetzt) und zeigt sie im Finder.
 
-**Augenlinie (seit 23.11., Kachel „Augenlinie", `eyeline_enabled`):** `modules/multicam_cutter/eyeline.py`
+**Eyeline (seit 23.11., Kachel „Eyeline", `eyeline_enabled`):** `modules/multicam_cutter/eyeline.py`
 gibt jedem Video-Clip (aktiv UND deaktiviert) einen Basic-Motion-Filter mit Skalierung +
 `center/vert`. Einheiten kalibriert in Premiere UND Resolve: `vert 0.1` = 10 % der Bildhöhe
 nach unten (`horiz` analog Breite, nach rechts). Ziel-Linie T einmal je Folge fest (minimiert
