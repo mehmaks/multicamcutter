@@ -4,6 +4,32 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0-beta.7
+
+**New: Export for Resolve, Premiere or as AAF**
+
+At the end of an analysis you now choose what to export for: “Export for DaVinci Resolve”, “Export for Premiere Pro” or “Export as AAF”. Only the click puts the file into the episode folder. For Resolve and Premiere you get a timeline with every camera on its own track: at each cut only the chosen camera is enabled, the others are disabled. That way you can easily change single decisions in your editing software by enabling a different clip. Audio and pause trimming are included just like in the AAF. In Premiere the clips are named after your pattern under “AAF clip names” (e.g. “Nicken – C9876”); Resolve shows the file name on the clip for now. Important: a run no longer saves a file automatically – only the export button writes it.
+
+**New: Expert settings inside the tiles**
+
+The expert settings are no longer a separate list. A switch next to “Settings” shows the individual values right inside the tiles below the levels; a new “More” tile collects the rest. The app remembers whether the switch is on. In expert mode “What to expect” is hidden, as it can't describe freely adjusted values. The settings now sit directly in the window without an extra frame.
+
+**New: Adjusted values at a glance**
+
+Values that differ from the default appear in lilac instead of green. In the simple view the default is the chosen level, in the expert settings it's the last loaded preset. Double-click the name of such a value to reset it. For head nods you can now also set the confidence per nod pattern.
+
+**New: Delete presets**
+
+In the ⋯ menu next to the preset selection you can now delete the selected preset.
+
+**New: App icon**
+
+MultiCamCutter has a new icon: a pair of scissors whose handles form the letters “CC”, with an “M” above – on our green.
+
+**Fixed: Colour transitions in the progress bar**
+
+With some colour changes the progress bar briefly ran through darker and lighter in-between shades. It now blends smoothly everywhere.
+
 ## 1.1.0-beta.6
 
 **New: The app remembers your settings**

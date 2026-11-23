@@ -127,7 +127,11 @@ def build_xml(cam_paths: list, mic_paths: list, offsets: dict, edl_path: Path, f
     except ImportError:
         from clipnamen import ClipNamen
     namen = ClipNamen(cam_paths, cam_person_names, clip_name_pattern)
-    je_grund_eigene_quelle = ziel == "resolve" and bool(clip_name_pattern)
+    # Getestet 23.11.: Resolve fasst <file>-Einträge mit gleichem Pfad zu EINEM Media-Pool-
+    # Clip zusammen und zeigt dessen (Datei-)Namen — eigene Quellen je Name bringen dort
+    # nichts. Deshalb vorerst auch für Resolve eine Quelle je Kamera (Clipnamen sieht man
+    # in Premiere). Offen: Farben/Marker je Schnittgrund für Resolve (brain/TODOs.md).
+    je_grund_eigene_quelle = False
 
     zoom_filter = ("<filter><effect><name>Basic Motion</name><effectid>basic</effectid>"
                    "<effectcategory>motion</effectcategory><effecttype>motion</effecttype>"

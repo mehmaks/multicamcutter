@@ -5,6 +5,32 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0-beta.7
+
+**Neu: Export für Resolve, Premiere oder als AAF**
+
+Am Ende einer Analyse wählst du jetzt, wofür du exportieren möchtest: „Für DaVinci Resolve exportieren“, „Für Premiere Pro exportieren“ oder „Als AAF exportieren“. Erst mit dem Klick landet die Datei im Folgenordner. Für Resolve und Premiere entsteht eine Timeline, in der jede Kamera auf einer eigenen Spur liegt: An jedem Schnitt ist nur die gewählte Kamera aktiv, die anderen sind deaktiviert. So kannst du im Schnittprogramm einzelne Entscheidungen bequem ändern, indem du einen anderen Clip aktivierst. Ton und Pausen-Kürzung sind wie bei der AAF enthalten. In Premiere tragen die Clips die Namen nach deinem Muster unter „AAF-Clipnamen“ (z. B. „Nicken – C9876“); Resolve zeigt am Clip vorerst den Dateinamen. Wichtig: Nach einem Lauf wird nicht mehr automatisch eine Datei abgelegt – erst der Export-Knopf schreibt sie.
+
+**Neu: Experteneinstellungen in den Kacheln**
+
+Die Experteneinstellungen sind keine eigene Liste mehr. Ein Schalter neben „Einstellungen“ blendet die Einzelwerte direkt in den Kacheln unter den Stufen ein, eine neue Kachel „Weitere“ sammelt den Rest. Die App merkt sich, ob der Schalter an ist. Im Expertenmodus entfällt „Was dich erwartet“, weil frei verstellte Werte dort nicht beschrieben werden können. Die Einstellungen stehen jetzt ohne zusätzlichen Rahmen direkt im Fenster.
+
+**Neu: Angepasste Werte auf einen Blick**
+
+Werte, die vom Standard abweichen, erscheinen in Flieder statt Grün. In der einfachen Ansicht ist der Standard die gewählte Stufe, in den Experteneinstellungen das zuletzt geladene Preset. Ein Doppelklick auf den Namen eines solchen Werts setzt ihn zurück. Beim Kopfnicken lässt sich außerdem die Konfidenz je Nick-Muster einstellen.
+
+**Neu: Presets löschen**
+
+Im ⋯-Menü neben der Preset-Auswahl kannst du das gewählte Preset jetzt löschen.
+
+**Neu: App-Icon**
+
+MultiCamCutter hat ein neues Icon: eine Schere, deren Griffe die Buchstaben „CC“ bilden, darüber ein „M“ – auf unserem Grün.
+
+**Behoben: Farbübergänge im Fortschrittsbalken**
+
+Bei manchen Farbwechseln lief der Fortschrittsbalken kurz über dunklere und hellere Zwischentöne. Jetzt blendet er überall weich über.
+
 ## 1.1.0-beta.6
 
 **Neu: Die App merkt sich deine Einstellungen**

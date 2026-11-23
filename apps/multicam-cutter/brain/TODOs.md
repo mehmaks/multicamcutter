@@ -531,6 +531,12 @@ Dropframe-Fix + alle Strukturarbeit im Arbeitsbaum **unangetastet** blieben (kei
     abwärtskompatibel), Datenschutzerklärung um „verwendetes Aufnahmegerät" ergänzen.
   - Auswertung: Liste „Originator ohne eigenes Profil" = Kandidaten für neue Profile.
 
+- [ ] **Resolve: Schnittgründe in der Mehrspur-XML sichtbar machen.** Resolve ignoriert
+  `<clipitem><name>` und fasst `<file>`-Einträge mit gleichem Pfad zu EINEM Media-Pool-Clip
+  zusammen (Test 23.11.) → am Clip steht nur der Dateiname (Premiere zeigt die Namen).
+  Ideen zum Testen: Clipfarben je Grund (`<labels><label2>`), Marker je aktivem Clip, oder
+  später die Live-Anbindung über die Resolve-API.
+
 - [x] **Mehrspur-Export per FCP7-XML: eine Videospur je Kamera, inaktive Clips deaktiviert.** (eingebaut 23.11., `build_xml.py`; Ergebnis-Seite mit drei Export-Knöpfen; Sichtung 23.11. in Premiere UND Resolve bestanden: Schnitte, Aktivierung, Ton verknüpft + synchron auch hinter Pausen-Kürzungen)
   ✅ **Test 23.11. bestanden** (Folge 62, 10 min, 2 Kameras, `analyse/xml_mehrspur_test.py`):
   Premiere UND Resolve übernehmen `<enabled>FALSE</enabled>` je Clip — Spuren deckungsgleich,
