@@ -880,6 +880,29 @@ class EngineController: ObservableObject {
     /// Sauberer Reset (Fremd-Feedback-Wunsch): .multicam loeschen und den Ordner
     /// frisch scannen — die App verhaelt sich dann wie beim allerersten Oeffnen
     /// (Wizard ab Schritt 1, Zuordnungen aus den Datei-Defaults).
+    #if DEBUG
+    /// Nur im Dev-Build: `MCC_DEMO_ERGEBNIS=<ordner>` mit `<name>.aaf` + `<name>.xml` darin
+    /// springt direkt auf die Ergebnis-Seite (Exporte landen in `<ordner>/Export`).
+    /// Zum Ansehen der Ergebnis-Seite ohne kompletten Lauf.
+    func demoErgebnisLaden() -> Bool {
+        guard let pfad = ProcessInfo.processInfo.environment["MCC_DEMO_ERGEBNIS"] else { return false }
+        let dir = URL(fileURLWithPath: pfad)
+        let dateien = (try? FileManager.default.contentsOfDirectory(atPath: pfad)) ?? []
+        guard let aaf = dateien.first(where: { $0.hasSuffix(".aaf") }) else { return false }
+        let export = dir.appendingPathComponent("Export", isDirectory: true)
+        try? FileManager.default.createDirectory(at: export, withIntermediateDirectories: true)
+        folderURL = export
+        episodeName = (aaf as NSString).deletingPathExtension
+        resultAAF = dir.appendingPathComponent(aaf).path
+        if let xml = dateien.first(where: { $0.hasSuffix(".xml") }) {
+            resultXML = dir.appendingPathComponent(xml).path
+        }
+        resultStats = ["Events": "972", "Duration": "18m 42s"]
+        state = .done
+        return true
+    }
+    #endif
+
     enum ExportZiel { case resolve, premiere, aaf }
 
     /// Kopiert die gewählte Fassung in den Folgenordner (vorhandene Datei gleichen Namens

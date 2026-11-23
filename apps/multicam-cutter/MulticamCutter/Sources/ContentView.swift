@@ -88,6 +88,9 @@ struct ContentView: View {
             TelemetryConsentSheet()
         }
         .onAppear {
+            #if DEBUG
+            if engine.demoErgebnisLaden() { return }   // nur Dev-Build, MCC_DEMO_ERGEBNIS
+            #endif
             // Erst nach dem Fensteraufbau: ein Sheet, das im selben Zyklus wie
             // das Fenster erscheint, sitzt sonst gelegentlich ohne Elternfenster
             // in der Bildschirmmitte.
