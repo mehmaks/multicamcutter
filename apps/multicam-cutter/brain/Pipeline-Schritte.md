@@ -19,9 +19,9 @@
 
 Nodding ist ~80% der Gesamtzeit. Bei 2 Cams a 90 Min: ~20 Min total.
 
-**Vorschaubild der Reaktionsanalyse (20.11.):** alle 5 s ein JPEG für die App. Standard =
-nacktes Kamerabild; Gesichtsgitter, erkannte Reaktionen und Dateiname nur mit dem
-Debug-Schalter `preview_overlay` (Experteneinstellungen → Debug).
+**Kein Vorschaubild mehr (23.11.):** Die Laufansicht zeigt nur Schritt, Balken und Prozent
+(User: kein Mehrwert). `run_from_bin` übergibt kein `--preview-path` mehr, `protocol.py`
+kein `preview_path`; der Debug-Schalter `preview_overlay` ist aus der UI entfernt.
 
 **Eyeline-Proben (23.11.):** Gemessen wird nur im Schritt `eyeline`, nur in den aktiven Clips
 (beim Zuhören sitzen Leute anders, greifen zum Glas — Off-Sektionen verfälschen die Eyeline).

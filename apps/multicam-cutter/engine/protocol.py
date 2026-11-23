@@ -122,8 +122,6 @@ class JsonLineWriter:
                     # Anzeigenamen selbst (Person + Einstellungsgroesse + Datei) —
                     # nur sie kennt Mic-Namen und Kamerarollen. Deshalb Datei separat.
                     import re
-                    cam_match = re.search(r'CAM(\d+)', step_label)
-                    cam_num = cam_match.group(1) if cam_match else "1"
                     file_match = re.search(r'\(([^()]+)\)\s*$', step_label)
                     cam_file = file_match.group(1) if file_match else ""
                     self._emit({
@@ -131,7 +129,6 @@ class JsonLineWriter:
                         "label": f"Reaction analysis ({cam_file})" if cam_file else "Reaction analysis",
                         "cam_file": cam_file,
                         "key": "nodding",
-                        "preview_path": f"/tmp/multicam_preview_cam{cam_num}.jpg",
                     })
                 elif "Cutaways" in step_label:
                     self._emit({"type": "step_start_sub", "label": "Insert cutaways", "key": "cutaways"})

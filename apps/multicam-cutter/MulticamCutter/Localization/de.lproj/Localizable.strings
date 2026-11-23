@@ -446,8 +446,6 @@
 
 /* Debug: Einblendungen im Vorschaubild (20.11.) */
 "Debug" = "Debug";
-"Analysis overlays" = "Analyse-Einblendungen";
-"Shows the face mesh, the detected reactions and the file name in the preview image during the analysis. Only for checking the detection — it has no effect on the cut." = "Zeigt während der Analyse das Gesichtsgitter, die erkannten Reaktionen und den Dateinamen im Vorschaubild. Nur zum Prüfen der Erkennung – auf den Schnitt hat das keinen Einfluss.";
 "Max. enlargement" = "Max. Vergrößerung";
 "How far a clip may be enlarged at most to align the eyeline. Whether that costs visible quality depends on your footage and timeline resolution — you know that best." = "Wie weit ein Clip höchstens vergrößert werden darf, um die Eyeline anzugleichen. Ob das sichtbar Qualität kostet, hängt von deinem Material und der Auflösung deiner Timeline ab – das weißt du am besten.";
 "Eyeline" = "Eyeline";

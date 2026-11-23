@@ -696,14 +696,6 @@ struct ProgressView_: View {
         VStack(spacing: 16) {
             Spacer()
 
-            if let image = engine.facemeshImage {
-                Image(nsImage: image)
-                    .resizable()
-                    .aspectRatio(contentMode: .fit)
-                    .frame(maxWidth: 400, maxHeight: 225)
-                    .clipShape(RoundedRectangle(cornerRadius: 8))
-            }
-
             Text(engine.stepLabel)
                 .font(.title2)
                 .fontWeight(.medium)

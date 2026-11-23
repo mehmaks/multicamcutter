@@ -229,8 +229,6 @@ struct WeitereKachel: View {
                     .wert("pre_roll", engine)
                 WizToggle("Move unsuitable cutaways", $engine.params.clipFilterEnabled, help: ParamHelp.clipFilterEnabled)
                     .wert("clip_filter_enabled", engine)
-                WizToggle("Analysis overlays", $engine.params.previewOverlay, help: ParamHelp.previewOverlay)
-                    .wert("preview_overlay", engine)
             }
             .environment(\.wizKompakt, true)
             Spacer(minLength: 0)

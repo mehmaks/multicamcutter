@@ -27,7 +27,6 @@ enum ParamHelp {
     static let eyelineMaxScale = "How far a clip may be enlarged at most to align the eyeline. Whether that costs visible quality depends on your footage and timeline resolution — you know that best."
     static let eyelineGoldenV = "Only with the golden ratio on: height of the eyeline, measured from the top edge of the frame. 38.2 % is the golden ratio, 33.3 % the rule of thirds."
     static let eyelineGoldenH = "Only with the golden ratio on: where a person alone in the frame is placed, measured from the left or right edge — whichever side they sit on. 38.2 % is the golden ratio, 33.3 % the rule of thirds."
-    static let previewOverlay = "Shows the face mesh, the detected reactions and the file name in the preview image during the analysis. Only for checking the detection — it has no effect on the cut."
     static let noddingPatternMinConf = "How sure the detection has to be for this kind of head movement before it becomes a cutaway. Above 100 % the pattern is not used at all."
     static let noddingCooldownS = "At least this much time lies between two head-nod cutaways on the same person. 0 = every detected nod can be used."
     static let speakingCooldownS = "At least this much time lies between two interjection cutaways on the same person. 0 = every detected interjection can be used."

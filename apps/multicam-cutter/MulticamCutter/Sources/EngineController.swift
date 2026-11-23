@@ -148,7 +148,7 @@ struct PipelineParams: Equatable {
     /// Einwurf-Cutaways dürfen die Einstellung davor kürzer als min_shot machen
     /// (Untergrenze bleibt cleanup_dur).
     var speakingIgnoreMinShot: Bool = false
-    /// Debug: Gesichtsgitter, erkannte Reaktionen und Dateiname im Vorschaubild.
+    /// Ohne Wirkung, seit die Laufansicht kein Vorschaubild mehr zeigt (23.11.); bleibt für alte Presets.
     var previewOverlay: Bool = false
     /// Eyeline-Abgleich (nur XML): Skalierung/Position je Clip, damit alle Sprecher auf
     /// einer Augenlinie liegen. Obergrenze der Vergrößerung als Faktor.
@@ -574,12 +574,6 @@ class EngineController: ObservableObject {
     }
     @Published var logMessages: [String] = []
 
-    // Facemesh-Preview (wird während Nodding-Analyse periodisch aktualisiert)
-    @Published var facemeshImage: NSImage?
-    private var previewPath: String?
-    private var previewTimer: Timer?
-    /// Zeitpunkt des Poll-Starts — aeltere Stills (vom vorigen Lauf) werden ignoriert.
-    private var previewStartedAt: Date?
 
     // Progress (Scan)
     @Published var scanLabel: String = ""
@@ -1309,7 +1303,6 @@ class EngineController: ObservableObject {
     func cancel() {
         engineProcess?.terminate()
         engineProcess = nil
-        stopPreviewPolling()
         stepPercent = 0
         stepNum = 0
         stepLabel = ""
@@ -1991,37 +1984,6 @@ class EngineController: ObservableObject {
         return remaining / speed
     }
 
-    // MARK: - Facemesh Preview Polling
-
-    private func startPreviewPolling(path: String) {
-        previewPath = path
-        previewStartedAt = Date()
-        facemeshImage = nil          // alte Vorschau sofort weg
-        previewTimer?.invalidate()
-        previewTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] _ in
-            guard let self else { return }
-            Task { @MainActor in
-                guard let path = self.previewPath, let since = self.previewStartedAt else { return }
-                // NUR Stills zeigen, die MediaPipe in DIESEM Lauf geschrieben hat.
-                // Sonst liegt die Datei des vorigen Laufs/Projekts noch da und wird
-                // sofort beim Step-Start angezeigt (zeigt dann ein fremdes Bild).
-                guard let attrs = try? FileManager.default.attributesOfItem(atPath: path),
-                      let mtime = attrs[.modificationDate] as? Date,
-                      mtime >= since,
-                      let image = NSImage(contentsOfFile: path) else { return }
-                self.facemeshImage = image
-            }
-        }
-    }
-
-    private func stopPreviewPolling() {
-        previewTimer?.invalidate()
-        previewTimer = nil
-        previewPath = nil
-        previewStartedAt = nil
-        facemeshImage = nil
-    }
-
     // MARK: - Scan (Engine --scan)
 
     private func runScan(folder: URL, decideWizardStep: Bool = true) async {
@@ -2351,7 +2313,6 @@ class EngineController: ObservableObject {
             }
             if let num = json["step_num"] as? Int { stepNum = num }
             if let total = json["total_steps"] as? Int { totalSteps = total }
-            stopPreviewPolling()
             logMessages.append(String(localized: "Step \(stepNum)/\(totalSteps): \(stepLabel)"))
 
         case "step_start_sub":
@@ -2367,12 +2328,6 @@ class EngineController: ObservableObject {
                 stepETA = ""
                 stepCounter = ""
                 stepNum += 1
-            }
-            // Facemesh-Preview starten/stoppen
-            if let path = json["preview_path"] as? String {
-                startPreviewPolling(path: path)
-            } else {
-                stopPreviewPolling()
             }
             logMessages.append(String(localized: "Step \(stepNum)/\(totalSteps): \(stepLabel)"))
 
