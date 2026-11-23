@@ -965,13 +965,76 @@ class SyncUnresolved(Exception):
     pass
 
 
+def _eyeline_plan(cam_paths, cam_types, cam_eyeline, cam_mic_map, wide_zoom, fps, work_dir,
+                  params, cam_person_names):
+    """Baut den EyelinePlan für die XML (eyeline.py). Proben der Reaktionsanalyse
+    (<stem>_eyeline.json) und früherer Läufe (<stem>_eyeline_luecken.json) werden
+    übernommen; was in den aktiven Clips noch fehlt, misst der Plan beim ersten
+    build_xml nach (Einzelbilder alle 4 s, Kameras parallel) und legt es im Cache ab."""
+    from modules.multicam_cutter.eyeline import lade_proben, messe_alle, EyelinePlan
+    import cv2
+
+    kameras = {}
+    proben = {}
+    for i, cp in enumerate(cam_paths):
+        if not cam_eyeline[i]:
+            continue
+        stem = Path(cp).stem
+        d = lade_proben(work_dir / f"{stem}_eyeline.json")
+        cache = work_dir / f"{stem}_eyeline_luecken.json"
+        try:
+            d.update({int(f): g for f, g in json.loads(cache.read_text(encoding="utf-8"))})
+        except Exception:
+            pass
+        proben[i] = d
+        kameras[i] = {"idx": i, "video": cp, "cache": cache,
+                      "max_faces": max(1, len(cam_mic_map[i]) if i < len(cam_mic_map) else 1)}
+    if not kameras:
+        return None, None
+
+    def messer(bereiche):
+        auftrag = [{**kameras[c], "proben": proben[c], "bereiche": b} for c, b in bereiche.items()]
+        if not auftrag:
+            return {}
+        print(f"  Eyeline: Augenhöhe in den Clips messen ({len(auftrag)} Kamera(s))...")
+        neu = messe_alle(auftrag, fps, schritt_s=4.0,
+                         fortschritt=lambda a: emit("step_progress", percent=round(a * 100), eta=""))
+        for c, d in neu.items():
+            if not d:
+                continue
+            cache = kameras[c]["cache"]
+            try:
+                bisher = {}
+                if cache.exists():
+                    bisher = {int(f): g for f, g in json.loads(cache.read_text(encoding="utf-8"))}
+                bisher.update(d)
+                cache.write_text(json.dumps(sorted(bisher.items())), encoding="utf-8")
+            except Exception:
+                pass
+            print(f"  Eyeline {Path(kameras[c]['video']).name}: {len(d)} Bilder nachgemessen")
+        return neu
+
+    cap = cv2.VideoCapture(str(cam_paths[next(iter(kameras))]))
+    w, h = cap.get(cv2.CAP_PROP_FRAME_WIDTH), cap.get(cv2.CAP_PROP_FRAME_HEIGHT)
+    cap.release()
+    zooms = {i: (wide_zoom if i < len(cam_types) and cam_types[i] == "wide" else 1.0)
+             for i in range(len(cam_paths))}
+    plan = EyelinePlan(proben, fps, max_scale=float(params.get("eyeline_max_scale", 1.15)),
+                       zooms=zooms, hoehe_zu_breite=(h / w) if w and h else 9 / 16, messer=messer)
+    namen = {}
+    for i in kameras:
+        person = (cam_person_names[i] if cam_person_names and i < len(cam_person_names) else "") or ""
+        namen[i] = {"name": person or Path(cam_paths[i]).stem, "datei": Path(cam_paths[i]).name}
+    return plan, {"namen": namen}
+
+
 def run_pipeline(folder, fps, params, output_path,
                  cam_mics=None, cam_types_arg=None, cam_nodding_arg=None,
                  skip_analysis=False, skip_base_edl=False,
                  speaking_mode=None, lut=None,
                  cams_arg=None, mics_arg=None,
                  cam_person_names=None, clip_name_pattern=None,
-                 manual_offsets=None):
+                 manual_offsets=None, cam_eyeline_arg=None):
     """Fuehrt die komplette Pipeline aus. Gibt (aaf_path, stats) zurueck.
 
     cams_arg/mics_arg: explizite Dateilisten (nur die in der App aktivierten
@@ -990,7 +1053,10 @@ def run_pipeline(folder, fps, params, output_path,
     # ── Schritt-Zaehler ────────────────────────────────────────────────────
     # Steps: Scan, Sync, Base-EDL, Nodding×N, Cutaways, Pause-Trim, AAF
     n_cams_expected = len(cams_arg) if cams_arg else len(list(scan_folder(folder)[0]))
-    total_steps = 4 + n_cams_expected + 2  # scan, sync, base_edl, N×nodding, cutaways, pause_trim, aaf
+    # Eyeline (nur XML): eigener Schritt nach der AAF — misst die Augenhöhe, wo die
+    # Reaktionsanalyse keine Proben hat
+    eyeline_on = bool(params.get("eyeline_enabled", False))
+    total_steps = 4 + n_cams_expected + 2 + (1 if eyeline_on else 0)  # scan, sync, base_edl, N×nodding, cutaways, pause_trim, aaf[, eyeline]
     step_num = 0
 
     def next_step(label, key=None):
@@ -1030,7 +1096,7 @@ def run_pipeline(folder, fps, params, output_path,
         raise RuntimeError("Keine Mikrofon-Dateien gefunden (.wav / .aif).")
 
     # Korrektur total_steps falls Cam-Anzahl anders als erwartet
-    total_steps = 4 + len(cams) + 2
+    total_steps = 4 + len(cams) + 2 + (1 if eyeline_on else 0)
 
     # Gewichte je Schritt fuer einen EHRLICHEN Dock-Balken (Punkt 5): Nodding
     # (je Kamera) und der optionale CLIP-Cutaway-Pass dominieren die Laufzeit —
@@ -1041,7 +1107,8 @@ def run_pipeline(folder, fps, params, output_path,
     _step_weights = ([1.0, 1.5, 1.0]                 # Scan, Sync, Base-EDL
                      + [10.0] * len(cams)            # Nodding je Kamera (dominant)
                      + [8.0 if _clip_on else 1.0]    # Cutaways (CLIP-Pass wenn an)
-                     + [1.0, 1.0])                   # Pause-Trim, AAF
+                     + [1.0, 1.0]                    # Pause-Trim, AAF
+                     + ([3.0] if eyeline_on else []))  # Eyeline (Messung je Kamera parallel)
     emit("step_weights", weights=_step_weights)
 
     cam_paths = [str(c) for c in cams]
@@ -1093,6 +1160,7 @@ def run_pipeline(folder, fps, params, output_path,
     cam_mic_map = _parse_cam_mics(cam_mics, n_cams, len(mics))
     cam_types = _parse_cam_list(cam_types_arg, n_cams, "close")
     cam_nodding = _parse_cam_nodding(cam_nodding_arg, n_cams)
+    cam_eyeline = _parse_cam_nodding(cam_eyeline_arg, n_cams)   # gleiches Format: true/false je Kamera
 
     src_hash = hashlib.md5(str(folder).encode()).hexdigest()[:12]
     work_dir = Path(f"/tmp/resolve-toolkit/{src_hash}")
@@ -1199,6 +1267,17 @@ def run_pipeline(folder, fps, params, output_path,
     # nie kaputt machen — die AAF steht bereits.
     # Zwei Fassungen: Premiere (Clipnamen am Clip, eine Quelle je Kamera) und Resolve
     # (zeigt den Quellnamen → eine Quelle je Kamera+Clipname, wie der AAF-Resolve-Modus).
+    eyeline_plan, eyeline_info = None, None
+    if eyeline_on:
+        next_step("Eyeline", "eyeline")
+        try:
+            eyeline_plan, eyeline_info = _eyeline_plan(
+                cam_paths, cam_types, cam_eyeline, cam_mic_map, wide_zoom, fps, work_dir, params,
+                cam_person_names)
+        except Exception as e:
+            warning(message=f"Eyeline übersprungen (XML ohne Anpassung): {e}")
+            eyeline_plan = None
+
     xml_paths = {}
     try:
         from modules.multicam_cutter.build_xml import build_xml
@@ -1208,10 +1287,18 @@ def run_pipeline(folder, fps, params, output_path,
                 fps=fps, output=output_path.with_name(f"{output_path.stem}.{ziel}.xml"),
                 cam_types=cam_types, wide_zoom=wide_zoom, trimmed_events=trimmed_events,
                 cam_person_names=cam_person_names, titel=output_path.stem,
-                clip_name_pattern=clip_name_pattern, ziel=ziel,
+                clip_name_pattern=clip_name_pattern, ziel=ziel, eyeline=eyeline_plan,
             )
     except Exception as e:
         warning(message=f"XML-Export fehlgeschlagen (AAF ist da): {e}")
+    if eyeline_plan is not None and eyeline_info is not None:
+        eyeline_info["kameras"] = [
+            {**eyeline_info["namen"][c], **werte}
+            for c, werte in sorted(eyeline_plan.zusammenfassung().items())]
+        eyeline_info.pop("namen", None)
+        for k in eyeline_info["kameras"]:
+            print(f"  Eyeline {k['name']}: Skalierung Median {k['median']:.1f} %, max {k['max']:.1f} %"
+                  f" ({k['gedeckelt']} gedeckelt, {k['angeschnitten']} wegen Anschnitt unverändert)")
 
     emit("step_progress", percent=100, eta="")
 
@@ -1223,6 +1310,7 @@ def run_pipeline(folder, fps, params, output_path,
         "xml": str(xml_paths.get("premiere", "")),
         "xml_resolve": str(xml_paths.get("resolve", "")),
         "edl": str(final_edl),
+        **({"eyeline": eyeline_info} if eyeline_plan is not None and eyeline_info else {}),
         "work_dir": str(work_dir),
     }
 
@@ -1284,6 +1372,8 @@ def main():
     parser.add_argument("--cam-mics", nargs="+", default=None)
     parser.add_argument("--cam-types", nargs="+", default=None)
     parser.add_argument("--cam-nodding", nargs="+", default=None)
+    parser.add_argument("--cam-eyeline", nargs="+", default=None,
+                        help="Eyeline-Abgleich je Kamera (true/false), positionsgleich zu --cams")
     parser.add_argument("--join-groups", default=None,
                         help="--scan: JSON-Liste von Dateinamen-Listen, die als EINE "
                              "Aufnahme gelten (manuell, ueberstimmt die Erkennung)")
@@ -1522,6 +1612,7 @@ def main():
             cam_person_names=cam_person_names,
             clip_name_pattern=args.clip_name_pattern,
             manual_offsets=manual_offsets,
+            cam_eyeline_arg=args.cam_eyeline,
         )
         elapsed = time.time() - t_start
         stats["elapsed_s"] = round(elapsed, 1)

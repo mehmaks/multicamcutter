@@ -54,14 +54,30 @@ def _url(path) -> str:
     return "file://localhost" + quote(str(Path(path).resolve()))
 
 
+def _motion_filter(skalierung: float, vert: float) -> str:
+    """Basic Motion mit Skalierung (Faktor) und vertikaler Verschiebung (Bildhöhen-Anteil,
+    + = nach unten; in Premiere und Resolve gleich gedeutet, kalibriert 23.11.)."""
+    return ("<filter><effect><name>Basic Motion</name><effectid>basic</effectid>"
+            "<effectcategory>motion</effectcategory><effecttype>motion</effecttype>"
+            "<mediatype>video</mediatype><parameter><parameterid>scale</parameterid>"
+            f"<name>Scale</name><valuemin>0</valuemin><valuemax>1000</valuemax>"
+            f"<value>{skalierung * 100:.2f}</value></parameter><parameter><parameterid>center"
+            f"</parameterid><name>Center</name><value><horiz>0</horiz><vert>{vert:.5f}</vert>"
+            "</value></parameter></effect></filter>")
+
+
 def build_xml(cam_paths: list, mic_paths: list, offsets: dict, edl_path: Path, fps: float,
               output: Path, cam_types: list = None, wide_zoom: float = 1.0,
               trimmed_events: list = None, cam_person_names: list = None,
-              titel: str = None, clip_name_pattern: str = None, ziel: str = "premiere") -> Path:
+              titel: str = None, clip_name_pattern: str = None, ziel: str = "premiere",
+              eyeline=None) -> Path:
     """ziel="premiere": eine <file> je Kamera, Clipnamen am <clipitem> (Premiere zeigt sie,
     ohne zusätzliche Bin-Einträge). ziel="resolve": Resolve zeigt am Timeline-Clip den Namen
     der Quelle, nicht den des <clipitem> → bei aktivem Muster eine <file> je (Kamera,
-    Clipname), wie die grund-benannten MasterMobs im AAF-Resolve-Modus."""
+    Clipname), wie die grund-benannten MasterMobs im AAF-Resolve-Modus.
+
+    `eyeline`: optional ein `eyeline.EyelinePlan` — dann bekommt jeder Video-Clip eigene
+    Skalierung/Position (Augenlinie), Totalen-Zoom inklusive. Nur XML, die AAF bleibt."""
     events = trimmed_events if trimmed_events is not None else _parse_edl(Path(edl_path), cam_paths, fps)
     if not events:
         raise RuntimeError("Keine Cut-Events — XML-Export abgebrochen")
@@ -158,16 +174,30 @@ def build_xml(cam_paths: list, mic_paths: list, offsets: dict, edl_path: Path, f
             cname = namen.name(j, ev.get("cut_reason") or "speaker") if j == c else namen.name(j, "speaker")
             _, fdef, fdur = datei(cp, "video", cname if je_grund_eigene_quelle else None)
             v_spuren[j].append(
-                f'<clipitem id="{neue_id("clip")}"><name>{escape(cname)}</name>'
-                f'<enabled>{"TRUE" if j == c else "FALSE"}</enabled><duration>{fdur}</duration>{rate}'
-                f"<start>{rec}</start><end>{rec + dur}</end><in>{s}</in><out>{s + dur}</out>{fdef}"
-                + (zoom_filter if zoom and j in wide else "") + "</clipitem>")
+                (f'<clipitem id="{neue_id("clip")}"><name>{escape(cname)}</name>'
+                 f'<enabled>{"TRUE" if j == c else "FALSE"}</enabled><duration>{fdur}</duration>{rate}'
+                 f"<start>{rec}</start><end>{rec + dur}</end><in>{s}</in><out>{s + dur}</out>{fdef}",
+                 j, s, s + dur, j == c))
         if laeufe and laeufe[-1][0] + laeufe[-1][2] == rec and laeufe[-1][1] + laeufe[-1][2] == a:
             laeufe[-1][2] += dur
         else:
             laeufe.append([rec, a, dur])
         rec += dur
     gesamt = rec
+
+    # Filter erst jetzt: die Eyeline-Ziel-Linie braucht alle aktiven Clips
+    if eyeline is not None:
+        eyeline.festlegen([(j, a, b) for sp in v_spuren for _, j, a, b, akt in sp if akt])
+
+    def bewegungs_filter(j, a, b, akt):
+        if eyeline is not None:
+            bw = eyeline.bewegung(j, a, b, aktiv=akt)
+            if bw is not None:
+                return _motion_filter(bw[0], bw[1])
+        return zoom_filter if zoom and j in wide else ""
+
+    v_spuren = [[kopf + bewegungs_filter(j, a, b, akt) + "</clipitem>" for kopf, j, a, b, akt in sp]
+                for sp in v_spuren]
 
     # ── Ton: eine Spur je Mikro, Clips je zusammenhängendem Bereich ──────────
     def teile(mp):

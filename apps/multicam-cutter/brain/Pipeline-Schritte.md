@@ -15,12 +15,17 @@
 | N+1 | cutaways | PASS 2-5 (Cutaway-Einfuegung, CLIP-Filter) | 30-120s |
 | N+2 | pause_trim | Pause-Trimming | <1s |
 | N+3 | aaf_export | AAF-Generierung | 1-3s |
+| (N+4) | eyeline | nur mit Kachel „Augenlinie“: Augenhöhe in den aktiven Clips nachmessen + Plan je Clip für die XML (siehe Dateiformate.md → Mehrspur-XML) | wenige min |
 
 Nodding ist ~80% der Gesamtzeit. Bei 2 Cams a 90 Min: ~20 Min total.
 
 **Vorschaubild der Reaktionsanalyse (20.11.):** alle 5 s ein JPEG für die App. Standard =
 nacktes Kamerabild; Gesichtsgitter, erkannte Reaktionen und Dateiname nur mit dem
 Debug-Schalter `preview_overlay` (Experteneinstellungen → Debug).
+
+**Eyeline-Proben (23.11.):** Mit `eyeline_enabled` schreibt die Reaktionsanalyse zusätzlich
+`<cam>_eyeline.json` (`--eyeline-out`: Augen aller Gesichter etwa einmal je Sekunde, aus dem
+ohnehin vorhandenen Landmarker-Ergebnis, kostenlos). Die Lücken misst der Schritt `eyeline`.
 
 **Analysespur (Schritt 2a; nur binärer Pfad, genau ein Mikro je Kamera; läuft, sobald
 Sprachreaktionen, Pausen kürzen ODER Pausen-Cutaways an sind):** Nach der Basis-EDL (vor `cutaways`) rechnet

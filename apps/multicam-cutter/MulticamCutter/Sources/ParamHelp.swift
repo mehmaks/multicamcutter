@@ -24,6 +24,7 @@ enum ParamHelp {
     static let minConf = "How confident the detection has to be before a head nod is used as a cut."
     static let speakingEnabled = "Detects brief interjections or sounds from a person who isn't the active speaker and cuts to them at that moment."
     static let speakingMaxDur = "Longest sound that still counts as an interjection — anything longer is treated as speaking. How long the cutaway itself lasts is set under Cutaway rules → Cutaway length."
+    static let eyelineMaxScale = "How far a clip may be enlarged at most to align the eyeline. Whether that costs visible quality depends on your footage and timeline resolution — you know that best."
     static let previewOverlay = "Shows the face mesh, the detected reactions and the file name in the preview image during the analysis. Only for checking the detection — it has no effect on the cut."
     static let noddingPatternMinConf = "How sure the detection has to be for this kind of head movement before it becomes a cutaway. Above 100 % the pattern is not used at all."
     static let noddingCooldownS = "At least this much time lies between two head-nod cutaways on the same person. 0 = every detected nod can be used."

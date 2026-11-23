@@ -131,6 +131,14 @@ enum Stufen {
                     ]),
             ],
             nurMitTotale: true),
+        // Augenlinie (User 23.11.): nur An/Aus — wie weit vergrößert werden darf, hängt
+        // vom Material ab (Expertenwert in der Kachel). Wirkt nur im XML-Export.
+        StufenKategorie(
+            id: "augenlinie", titel: "Eyeline",
+            hilfe: "In the XML export, every clip is enlarged and shifted slightly so that all speakers' eyes sit at the same height. The AAF stays unchanged.",
+            piktogramm: "piktogramm-augenlinie",
+            anSchluessel: ["eyeline_enabled"], ausWerte: ["eyeline_enabled": false], fest: [:],
+            regler: []),
     ]
 
     // MARK: Logik
@@ -354,6 +362,9 @@ extension Stufen {
             case 2: saetze.append(loc("The wide shot is used often."))
             default: break
             }
+        }
+        if p.eyelineEnabled {
+            saetze.append(loc("In the XML export, all speakers share one eyeline."))
         }
         return saetze.joined(separator: " ")
     }

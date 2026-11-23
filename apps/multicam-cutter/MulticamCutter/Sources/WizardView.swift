@@ -1019,11 +1019,38 @@ struct CamSummaryRow: View {
             Text(cam.displayName).font(.system(.caption, design: .monospaced)).frame(width: 96, alignment: .leading)
             Text(who.isEmpty ? "—" : who).font(.caption).foregroundStyle(.wizMuted)
                 .lineLimit(1).frame(maxWidth: .infinity, alignment: .leading)
+            // Eyeline je Kamera abwählbar (z. B. Totale, die sonst angeschnitten würde) —
+            // nur sichtbar, wenn der Abgleich in den Experteneinstellungen an ist.
+            if engine.params.eyelineEnabled && role != .unused {
+                eyelineSchalter
+            }
             rolePill(role)
         }
         .padding(.horizontal, 12).padding(.vertical, 9)
         .background(Color.wizSurface, in: RoundedRectangle(cornerRadius: 9))
         .overlay(RoundedRectangle(cornerRadius: 9).stroke(Color.wizBorder, lineWidth: 1))
+    }
+
+    private var eyelineSchalter: some View {
+        let an = engine.cameraInfos.first { $0.id == cam.id }?.eyeline ?? true
+        return Button {
+            if let i = engine.cameraInfos.firstIndex(where: { $0.id == cam.id }) {
+                engine.cameraInfos[i].eyeline.toggle()
+                engine.saveSession()
+            }
+        } label: {
+            HStack(spacing: 4) {
+                LucideIcon(an ? "eye" : "eye-off", size: 11)
+                Text("Eyeline").font(.caption2.weight(.semibold))
+            }
+            .padding(.horizontal, 8).padding(.vertical, 2)
+            .foregroundStyle(an ? Color.brandAccent : Color.wizFaint)
+            .background(an ? Color.brandAccent.opacity(0.16) : Color.clear, in: Capsule())
+            .overlay(Capsule().stroke(an ? Color.clear : Color.wizBorder, lineWidth: 1))
+        }
+        .buttonStyle(.plain)
+        .help(an ? loc("This camera is aligned to the common eyeline in the XML export. Click to leave it unchanged.")
+                 : loc("This camera stays unchanged in the XML export. Click to align it to the common eyeline."))
     }
 
     @ViewBuilder private func rolePill(_ role: EngineController.CamRole) -> some View {

@@ -1,0 +1,28 @@
+<svg viewBox="0 0 1024 1024" xmlns="http://www.w3.org/2000/svg" width="1024" height="1024">
+  <title>Two framed characters sharing one eyeline</title>
+  <g fill="none" stroke="#C6F24E" stroke-linecap="round" stroke-linejoin="round">
+    <rect x="64" y="232" width="420" height="560" rx="72" stroke-width="14" />
+    <rect x="540" y="232" width="420" height="560" rx="72" stroke-width="14" />
+    <g id="links">
+      <path d="M176 446C160 380 196 330 248 322C276 296 330 302 352 330C386 346 392 392 376 440C362 414 340 398 312 394L322 418C292 418 266 404 250 384C236 410 210 428 186 434Z" fill="#C6F24E" stroke="none" />
+      <circle cx="274" cy="452" r="104" stroke-width="24" />
+      <path d="M168 792C172 668 222 612 274 612C326 612 376 668 380 792Z" fill="#C6F24E" stroke="none" />
+      <g fill="#C6F24E" stroke="none">
+        <circle cx="238" cy="440" r="15" />
+        <circle cx="310" cy="440" r="15" />
+      </g>
+      <path d="M246 500C262 516 286 516 302 500" stroke-width="16" />
+    </g>
+    <g id="rechts">
+      <path d="M622 548C602 430 640 334 750 334C860 334 898 430 878 548C866 556 852 548 850 532L848 436C806 430 770 412 750 388C732 412 694 430 652 436L650 532C648 548 634 556 622 548Z" fill="#C6F24E" stroke="none" />
+      <circle cx="750" cy="466" r="124" stroke-width="24" />
+      <path d="M626 792C632 660 692 618 750 618C808 618 868 660 874 792Z" fill="#C6F24E" stroke="none" />
+      <g fill="#C6F24E" stroke="none">
+        <circle cx="706" cy="440" r="17" />
+        <circle cx="794" cy="440" r="17" />
+      </g>
+      <path d="M716 516C736 534 764 534 784 516" stroke-width="17" />
+    </g>
+    <path id="augenlinie" d="M24 440H1000" stroke-width="10" stroke-dasharray="34 26" />
+  </g>
+</svg>

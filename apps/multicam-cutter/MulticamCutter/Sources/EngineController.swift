@@ -46,8 +46,20 @@ struct CameraInfo: Identifiable, Hashable {
     var included: Bool = true
     /// Source-FPS aus dem Scan (ffprobe r_frame_rate). 0 = nicht lesbar.
     var fps: Double = 0
+    /// Nimmt am Eyeline-Abgleich des XML-Exports teil (nur wirksam, wenn der Abgleich an
+    /// ist). Aus z. B. für eine Totale, die beim Verschieben Personen anschneiden würde.
+    var eyeline: Bool = true
     func hash(into hasher: inout Hasher) { hasher.combine(id) }
     static func == (lhs: CameraInfo, rhs: CameraInfo) -> Bool { lhs.id == rhs.id }
+}
+
+/// Eyeline-Zusammenfassung je Kamera (Skalierung in %, über die aktiven Clips).
+struct EyelineErgebnis: Hashable {
+    let name: String
+    let median: Double
+    let max: Double
+    let gedeckelt: Int
+    let angeschnitten: Int
 }
 
 struct MicInfo: Identifiable, Hashable {
@@ -138,6 +150,10 @@ struct PipelineParams: Equatable {
     var speakingIgnoreMinShot: Bool = false
     /// Debug: Gesichtsgitter, erkannte Reaktionen und Dateiname im Vorschaubild.
     var previewOverlay: Bool = false
+    /// Eyeline-Abgleich (nur XML): Skalierung/Position je Clip, damit alle Sprecher auf
+    /// einer Augenlinie liegen. Obergrenze der Vergrößerung als Faktor.
+    var eyelineEnabled: Bool = false
+    var eyelineMaxScale: Double = 1.15
     // Slider-Bausteine (Stufen-Ansicht): Schnittabstand je Cutaway-Typ, Konfidenz je
     // Nick-Muster (> 1 = Muster aus), Strenge der Einwurf-Erkennung auf der Analysespur.
     // Standardwerte = bisheriges Verhalten.
@@ -215,6 +231,8 @@ struct PipelineParams: Equatable {
             "speaking_priority": speakingPriority,
             "speaking_ignore_min_shot": speakingIgnoreMinShot,
             "preview_overlay": previewOverlay,
+            "eyeline_enabled": eyelineEnabled,
+            "eyeline_max_scale": eyelineMaxScale,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
             "nodding_pattern_min_conf": noddingPatternMinConf,
@@ -256,6 +274,8 @@ struct PipelineParams: Equatable {
             "speaking_priority": speakingPriority,
             "speaking_ignore_min_shot": speakingIgnoreMinShot,
             "preview_overlay": previewOverlay,
+            "eyeline_enabled": eyelineEnabled,
+            "eyeline_max_scale": eyelineMaxScale,
             "nodding_cooldown_s": noddingCooldownS,
             "speaking_cooldown_s": speakingCooldownS,
             "nodding_pattern_min_conf": noddingPatternMinConf,
@@ -299,6 +319,8 @@ struct PipelineParams: Equatable {
         if let v = dict["speaking_priority"] as? Bool { speakingPriority = v }
         if let v = dict["speaking_ignore_min_shot"] as? Bool { speakingIgnoreMinShot = v }
         if let v = dict["preview_overlay"] as? Bool { previewOverlay = v }
+        if let v = dict["eyeline_enabled"] as? Bool { eyelineEnabled = v }
+        if let v = dict["eyeline_max_scale"] as? Double { eyelineMaxScale = v }
         if let v = dict["nodding_cooldown_s"] as? Double { noddingCooldownS = v }
         if let v = dict["speaking_cooldown_s"] as? Double { speakingCooldownS = v }
         if let v = dict["nodding_pattern_min_conf"] as? [String: Double] { noddingPatternMinConf = v }
@@ -555,6 +577,8 @@ class EngineController: ObservableObject {
     @Published var resultXML: String?
     /// Resolve-Fassung der XML (eigene Quelle je Kamera+Clipname, damit Resolve die Namen zeigt).
     @Published var resultXMLResolve: String?
+    /// Eyeline-Abgleich des letzten Laufs je Kamera (leer = aus oder nicht gelaufen).
+    @Published var resultEyeline: [EyelineErgebnis] = []
     /// Zuletzt exportierte Datei (für „Im Finder zeigen").
     @Published var exportiertePfad: String?
     @Published var resultStats: [String: String]?
@@ -959,7 +983,8 @@ class EngineController: ObservableObject {
             "fps": fps,
             "cameras": cameraInfos.map { cam in
                 ["id": cam.id, "filename": cam.filename, "display_name": cam.displayName,
-                 "assigned_mics": cam.assignedMics, "included": cam.included] as [String: Any]
+                 "assigned_mics": cam.assignedMics, "included": cam.included,
+                 "eyeline": cam.eyeline] as [String: Any]
             },
             "mics": micInfos.map { mic in
                 ["id": mic.id, "filename": mic.filename, "display_name": mic.displayName,
@@ -1077,6 +1102,9 @@ class EngineController: ObservableObject {
                 if let included = saved["included"] as? Bool {
                     cameraInfos[idx].included = included
                 }
+                if let eyeline = saved["eyeline"] as? Bool {
+                    cameraInfos[idx].eyeline = eyeline
+                }
             }
         }
 
@@ -1144,6 +1172,7 @@ class EngineController: ObservableObject {
         resultAAF = nil
         resultXML = nil
         resultXMLResolve = nil
+        resultEyeline = []
         exportiertePfad = nil
         resultStats = nil
 
@@ -2189,6 +2218,9 @@ class EngineController: ObservableObject {
         let roles = camRoles()
         let camTypes = ordered.map { roles[$0.id] == .wide ? "wide" : "close" }
         extraArgs += ["--cam-types"] + camTypes
+        if params.eyelineEnabled {
+            extraArgs += ["--cam-eyeline"] + ordered.map { $0.eyeline ? "true" : "false" }
+        }
         let displayNames = ordered.map { $0.displayName }
         if let namesData = try? JSONSerialization.data(withJSONObject: displayNames),
            let namesStr = String(data: namesData, encoding: .utf8) {
@@ -2378,6 +2410,16 @@ class EngineController: ObservableObject {
             }
             if let xml = json["xml_resolve"] as? String, !xml.isEmpty {
                 resultXMLResolve = xml
+            }
+            if let ey = json["eyeline"] as? [String: Any], let kams = ey["kameras"] as? [[String: Any]] {
+                resultEyeline = kams.compactMap { k in
+                    guard let name = k["name"] as? String,
+                          let median = (k["median"] as? NSNumber)?.doubleValue,
+                          let maxi = (k["max"] as? NSNumber)?.doubleValue else { return nil }
+                    return EyelineErgebnis(name: name, median: median, max: maxi,
+                                           gedeckelt: (k["gedeckelt"] as? Int) ?? 0,
+                                           angeschnitten: (k["angeschnitten"] as? Int) ?? 0)
+                }
             }
             var stats: [String: String] = [:]
             if let total = json["events_total"] as? Int {

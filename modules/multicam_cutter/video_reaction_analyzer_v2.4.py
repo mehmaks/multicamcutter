@@ -760,7 +760,7 @@ def _write_preview_frame(frame, detector, reactions, cam_label: str, preview_pat
 # auto_accuracy: OBSOLET — wird nur durchgereicht, hat keinen Effekt mehr.
 def analyze_video(video_path, output_json=None, sensitivity='medium', show_preview=False,
                   params=None, off_sections=None, preview_path=None, auto_accuracy=False,
-                  lut_path=None, mouth_out=None):
+                  lut_path=None, mouth_out=None, eyeline_out=None):
     """
     Analysiert Video auf Reaktionen
 
@@ -923,6 +923,27 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
     # vorhandenen FaceLandmarker-Ergebnis. Nur bei genau EINEM Gesicht — bei
     # mehreren ist unklar, wessen Mund gemeint ist.
     _mouth_frames, _mouth_gap = [], []
+
+    # Eyeline (XML-Export, siehe eyeline.py): etwa einmal je Sekunde die Augen aller
+    # Gesichter aus dem ohnehin vorhandenen Ergebnis — kostet keine Rechenzeit.
+    _eye_samples = []
+    _eye_step = max(1, int(round(fps)))
+    def _rec_eye(fnum):
+        if not eyeline_out or fnum % _eye_step:
+            return
+        res = detector._last_result
+        if res is None:
+            return
+        # Augenmitte = Mittel aus äußerem/innerem Lidwinkel je Auge (wie eyeline.py;
+        # hier inline, weil der Analyzer im Bundle per runpy ohne Paket läuft)
+        gs = []
+        for g in res.face_landmarks or []:
+            lx, ly = (g[33].x + g[133].x) / 2, (g[33].y + g[133].y) / 2
+            rx, ry = (g[362].x + g[263].x) / 2, (g[362].y + g[263].y) / 2
+            gs.append([round((lx + rx) / 2, 4), round((ly + ry) / 2, 4),
+                       round(float(np.hypot((rx - lx) * frame_w, (ry - ly) * frame_h) / frame_h), 4)])
+        _eye_samples.append([int(fnum), gs])
+
     def _rec_mouth(fnum):
         if not mouth_out:
             return
@@ -982,6 +1003,7 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
                 frame = np.frombuffer(raw, dtype=np.uint8).reshape((frame_h, frame_w, 3))
                 reactions = detector.analyze_frame(frame, actual_frame)
                 _rec_mouth(actual_frame)
+                _rec_eye(actual_frame)
                 _collect_reactions(reactions, actual_frame)
                 sec_face_counts.append(reactions['face_count'])
                 local   += 1
@@ -1023,6 +1045,7 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
             frame = np.frombuffer(raw, dtype=np.uint8).reshape((frame_h, frame_w, 3))
             reactions = detector.analyze_frame(frame, frame_number)
             _rec_mouth(frame_number)
+            _rec_eye(frame_number)
             _collect_reactions(reactions, frame_number)
             all_face_counts.append(reactions['face_count'])
 
@@ -1100,6 +1123,11 @@ def analyze_video(video_path, output_json=None, sensitivity='medium', show_previ
         _ok = int(np.sum(np.isfinite(_mouth_gap))) if _mouth_gap else 0
         print(f"✓ Mund-Daten: {_ok}/{len(_mouth_gap)} Bilder mit Gesicht → {mouth_out}")
 
+    if eyeline_out:
+        Path(eyeline_out).write_text(json.dumps({'fps': fps, 'samples': _eye_samples}),
+                                     encoding='utf-8')
+        print(f"✓ Eyeline-Proben: {len(_eye_samples)} → {eyeline_out}")
+
     # JSON exportieren
     if output_json:
         output_data = {
@@ -1141,6 +1169,8 @@ def main():
                         help='Maximale Anzahl gleichzeitig erkannter Gesichter pro Frame. '
                              'Überschreibt params.max_faces (Default 1). '
                              'Typisch von run_from_bin.py pro Cam aus der MIC-Zuordnung abgeleitet.')
+    parser.add_argument('--eyeline-out', default=None,
+                        help='Augenhöhen-Proben (~1/s) als JSON für den Eyeline-Abgleich')
     parser.add_argument('--mouth-out', default=None,
                         help='Lippenabstand je analysiertem Bild als .npz speichern '
                              '(Beta „Mund + Mikro", gelesen von mouth_reactions.py)')
@@ -1191,6 +1221,7 @@ def main():
         auto_accuracy=args.auto_accuracy,
         lut_path=args.lut,
         mouth_out=args.mouth_out,
+        eyeline_out=args.eyeline_out,
     )
     
     if reactions is not None:

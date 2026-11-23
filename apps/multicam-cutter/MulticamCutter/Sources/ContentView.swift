@@ -787,6 +787,27 @@ struct ResultView: View {
                 }
             }
 
+            // Eyeline (nur XML): wie stark jede Kamera angepasst wurde — damit man vor dem
+            // Import sieht, ob die Vergrößerung zu viel ist.
+            if !engine.resultEyeline.isEmpty {
+                GroupBox("Eyeline (XML only)") {
+                    Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {
+                        ForEach(engine.resultEyeline, id: \.self) { e in
+                            GridRow {
+                                Text(e.name).foregroundStyle(.secondary)
+                                Text(String(format: loc("usually %.0f %%, at most %.0f %%"), e.median, e.max))
+                                if e.gedeckelt + e.angeschnitten > 0 {
+                                    Text(String(format: loc("%d clips not fully aligned"),
+                                                e.gedeckelt + e.angeschnitten))
+                                        .font(.caption).foregroundStyle(.secondary)
+                                }
+                            }
+                        }
+                    }
+                    .padding(8)
+                }
+            }
+
             if let stats = engine.resultStats {
                 GroupBox("Statistics") {
                     Grid(alignment: .leading, horizontalSpacing: 16, verticalSpacing: 4) {

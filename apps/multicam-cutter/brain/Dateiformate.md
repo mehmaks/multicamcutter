@@ -25,7 +25,7 @@ kaemen kuenftig an der **Person**, nicht an der Cam.
   "cameras": [
     {"id": 0, "filename": "C9732.MP4", "display_name": "Cam Gast", "assigned_mics": [1], "included": true, "is_wide": false},
     {"id": 1, "filename": "jena_0003.MP4", "display_name": "Cam Seb", "assigned_mics": [0], "included": true, "is_wide": false},
-    {"id": 2, "filename": "wide.MP4", "display_name": "Totale", "assigned_mics": [], "included": true, "is_wide": true}
+    {"id": 2, "filename": "wide.MP4", "display_name": "Totale", "assigned_mics": [], "included": true, "is_wide": true, "eyeline": false}
   ],
   "mics": [
     {"id": 0, "filename": "MIC1.WAV", "display_name": "Mic Seb", "included": true},
@@ -278,3 +278,17 @@ Resolve nicht). Zoom der Totale als „Basic Motion"-Filter. Fehler → Warnung,
 exportieren" / „Für Premiere Pro exportieren" (dieselbe XML, Namenszusatz „(Resolve)" bzw.
 „(Premiere)") und „Als AAF exportieren"; erst der Klick kopiert in den Folgenordner
 (gleichnamige Datei wird ersetzt) und zeigt sie im Finder.
+
+**Augenlinie (seit 23.11., Kachel „Augenlinie", `eyeline_enabled`):** `modules/multicam_cutter/eyeline.py`
+gibt jedem Video-Clip (aktiv UND deaktiviert) einen Basic-Motion-Filter mit Skalierung +
+`center/vert`. Einheiten kalibriert in Premiere UND Resolve: `vert 0.1` = 10 % der Bildhöhe
+nach unten (`horiz` analog Breite, nach rechts). Ziel-Linie T einmal je Folge fest (minimiert
+die mittlere Vergrößerung über die aktiven Clips, alle Kameras dürfen wandern); jeder Clip
+wird gegen T gerechnet (Median seiner Augenhöhe), nie gegen den Nachbarn. Deckel
+`eyeline_max_scale` (Standard 1,15), Unterschiede < 1 % bleiben unangetastet, droht ein
+Gesicht angeschnitten zu werden, bleibt der Clip unverändert. Kamera abwählbar
+(`.multicam` → `cameras[].eyeline`, Engine `--cam-eyeline`). Proben: Reaktionsanalyse
+(`<stem>_eyeline.json`, ~1/s in Off-Sektionen) + Nachmessung in den aktiven Clips
+(`<stem>_eyeline_luecken.json`, alle 4 s, Cache im Arbeitsordner). Ergebnis-Feld `eyeline`
+(`kameras: [{name, datei, median, max, gedeckelt, angeschnitten, clips}]`). Die AAF bleibt
+unangepasst.

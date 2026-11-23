@@ -448,6 +448,16 @@
 "Debug" = "Debug";
 "Analysis overlays" = "Analyse-Einblendungen";
 "Shows the face mesh, the detected reactions and the file name in the preview image during the analysis. Only for checking the detection — it has no effect on the cut." = "Zeigt während der Analyse das Gesichtsgitter, die erkannten Reaktionen und den Dateinamen im Vorschaubild. Nur zum Prüfen der Erkennung – auf den Schnitt hat das keinen Einfluss.";
+"Max. enlargement" = "Max. Vergrößerung";
+"How far a clip may be enlarged at most to align the eyeline. Whether that costs visible quality depends on your footage and timeline resolution — you know that best." = "Wie weit ein Clip höchstens vergrößert werden darf, um die Augenlinie anzugleichen. Ob das sichtbar Qualität kostet, hängt von deinem Material und der Auflösung deiner Timeline ab – das weißt du am besten.";
+"Eyeline" = "Augenlinie";
+"In the XML export, every clip is enlarged and shifted slightly so that all speakers' eyes sit at the same height. The AAF stays unchanged." = "Im XML-Export wird jeder Clip leicht vergrößert und verschoben, damit die Augen aller Sprecher auf derselben Höhe liegen. Die AAF bleibt unverändert.";
+"In the XML export, all speakers share one eyeline." = "Im XML-Export teilen sich alle Sprecher eine Augenlinie.";
+"This camera is aligned to the common eyeline in the XML export. Click to leave it unchanged." = "Diese Kamera wird im XML-Export an die gemeinsame Augenlinie angeglichen. Klicken, um sie unverändert zu lassen.";
+"This camera stays unchanged in the XML export. Click to align it to the common eyeline." = "Diese Kamera bleibt im XML-Export unverändert. Klicken, um sie an die gemeinsame Augenlinie anzugleichen.";
+"Eyeline (XML only)" = "Augenlinie (nur XML)";
+"usually %.0f %%, at most %.0f %%" = "meist %.0f %%, höchstens %.0f %%";
+"%d clips not fully aligned" = "%d Clips nicht ganz angeglichen";
 
 /* Barrierefreiheit Fortschrittsbalken */
 "Progress" = "Fortschritt";

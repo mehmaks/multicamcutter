@@ -848,6 +848,9 @@ def run_analysis(cam_paths: list, mic_paths: list, offsets: dict,
             args_list = [analyzer, cp, '--output', str(json_out), '--params', str(cam_params)]
             if wants_mouth:
                 args_list += ['--mouth-out', str(mouth_npz[cp])]
+            if params.get('eyeline_enabled', False):
+                # Augenhöhen-Proben fallen hier kostenlos mit an (XML-Eyeline, eyeline.py)
+                args_list += ['--eyeline-out', str(work_dir / (Path(cp).stem + '_eyeline.json'))]
             off_sec = off_sections_map.get(cp)
             if off_sec and off_sec.exists():
                 args_list += ['--off-sections', str(off_sec)]

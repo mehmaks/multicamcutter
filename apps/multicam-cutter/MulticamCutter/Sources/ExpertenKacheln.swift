@@ -23,11 +23,20 @@ struct ExpertenInhalt: View {
             case "sprachreaktionen": sprachreaktionen
             case "pausen": pausen
             case "totale": totale
+            case "augenlinie": augenlinie
             default: EmptyView()
             }
         }
         .environment(\.wizKompakt, true)
         .task { if kategorieId == "kopfnicken" { await musterLaden() } }
+    }
+
+    @ViewBuilder private var augenlinie: some View {
+        WizSlider("Max. enlargement", Binding(
+            get: { engine.params.eyelineMaxScale * 100 },
+            set: { engine.params.eyelineMaxScale = $0.rounded() / 100 }),
+                  100...140, suffix: " %", format: "%.0f", help: ParamHelp.eyelineMaxScale)
+            .wert("eyeline_max_scale", engine)
     }
 
     private func musterLaden() async {

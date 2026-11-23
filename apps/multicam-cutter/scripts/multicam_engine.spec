@@ -22,6 +22,7 @@ hidden_imports = [
     'modules.multicam_cutter.build_aaf',
     'modules.multicam_cutter.build_xml',
     'modules.multicam_cutter.clipnamen',
+    'modules.multicam_cutter.eyeline',
     'modules.multicam_cutter.add_reactions_to_edl',
     'modules.multicam_cutter.build_base_edl_from_audio',
     'modules.multicam_cutter.video_reaction_analyzer_v2_4',
