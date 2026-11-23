@@ -2,14 +2,6 @@
 
 ## OFFEN
 
-### Fenster während der Analyse wieder skalierbar — FIX EINGEBAUT (23.11.), Abnahme offen
-- **Symptom:** Im Lauf ließ sich das Fenster wieder aufziehen (seit dem Farbwechsel-Balken).
-- **Vermutete Ursache:** Der Balken zeichnet per `TimelineView` ~30×/s neu; SwiftUI setzt
-  dabei `.resizable`/Größen-Grenzen zurück. Der Sperr-Timer lief im Default-RunLoop-Modus
-  und feuerte während des Randziehens nicht.
-- **Fix (`ContentView.swift`):** Timer in `.common`-Modus; zusätzlich setzt
-  `didResizeNotification` im Lauf jede Größenänderung sofort auf 760×552 zurück.
-
 ### Aufräum-Pass löscht Cutaways, wenn Cutaway-Länge < Cleanup-Mindestlänge — GEFIXT (19.11., beta.4)
 - **Symptom** (User, Folge 62, beta.3): Von 280 Einwurf-Cutaways blieben 164 im Schnitt;
   PASS 3 entfernte 217 Events. Auch Nick-Cutaways betroffen (98 statt 133).
@@ -322,6 +314,14 @@
 - **Workaround**: Expertenmodus → „Ungünstige Cutaways verschieben (CLIP)" AUS.
 
 ## Gefixt
+
+### Fenster während der Analyse wieder skalierbar — GEFIXT (23.11., vom User bestätigt)
+- **Symptom:** Im Lauf ließ sich das Fenster wieder aufziehen (seit dem Farbwechsel-Balken).
+- **Ursache:** Der Balken zeichnet per `TimelineView` ~30×/s neu; SwiftUI setzt
+  dabei `.resizable`/Größen-Grenzen zurück. Der Sperr-Timer lief im Default-RunLoop-Modus
+  und feuerte während des Randziehens nicht.
+- **Fix (`ContentView.swift`):** Timer in `.common`-Modus; zusätzlich setzt
+  `didResizeNotification` im Lauf jede Größenänderung sofort auf 760×552 zurück.
 
 ### Split-Erkennung verbindet Rekorder-Teile nicht, wenn die Naht leise ist — GEFIXT (18.11., Folge 61)
 - **Symptom**: Zoom-H6essential-Aufnahme, 2 Spuren × 2 Teile (`…085955_Tr1/Tr2`,
