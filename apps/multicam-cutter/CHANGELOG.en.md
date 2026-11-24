@@ -4,6 +4,45 @@ User-facing changes per version, English mirror of CHANGELOG.md. Same version
 headings (`## 0.7.0`). English is optional per entry — if a version is missing
 here, the website falls back to the German notes (contract, brain/Appcast-Hosting.md).
 
+## 1.1.0
+
+The first stable version with everything from betas 1.1.0-beta.1 to beta.8. Coming from 1.0.2, here is what changes:
+
+**New: Export for Resolve, Premiere or as AAF**
+
+At the end of an analysis you choose what to export for: “Export for DaVinci Resolve”, “Export for Premiere Pro” or “Export as AAF”. For Resolve and Premiere you get a timeline with every camera on its own track. At each cut only the chosen camera is enabled, so you can easily change single decisions in your editing software. Audio and pause trimming are included just like in the AAF. Important: a run no longer saves a file automatically – only the export button writes it.
+
+**New: Eyeline and golden ratio**
+
+The “Eyeline” tile adjusts the cameras in the export for Resolve and Premiere so that every speaker’s eyes sit at the same height. Each clip is enlarged and shifted slightly, without ever showing a border – at most as far as you allow in the expert settings (default 115 %). With the golden ratio turned on, the eyeline also sits on its upper line, and a person alone in the frame moves onto the left or right line. Single cameras can be excluded. The measurement makes the run longer by roughly a quarter of the time the most-shown camera is on screen. The AAF stays unchanged.
+
+**New: Simple view with tiles**
+
+Tempo, head nods, interjections, pauses and – if there is one – the wide shot each get a tile with a switch and three levels, e.g. “calm · balanced · lively”. “What to expect” describes in plain words what the cut will look like. A switch next to “Settings” shows the expert settings right inside the tiles. Values that differ from the default appear in lilac; double-clicking their name resets them. The built-in presets are gone because the levels take over their role. Your own presets can now be deleted as well.
+
+**New: Many more interjections detected**
+
+The app creates a cleaned-up analysis track for every microphone, with the other person’s voice and the background noise removed. Short interjections like “Mhm” or “Yes” stand out clearly there – in our test episodes this produced three to four times as many interjection cuts as before. Each person needs their own microphone for this; without it the cut runs without interjections and the app tells you. New switches: “Priority over head nods” lets a nod cutaway give way to a following interjection, and “Interjections may shorten shots” uses every detected interjection.
+
+**Improved: Speaker changes and pauses**
+
+Camera changes move into the silence between two people, so the new person is on screen from their first word. A short laugh from the other person no longer triggers a change. With “Trim pauses” and “Cutaways in pauses” both on, long pauses in the middle of someone’s turn are trimmed too. The new “Cut offset” slider sets how far the change moves away from the middle of the pause for an L- or J-cut.
+
+**Fixed: Trimming pauses cut away quiet speech**
+
+When trimming pauses at speaker changes, quiet sentence endings and beginnings – mostly on the quieter microphone – were sometimes cut out as silence, up to almost two seconds. If you cut with “Trim pauses”, re-run the affected episodes.
+
+**Fixed: Cutaways were lost during cleanup**
+
+If the “Cutaway length” was shorter than the “Min. cleanup length”, the final cleanup removed a large share of the interjection and nod cutaways again, about 40 % in one test. A new run gives you considerably more cutaways.
+
+**More changes**
+
+- Beta versions can be subscribed to in the settings under “Updates”.
+- The app remembers your last-used settings for new episodes.
+- During the analysis the window shows a progress bar in changing colours, the people’s names instead of “CAM1”, and no preview image anymore.
+- New app icon.
+
 ## 1.1.0-beta.8
 
 **New: Eyeline in the export for Resolve and Premiere**

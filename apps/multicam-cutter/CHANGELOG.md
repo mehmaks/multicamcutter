@@ -5,6 +5,45 @@ Nutzersichtbare Änderungen je Version. Ein Text pro Version beantwortet die Fra
 Aus diesem Abschnitt werden später die Update-Notizen (Sparkle) und die
 Website-Seite erzeugt.
 
+## 1.1.0
+
+Die erste stabile Version mit allem aus den Betas 1.1.0-beta.1 bis beta.8. Kommst du von 1.0.2, ändert sich Folgendes:
+
+**Neu: Export für Resolve, Premiere oder als AAF**
+
+Am Ende einer Analyse wählst du, wofür du exportieren möchtest: „Für DaVinci Resolve exportieren“, „Für Premiere Pro exportieren“ oder „Als AAF exportieren“. Für Resolve und Premiere entsteht eine Timeline, in der jede Kamera auf einer eigenen Spur liegt. An jedem Schnitt ist nur die gewählte Kamera aktiv, so kannst du einzelne Entscheidungen im Schnittprogramm bequem ändern. Ton und Pausen-Kürzung sind wie bei der AAF enthalten. Wichtig: Nach einem Lauf wird nicht mehr automatisch eine Datei abgelegt – erst der Export-Knopf schreibt sie.
+
+**Neu: Eyeline und goldener Schnitt**
+
+Die Kachel „Eyeline“ gleicht im Export für Resolve und Premiere die Kameras so an, dass die Augen aller Sprecher auf derselben Höhe liegen. Jeder Clip wird dafür leicht vergrößert und verschoben, ohne dass ein Rand entsteht – höchstens so weit, wie du es in den Experteneinstellungen erlaubst (Standard 115 %). Mit dem goldenen Schnitt liegt die Eyeline zusätzlich auf dessen oberer Linie, und eine Person allein im Bild rückt auf die linke oder rechte Linie. Einzelne Kameras lassen sich ausnehmen. Die Messung verlängert den Lauf grob um ein Viertel der Zeit, in der die meistgezeigte Kamera im Bild ist. Die AAF bleibt unverändert.
+
+**Neu: Einfache Ansicht mit Kacheln**
+
+Für Tempo, Kopfnicken, Sprachreaktionen, Pausen und – wenn vorhanden – die Totale gibt es je eine Kachel mit Schalter und drei Stufen, z. B. „ruhig · ausgewogen · lebendig“. „Was dich erwartet“ beschreibt in einfachen Worten, wie der Schnitt aussehen wird. Ein Schalter neben „Einstellungen“ blendet die Experteneinstellungen direkt in den Kacheln ein. Werte, die vom Standard abweichen, erscheinen in Flieder; ein Doppelklick auf ihren Namen setzt sie zurück. Die mitgelieferten Presets entfallen, weil die Stufen ihre Rolle übernehmen. Eigene Presets lassen sich jetzt auch löschen.
+
+**Neu: Viel mehr Einwürfe erkannt**
+
+Die App erstellt für jedes Mikrofon eine bereinigte Analysespur, aus der die Stimme der anderen Person und das Grundrauschen entfernt sind. Kurze Einwürfe wie „Mhm“ oder „Ja“ heben sich dort deutlich ab – in unseren Testfolgen entstanden drei- bis viermal so viele Einwurf-Schnitte wie bisher. Dafür braucht jede Person ein eigenes Mikrofon; fehlt es, läuft der Schnitt ohne Sprachreaktionen, und die App weist darauf hin. Neue Schalter: „Vorrang vor Nicken“ lässt einen Nick-Cutaway einem folgenden Einwurf weichen, und „Einwürfe dürfen Einstellungen verkürzen“ nutzt wirklich alle erkannten Einwürfe.
+
+**Verbessert: Sprecherwechsel und Pausen**
+
+Kamerawechsel rücken in die Stille zwischen zwei Personen, sodass die neue Person ab ihrem ersten Wort im Bild ist. Kurzes Lachen der anderen Person löst keinen Wechsel mehr aus. Sind „Pausen kürzen“ und „Cutaways in Pausen“ an, werden auch lange Pausen mitten in einem Redebeitrag gekürzt. Der neue Regler „Schnittversatz“ legt fest, wie weit der Wechsel beim L- oder J-Cut von der Mitte der Pause abrückt.
+
+**Behoben: Pausen kürzen schnitt leise Sprache weg**
+
+Beim Kürzen von Pausen an Sprecherwechseln wurden leise Satzenden und Satzanfänge – vor allem auf dem leiseren Mikrofon – teils als Stille herausgeschnitten, bis zu knapp zwei Sekunden. Wer mit „Pausen kürzen“ geschnitten hat, sollte betroffene Folgen neu durchlaufen lassen.
+
+**Behoben: Cutaways gingen beim Aufräumen verloren**
+
+War die „Cutaway-Länge“ kürzer als die „Cleanup-Mindestlänge“, entfernte die App beim abschließenden Aufräumen einen großen Teil der Einwurf- und Nick-Cutaways wieder, in einem Test rund 40 %. Mit einem neuen Durchlauf bekommst du deutlich mehr Cutaways.
+
+**Weitere Neuerungen**
+
+- Beta-Versionen lassen sich in den Einstellungen unter „Updates“ abonnieren.
+- Die App merkt sich deine zuletzt genutzten Einstellungen für neue Folgen.
+- Während der Analyse zeigt das Fenster einen Fortschrittsbalken in wechselnden Farben, die Namen der Personen statt „CAM1“ und kein Vorschaubild mehr.
+- Neues App-Icon.
+
 ## 1.1.0-beta.8
 
 **Neu: Eyeline im Export für Resolve und Premiere**
